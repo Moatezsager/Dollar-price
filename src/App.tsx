@@ -13,7 +13,12 @@ import {
   Bell,
   FileText,
   TrendingUp,
-  Globe
+  Globe,
+  Settings2,
+  X,
+  CheckCircle2,
+  AlertCircle,
+  Info
 } from "lucide-react";
 import {
   AreaChart,
@@ -66,7 +71,53 @@ export default function App() {
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [notificationsEnabled, setNotificationsEnabled] = useState(Notification.permission === 'granted');
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const [showNotificationSettings, setShowNotificationSettings] = useState(false);
+  const [notificationThreshold, setNotificationThreshold] = useState(0.01);
+  const [toasts, setToasts] = useState<{ id: string, title: string, body: string, type: 'up' | 'down' | 'info' }[]>([]);
   const reportRef = useRef<HTMLDivElement>(null);
+
+  const addToast = (title: string, body: string, type: 'up' | 'down' | 'info') => {
+    const id = Math.random().toString(36).substring(2, 9);
+    setToasts(prev => [...prev, { id, title, body, type }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 5000);
+  };
+
+  const showPriceNotification = (code: string, name: string, oldPrice: number, newPrice: number) => {
+    const diff = newPrice - oldPrice;
+    const absDiff = Math.abs(diff);
+    
+    // Only notify if change is above threshold
+    if (absDiff < notificationThreshold) return;
+
+    const direction = diff > 0 ? 'ارتفاع' : 'انخفاض';
+    const arrow = diff > 0 ? '📈' : '📉';
+    const title = `${arrow} ${direction} في سعر ${name}`;
+    const body = `السعر الجديد: ${newPrice.toFixed(2)} د.ل (تغير بمقدار ${diff > 0 ? '+' : ''}${diff.toFixed(2)})`;
+
+    // In-app toast
+    addToast(title, body, diff > 0 ? 'up' : 'down');
+
+    // Native notification
+    if (Notification.permission === 'granted') {
+      navigator.serviceWorker.ready.then((registration) => {
+        registration.showNotification(title, {
+          body,
+          icon: 'https://hatscripts.github.io/circle-flags/flags/ly.svg',
+          badge: 'https://hatscripts.github.io/circle-flags/flags/ly.svg',
+          vibrate: [200, 100, 200],
+          tag: `price-change-${code}`,
+          renotify: true,
+          data: { url: window.location.origin },
+          actions: [
+            { action: 'open', title: 'فتح التطبيق' },
+            { action: 'close', title: 'تجاهل' }
+          ]
+        } as any);
+      });
+    }
+  };
 
   const generatePDF = async () => {
     if (!reportRef.current) return;
@@ -111,29 +162,6 @@ export default function App() {
     }
   };
 
-  const showPriceNotification = (code: string, name: string, oldPrice: number, newPrice: number) => {
-    if (Notification.permission !== 'granted') return;
-
-    const diff = newPrice - oldPrice;
-    const arrow = diff > 0 ? '📈' : '📉';
-    const direction = diff > 0 ? 'ارتفاع' : 'انخفاض';
-    
-    const title = `تغير في سعر ${name}`;
-    const body = `${arrow} ${direction} السعر الجديد: ${newPrice.toFixed(3)} د.ل (السابق: ${oldPrice.toFixed(3)})`;
-
-    navigator.serviceWorker.ready.then((registration) => {
-      registration.showNotification(title, {
-        body,
-        icon: 'https://hatscripts.github.io/circle-flags/flags/ly.svg',
-        badge: 'https://hatscripts.github.io/circle-flags/flags/ly.svg',
-        dir: 'rtl',
-        lang: 'ar',
-        tag: `price-change-${code}`,
-        renotify: true
-      } as any);
-    });
-  };
-
   useEffect(() => {
     const handleOnline = () => setIsOffline(false);
     const handleOffline = () => setIsOffline(true);
@@ -175,14 +203,20 @@ export default function App() {
       const newHistory = await historyRes.json();
       
       // Check for price changes to notify
-      if (rates && notificationsEnabled) {
-        Object.keys(newRates).forEach(code => {
-          const oldPrice = rates[code]?.parallel?.buy;
-          const newPrice = newRates[code]?.parallel?.buy;
-          if (oldPrice && newPrice && oldPrice !== newPrice) {
-            showPriceNotification(code, newRates[code].name, oldPrice, newPrice);
-          }
-        });
+      if (rates) {
+        // Check USD specifically
+        const oldUsd = rates.parallel["USD"];
+        const newUsd = newRates.parallel["USD"];
+        if (oldUsd && newUsd && oldUsd !== newUsd) {
+          showPriceNotification("USD", "الدولار الأمريكي", oldUsd, newUsd);
+        }
+
+        // Check Gold
+        const oldGold = rates.parallel["GOLD"];
+        const newGold = newRates.parallel["GOLD"];
+        if (oldGold && newGold && oldGold !== newGold) {
+          showPriceNotification("GOLD", "كسر الذهب (18)", oldGold, newGold);
+        }
       }
 
       setRates(newRates);
@@ -358,16 +392,14 @@ export default function App() {
             </div>
           </div>
           <div className="flex items-center gap-4">
-            {!notificationsEnabled && (
-              <button 
-                onClick={requestNotificationPermission}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 hover:bg-indigo-500/20 transition-colors"
-                title="تفعيل التنبيهات"
-              >
-                <Bell className="w-4 h-4" />
-                <span className="text-[10px] font-medium uppercase tracking-wider hidden md:inline">تنبيهات الأسعار</span>
-              </button>
-            )}
+            <button 
+              onClick={() => setShowNotificationSettings(true)}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-zinc-400 hover:text-white transition-colors"
+              title="إعدادات التنبيهات"
+            >
+              <Settings2 className="w-4 h-4" />
+              <span className="text-[10px] font-medium uppercase tracking-wider hidden md:inline">الإعدادات</span>
+            </button>
             {isOffline && (
               <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-500">
                 <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></div>
@@ -624,6 +656,146 @@ export default function App() {
         </section>
 
       </main>
+
+      {/* In-App Toasts */}
+      <div className="fixed bottom-6 left-6 z-[200] flex flex-col gap-3 w-full max-w-sm pointer-events-none">
+        <AnimatePresence>
+          {toasts.map(toast => (
+            <motion.div
+              key={toast.id}
+              initial={{ opacity: 0, x: -50, scale: 0.9 }}
+              animate={{ opacity: 1, x: 0, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.2 } }}
+              className="pointer-events-auto bg-[#0a0a0a]/90 backdrop-blur-xl border border-white/10 rounded-2xl p-4 shadow-2xl flex items-start gap-4"
+            >
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
+                toast.type === 'up' ? 'bg-rose-500/10 text-rose-400' : 
+                toast.type === 'down' ? 'bg-emerald-500/10 text-emerald-400' : 
+                'bg-blue-500/10 text-blue-400'
+              }`}>
+                {toast.type === 'up' ? <ArrowUpRight className="w-5 h-5" /> : 
+                 toast.type === 'down' ? <ArrowDownRight className="w-5 h-5" /> : 
+                 <Info className="w-5 h-5" />}
+              </div>
+              <div className="flex-1 min-w-0">
+                <h4 className="text-sm font-medium text-white mb-1">{toast.title}</h4>
+                <p className="text-xs text-zinc-400 leading-relaxed">{toast.body}</p>
+              </div>
+              <button 
+                onClick={() => setToasts(prev => prev.filter(t => t.id !== toast.id))}
+                className="text-zinc-600 hover:text-white transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
+
+      {/* Notification Settings Modal */}
+      <AnimatePresence>
+        {showNotificationSettings && (
+          <div className="fixed inset-0 z-[150] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowNotificationSettings(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-md"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-md bg-[#0a0a0a] border border-white/10 rounded-3xl overflow-hidden shadow-2xl"
+            >
+              <div className="p-6 border-b border-white/5 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-indigo-500/10 flex items-center justify-center text-indigo-400">
+                    <Settings2 className="w-4 h-4" />
+                  </div>
+                  <h3 className="text-lg font-medium">إعدادات التنبيهات الذكية</h3>
+                </div>
+                <button onClick={() => setShowNotificationSettings(false)} className="text-zinc-500 hover:text-white">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-8">
+                {/* Permission Status */}
+                <div className="flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-white/5">
+                  <div className="flex items-center gap-3">
+                    {notificationsEnabled ? (
+                      <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                    ) : (
+                      <AlertCircle className="w-5 h-5 text-amber-500" />
+                    )}
+                    <div>
+                      <p className="text-sm font-medium">حالة التنبيهات</p>
+                      <p className="text-[10px] text-zinc-500">{notificationsEnabled ? 'مفعلة على هذا الجهاز' : 'غير مفعلة حالياً'}</p>
+                    </div>
+                  </div>
+                  {!notificationsEnabled && (
+                    <button 
+                      onClick={requestNotificationPermission}
+                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-xl transition-colors"
+                    >
+                      تفعيل الآن
+                    </button>
+                  )}
+                </div>
+
+                {/* Threshold Slider */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium text-zinc-300">حساسية التنبيه (Threshold)</label>
+                    <span className="text-xs font-mono text-indigo-400 bg-indigo-500/10 px-2 py-1 rounded-lg">
+                      {notificationThreshold.toFixed(2)} د.ل
+                    </span>
+                  </div>
+                  <input 
+                    type="range" 
+                    min="0.01" 
+                    max="0.5" 
+                    step="0.01" 
+                    value={notificationThreshold}
+                    onChange={(e) => setNotificationThreshold(parseFloat(e.target.value))}
+                    className="w-full h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                  />
+                  <p className="text-[10px] text-zinc-500 leading-relaxed">
+                    سيقوم التطبيق بإرسال تنبيه فقط إذا تغير السعر بمقدار أكبر من القيمة المحددة أعلاه. هذا يقلل من الإزعاج في حالات التذبذب البسيط.
+                  </p>
+                </div>
+
+                {/* Features List */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3 text-xs text-zinc-400">
+                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+                    <span>تنبيهات فورية عند تغير سعر الدولار (كاش)</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-zinc-400">
+                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+                    <span>متابعة لحظية لأسعار الذهب (كسر 18)</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-zinc-400">
+                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+                    <span>نظام اهتزاز مخصص للهواتف عند الارتفاع الحاد</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-6 bg-white/[0.02] border-t border-white/5">
+                <button 
+                  onClick={() => setShowNotificationSettings(false)}
+                  className="w-full py-3 bg-white text-black text-sm font-bold rounded-2xl hover:bg-zinc-200 transition-colors"
+                >
+                  حفظ الإعدادات
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Hidden PDF Template */}
       <div 
