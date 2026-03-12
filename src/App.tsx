@@ -32,6 +32,8 @@ interface HistoryPoint {
   time: string;
   usdParallel: number;
   usdOfficial: number;
+  ratesParallel?: Record<string, number>;
+  ratesOfficial?: Record<string, number>;
 }
 
 const CURRENCIES = [
@@ -54,6 +56,7 @@ export default function App() {
   const [history, setHistory] = useState<HistoryPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null);
+  const [selectedRate, setSelectedRate] = useState<{ code: string, name: string, market: 'official' | 'parallel' } | null>(null);
 
   const fetchData = async () => {
     try {
@@ -118,11 +121,119 @@ export default function App() {
   const usdChecksIsUp = usdChecksRate > prevUsdChecksRate;
   const usdChecksIsDown = usdChecksRate < prevUsdChecksRate;
 
+  const getChartData = () => {
+    if (!selectedRate) return [];
+    return history.map(h => {
+      const rateObj = selectedRate.market === 'parallel' ? h.ratesParallel : h.ratesOfficial;
+      return {
+        time: h.time,
+        value: rateObj ? rateObj[selectedRate.code] : (selectedRate.code === 'USD' ? (selectedRate.market === 'parallel' ? h.usdParallel : h.usdOfficial) : 0)
+      };
+    }).filter(d => d.value > 0);
+  };
+
   return (
     <div className="min-h-screen bg-[#050505] text-white font-sans selection:bg-emerald-500/20 relative overflow-hidden" dir="rtl">
       {/* Atmospheric Backgrounds */}
       <div className="fixed top-[-10%] left-[-10%] w-[500px] h-[500px] bg-emerald-600/10 blur-[120px] rounded-full pointer-events-none"></div>
       <div className="fixed bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-blue-600/10 blur-[120px] rounded-full pointer-events-none"></div>
+
+      {/* Popover Chart */}
+      <AnimatePresence>
+        {selectedRate && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setSelectedRate(null)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-2xl bg-[#0a0a0a] border border-white/10 rounded-3xl overflow-hidden shadow-2xl"
+            >
+              <div className="p-6 border-b border-white/5 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-400">
+                    <Activity className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-medium text-white">{selectedRate.name}</h3>
+                    <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-widest">
+                      {selectedRate.market === 'parallel' ? 'السوق الموازي' : 'السوق الرسمي'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSelectedRate(null)}
+                  className="p-2 rounded-full hover:bg-white/10 transition-colors text-zinc-500 hover:text-white"
+                >
+                  <RefreshCw className="w-4 h-4 rotate-45" />
+                </button>
+              </div>
+              
+              <div className="p-6 h-[300px] sm:h-[400px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={getChartData()}>
+                    <defs>
+                      <linearGradient id="popoverGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <XAxis 
+                      dataKey="time" 
+                      hide={false}
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fill: '#52525b', fontSize: 10, fontFamily: 'monospace' }}
+                      tickFormatter={(t) => format(new Date(t), "HH:mm")}
+                      minTickGap={30}
+                    />
+                    <YAxis 
+                      domain={['auto', 'auto']} 
+                      hide={false}
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fill: '#52525b', fontSize: 10, fontFamily: 'monospace' }}
+                      orientation="left"
+                    />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: "#0a0a0a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "16px", color: "#fff" }}
+                      itemStyle={{ color: "#10b981", fontFamily: "monospace" }}
+                      labelStyle={{ color: "#71717a", fontSize: "12px", marginBottom: "4px" }}
+                      labelFormatter={(label) => format(new Date(label), "dd MMMM yyyy - HH:mm", { locale: ar })}
+                      formatter={(value: number) => [value.toFixed(3) + ' د.ل', 'السعر']}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="value"
+                      stroke="#10b981"
+                      strokeWidth={3}
+                      fillOpacity={1}
+                      fill="url(#popoverGradient)"
+                      animationDuration={1000}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+              
+              <div className="p-6 bg-white/[0.02] border-t border-white/5 flex items-center justify-between">
+                <div className="text-xs text-zinc-500">
+                  بيانات تاريخية مستخرجة من قاعدة البيانات
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                  <span className="text-[10px] font-mono text-emerald-500 uppercase tracking-widest">Live Data</span>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Header */}
       <header className="border-b border-white/5 sticky top-0 z-50 bg-[#050505]/80 backdrop-blur-xl">
@@ -168,14 +279,17 @@ export default function App() {
               <h2 className="text-sm sm:text-base font-medium text-emerald-400 tracking-wide">السوق الموازي • دولار أمريكي</h2>
             </div>
             
-            <div className="flex items-baseline gap-3 sm:gap-4">
+            <div 
+              className="flex items-baseline gap-3 sm:gap-4 cursor-pointer group"
+              onClick={() => setSelectedRate({ code: 'USD', name: 'دولار أمريكي (كاش)', market: 'parallel' })}
+            >
               <AnimatePresence mode="popLayout">
                 <motion.span
                   key={usdRate}
                   initial={{ opacity: 0, y: -20 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: 20 }}
-                  className="text-6xl sm:text-8xl lg:text-[140px] font-light text-white tracking-tighter font-mono leading-none"
+                  className="text-6xl sm:text-8xl lg:text-[140px] font-light text-white tracking-tighter font-mono leading-none group-hover:text-emerald-400 transition-colors"
                 >
                   {usdRate.toFixed(2)}
                 </motion.span>
@@ -206,7 +320,10 @@ export default function App() {
             </div>
 
             {/* USD Checks Card */}
-            <div className="mt-8 flex items-center gap-4 sm:gap-6 bg-white/[0.02] border border-white/5 rounded-2xl p-4 sm:p-5 w-full sm:w-fit hover:bg-white/[0.04] transition-colors">
+            <div 
+              onClick={() => setSelectedRate({ code: 'USD_CHECKS', name: 'دولار أمريكي (صكوك)', market: 'parallel' })}
+              className="mt-8 flex items-center gap-4 sm:gap-6 bg-white/[0.02] border border-white/5 rounded-2xl p-4 sm:p-5 w-full sm:w-fit hover:bg-white/[0.04] transition-colors cursor-pointer group"
+            >
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-400 shrink-0">
                   <Building2 className="w-5 h-5" />
@@ -214,7 +331,7 @@ export default function App() {
                 <div className="flex flex-col">
                   <span className="text-xs text-zinc-500 font-medium mb-1">دولار (صكوك)</span>
                   <div className="flex items-center gap-2">
-                    <span className="text-3xl font-light text-white font-mono leading-none">{usdChecksRate.toFixed(2)}</span>
+                    <span className="text-3xl font-light text-white font-mono leading-none group-hover:text-emerald-400 transition-colors">{usdChecksRate.toFixed(2)}</span>
                     {usdChecksIsUp ? <ArrowUpRight className="w-4 h-4 text-rose-400" /> : usdChecksIsDown ? <ArrowDownRight className="w-4 h-4 text-emerald-400" /> : null}
                   </div>
                 </div>
@@ -287,13 +404,17 @@ export default function App() {
               const isDown = rate < prevRate;
 
               return (
-                <div key={`parallel-${currency.code}`} className="flex flex-col group p-3 sm:p-4 rounded-2xl hover:bg-white/[0.02] transition-colors -m-3 sm:-m-4">
+                <div 
+                  key={`parallel-${currency.code}`} 
+                  onClick={() => setSelectedRate({ code: currency.code, name: currency.name, market: 'parallel' })}
+                  className="flex flex-col group p-3 sm:p-4 rounded-2xl hover:bg-white/[0.02] transition-colors -m-3 sm:-m-4 cursor-pointer"
+                >
                   <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
                     <img src={`https://hatscripts.github.io/circle-flags/flags/${currency.flag}.svg`} alt={currency.name} className="w-5 h-5 sm:w-6 sm:h-6 drop-shadow-sm transition-transform group-hover:scale-110" referrerPolicy="no-referrer" />
                     <span className="text-[11px] sm:text-xs font-medium text-zinc-300">{currency.name}</span>
                   </div>
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-2xl font-light text-white font-mono tracking-tight">{rate.toFixed(2)}</span>
+                    <span className="text-2xl font-light text-white font-mono tracking-tight group-hover:text-emerald-400 transition-colors">{rate.toFixed(2)}</span>
                     {isUp ? <ArrowUpRight className="w-3 h-3 text-rose-400" /> : isDown ? <ArrowDownRight className="w-3 h-3 text-emerald-400" /> : null}
                   </div>
                   <span className="text-[10px] text-zinc-600 font-mono" dir="ltr">Prev: {prevRate.toFixed(2)}</span>
@@ -309,7 +430,11 @@ export default function App() {
               const Icon = detail.icon;
 
               return (
-                <div key={`detail-${detail.code}`} className="flex flex-col group p-3 sm:p-4 rounded-2xl hover:bg-white/[0.02] transition-colors -m-3 sm:-m-4">
+                <div 
+                  key={`detail-${detail.code}`} 
+                  onClick={() => setSelectedRate({ code: detail.code, name: detail.name, market: 'parallel' })}
+                  className="flex flex-col group p-3 sm:p-4 rounded-2xl hover:bg-white/[0.02] transition-colors -m-3 sm:-m-4 cursor-pointer"
+                >
                   <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
                     {detail.flag ? (
                       <img src={`https://hatscripts.github.io/circle-flags/flags/${detail.flag}.svg`} alt={detail.name} className="w-5 h-5 sm:w-6 sm:h-6 drop-shadow-sm transition-transform group-hover:scale-110" referrerPolicy="no-referrer" />
@@ -321,7 +446,7 @@ export default function App() {
                     <span className="text-[11px] sm:text-xs font-medium text-zinc-300">{detail.name}</span>
                   </div>
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-2xl font-light text-white font-mono tracking-tight">{rate.toFixed(2)}</span>
+                    <span className="text-2xl font-light text-white font-mono tracking-tight group-hover:text-emerald-400 transition-colors">{rate.toFixed(2)}</span>
                     {isUp ? <ArrowUpRight className="w-3 h-3 text-rose-400" /> : isDown ? <ArrowDownRight className="w-3 h-3 text-emerald-400" /> : null}
                   </div>
                   <span className="text-[10px] text-zinc-600 font-mono" dir="ltr">Prev: {prevRate.toFixed(2)}</span>
@@ -344,13 +469,17 @@ export default function App() {
               const isDown = rate < prevRate;
 
               return (
-                <div key={`official-${currency.code}`} className="flex flex-col group p-3 sm:p-4 rounded-2xl hover:bg-white/[0.02] transition-colors -m-3 sm:-m-4">
+                <div 
+                  key={`official-${currency.code}`} 
+                  onClick={() => setSelectedRate({ code: currency.code, name: currency.name, market: 'official' })}
+                  className="flex flex-col group p-3 sm:p-4 rounded-2xl hover:bg-white/[0.02] transition-colors -m-3 sm:-m-4 cursor-pointer"
+                >
                   <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
                     <img src={`https://hatscripts.github.io/circle-flags/flags/${currency.flag}.svg`} alt={currency.name} className="w-4 h-4 sm:w-5 sm:h-5 drop-shadow-sm transition-transform group-hover:scale-110" referrerPolicy="no-referrer" />
                     <span className="text-[11px] sm:text-xs font-medium text-zinc-400">{currency.code}</span>
                   </div>
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-xl font-light text-zinc-300 font-mono tracking-tight">{rate.toFixed(2)}</span>
+                    <span className="text-xl font-light text-zinc-300 font-mono tracking-tight group-hover:text-emerald-400 transition-colors">{rate.toFixed(2)}</span>
                     {isUp ? <ArrowUpRight className="w-3 h-3 text-rose-400 opacity-70" /> : isDown ? <ArrowDownRight className="w-3 h-3 text-emerald-400 opacity-70" /> : null}
                   </div>
                   <span className="text-[10px] text-zinc-700 font-mono" dir="ltr">Prev: {prevRate.toFixed(2)}</span>

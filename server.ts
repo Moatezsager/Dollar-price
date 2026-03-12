@@ -204,9 +204,11 @@ async function fetchHistoryFromSupabase() {
         .map(row => ({
           time: row.recorded_at,
           usdParallel: row.usd_parallel || (row.rates_parallel ? row.rates_parallel.USD : 0),
-          usdOfficial: row.usd_official || (row.rates_official ? row.rates_official.USD : 0)
+          usdOfficial: row.usd_official || (row.rates_official ? row.rates_official.USD : 0),
+          ratesParallel: row.rates_parallel || { USD: row.usd_parallel },
+          ratesOfficial: row.rates_official || { USD: row.usd_official }
         }))
-        .filter(item => item.usdParallel > 5.5); // Filter out bad/zero data that skews the chart
+        .filter(item => item.usdParallel > 5.5 || item.usdOfficial > 0);
     }
   } catch (err) {
     console.error("Error fetching history from Supabase:", err);
