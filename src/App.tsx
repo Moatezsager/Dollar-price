@@ -76,6 +76,17 @@ export default function App() {
   const [notificationThreshold, setNotificationThreshold] = useState(0.01);
   const [toasts, setToasts] = useState<{ id: string, title: string, body: string, type: 'up' | 'down' | 'info' }[]>([]);
   const reportRef = useRef<HTMLDivElement>(null);
+  const ratesRef = useRef<Rates | null>(null);
+  const thresholdRef = useRef<number>(0.01);
+
+  // Keep refs in sync with state to avoid closure issues in setInterval
+  useEffect(() => {
+    ratesRef.current = rates;
+  }, [rates]);
+
+  useEffect(() => {
+    thresholdRef.current = notificationThreshold;
+  }, [notificationThreshold]);
 
   const addToast = (title: string, body: string, type: 'up' | 'down' | 'info') => {
     const id = Math.random().toString(36).substring(2, 9);
@@ -90,7 +101,7 @@ export default function App() {
     const absDiff = Math.abs(diff);
     
     // Only notify if change is above threshold
-    if (absDiff < notificationThreshold) return;
+    if (absDiff < thresholdRef.current) return;
 
     const direction = diff > 0 ? 'ارتفاع' : 'انخفاض';
     const arrow = diff > 0 ? '📈' : '📉';
@@ -226,21 +237,23 @@ export default function App() {
       const newRates = await ratesRes.json();
       const newHistory = await historyRes.json();
       
-      // Check for price changes to notify
+      // Check for price changes to notify using the ref to get the latest state
       let hasChanges = false;
-      if (rates) {
+      const currentRates = ratesRef.current;
+      
+      if (currentRates) {
         // Check USD specifically
-        const oldUsd = rates.parallel["USD"];
+        const oldUsd = currentRates.parallel["USD"];
         const newUsd = newRates.parallel["USD"];
-        if (oldUsd && newUsd && oldUsd !== newUsd) {
+        if (oldUsd && newUsd && Math.abs(oldUsd - newUsd) > 0.0001) {
           showPriceNotification("USD", "الدولار الأمريكي", oldUsd, newUsd);
           hasChanges = true;
         }
 
         // Check Gold
-        const oldGold = rates.parallel["GOLD"];
+        const oldGold = currentRates.parallel["GOLD"];
         const newGold = newRates.parallel["GOLD"];
-        if (oldGold && newGold && oldGold !== newGold) {
+        if (oldGold && newGold && Math.abs(oldGold - newGold) > 0.0001) {
           showPriceNotification("GOLD", "كسر الذهب (18)", oldGold, newGold);
           hasChanges = true;
         }
