@@ -159,6 +159,28 @@ export default function App() {
     const permission = await Notification.requestPermission();
     if (permission === 'granted') {
       setNotificationsEnabled(true);
+      addToast("تم تفعيل التنبيهات", "ستصلك إشعارات عند تغير الأسعار الهامة", "info");
+    }
+  };
+
+  const testNotification = () => {
+    const title = "🔔 إشعار تجريبي من مؤشر الدينار";
+    const body = "هذا مثال لشكل التنبيهات التي ستصلك عند تغير الأسعار.";
+    
+    addToast(title, body, "info");
+
+    if (Notification.permission === 'granted') {
+      navigator.serviceWorker.ready.then((registration) => {
+        registration.showNotification(title, {
+          body,
+          icon: 'https://hatscripts.github.io/circle-flags/flags/ly.svg',
+          badge: 'https://hatscripts.github.io/circle-flags/flags/ly.svg',
+          vibrate: [100, 50, 100],
+          tag: 'test-notification',
+        } as any);
+      });
+    } else {
+      requestNotificationPermission();
     }
   };
 
@@ -782,6 +804,15 @@ export default function App() {
                     <span>نظام اهتزاز مخصص للهواتف عند الارتفاع الحاد</span>
                   </div>
                 </div>
+
+                {/* Test Button */}
+                <button 
+                  onClick={testNotification}
+                  className="w-full py-3 px-4 rounded-2xl bg-white/5 border border-white/10 text-zinc-300 text-xs font-medium hover:bg-white/10 hover:text-white transition-all flex items-center justify-center gap-2"
+                >
+                  <Bell className="w-4 h-4" />
+                  إرسال تنبيه تجريبي للهاتف
+                </button>
               </div>
 
               <div className="p-6 bg-white/[0.02] border-t border-white/5">
