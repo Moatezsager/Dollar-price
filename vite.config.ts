@@ -24,15 +24,15 @@ export default defineConfig(({mode}) => {
           lang: 'ar',
           icons: [
             {
-              src: 'https://cdn-icons-png.flaticon.com/512/2488/2488649.png',
+              src: 'https://hatscripts.github.io/circle-flags/flags/ly.svg',
               sizes: '192x192',
-              type: 'image/png',
+              type: 'image/svg+xml',
               purpose: 'any maskable'
             },
             {
-              src: 'https://cdn-icons-png.flaticon.com/512/2488/2488649.png',
+              src: 'https://hatscripts.github.io/circle-flags/flags/ly.svg',
               sizes: '512x512',
-              type: 'image/png',
+              type: 'image/svg+xml',
               purpose: 'any maskable'
             }
           ]
