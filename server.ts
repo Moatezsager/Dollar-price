@@ -6,7 +6,11 @@ import { createClient } from '@supabase/supabase-js';
 // Initialize Supabase client for server
 const supabaseUrl = process.env.VITE_SUPABASE_URL || 'https://rbqvldyagskdxjhnkqvt.supabase.co';
 const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || ''; 
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+// Only create client if key is provided to avoid crashing on startup
+const supabase = supabaseAnonKey 
+  ? createClient(supabaseUrl, supabaseAnonKey)
+  : null;
 
 // Initial data for the Libyan Dinar exchange rates
 let rates = {
@@ -67,7 +71,7 @@ for (let i = 24; i >= 0; i--) {
 
 // Initialize rates from Database on startup to ensure accuracy
 async function initializeRatesFromDB() {
-  if (!supabaseAnonKey || supabaseAnonKey.includes('dummy')) return;
+  if (!supabase || !supabaseAnonKey || supabaseAnonKey.includes('dummy')) return;
   
   try {
     const { data, error } = await supabase
@@ -127,7 +131,7 @@ async function initializeRatesFromDB() {
 }
 
 async function saveToSupabase() {
-  if (!supabaseAnonKey || supabaseAnonKey.includes('dummy')) return; 
+  if (!supabase || !supabaseAnonKey || supabaseAnonKey.includes('dummy')) return; 
   
   // Prevent saving corrupted data (Parallel USD should never be < 5.5)
   if (rates.parallel.USD < 5.5) {
@@ -179,7 +183,7 @@ async function saveToSupabase() {
 }
 
 async function fetchHistoryFromSupabase() {
-  if (!supabaseAnonKey || supabaseAnonKey.includes('dummy')) return history;
+  if (!supabase || !supabaseAnonKey || supabaseAnonKey.includes('dummy')) return history;
   
   try {
     const { data, error } = await supabase
