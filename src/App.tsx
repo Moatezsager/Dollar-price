@@ -44,7 +44,6 @@ const CURRENCIES = [
 ];
 
 const PARALLEL_DETAILS = [
-  { code: "USD_CHECKS", name: "دولار (صكوك)", icon: Building2, unit: "د.ل" },
   { code: "USD_TR", name: "حوالات تركيا", flag: "tr", unit: "د.ل" },
   { code: "USD_AE", name: "حوالات دبي", flag: "ae", unit: "د.ل" },
   { code: "GOLD", name: "كسر الذهب (18)", icon: Coins, unit: "د.ل/ج" },
@@ -113,6 +112,11 @@ export default function App() {
   const usdIsUp = usdRate > prevUsdRate;
   const usdIsDown = usdRate < prevUsdRate;
   const usdChange = Math.abs(usdRate - prevUsdRate);
+
+  const usdChecksRate = rates?.parallel["USD_CHECKS"] || 0;
+  const prevUsdChecksRate = rates?.previousParallel?.["USD_CHECKS"] || usdChecksRate;
+  const usdChecksIsUp = usdChecksRate > prevUsdChecksRate;
+  const usdChecksIsDown = usdChecksRate < prevUsdChecksRate;
 
   return (
     <div className="min-h-screen bg-[#050505] text-white font-sans selection:bg-emerald-500/20 relative overflow-hidden" dir="rtl">
@@ -199,6 +203,27 @@ export default function App() {
                   <span className="font-mono" dir="ltr">0.00</span>
                 </div>
               )}
+            </div>
+
+            {/* USD Checks Card */}
+            <div className="mt-8 flex items-center gap-4 sm:gap-6 bg-white/[0.02] border border-white/5 rounded-2xl p-4 sm:p-5 w-full sm:w-fit hover:bg-white/[0.04] transition-colors">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-400 shrink-0">
+                  <Building2 className="w-5 h-5" />
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xs text-zinc-500 font-medium mb-1">دولار (صكوك)</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-3xl font-light text-white font-mono leading-none">{usdChecksRate.toFixed(2)}</span>
+                    {usdChecksIsUp ? <ArrowUpRight className="w-4 h-4 text-rose-400" /> : usdChecksIsDown ? <ArrowDownRight className="w-4 h-4 text-emerald-400" /> : null}
+                  </div>
+                </div>
+              </div>
+              <div className="w-px h-12 bg-white/10 mx-2"></div>
+              <div className="flex flex-col justify-center">
+                <span className="text-[10px] text-zinc-600 mb-1">السعر السابق</span>
+                <span className="text-sm text-zinc-400 font-mono" dir="ltr">{prevUsdChecksRate.toFixed(2)}</span>
+              </div>
             </div>
 
             {rates?.lastUpdated && (
