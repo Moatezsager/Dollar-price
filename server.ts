@@ -391,6 +391,20 @@ async function startServer() {
     res.json(rates);
   });
 
+  app.get("/api/refresh", async (req, res) => {
+    console.log("Manual refresh triggered...");
+    try {
+      await Promise.all([
+        fetchOfficialRates(),
+        fetchParallelRatesFromTelegram()
+      ]);
+      res.json({ success: true, rates });
+    } catch (err) {
+      console.error("Manual refresh failed:", err);
+      res.status(500).json({ success: false, error: "Failed to refresh data" });
+    }
+  });
+
   app.get("/api/history", async (req, res) => {
     try {
       const dbHistory = await fetchHistoryFromSupabase();

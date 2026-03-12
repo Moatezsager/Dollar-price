@@ -73,11 +73,12 @@ export default function App() {
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showNotificationSettings, setShowNotificationSettings] = useState(false);
-  const [notificationThreshold, setNotificationThreshold] = useState(0.01);
+  const [notificationThreshold, setNotificationThreshold] = useState(0.001);
   const [toasts, setToasts] = useState<{ id: string, title: string, body: string, type: 'up' | 'down' | 'info' }[]>([]);
   const reportRef = useRef<HTMLDivElement>(null);
   const ratesRef = useRef<Rates | null>(null);
-  const thresholdRef = useRef<number>(0.01);
+  const thresholdRef = useRef<number>(0.001);
+  const lastNotifiedRef = useRef<Record<string, number>>({});
 
   // Keep refs in sync with state to avoid closure issues in setInterval
   useEffect(() => {
@@ -111,7 +112,7 @@ export default function App() {
     // In-app toast
     addToast(title, body, diff > 0 ? 'up' : 'down');
 
-    // Native notification
+    // Native notification - check permission directly to be safe
     if (Notification.permission === 'granted') {
       navigator.serviceWorker.ready.then((registration) => {
         registration.showNotification(title, {
@@ -214,9 +215,15 @@ export default function App() {
     };
   }, []);
 
-  const fetchData = async () => {
+  const fetchData = async (force = false) => {
     setIsRefreshing(true);
     try {
+      if (force) {
+        // Trigger a real scrape from sources on the server
+        const refreshRes = await fetch("/api/refresh");
+        if (!refreshRes.ok) throw new Error("Refresh failed");
+      }
+
       const [ratesRes, historyRes] = await Promise.all([
         fetch("/api/rates"),
         fetch("/api/history"),
@@ -242,21 +249,39 @@ export default function App() {
       const currentRates = ratesRef.current;
       
       if (currentRates) {
-        // Check USD specifically
-        const oldUsd = currentRates.parallel["USD"];
-        const newUsd = newRates.parallel["USD"];
-        if (oldUsd && newUsd && Math.abs(oldUsd - newUsd) > 0.0001) {
-          showPriceNotification("USD", "الدولار الأمريكي", oldUsd, newUsd);
-          hasChanges = true;
-        }
+        // Check all parallel currencies
+        const currenciesToCheck = ["USD", "EUR", "GBP", "TRY", "TND", "EGP", "GOLD"];
+        
+        currenciesToCheck.forEach(code => {
+          const oldPrice = currentRates.parallel[code];
+          const newPrice = newRates.parallel[code];
+          
+          if (oldPrice && newPrice && Math.abs(oldPrice - newPrice) >= thresholdRef.current) {
+            // Avoid notifying the same price twice in a row
+            if (lastNotifiedRef.current[code] !== newPrice) {
+              const name = code === "GOLD" ? "كسر الذهب (18)" : 
+                           CURRENCIES.find(c => c.code === code)?.name || code;
+              
+              console.log(`Price change detected for ${code}: ${oldPrice} -> ${newPrice}`);
+              showPriceNotification(code, name, oldPrice, newPrice);
+              lastNotifiedRef.current[code] = newPrice;
+              hasChanges = true;
+            }
+          }
+        });
 
-        // Check Gold
-        const oldGold = currentRates.parallel["GOLD"];
-        const newGold = newRates.parallel["GOLD"];
-        if (oldGold && newGold && Math.abs(oldGold - newGold) > 0.0001) {
-          showPriceNotification("GOLD", "كسر الذهب (18)", oldGold, newGold);
-          hasChanges = true;
-        }
+        // Also check official rates for major changes
+        ["USD", "EUR"].forEach(code => {
+          const oldPrice = currentRates.official[code];
+          const newPrice = newRates.official[code];
+          if (oldPrice && newPrice && Math.abs(oldPrice - newPrice) >= thresholdRef.current) {
+            if (lastNotifiedRef.current[`OFFICIAL_${code}`] !== newPrice) {
+              showPriceNotification(`OFFICIAL_${code}`, `السعر الرسمي - ${CURRENCIES.find(c => c.code === code)?.name}`, oldPrice, newPrice);
+              lastNotifiedRef.current[`OFFICIAL_${code}`] = newPrice;
+              hasChanges = true;
+            }
+          }
+        });
       }
 
       setRates(newRates);
@@ -472,10 +497,10 @@ export default function App() {
               <FileText className="w-4 h-4" />
             </button>
             <button
-              onClick={fetchData}
+              onClick={() => fetchData(true)}
               disabled={isRefreshing}
               className={`p-2 rounded-full hover:bg-white/10 transition-colors text-zinc-400 hover:text-white ${isRefreshing ? 'animate-spin text-indigo-400' : ''}`}
-              title="تحديث البيانات الآن"
+              title="تحديث البيانات الآن من المصادر"
             >
               <RefreshCw className="w-4 h-4" />
             </button>
@@ -805,15 +830,15 @@ export default function App() {
                   </div>
                   <input 
                     type="range" 
-                    min="0.01" 
-                    max="0.5" 
-                    step="0.01" 
+                    min="0.001" 
+                    max="0.1" 
+                    step="0.001" 
                     value={notificationThreshold}
                     onChange={(e) => setNotificationThreshold(parseFloat(e.target.value))}
                     className="w-full h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer accent-indigo-500"
                   />
                   <p className="text-[10px] text-zinc-500 leading-relaxed">
-                    سيقوم التطبيق بإرسال تنبيه فقط إذا تغير السعر بمقدار أكبر من القيمة المحددة أعلاه. هذا يقلل من الإزعاج في حالات التذبذب البسيط.
+                    سيقوم التطبيق بإرسال تنبيه فقط إذا تغير السعر بمقدار أكبر من القيمة المحددة أعلاه. القيمة الحالية ({notificationThreshold.toFixed(3)}) تجعل التنبيهات حساسة جداً لأي تغيير.
                   </p>
                 </div>
 
