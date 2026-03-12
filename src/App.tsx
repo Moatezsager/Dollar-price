@@ -71,6 +71,7 @@ export default function App() {
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [notificationsEnabled, setNotificationsEnabled] = useState(Notification.permission === 'granted');
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [showNotificationSettings, setShowNotificationSettings] = useState(false);
   const [notificationThreshold, setNotificationThreshold] = useState(0.01);
   const [toasts, setToasts] = useState<{ id: string, title: string, body: string, type: 'up' | 'down' | 'info' }[]>([]);
@@ -203,6 +204,7 @@ export default function App() {
   }, []);
 
   const fetchData = async () => {
+    setIsRefreshing(true);
     try {
       const [ratesRes, historyRes] = await Promise.all([
         fetch("/api/rates"),
@@ -225,12 +227,14 @@ export default function App() {
       const newHistory = await historyRes.json();
       
       // Check for price changes to notify
+      let hasChanges = false;
       if (rates) {
         // Check USD specifically
         const oldUsd = rates.parallel["USD"];
         const newUsd = newRates.parallel["USD"];
         if (oldUsd && newUsd && oldUsd !== newUsd) {
           showPriceNotification("USD", "الدولار الأمريكي", oldUsd, newUsd);
+          hasChanges = true;
         }
 
         // Check Gold
@@ -238,6 +242,7 @@ export default function App() {
         const newGold = newRates.parallel["GOLD"];
         if (oldGold && newGold && oldGold !== newGold) {
           showPriceNotification("GOLD", "كسر الذهب (18)", oldGold, newGold);
+          hasChanges = true;
         }
       }
 
@@ -248,14 +253,22 @@ export default function App() {
       // Persist to local storage
       localStorage.setItem('lyd_rates', JSON.stringify(newRates));
       localStorage.setItem('lyd_history', JSON.stringify(newHistory));
+
+      if (hasChanges) {
+        addToast("تم تحديث الأسعار", "تم رصد تغييرات جديدة في السوق وتحديث البيانات", "info");
+      } else if (lastFetchTime) {
+        addToast("البيانات محدثة", "أنت تشاهد أحدث الأسعار المتوفرة حالياً", "info");
+      }
     } catch (error) {
       if (error instanceof TypeError && error.message === "Failed to fetch") {
         console.warn("Server might be restarting, retrying in next poll...");
       } else {
         console.error("Failed to fetch data:", error);
+        addToast("خطأ في التحديث", "تعذر الاتصال بالخادم، يرجى المحاولة لاحقاً", "info");
       }
     } finally {
       setLoading(false);
+      setIsRefreshing(false);
     }
   };
 
@@ -447,7 +460,9 @@ export default function App() {
             </button>
             <button
               onClick={fetchData}
-              className="p-2 rounded-full hover:bg-white/10 transition-colors text-zinc-400 hover:text-white"
+              disabled={isRefreshing}
+              className={`p-2 rounded-full hover:bg-white/10 transition-colors text-zinc-400 hover:text-white ${isRefreshing ? 'animate-spin text-indigo-400' : ''}`}
+              title="تحديث البيانات الآن"
             >
               <RefreshCw className="w-4 h-4" />
             </button>
