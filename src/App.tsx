@@ -1,5 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -8,7 +10,10 @@ import {
   Building2,
   Coins,
   Clock,
-  Bell
+  Bell,
+  FileText,
+  TrendingUp,
+  Globe
 } from "lucide-react";
 import {
   AreaChart,
@@ -60,6 +65,44 @@ export default function App() {
   const [selectedRate, setSelectedRate] = useState<{ code: string, name: string, market: 'official' | 'parallel' } | null>(null);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [notificationsEnabled, setNotificationsEnabled] = useState(Notification.permission === 'granted');
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const reportRef = useRef<HTMLDivElement>(null);
+
+  const generatePDF = async () => {
+    if (!reportRef.current) return;
+    setIsGeneratingPDF(true);
+    try {
+      // Ensure the report is visible for capture but off-screen
+      const element = reportRef.current;
+      element.style.display = 'block';
+      
+      const canvas = await html2canvas(element, {
+        scale: 2, // Higher quality
+        useCORS: true,
+        backgroundColor: '#ffffff',
+      });
+      
+      element.style.display = 'none';
+
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      const imgProps = pdf.getImageProperties(imgData);
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`تقرير-مؤشر-الدينار-${format(new Date(), 'yyyy-MM-dd-HHmm')}.pdf`);
+    } catch (err) {
+      console.error('Error generating PDF:', err);
+    } finally {
+      setIsGeneratingPDF(false);
+    }
+  };
 
   const requestNotificationPermission = async () => {
     const permission = await Notification.requestPermission();
@@ -341,6 +384,14 @@ export default function App() {
               </span>
             </div>
             <button
+              onClick={generatePDF}
+              disabled={isGeneratingPDF}
+              className={`p-2 rounded-full hover:bg-white/10 transition-colors text-zinc-400 hover:text-white ${isGeneratingPDF ? 'animate-pulse' : ''}`}
+              title="تحميل تقرير PDF احترافي"
+            >
+              <FileText className="w-4 h-4" />
+            </button>
+            <button
               onClick={fetchData}
               className="p-2 rounded-full hover:bg-white/10 transition-colors text-zinc-400 hover:text-white"
             >
@@ -573,6 +624,104 @@ export default function App() {
         </section>
 
       </main>
+
+      {/* Hidden PDF Template */}
+      <div 
+        ref={reportRef} 
+        style={{ 
+          display: 'none', 
+          position: 'absolute', 
+          left: '-9999px', 
+          width: '800px',
+          padding: '40px',
+          backgroundColor: '#ffffff',
+          color: '#1a1a1a',
+          fontFamily: 'sans-serif'
+        }}
+        dir="rtl"
+      >
+        {/* PDF Header */}
+        <div style={{ borderBottom: '2px solid #10b981', paddingBottom: '20px', marginBottom: '30px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <h1 style={{ fontSize: '28px', color: '#10b981', margin: '0' }}>مؤشر الدينار الليبي</h1>
+            <p style={{ fontSize: '14px', color: '#666', margin: '5px 0 0' }}>التقرير الاقتصادي اليومي لأسعار الصرف</p>
+          </div>
+          <div style={{ textAlign: 'left' }}>
+            <p style={{ fontSize: '12px', color: '#999', margin: '0' }}>تاريخ التقرير</p>
+            <p style={{ fontSize: '14px', fontWeight: 'bold', margin: '0' }}>{format(new Date(), "dd MMMM yyyy", { locale: ar })}</p>
+            <p style={{ fontSize: '14px', fontWeight: 'bold', margin: '0' }}>{format(new Date(), "HH:mm")}</p>
+          </div>
+        </div>
+
+        {/* Parallel Market Section */}
+        <div style={{ marginBottom: '40px' }}>
+          <h2 style={{ fontSize: '18px', backgroundColor: '#f3f4f6', padding: '10px', borderRadius: '8px', marginBottom: '20px' }}>أسعار السوق الموازي (الكاش والصكوك)</h2>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid #eee' }}>
+                <th style={{ textAlign: 'right', padding: '12px', color: '#666' }}>العملة / النوع</th>
+                <th style={{ textAlign: 'center', padding: '12px', color: '#666' }}>السعر الحالي</th>
+                <th style={{ textAlign: 'center', padding: '12px', color: '#666' }}>السعر السابق</th>
+                <th style={{ textAlign: 'left', padding: '12px', color: '#666' }}>التغير</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style={{ padding: '15px 12px', fontWeight: 'bold' }}>الدولار الأمريكي (كاش)</td>
+                <td style={{ textAlign: 'center', padding: '15px 12px', fontSize: '18px', color: '#10b981' }}>{usdRate.toFixed(2)} د.ل</td>
+                <td style={{ textAlign: 'center', padding: '15px 12px', color: '#999' }}>{prevUsdRate.toFixed(2)} د.ل</td>
+                <td style={{ textAlign: 'left', padding: '15px 12px', color: usdIsUp ? '#ef4444' : '#10b981' }}>{usdIsUp ? '↑' : '↓'} {usdChange.toFixed(2)}</td>
+              </tr>
+              <tr style={{ backgroundColor: '#f9fafb' }}>
+                <td style={{ padding: '15px 12px', fontWeight: 'bold' }}>الدولار الأمريكي (صكوك)</td>
+                <td style={{ textAlign: 'center', padding: '15px 12px', fontSize: '18px' }}>{usdChecksRate.toFixed(2)} د.ل</td>
+                <td style={{ textAlign: 'center', padding: '15px 12px', color: '#999' }}>{prevUsdChecksRate.toFixed(2)} د.ل</td>
+                <td style={{ textAlign: 'left', padding: '15px 12px' }}>-</td>
+              </tr>
+              {CURRENCIES.filter(c => c.code !== "USD").map(c => (
+                <tr key={`pdf-p-${c.code}`} style={{ borderTop: '1px solid #f3f4f6' }}>
+                  <td style={{ padding: '12px' }}>{c.name}</td>
+                  <td style={{ textAlign: 'center', padding: '12px' }}>{(rates?.parallel[c.code] || 0).toFixed(2)} د.ل</td>
+                  <td style={{ textAlign: 'center', padding: '12px', color: '#999' }}>{(rates?.previousParallel?.[c.code] || 0).toFixed(2)} د.ل</td>
+                  <td style={{ textAlign: 'left', padding: '12px' }}>-</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Gold & Transfers */}
+        <div style={{ marginBottom: '40px' }}>
+          <h2 style={{ fontSize: '18px', backgroundColor: '#f3f4f6', padding: '10px', borderRadius: '8px', marginBottom: '20px' }}>المعادن والحوالات الخارجية</h2>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+            {PARALLEL_DETAILS.map(d => (
+              <div key={`pdf-d-${d.code}`} style={{ border: '1px solid #eee', padding: '15px', borderRadius: '12px' }}>
+                <p style={{ margin: '0 0 5px', color: '#666', fontSize: '12px' }}>{d.name}</p>
+                <p style={{ margin: '0', fontSize: '20px', fontWeight: 'bold' }}>{(rates?.parallel[d.code] || 0).toFixed(2)} {d.unit}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Official Market Section */}
+        <div style={{ marginBottom: '40px' }}>
+          <h2 style={{ fontSize: '18px', backgroundColor: '#f3f4f6', padding: '10px', borderRadius: '8px', marginBottom: '20px' }}>أسعار الصرف الرسمية (المصرف المركزي)</h2>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '15px' }}>
+            {CURRENCIES.map(c => (
+              <div key={`pdf-o-${c.code}`} style={{ padding: '10px', borderBottom: '1px solid #f3f4f6' }}>
+                <span style={{ fontSize: '12px', color: '#666' }}>{c.name}</span>
+                <p style={{ margin: '5px 0 0', fontWeight: 'bold' }}>{(rates?.official[c.code] || 0).toFixed(3)} د.ل</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* PDF Footer */}
+        <div style={{ marginTop: '60px', borderTop: '1px solid #eee', paddingTop: '20px', textAlign: 'center' }}>
+          <p style={{ fontSize: '12px', color: '#999', margin: '0' }}>تم توليد هذا التقرير تلقائياً بواسطة تطبيق "مؤشر الدينار"</p>
+          <p style={{ fontSize: '10px', color: '#ccc', marginTop: '5px' }}>جميع الأسعار استرشادية وتخضع لتقلبات السوق لحظياً</p>
+        </div>
+      </div>
     </div>
   );
 }
