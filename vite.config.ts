@@ -13,8 +13,8 @@ export default defineConfig(({mode}) => {
       VitePWA({
         registerType: 'autoUpdate',
         manifest: {
-          name: 'مؤشر الدينار الليبي',
-          short_name: 'دينار ليبيا',
+          name: 'مؤشر الدينار',
+          short_name: 'مؤشر الدينار',
           description: 'متابعة أسعار العملات والذهب في ليبيا لحظة بلحظة',
           theme_color: '#050505',
           background_color: '#050505',
@@ -24,15 +24,15 @@ export default defineConfig(({mode}) => {
           lang: 'ar',
           icons: [
             {
-              src: 'https://hatscripts.github.io/circle-flags/flags/ly.svg',
+              src: 'https://cdn-icons-png.flaticon.com/512/2488/2488649.png',
               sizes: '192x192',
-              type: 'image/svg+xml',
+              type: 'image/png',
               purpose: 'any maskable'
             },
             {
-              src: 'https://hatscripts.github.io/circle-flags/flags/ly.svg',
+              src: 'https://cdn-icons-png.flaticon.com/512/2488/2488649.png',
               sizes: '512x512',
-              type: 'image/svg+xml',
+              type: 'image/png',
               purpose: 'any maskable'
             }
           ]

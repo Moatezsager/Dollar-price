@@ -310,8 +310,8 @@ export default function App() {
               <Activity className="w-4 h-4 text-white" />
             </div>
             <div>
-              <h1 className="text-base font-medium tracking-tight text-white">مؤشر الدينار الليبي</h1>
-              <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-widest mt-0.5">LYD Index</p>
+              <h1 className="text-base font-medium tracking-tight text-white">مؤشر الدينار</h1>
+              <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-widest mt-0.5">Dinar Index</p>
             </div>
           </div>
           <div className="flex items-center gap-4">
