@@ -55,15 +55,26 @@ export default defineConfig(({mode}) => {
               }
             },
             {
-              urlPattern: /^\/api\/.*/i,
+              urlPattern: /^\/api\/rates/i,
               handler: 'NetworkFirst',
               options: {
-                cacheName: 'api-cache',
+                cacheName: 'rates-cache',
                 expiration: {
-                  maxEntries: 10,
+                  maxEntries: 5,
                   maxAgeSeconds: 60 * 60 // 1 hour
                 },
-                networkTimeoutSeconds: 10
+                networkTimeoutSeconds: 5
+              }
+            },
+            {
+              urlPattern: /^\/api\/history/i,
+              handler: 'StaleWhileRevalidate',
+              options: {
+                cacheName: 'history-cache',
+                expiration: {
+                  maxEntries: 10,
+                  maxAgeSeconds: 60 * 60 * 24 // 24 hours
+                }
               }
             }
           ]

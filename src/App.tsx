@@ -7,7 +7,8 @@ import {
   Activity,
   Building2,
   Coins,
-  Clock
+  Clock,
+  Bell
 } from "lucide-react";
 import {
   AreaChart,
@@ -57,6 +58,56 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null);
   const [selectedRate, setSelectedRate] = useState<{ code: string, name: string, market: 'official' | 'parallel' } | null>(null);
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(Notification.permission === 'granted');
+
+  const requestNotificationPermission = async () => {
+    const permission = await Notification.requestPermission();
+    if (permission === 'granted') {
+      setNotificationsEnabled(true);
+    }
+  };
+
+  const showPriceNotification = (code: string, name: string, oldPrice: number, newPrice: number) => {
+    if (Notification.permission !== 'granted') return;
+
+    const diff = newPrice - oldPrice;
+    const arrow = diff > 0 ? '📈' : '📉';
+    const direction = diff > 0 ? 'ارتفاع' : 'انخفاض';
+    
+    const title = `تغير في سعر ${name}`;
+    const body = `${arrow} ${direction} السعر الجديد: ${newPrice.toFixed(3)} د.ل (السابق: ${oldPrice.toFixed(3)})`;
+
+    navigator.serviceWorker.ready.then((registration) => {
+      registration.showNotification(title, {
+        body,
+        icon: 'https://hatscripts.github.io/circle-flags/flags/ly.svg',
+        badge: 'https://hatscripts.github.io/circle-flags/flags/ly.svg',
+        dir: 'rtl',
+        lang: 'ar',
+        tag: `price-change-${code}`,
+        renotify: true
+      } as any);
+    });
+  };
+
+  useEffect(() => {
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    
+    // Load from local storage on mount
+    const savedRates = localStorage.getItem('lyd_rates');
+    const savedHistory = localStorage.getItem('lyd_history');
+    if (savedRates) setRates(JSON.parse(savedRates));
+    if (savedHistory) setHistory(JSON.parse(savedHistory));
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   const fetchData = async () => {
     try {
@@ -79,9 +130,25 @@ export default function App() {
 
       const newRates = await ratesRes.json();
       const newHistory = await historyRes.json();
+      
+      // Check for price changes to notify
+      if (rates && notificationsEnabled) {
+        Object.keys(newRates).forEach(code => {
+          const oldPrice = rates[code]?.parallel?.buy;
+          const newPrice = newRates[code]?.parallel?.buy;
+          if (oldPrice && newPrice && oldPrice !== newPrice) {
+            showPriceNotification(code, newRates[code].name, oldPrice, newPrice);
+          }
+        });
+      }
+
       setRates(newRates);
       setHistory(newHistory);
       setLastFetchTime(new Date());
+
+      // Persist to local storage
+      localStorage.setItem('lyd_rates', JSON.stringify(newRates));
+      localStorage.setItem('lyd_history', JSON.stringify(newHistory));
     } catch (error) {
       if (error instanceof TypeError && error.message === "Failed to fetch") {
         console.warn("Server might be restarting, retrying in next poll...");
@@ -248,6 +315,22 @@ export default function App() {
             </div>
           </div>
           <div className="flex items-center gap-4">
+            {!notificationsEnabled && (
+              <button 
+                onClick={requestNotificationPermission}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 hover:bg-indigo-500/20 transition-colors"
+                title="تفعيل التنبيهات"
+              >
+                <Bell className="w-4 h-4" />
+                <span className="text-[10px] font-medium uppercase tracking-wider hidden md:inline">تنبيهات الأسعار</span>
+              </button>
+            )}
+            {isOffline && (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-500">
+                <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></div>
+                <span className="text-[10px] font-medium uppercase tracking-wider">وضع الأوفلاين</span>
+              </div>
+            )}
             <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/10 bg-white/5">
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
