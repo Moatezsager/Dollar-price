@@ -255,7 +255,7 @@ async function fetchParallelRatesFromTelegram() {
   try {
     // Store values with their timestamps to ensure we pick the absolute latest across all channels
     const priceHistory: Record<string, { value: number, time: number }[]> = {
-      USD: [], USD_CHECKS: [], EUR: [], GBP: [], GOLD: [], USD_TR: [], USD_AE: []
+      USD: [], USD_CHECKS: [], EUR: [], GBP: [], GOLD: [], USD_TR: [], USD_AE: [], TND: [], EGP: []
     };
 
     for (const channel of TELEGRAM_CHANNELS) {
@@ -307,6 +307,12 @@ async function fetchParallelRatesFromTelegram() {
             
             // Dubai Remittances - Expanded with city names and variations
             extract(/(?:حوالات دبي|حولات دبي|حوالة دبي|حواله دبي|تحويل دبي|تحويلات دبي|امارات|الإمارات|الامارات|دبي|أبوظبي|ابوظبي|الشارقة|🇦🇪)\s*(?:=|:|:|بـ|-|على|شرى|بيع|\s)\s*(\d{1,2}(?:\.\d{1,3})?)/i, 'USD_AE', 5.0, 25.0);
+
+            // Tunisian Dinar (TND) - Expanded
+            extract(/(?:دينار تونسي|دينار تونس|تونسي|تونس|tnd|🇹🇳)\s*(?:=|:|:|بـ|-|على|شرى|بيع|\s)\s*(\d{1,2}(?:\.\d{1,3})?)/i, 'TND', 0.5, 10.0);
+
+            // Egyptian Pound (EGP) - Expanded
+            extract(/(?:جنيه مصري|جنية مصري|جنيه مصر|مصري|مصر|egp|🇪🇬)\s*(?:=|:|:|بـ|-|على|شرى|بيع|\s)\s*(\d{1,2}(?:\.\d{1,3})?)/i, 'EGP', 0.01, 5.0);
           }
         }
       } catch (err) {
@@ -348,9 +354,9 @@ async function fetchParallelRatesFromTelegram() {
       rates.parallel.USD_TR = latestRates.USD_TR || rates.parallel.USD_TR || latestRates.USD;
       rates.parallel.USD_AE = latestRates.USD_AE || rates.parallel.USD_AE || latestRates.USD;
       
-      rates.parallel.TND = latestRates.USD * 0.32;
-      rates.parallel.TRY = latestRates.USD * 0.03;
-      rates.parallel.EGP = latestRates.USD * 0.02;
+      rates.parallel.TND = latestRates.TND || rates.parallel.TND || (latestRates.USD * 0.32);
+      rates.parallel.TRY = latestRates.TRY || rates.parallel.TRY || (latestRates.USD * 0.03);
+      rates.parallel.EGP = latestRates.EGP || rates.parallel.EGP || (latestRates.USD * 0.02);
 
       // Override previous with actual Telegram history if available and realistic
       if (previousRates.USD && Math.abs(previousRates.USD - latestRates.USD) < 1.5) {
