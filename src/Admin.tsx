@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "motion/react";
-import { Settings, Save, Plus, Trash2, ArrowRight, ShieldCheck, LogOut } from "lucide-react";
+import { Settings, Save, Plus, Trash2, ArrowRight, ShieldCheck, LogOut, X } from "lucide-react";
 
 export default function Admin() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -11,6 +11,10 @@ export default function Admin() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [isAuthorizedDevice, setIsAuthorizedDevice] = useState(true);
+
+  const [expandedTermIdx, setExpandedTermIdx] = useState<number | null>(null);
+  const [testTexts, setTestTexts] = useState<Record<number, string>>({});
+  const [newKeywords, setNewKeywords] = useState<Record<number, string>>({});
 
   useEffect(() => {
     const deviceToken = localStorage.getItem("admin_device_token");
@@ -261,115 +265,260 @@ export default function Admin() {
                 </button>
               </div>
 
-              <div className="min-w-[800px]">
-                <table className="w-full text-left border-collapse" dir="rtl">
-                  <thead>
-                    <tr className="border-b border-white/10 text-zinc-400 text-xs uppercase tracking-wider">
-                      <th className="pb-3 font-medium w-[15%]">المعرف (ID)</th>
-                      <th className="pb-3 font-medium w-[20%]">الاسم المعروض</th>
-                      <th className="pb-3 font-medium w-[30%]">قاعدة البحث (Regex)</th>
-                      <th className="pb-3 font-medium w-[10%] text-center">الحد الأدنى</th>
-                      <th className="pb-3 font-medium w-[10%] text-center">الحد الأقصى</th>
-                      <th className="pb-3 font-medium w-[10%] text-center">العلم (كود)</th>
-                      <th className="pb-3 font-medium w-[5%]"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/5">
-                    {config.terms.map((term: any, idx: number) => (
-                      <tr key={idx} className="group hover:bg-white/[0.02] transition-colors">
-                        <td className="py-3 pr-2">
-                          <input
-                            type="text"
-                            value={term.id}
-                            onChange={(e) => {
-                              const newTerms = [...config.terms];
-                              newTerms[idx].id = e.target.value;
-                              setConfig({ ...config, terms: newTerms });
-                            }}
-                            className="w-full bg-transparent border border-transparent group-hover:border-white/10 rounded px-2 py-1 text-sm font-mono focus:bg-white/5 focus:outline-none"
-                            dir="ltr"
-                          />
-                        </td>
-                        <td className="py-3 pr-2">
-                          <input
-                            type="text"
-                            value={term.name}
-                            onChange={(e) => {
-                              const newTerms = [...config.terms];
-                              newTerms[idx].name = e.target.value;
-                              setConfig({ ...config, terms: newTerms });
-                            }}
-                            className="w-full bg-transparent border border-transparent group-hover:border-white/10 rounded px-2 py-1 text-sm focus:bg-white/5 focus:outline-none"
-                          />
-                        </td>
-                        <td className="py-3 pr-2">
-                          <input
-                            type="text"
-                            value={term.regex}
-                            onChange={(e) => {
-                              const newTerms = [...config.terms];
-                              newTerms[idx].regex = e.target.value;
-                              setConfig({ ...config, terms: newTerms });
-                            }}
-                            className="w-full bg-transparent border border-transparent group-hover:border-white/10 rounded px-2 py-1 text-xs font-mono text-emerald-300 focus:bg-white/5 focus:outline-none"
-                            dir="ltr"
-                          />
-                        </td>
-                        <td className="py-3 pr-2">
-                          <input
-                            type="number"
-                            value={term.min}
-                            onChange={(e) => {
-                              const newTerms = [...config.terms];
-                              newTerms[idx].min = parseFloat(e.target.value);
-                              setConfig({ ...config, terms: newTerms });
-                            }}
-                            className="w-full bg-transparent border border-transparent group-hover:border-white/10 rounded px-2 py-1 text-sm text-center focus:bg-white/5 focus:outline-none"
-                            dir="ltr"
-                          />
-                        </td>
-                        <td className="py-3 pr-2">
-                          <input
-                            type="number"
-                            value={term.max}
-                            onChange={(e) => {
-                              const newTerms = [...config.terms];
-                              newTerms[idx].max = parseFloat(e.target.value);
-                              setConfig({ ...config, terms: newTerms });
-                            }}
-                            className="w-full bg-transparent border border-transparent group-hover:border-white/10 rounded px-2 py-1 text-sm text-center focus:bg-white/5 focus:outline-none"
-                            dir="ltr"
-                          />
-                        </td>
-                        <td className="py-3 pr-2">
-                          <input
-                            type="text"
-                            value={term.flag || ""}
-                            onChange={(e) => {
-                              const newTerms = [...config.terms];
-                              newTerms[idx].flag = e.target.value;
-                              setConfig({ ...config, terms: newTerms });
-                            }}
-                            placeholder="us, eu..."
-                            className="w-full bg-transparent border border-transparent group-hover:border-white/10 rounded px-2 py-1 text-sm text-center focus:bg-white/5 focus:outline-none"
-                            dir="ltr"
-                          />
-                        </td>
-                        <td className="py-3 pl-2 text-left">
+              <div className="space-y-4">
+                {config.terms.map((term: any, idx: number) => {
+                  const isExpanded = expandedTermIdx === idx;
+                  const testText = testTexts[idx] || "";
+                  let testResult: string | null = null;
+                  
+                  if (testText && term.regex) {
+                    try {
+                      const regex = new RegExp(term.regex, 'i');
+                      const match = testText.match(regex);
+                      if (match && match[1]) {
+                        let val = parseFloat(match[1].replace(',', '.'));
+                        if (term.isInverse && val > 0) val = 1 / val;
+                        
+                        if (!isNaN(val) && val > term.min && val < term.max) {
+                          testResult = `✅ تم الاستخراج: ${val.toFixed(2)}`;
+                        } else {
+                          testResult = `⚠️ الرقم (${val}) خارج النطاق المسموح (${term.min} - ${term.max})`;
+                        }
+                      } else {
+                        testResult = "❌ لم يتم العثور على تطابق";
+                      }
+                    } catch (e) {
+                      testResult = "❌ خطأ في صيغة Regex";
+                    }
+                  }
+
+                  return (
+                    <div key={idx} className={`border ${isExpanded ? 'border-blue-500/30 bg-blue-500/5' : 'border-white/10 bg-white/[0.02] hover:bg-white/[0.04]'} rounded-xl transition-colors overflow-hidden`}>
+                      {/* Card Header (Always visible) */}
+                      <div 
+                        className="flex items-center justify-between p-4 cursor-pointer"
+                        onClick={() => setExpandedTermIdx(isExpanded ? null : idx)}
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-white/5 text-lg">
+                            {term.flag ? (
+                              <img src={`https://flagcdn.com/w40/${term.flag}.png`} alt="flag" className="w-6 h-auto rounded-sm opacity-80" />
+                            ) : (
+                              <span className="text-zinc-500">💰</span>
+                            )}
+                          </div>
+                          <div>
+                            <h3 className="text-white font-medium">{term.name || "بدون اسم"}</h3>
+                            <p className="text-xs text-zinc-500 font-mono mt-0.5">{term.id || "NO_ID"}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
                           <button
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.stopPropagation();
                               const newTerms = config.terms.filter((_: any, i: number) => i !== idx);
                               setConfig({ ...config, terms: newTerms });
+                              if (isExpanded) setExpandedTermIdx(null);
                             }}
-                            className="p-1.5 rounded text-zinc-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors opacity-0 group-hover:opacity-100"
+                            className="p-2 rounded-lg text-zinc-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                            title="حذف"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                        </div>
+                      </div>
+
+                      {/* Card Body (Expanded) */}
+                      {isExpanded && (
+                        <div className="p-4 pt-0 border-t border-white/5 mt-2 space-y-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
+                            {/* Basic Info */}
+                            <div className="space-y-3">
+                              <div>
+                                <label className="block text-xs text-zinc-400 mb-1">المعرف (ID - إنجليزي فقط)</label>
+                                <input
+                                  type="text"
+                                  value={term.id}
+                                  onChange={(e) => {
+                                    const newTerms = [...config.terms];
+                                    newTerms[idx].id = e.target.value;
+                                    setConfig({ ...config, terms: newTerms });
+                                  }}
+                                  className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm font-mono focus:border-blue-500 focus:outline-none"
+                                  dir="ltr"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs text-zinc-400 mb-1">الاسم المعروض</label>
+                                <input
+                                  type="text"
+                                  value={term.name}
+                                  onChange={(e) => {
+                                    const newTerms = [...config.terms];
+                                    newTerms[idx].name = e.target.value;
+                                    setConfig({ ...config, terms: newTerms });
+                                  }}
+                                  className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                                />
+                              </div>
+                              <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                  <label className="block text-xs text-zinc-400 mb-1">الحد الأدنى للسعر</label>
+                                  <input
+                                    type="number"
+                                    value={term.min}
+                                    onChange={(e) => {
+                                      const newTerms = [...config.terms];
+                                      newTerms[idx].min = parseFloat(e.target.value);
+                                      setConfig({ ...config, terms: newTerms });
+                                    }}
+                                    className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-center focus:border-blue-500 focus:outline-none"
+                                    dir="ltr"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-xs text-zinc-400 mb-1">الحد الأقصى للسعر</label>
+                                  <input
+                                    type="number"
+                                    value={term.max}
+                                    onChange={(e) => {
+                                      const newTerms = [...config.terms];
+                                      newTerms[idx].max = parseFloat(e.target.value);
+                                      setConfig({ ...config, terms: newTerms });
+                                    }}
+                                    className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-center focus:border-blue-500 focus:outline-none"
+                                    dir="ltr"
+                                  />
+                                </div>
+                              </div>
+                              <div>
+                                <label className="block text-xs text-zinc-400 mb-1">كود العلم (اختياري - مثلاً us, eu, tr)</label>
+                                <input
+                                  type="text"
+                                  value={term.flag || ""}
+                                  onChange={(e) => {
+                                    const newTerms = [...config.terms];
+                                    newTerms[idx].flag = e.target.value;
+                                    setConfig({ ...config, terms: newTerms });
+                                  }}
+                                  className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                                  dir="ltr"
+                                />
+                              </div>
+                            </div>
+
+                            {/* Keywords, Regex & Testing */}
+                            <div className="space-y-3 flex flex-col">
+                              {/* Visual Editor */}
+                              {(() => {
+                                const parsedRegex = term.regex.match(/^\(\?\:([^)]+)\)(.*)$/);
+                                if (parsedRegex) {
+                                  const keywords = parsedRegex[1].split('|');
+                                  return (
+                                    <div className="bg-black/20 border border-white/5 rounded-lg p-3">
+                                      <label className="block text-xs text-zinc-400 mb-2">كلمات البحث (الكلمات الدلالية)</label>
+                                      <div className="flex flex-wrap gap-2 mb-3">
+                                        {keywords.map((kw: string, i: number) => (
+                                          <span key={i} className="flex items-center gap-1.5 bg-blue-500/10 border border-blue-500/20 text-blue-300 px-2.5 py-1 rounded-md text-xs">
+                                            {kw}
+                                            <button 
+                                              onClick={() => {
+                                                const updatedKeywords = keywords.filter((k: string) => k !== kw);
+                                                if (updatedKeywords.length > 0) {
+                                                  const newTerms = [...config.terms];
+                                                  newTerms[idx].regex = `(?:${updatedKeywords.join('|')})${parsedRegex[2]}`;
+                                                  setConfig({ ...config, terms: newTerms });
+                                                }
+                                              }}
+                                              className="hover:text-rose-400 transition-colors"
+                                            >
+                                              <X className="w-3 h-3" />
+                                            </button>
+                                          </span>
+                                        ))}
+                                      </div>
+                                      <div className="flex gap-2">
+                                        <input
+                                          type="text"
+                                          value={newKeywords[idx] || ""}
+                                          onChange={(e) => setNewKeywords({ ...newKeywords, [idx]: e.target.value })}
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                              e.preventDefault();
+                                              const kw = newKeywords[idx]?.trim();
+                                              if (kw && !keywords.includes(kw)) {
+                                                const newTerms = [...config.terms];
+                                                newTerms[idx].regex = `(?:${[...keywords, kw].join('|')})${parsedRegex[2]}`;
+                                                setConfig({ ...config, terms: newTerms });
+                                                setNewKeywords({ ...newKeywords, [idx]: "" });
+                                              }
+                                            }
+                                          }}
+                                          placeholder="أضف كلمة جديدة واضغط Enter..."
+                                          className="flex-1 bg-black/40 border border-white/10 rounded-md px-3 py-1.5 text-xs focus:border-blue-500 focus:outline-none"
+                                        />
+                                        <button 
+                                          onClick={() => {
+                                            const kw = newKeywords[idx]?.trim();
+                                            if (kw && !keywords.includes(kw)) {
+                                              const newTerms = [...config.terms];
+                                              newTerms[idx].regex = `(?:${[...keywords, kw].join('|')})${parsedRegex[2]}`;
+                                              setConfig({ ...config, terms: newTerms });
+                                              setNewKeywords({ ...newKeywords, [idx]: "" });
+                                            }
+                                          }}
+                                          className="bg-blue-500/20 text-blue-400 px-3 py-1.5 rounded-md text-xs hover:bg-blue-500/30 transition-colors"
+                                        >
+                                          إضافة
+                                        </button>
+                                      </div>
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              })()}
+
+                              <div>
+                                <label className="block text-xs text-zinc-400 mb-1">قاعدة البحث المتقدمة (Regex)</label>
+                                <textarea
+                                  value={term.regex}
+                                  onChange={(e) => {
+                                    const newTerms = [...config.terms];
+                                    newTerms[idx].regex = e.target.value;
+                                    setConfig({ ...config, terms: newTerms });
+                                  }}
+                                  className="w-full h-24 bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm font-mono text-emerald-300 focus:border-blue-500 focus:outline-none resize-none leading-relaxed"
+                                  dir="ltr"
+                                  placeholder="(?:دولار|usd)\s*=\s*(\d+\.\d+)"
+                                />
+                              </div>
+                              
+                              <div className="flex-1 bg-black/40 border border-white/5 rounded-lg p-3 flex flex-col">
+                                <label className="block text-xs text-zinc-400 mb-2 flex items-center gap-2">
+                                  <span>🧪 تجربة الـ Regex</span>
+                                </label>
+                                <textarea
+                                  value={testText}
+                                  onChange={(e) => setTestTexts({ ...testTexts, [idx]: e.target.value })}
+                                  placeholder="الصق رسالة تليجرام هنا لتجربة استخراج السعر..."
+                                  className="w-full flex-1 bg-white/5 border border-white/10 rounded-md px-3 py-2 text-xs focus:border-blue-500 focus:outline-none resize-none mb-2"
+                                />
+                                <div className={`text-xs font-medium p-2 rounded-md ${
+                                  !testText ? 'bg-transparent text-zinc-600' :
+                                  testResult?.startsWith('✅') ? 'bg-emerald-500/10 text-emerald-400' :
+                                  testResult?.startsWith('⚠️') ? 'bg-amber-500/10 text-amber-400' :
+                                  'bg-rose-500/10 text-rose-400'
+                                }`}>
+                                  {testText ? testResult : 'أدخل نصاً للتجربة'}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
