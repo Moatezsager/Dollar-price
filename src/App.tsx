@@ -153,7 +153,12 @@ export default function App() {
             { action: 'open', title: 'فتح التطبيق' },
             { action: 'close', title: 'تجاهل' }
           ]
-        } as any);
+        } as any).catch(err => {
+          console.error("Failed to show notification:", err);
+          logErrorToServer(err, "App.tsx: showNotification");
+        });
+      }).catch(err => {
+        console.error("Service worker not ready:", err);
       });
     }
   };
@@ -196,10 +201,22 @@ export default function App() {
   };
 
   const requestNotificationPermission = async () => {
-    const permission = await Notification.requestPermission();
-    if (permission === 'granted') {
-      setNotificationsEnabled(true);
-      addToast("تم تفعيل التنبيهات", "ستصلك إشعارات عند تغير الأسعار الهامة", "info");
+    try {
+      if (!("Notification" in window)) {
+        addToast("غير مدعوم", "متصفحك لا يدعم الإشعارات", "info");
+        return;
+      }
+      const permission = await Notification.requestPermission();
+      if (permission === 'granted') {
+        setNotificationsEnabled(true);
+        addToast("تم تفعيل التنبيهات", "ستصلك إشعارات عند تغير الأسعار الهامة", "info");
+      } else {
+        addToast("تم رفض التنبيهات", "يرجى تفعيل الإشعارات من إعدادات المتصفح", "info");
+      }
+    } catch (error) {
+      console.error("Error requesting notification permission:", error);
+      logErrorToServer(error, "App.tsx: requestNotificationPermission");
+      addToast("خطأ", "تعذر تفعيل الإشعارات", "info");
     }
   };
 
@@ -281,9 +298,16 @@ export default function App() {
         if (!refreshRes.ok) throw new Error("Refresh failed");
       }
 
+      const ratesPromise = fetch("/api/rates").catch(err => { throw err; });
+      const historyPromise = fetch("/api/history").catch(err => { throw err; });
+
+      // Prevent unhandled rejections if one fails before the other
+      ratesPromise.catch(() => {});
+      historyPromise.catch(() => {});
+
       const [ratesRes, historyRes] = await Promise.all([
-        fetch("/api/rates"),
-        fetch("/api/history"),
+        ratesPromise,
+        historyPromise,
       ]);
       
       if (!ratesRes.ok || !historyRes.ok) {
