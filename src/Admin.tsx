@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "motion/react";
 import { Settings, Save, Plus, Trash2, ArrowRight, ShieldCheck, LogOut, X } from "lucide-react";
 import { logErrorToServer } from "./utils/logger";
@@ -6,7 +6,13 @@ import { logErrorToServer } from "./utils/logger";
 export default function Admin() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [password, setPassword] = useState("");
-  const [token, setToken] = useState(localStorage.getItem("adminToken") || "");
+  const [token, setToken] = useState(() => {
+    try {
+      return localStorage.getItem("adminToken") || "";
+    } catch (e) {
+      return "";
+    }
+  });
   const [config, setConfig] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -18,7 +24,13 @@ export default function Admin() {
   const [newKeywords, setNewKeywords] = useState<Record<number, string>>({});
 
   useEffect(() => {
-    const deviceToken = localStorage.getItem("admin_device_token");
+    let deviceToken = null;
+    try {
+      deviceToken = localStorage.getItem("admin_device_token");
+    } catch (e) {
+      console.warn("LocalStorage not available", e);
+    }
+    
     if (deviceToken !== "authorized_device_token_xyz") {
       setIsAuthorizedDevice(false);
       window.location.href = "/";
@@ -45,7 +57,9 @@ export default function Admin() {
         setIsLoggedIn(true);
       } else {
         setIsLoggedIn(false);
-        localStorage.removeItem("adminToken");
+        try {
+          localStorage.removeItem("adminToken");
+        } catch (e) {}
         setToken("");
       }
     } catch (err) {
@@ -67,7 +81,11 @@ export default function Admin() {
       const data = await res.json();
       if (data.success) {
         setToken(data.token);
-        localStorage.setItem("adminToken", data.token);
+        try {
+          localStorage.setItem("adminToken", data.token);
+        } catch (e) {
+          console.warn("LocalStorage not available", e);
+        }
         setIsLoggedIn(true);
       } else {
         setError(data.message);
@@ -107,7 +125,9 @@ export default function Admin() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("adminToken");
+    try {
+      localStorage.removeItem("adminToken");
+    } catch (e) {}
     setToken("");
     setIsLoggedIn(false);
   };

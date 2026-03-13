@@ -5,6 +5,8 @@ import fs from "fs";
 import { createClient } from '@supabase/supabase-js';
 import { WebSocketServer } from 'ws';
 import { createServer } from 'http';
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 
 // Initialize Supabase client for server
 const supabaseUrl = process.env.VITE_SUPABASE_URL || 'https://rbqvldyagskdxjhnkqvt.supabase.co';
@@ -321,6 +323,7 @@ async function fetchParallelRatesFromTelegram() {
     }
 
     let successfulChannels = 0;
+    let totalMessagesProcessed = 0;
 
     for (const channel of appConfig.channels) {
       try {
@@ -330,12 +333,20 @@ async function fetchParallelRatesFromTelegram() {
         const response = await fetch(`https://t.me/s/${channel}`, { signal: controller.signal });
         clearTimeout(timeoutId);
         
-        if (!response.ok) continue;
+        if (!response.ok) {
+          console.warn(`[Scraper] Failed to fetch channel ${channel}: ${response.status}`);
+          continue;
+        }
         
         const html = await response.text();
         const messageBlocks = html.split('tgme_widget_message_wrap');
         
-        if (messageBlocks.length > 1) successfulChannels++;
+        if (messageBlocks.length > 1) {
+          successfulChannels++;
+          totalMessagesProcessed += (messageBlocks.length - 1);
+        } else {
+          console.warn(`[Scraper] No messages found in channel ${channel} (Telegram might be blocking or page structure changed)`);
+        }
 
         for (const block of messageBlocks) {
           const textMatch = block.match(/<div class="tgme_widget_message_text[^>]*>(.*?)<\/div>/);
@@ -407,6 +418,7 @@ async function fetchParallelRatesFromTelegram() {
     }
 
     if (latestRates.USD) {
+      console.log(`[Scraper] Success! Found USD rate: ${latestRates.USD}. Channels: ${successfulChannels}/${appConfig.channels.length}, Messages: ${totalMessagesProcessed}`);
       // Shift current to previous if it changed
       if (latestRates.USD !== rates.parallel.USD) {
         rates.previousParallel = { ...rates.parallel };
@@ -544,14 +556,59 @@ async function startServer() {
   }
 
   app.use(express.json());
+  app.set('trust proxy', 1);
+
+  // Security Headers
+  app.use(helmet({
+    crossOriginEmbedderPolicy: false,
+    crossOriginResourcePolicy: false,
+    frameguard: false,
+    contentSecurityPolicy: {
+      directives: {
+        ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+        "img-src": ["'self'", "data:", "https://hatscripts.github.io", "https://picsum.photos", "https://*.supabase.co", "https://*.google.com", "https://*.gstatic.com"],
+        "connect-src": ["'self'", "https://open.er-api.com", "https://t.me", "https://*.supabase.co", "wss:", "ws:", "https://*.google.com", "https://*.gstatic.com", "https://*.googleapis.com"],
+        "script-src": ["'self'", "'unsafe-inline'", "'unsafe-eval'", "blob:", "https://*.google.com", "https://*.gstatic.com"],
+        "font-src": ["'self'", "https://fonts.gstatic.com", "data:", "https://*.googleapis.com"],
+        "style-src": ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://*.gstatic.com"],
+        "frame-ancestors": ["*"],
+        "worker-src": ["'self'", "blob:"],
+        "upgrade-insecure-requests": null,
+      },
+    },
+  }));
+
+  // Rate Limiting
+  const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    message: { success: false, message: "محاولات كثيرة جداً، يرجى المحاولة لاحقاً" },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
+  const apiLimiter = rateLimit({
+    windowMs: 1 * 60 * 1000,
+    max: 100,
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
+  app.use("/api/", apiLimiter);
 
   // --- Admin API ---
-  const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin123";
-  let adminToken = Math.random().toString(36).substring(2); // Simple in-memory token
+  const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+  
+  if (!ADMIN_PASSWORD && process.env.NODE_ENV === "production") {
+    console.warn("WARNING: ADMIN_PASSWORD is not set in production. Using default (insecure).");
+  }
+  
+  const effectiveAdminPassword = ADMIN_PASSWORD || "admin123";
+  let adminToken = Math.random().toString(36).substring(2) + Date.now().toString(36); // More complex token
 
   app.post("/api/admin/login", (req, res) => {
     const { password } = req.body;
-    if (password === ADMIN_PASSWORD) {
+    if (password === effectiveAdminPassword) {
       res.json({ success: true, token: adminToken });
     } else {
       res.status(401).json({ success: false, message: "كلمة المرور غير صحيحة" });
@@ -647,15 +704,31 @@ async function startServer() {
   });
 
   app.get("/api/refresh", async (req, res) => {
-    console.log("Manual refresh triggered...");
+    const userAgent = req.headers['user-agent'] || 'Unknown';
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    
+    console.log(`\n[Cron-Job] Refresh request received!`);
+    console.log(`Time: ${new Date().toLocaleString('ar-LY')}`);
+    console.log(`Caller: ${userAgent}`);
+    console.log(`IP: ${ip}`);
+    
     try {
+      const startTime = Date.now();
       await Promise.all([
         fetchOfficialRates(),
         fetchParallelRatesFromTelegram()
       ]);
-      res.json({ success: true, rates });
+      const duration = Date.now() - startTime;
+      
+      console.log(`[Cron-Job] Refresh completed successfully in ${duration}ms`);
+      res.json({ 
+        success: true, 
+        message: "Data refreshed successfully",
+        timestamp: new Date().toISOString(),
+        caller: userAgent
+      });
     } catch (err) {
-      console.error("Manual refresh failed:", err);
+      console.error("[Cron-Job] Refresh failed:", err);
       res.status(500).json({ success: false, error: "Failed to refresh data" });
     }
   });

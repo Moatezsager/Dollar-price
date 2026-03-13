@@ -27,7 +27,11 @@ registerSW({
 const path = window.location.pathname;
 
 if (path === '/setup-device-auth-8899') {
-  localStorage.setItem('admin_device_token', 'authorized_device_token_xyz');
+  try {
+    localStorage.setItem('admin_device_token', 'authorized_device_token_xyz');
+  } catch (e) {
+    console.warn("LocalStorage not available", e);
+  }
   window.location.href = '/admin';
 }
 

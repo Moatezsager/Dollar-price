@@ -71,7 +71,9 @@ export default function App() {
   const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null);
   const [selectedRate, setSelectedRate] = useState<{ code: string, name: string, market: 'official' | 'parallel' } | null>(null);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
-  const [notificationsEnabled, setNotificationsEnabled] = useState(Notification.permission === 'granted');
+  const [notificationsEnabled, setNotificationsEnabled] = useState(
+    typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted'
+  );
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showNotificationSettings, setShowNotificationSettings] = useState(false);
@@ -139,7 +141,7 @@ export default function App() {
     addToast(title, body, diff > 0 ? 'up' : 'down');
 
     // Native notification - check permission directly to be safe
-    if (Notification.permission === 'granted') {
+    if (Notification.permission === 'granted' && 'serviceWorker' in navigator) {
       navigator.serviceWorker.ready.then((registration) => {
         registration.showNotification(title, {
           body,
@@ -278,10 +280,14 @@ export default function App() {
     window.addEventListener('offline', handleOffline);
     
     // Load from local storage on mount
-    const savedRates = localStorage.getItem('lyd_rates');
-    const savedHistory = localStorage.getItem('lyd_history');
-    if (savedRates) setRates(JSON.parse(savedRates));
-    if (savedHistory) setHistory(JSON.parse(savedHistory));
+    try {
+      const savedRates = localStorage.getItem('lyd_rates');
+      const savedHistory = localStorage.getItem('lyd_history');
+      if (savedRates) setRates(JSON.parse(savedRates));
+      if (savedHistory) setHistory(JSON.parse(savedHistory));
+    } catch (err) {
+      console.warn("LocalStorage not available:", err);
+    }
 
     return () => {
       window.removeEventListener('online', handleOnline);
@@ -382,8 +388,12 @@ export default function App() {
       }
 
       // Persist to local storage
-      localStorage.setItem('lyd_rates', JSON.stringify(newRates));
-      localStorage.setItem('lyd_history', JSON.stringify(newHistory));
+      try {
+        localStorage.setItem('lyd_rates', JSON.stringify(newRates));
+        localStorage.setItem('lyd_history', JSON.stringify(newHistory));
+      } catch (err) {
+        console.warn("Failed to save to localStorage:", err);
+      }
 
       if (hasChanges) {
         addToast("تم تحديث الأسعار", "تم رصد تغييرات جديدة في السوق وتحديث البيانات", "info");
@@ -653,11 +663,20 @@ export default function App() {
               <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full overflow-hidden shadow-[0_0_15px_rgba(16,185,129,0.3)] shrink-0">
                 <img src="https://hatscripts.github.io/circle-flags/flags/us.svg" alt="US Flag" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
               </div>
-              <h2 className="text-sm sm:text-base font-medium text-emerald-400 tracking-wide">السوق الموازي • دولار أمريكي</h2>
+              <div className="flex items-center gap-2.5">
+                <h2 className="text-sm sm:text-base font-medium text-emerald-400 tracking-wide">السوق الموازي • دولار أمريكي</h2>
+                <div className="flex items-center gap-1.5 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                  <span className="relative flex h-1.5 w-1.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                  </span>
+                  <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">Live</span>
+                </div>
+              </div>
             </div>
             
             <div 
-              className="flex items-baseline gap-3 sm:gap-4 cursor-pointer group"
+              className="flex items-baseline gap-3 sm:gap-4 cursor-pointer group relative"
               onClick={() => setSelectedRate({ code: 'USD', name: 'دولار أمريكي (كاش)', market: 'parallel' })}
             >
               <AnimatePresence mode="popLayout">
@@ -666,12 +685,26 @@ export default function App() {
                   initial={{ opacity: 0, y: -20 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: 20 }}
-                  className="text-6xl sm:text-8xl lg:text-[140px] font-light text-white tracking-tighter font-mono leading-none group-hover:text-emerald-400 transition-colors"
+                  className="text-6xl sm:text-8xl lg:text-[140px] font-light text-white tracking-tighter font-mono leading-none group-hover:text-emerald-400 transition-colors relative z-10"
                 >
                   {usdRate.toFixed(2)}
                 </motion.span>
               </AnimatePresence>
               <span className="text-xl sm:text-3xl lg:text-4xl text-zinc-500 font-light">د.ل</span>
+              
+              {/* Subtle pulsing glow behind the price */}
+              <motion.div 
+                animate={{ 
+                  opacity: [0.1, 0.2, 0.1],
+                  scale: [1, 1.05, 1]
+                }}
+                transition={{ 
+                  duration: 3, 
+                  repeat: Infinity, 
+                  ease: "easeInOut" 
+                }}
+                className="absolute -inset-4 bg-emerald-500/5 blur-2xl rounded-full -z-0 pointer-events-none"
+              />
             </div>
             
             <div className="flex flex-wrap items-center gap-4 sm:gap-6 mt-6 sm:mt-8">
