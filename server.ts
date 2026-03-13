@@ -252,32 +252,42 @@ async function fetchOfficialRates() {
 
 // Telegram channels for parallel market rates
 const TELEGRAM_CHANNELS = ["dollarr_ly", "musheermarket", "lydollar", "djheih2026", "suqalmushir"];
+let lastSuccessfulScrape = new Date();
 
 async function fetchParallelRatesFromTelegram() {
   try {
-    // Store values with their timestamps to ensure we pick the absolute latest across all channels
     const priceHistory: Record<string, { value: number, time: number }[]> = {
       USD: [], USD_CHECKS: [], EUR: [], GBP: [], GOLD: [], USD_TR: [], USD_AE: [], TND: [], EGP: []
     };
 
+    let successfulChannels = 0;
+
     for (const channel of TELEGRAM_CHANNELS) {
       try {
-        const response = await fetch(`https://t.me/s/${channel}`);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
+        const response = await fetch(`https://t.me/s/${channel}`, { signal: controller.signal });
+        clearTimeout(timeoutId);
+        
         if (!response.ok) continue;
         
         const html = await response.text();
-        // Split HTML into individual message blocks
         const messageBlocks = html.split('tgme_widget_message_wrap');
         
+        if (messageBlocks.length > 1) successfulChannels++;
+
         for (const block of messageBlocks) {
           const textMatch = block.match(/<div class="tgme_widget_message_text[^>]*>(.*?)<\/div>/);
           const timeMatch = block.match(/<time datetime="([^"]+)"/);
           
           if (textMatch && timeMatch) {
-            const cleanText = textMatch[1].replace(/<[^>]+>/g, ' ');
+            const cleanText = textMatch[1].replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ');
             const time = new Date(timeMatch[1]).getTime();
             
-            // Skip messages that are clearly official bank reports unless they also mention parallel/black market
+            // Skip very old messages (older than 48h) to keep data fresh
+            if (Date.now() - time > 48 * 60 * 60 * 1000) continue;
+
             const isOfficialReport = /رسمي|المركزي|بفارق|نشرة|أسعار المصرف/i.test(cleanText);
             const isParallelReport = /موازي|سوداء|كاش|خضراء|ورقة|سوق/i.test(cleanText);
             if (isOfficialReport && !isParallelReport) continue;
@@ -285,7 +295,7 @@ async function fetchParallelRatesFromTelegram() {
             const extract = (regex: RegExp, key: string, min: number, max: number, isInverse = false) => {
               const match = cleanText.match(regex);
               if (match && match[1]) {
-                let val = parseFloat(match[1]);
+                let val = parseFloat(match[1].replace(',', '.'));
                 if (isInverse && val > 0) val = 1 / val;
                 
                 if (!isNaN(val) && val > min && val < max) {
@@ -296,43 +306,25 @@ async function fetchParallelRatesFromTelegram() {
               return false;
             };
 
-            // USD Cash - Expanded with local terms
-            extract(/(?:الدولار كاش|دولار كاش|الدولار|دولار|الخضراء|خضراء|ورقة|الورقة|كاش|الولايات المتحدة|usd|🇺🇸)\s*[=:]?\s*(\d{1,2}(?:\.\d{1,3})?)/i, 'USD', 5.0, 25.0);
-            
-            // USD Checks (Banks) - Expanded
-            extract(/(?:صكوك|بنوك|الدولار بنوك|صك|شيك|شيكات|مصرف|مصارف|الجمهورية|التجارة|التجارة والتنمية|الوحدة|الامان|الأمان|الصحاري|شمال أفريقيا|التجاري الوطني)\s*[=:]?\s*(\d{1,2}(?:\.\d{1,3})?)/i, 'USD_CHECKS', 5.0, 25.0);
-            
-            // EUR - Expanded
-            extract(/(?:يورو|اليورو|العملة الموحدة|الاوروبي|الأوروبي|eur|🇪🇺)\s*[=:]?\s*(\d{1,2}(?:\.\d{1,3})?)/i, 'EUR', 5.0, 25.0);
-            
-            // GBP - Expanded
-            extract(/(?:باوند|الباوند|استرليني|الإسترليني|جنيه إسترليني|gbp|🇬🇧)\s*[=:]?\s*(\d{1,2}(?:\.\d{1,3})?)/i, 'GBP', 5.0, 25.0);
-            
-            // Gold - Expanded
-            extract(/(?:كسر الذهب عيار 18|كسر الذهب|ذهب كسر|الذهب|ذهب|سبائك|ليرة|مغلف)\s*[=:]?\s*(\d{2,4}(?:\.\d+)?)/i, 'GOLD', 100, 5000);
-            
-            // Turkey Remittances - Expanded
-            extract(/(?:حوالات تركيا|حولات تركيا|حوالة تركيا|حواله تركيا|تحويل تركيا|تحويلات تركيا|تركي|اسطنبول|أنقرة|انقرة|تركيا|🇹🇷)\s*[=:]?\s*(\d{1,2}(?:\.\d{1,3})?)/i, 'USD_TR', 5.0, 25.0);
-            
-            // Dubai Remittances - Expanded
-            extract(/(?:حوالات دبي|حولات دبي|حوالة دبي|حواله دبي|تحويل دبي|تحويلات دبي|امارات|الإمارات|الامارات|دبي|أبوظبي|ابوظبي|الشارقة|🇦🇪)\s*[=:]?\s*(\d{1,2}(?:\.\d{1,3})?)/i, 'USD_AE', 5.0, 25.0);
-
-            // Tunisian Dinar (TND) - Support both directions and dots
-            // Standard: TND = X LYD (e.g. تونسي 3.22)
-            extract(/(?:دينار[\.\s]تونسي|تونسي|تونس|tnd|🇹🇳)\s*[=:]?\s*([1-9](?:\.\d+)?)/i, 'TND', 0.5, 10.0);
-            // Inverse: 1 LYD = X TND (e.g. ليبي=0.31 تونسي)
-            extract(/(?:دينار[\.\s]ليبي|ليبي)\s*[=:]?\s*(0\.\d+)\s*(?:دينار[\.\s]تونسي|تونسي|تونس|tnd|🇹🇳)/i, 'TND', 0.5, 10.0, true);
-
-            // Egyptian Pound (EGP) - Support both directions and dots
-            // Standard: EGP = X LYD (e.g. مصري 0.20)
-            extract(/(?:جنيه[\.\s]مصري|مصري|مصر|egp|🇪🇬)\s*[=:]?\s*(0\.\d+)/i, 'EGP', 0.01, 5.0);
-            // Inverse: 1 LYD = X EGP (e.g. ليبي=4.80 مصري)
-            extract(/(?:دينار[\.\s]ليبي|ليبي)\s*[=:]?\s*([1-9](?:\.\d+)?)\s*(?:جنيه[\.\s]مصري|مصري|مصر|egp|🇪🇬)/i, 'EGP', 0.01, 5.0, true);
+            // Improved Regex for better matching
+            extract(/(?:الدولار|دولار|الخضراء|خضراء|ورقة|الورقة|كاش|usd|🇺🇸)\s*(?:كاش)?\s*[=:]?\s*(\d{1,2}(?:[\.,]\d{1,3})?)/i, 'USD', 5.0, 25.0);
+            extract(/(?:صكوك|بنوك|شيك|شيكات|مصرف|مصارف|بنوك)\s*[=:]?\s*(\d{1,2}(?:[\.,]\d{1,3})?)/i, 'USD_CHECKS', 5.0, 25.0);
+            extract(/(?:يورو|اليورو|eur|🇪🇺)\s*[=:]?\s*(\d{1,2}(?:[\.,]\d{1,3})?)/i, 'EUR', 5.0, 25.0);
+            extract(/(?:باوند|استرليني|gbp|🇬🇧)\s*[=:]?\s*(\d{1,2}(?:[\.,]\d{1,3})?)/i, 'GBP', 5.0, 25.0);
+            extract(/(?:كسر الذهب|ذهب كسر|ذهب|الذهب)\s*(?:18)?\s*[=:]?\s*(\d{2,4}(?:[\.,]\d+)?)/i, 'GOLD', 100, 5000);
+            extract(/(?:تركيا|تركي|اسطنبول|🇹🇷)\s*[=:]?\s*(\d{1,2}(?:[\.,]\d{1,3})?)/i, 'USD_TR', 5.0, 25.0);
+            extract(/(?:دبي|امارات|الإمارات|🇦🇪)\s*[=:]?\s*(\d{1,2}(?:[\.,]\d{1,3})?)/i, 'USD_AE', 5.0, 25.0);
+            extract(/(?:تونسي|تونس|tnd|🇹🇳)\s*[=:]?\s*([1-9](?:[\.,]\d+)?)/i, 'TND', 0.5, 10.0);
+            extract(/(?:مصري|مصر|egp|🇪🇬)\s*[=:]?\s*(0(?:[\.,]\d+))/i, 'EGP', 0.01, 5.0);
           }
         }
       } catch (err) {
         console.error(`Error fetching from ${channel}:`, err);
       }
+    }
+
+    if (successfulChannels > 0) {
+      lastSuccessfulScrape = new Date();
     }
 
     const latestRates: Record<string, number> = {};
@@ -446,6 +438,16 @@ async function startServer() {
   app.get("/api/online-count", (req, res) => {
     res.json({ count: onlineUsers });
   });
+
+  app.get("/api/status", (req, res) => {
+    const minutesSinceLastScrape = Math.floor((Date.now() - lastSuccessfulScrape.getTime()) / 60000);
+    res.json({ 
+      status: minutesSinceLastScrape > 30 ? "stale" : "ok",
+      lastScrape: lastSuccessfulScrape,
+      minutesSinceLastScrape
+    });
+  });
+
   app.get("/api/rates", (req, res) => {
     res.json(rates);
   });

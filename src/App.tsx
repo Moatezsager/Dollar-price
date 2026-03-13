@@ -28,7 +28,7 @@ import {
   ResponsiveContainer,
   Tooltip,
 } from "recharts";
-import { format } from "date-fns";
+import { format, formatDistanceToNow } from "date-fns";
 import { ar } from "date-fns/locale";
 
 interface Rates {
@@ -76,6 +76,7 @@ export default function App() {
   const [notificationThreshold, setNotificationThreshold] = useState(0.001);
   const [toasts, setToasts] = useState<{ id: string, title: string, body: string, type: 'up' | 'down' | 'info' }[]>([]);
   const [onlineCount, setOnlineCount] = useState<number>(1);
+  const [appStatus, setAppStatus] = useState<{ status: string, minutesSinceLastScrape: number } | null>(null);
   const reportRef = useRef<HTMLDivElement>(null);
   const ratesRef = useRef<Rates | null>(null);
   const thresholdRef = useRef<number>(0.001);
@@ -317,6 +318,17 @@ export default function App() {
       setHistory(newHistory);
       setLastFetchTime(new Date());
 
+      // Fetch status
+      try {
+        const statusRes = await fetch("/api/status");
+        if (statusRes.ok) {
+          const statusData = await statusRes.json();
+          setAppStatus(statusData);
+        }
+      } catch (err) {
+        // Ignore status fetch errors
+      }
+
       // Persist to local storage
       localStorage.setItem('lyd_rates', JSON.stringify(newRates));
       localStorage.setItem('lyd_history', JSON.stringify(newHistory));
@@ -383,6 +395,23 @@ export default function App() {
       {/* Atmospheric Backgrounds */}
       <div className="fixed top-[-10%] left-[-10%] w-[500px] h-[500px] bg-emerald-600/10 blur-[120px] rounded-full pointer-events-none"></div>
       <div className="fixed bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-blue-600/10 blur-[120px] rounded-full pointer-events-none"></div>
+
+      {/* Stale Data Warning */}
+      <AnimatePresence>
+        {appStatus?.status === 'stale' && (
+          <motion.div 
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="bg-amber-500/10 border-b border-amber-500/20 overflow-hidden"
+          >
+            <div className="max-w-7xl mx-auto px-4 py-2 flex items-center justify-center gap-3 text-amber-500">
+              <AlertCircle className="w-4 h-4" />
+              <p className="text-[11px] font-medium">تنبيه: البيانات لم يتم تحديثها منذ {appStatus.minutesSinceLastScrape} دقيقة. قد تكون الأسعار غير دقيقة حالياً.</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Popover Chart */}
       <AnimatePresence>
@@ -625,7 +654,7 @@ export default function App() {
             {rates?.lastUpdated && (
               <div className="flex items-center gap-2 mt-6 text-[11px] sm:text-xs text-zinc-500 bg-white/5 w-fit px-3 py-1.5 rounded-full border border-white/5">
                 <Clock className="w-3.5 h-3.5 text-emerald-500/70" />
-                <span>آخر تحديث للبيانات: {format(new Date(rates.lastUpdated), "dd MMMM yyyy - HH:mm", { locale: ar })}</span>
+                <span>آخر تحديث: {formatDistanceToNow(new Date(rates.lastUpdated), { addSuffix: true, locale: ar })}</span>
               </div>
             )}
           </div>
