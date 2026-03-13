@@ -396,18 +396,24 @@ export default function App() {
       <div className="fixed top-[-10%] left-[-10%] w-[500px] h-[500px] bg-emerald-600/10 blur-[120px] rounded-full pointer-events-none"></div>
       <div className="fixed bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-blue-600/10 blur-[120px] rounded-full pointer-events-none"></div>
 
-      {/* Stale Data Warning */}
+      {/* Stale Data & Offline Warning */}
       <AnimatePresence>
-        {appStatus?.status === 'stale' && (
+        {(appStatus?.status === 'stale' || isOffline) && (
           <motion.div 
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="bg-amber-500/10 border-b border-amber-500/20 overflow-hidden"
+            className="bg-amber-500/10 border-b border-amber-500/20 overflow-hidden sticky top-[64px] sm:top-[80px] z-40 backdrop-blur-md"
           >
-            <div className="max-w-7xl mx-auto px-4 py-2 flex items-center justify-center gap-3 text-amber-500">
-              <AlertCircle className="w-4 h-4" />
-              <p className="text-[11px] font-medium">تنبيه: البيانات لم يتم تحديثها منذ {appStatus.minutesSinceLastScrape} دقيقة. قد تكون الأسعار غير دقيقة حالياً.</p>
+            <div className="max-w-7xl mx-auto px-4 py-2.5 flex items-center justify-center gap-3 text-amber-500">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <p className="text-[11px] sm:text-xs font-medium">
+                {isOffline ? (
+                  "أنت تتصفح الموقع في وضع الأوفلاين. قد لا تكون الأسعار محدثة."
+                ) : (
+                  `تنبيه: البيانات لم يتم تحديثها منذ ${appStatus?.minutesSinceLastScrape} دقيقة. قد تكون الأسعار غير دقيقة حالياً.`
+                )}
+              </p>
             </div>
           </motion.div>
         )}
@@ -531,30 +537,17 @@ export default function App() {
               <Settings2 className="w-4 h-4" />
               <span className="text-[10px] font-medium uppercase tracking-wider hidden md:inline">الإعدادات</span>
             </button>
-            {isOffline && (
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-500">
-                <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></div>
-                <span className="text-[10px] font-medium uppercase tracking-wider">وضع الأوفلاين</span>
-              </div>
-            )}
-            <div className="hidden sm:flex items-center gap-4 px-3 py-1.5 rounded-full border border-white/10 bg-white/5">
-              <div className="flex items-center gap-2">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                </span>
-                <span className="text-[10px] font-mono text-zinc-300 tracking-wider uppercase" dir="ltr">
-                  {lastFetchTime ? format(lastFetchTime, "HH:mm:ss") : "..."}
-                </span>
-              </div>
-              <div className="w-px h-3 bg-white/10"></div>
-              <div className="flex items-center gap-1.5">
-                <Globe className="w-3 h-3 text-zinc-500" />
-                <span className="text-[10px] font-mono text-zinc-400 tracking-wider">
-                  {onlineCount} <span className="text-[8px] opacity-50">ONLINE</span>
-                </span>
-              </div>
+            
+            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/10 bg-white/5">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              <span className="text-[10px] font-mono text-zinc-300 tracking-wider uppercase" dir="ltr">
+                {lastFetchTime ? format(lastFetchTime, "HH:mm:ss") : "..."}
+              </span>
             </div>
+            
             <button
               onClick={generatePDF}
               disabled={isGeneratingPDF}
@@ -798,12 +791,29 @@ export default function App() {
         </section>
 
         {/* Footer */}
-        <footer className="pt-16 pb-8 border-t border-white/5 flex flex-col items-center gap-6">
-          <div className="flex items-center gap-4 opacity-40 grayscale hover:opacity-100 hover:grayscale-0 transition-all duration-500">
-            <div className="w-8 h-8 rounded-full border border-white/20 flex items-center justify-center">
-              <Activity className="w-3 h-3 text-white" />
+        <footer className="pt-16 pb-12 border-t border-white/5 flex flex-col items-center gap-8">
+          <div className="flex flex-col items-center gap-4">
+            <div className="flex items-center gap-4 opacity-40 grayscale hover:opacity-100 hover:grayscale-0 transition-all duration-500">
+              <div className="w-8 h-8 rounded-full border border-white/20 flex items-center justify-center">
+                <Activity className="w-3 h-3 text-white" />
+              </div>
+              <span className="text-[10px] font-mono tracking-[0.2em] uppercase text-zinc-400">Dinar Index Libya</span>
             </div>
-            <span className="text-[10px] font-mono tracking-[0.2em] uppercase text-zinc-400">Dinar Index Libya</span>
+            
+            {/* Online Count Badge - Elegant Style */}
+            <div className="flex items-center gap-3 px-4 py-2 rounded-2xl bg-white/[0.03] border border-white/5 shadow-inner">
+              <div className="flex items-center gap-2">
+                <div className="relative flex h-2 w-2">
+                  <div className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-40"></div>
+                  <div className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></div>
+                </div>
+                <span className="text-[11px] font-mono text-zinc-300 tracking-tighter">
+                  {onlineCount.toLocaleString()}
+                </span>
+              </div>
+              <div className="w-px h-3 bg-white/10"></div>
+              <span className="text-[9px] font-medium text-zinc-500 uppercase tracking-widest">متواجد الآن</span>
+            </div>
           </div>
           
           <div className="flex flex-col items-center gap-2">
