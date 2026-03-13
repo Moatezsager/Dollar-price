@@ -519,6 +519,7 @@ export default function App() {
                       strokeWidth={3}
                       fillOpacity={1}
                       fill="url(#popoverGradient)"
+                      isAnimationActive={history.length < 200}
                       animationDuration={1000}
                     />
                   </AreaChart>
@@ -707,7 +708,7 @@ export default function App() {
                   strokeWidth={2}
                   fillOpacity={1}
                   fill="url(#colorUsd)"
-                  isAnimationActive={true}
+                  isAnimationActive={history.length < 200}
                   activeDot={{ r: 4, fill: "#050505", stroke: "#10b981", strokeWidth: 2 }}
                 />
               </AreaChart>

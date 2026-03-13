@@ -192,7 +192,7 @@ async function fetchHistoryFromSupabase() {
       .from('exchange_rates')
       .select('*')
       .order('recorded_at', { ascending: false })
-      .limit(150);
+      .limit(5000);
       
     if (error) {
       if (!error.message.includes('schema cache')) {
@@ -385,7 +385,7 @@ async function fetchParallelRatesFromTelegram() {
         usdParallel: rates.parallel.USD,
         usdOfficial: rates.official.USD,
       });
-      if (history.length > 150) history.shift();
+      if (history.length > 5000) history.shift();
     }
   } catch (error) {
     console.error("Error fetching from Telegram:", error);
