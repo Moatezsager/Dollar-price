@@ -18,7 +18,8 @@ import {
   X,
   CheckCircle2,
   AlertCircle,
-  Info
+  Info,
+  WifiOff
 } from "lucide-react";
 import {
   AreaChart,
@@ -396,24 +397,46 @@ export default function App() {
       <div className="fixed top-[-10%] left-[-10%] w-[500px] h-[500px] bg-emerald-600/10 blur-[120px] rounded-full pointer-events-none"></div>
       <div className="fixed bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-blue-600/10 blur-[120px] rounded-full pointer-events-none"></div>
 
-      {/* Stale Data & Offline Warning */}
+      {/* Offline & Stale Data Warning - Top Banner */}
       <AnimatePresence>
-        {(appStatus?.status === 'stale' || isOffline) && (
+        {(isOffline || appStatus?.status === 'stale') && (
           <motion.div 
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="bg-amber-500/10 border-b border-amber-500/20 overflow-hidden sticky top-[64px] sm:top-[80px] z-40 backdrop-blur-md"
+            className={`relative z-[60] border-b overflow-hidden shadow-lg ${
+              isOffline 
+                ? 'bg-rose-500 border-rose-400 text-white' 
+                : 'bg-amber-500 border-amber-400 text-black'
+            }`}
           >
-            <div className="max-w-7xl mx-auto px-4 py-2.5 flex items-center justify-center gap-3 text-amber-500">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <p className="text-[11px] sm:text-xs font-medium">
-                {isOffline ? (
-                  "أنت تتصفح الموقع في وضع الأوفلاين. قد لا تكون الأسعار محدثة."
-                ) : (
-                  `تنبيه: البيانات لم يتم تحديثها منذ ${appStatus?.minutesSinceLastScrape} دقيقة. قد تكون الأسعار غير دقيقة حالياً.`
-                )}
-              </p>
+            <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className={`p-2 rounded-full ${isOffline ? 'bg-white/20' : 'bg-black/10'} animate-pulse`}>
+                  {isOffline ? <WifiOff className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xs font-black uppercase tracking-widest">
+                    {isOffline ? "أنت الآن في وضع الأوفلاين" : "تنبيه: البيانات قديمة"}
+                  </span>
+                  <p className="text-[11px] opacity-90 font-medium leading-tight">
+                    {isOffline ? (
+                      "يرجى التحقق من اتصال الإنترنت للحصول على آخر التحديثات اللحظية."
+                    ) : (
+                      `آخر تحديث ناجح كان منذ ${appStatus?.minutesSinceLastScrape} دقيقة. الأسعار قد تختلف.`
+                    )}
+                  </p>
+                </div>
+              </div>
+              
+              {isOffline && (
+                <button 
+                  onClick={() => window.location.reload()}
+                  className="px-4 py-2 bg-white text-rose-600 text-[11px] font-black rounded-xl hover:bg-zinc-100 transition-all active:scale-95 shadow-md shrink-0"
+                >
+                  تحديث الصفحة
+                </button>
+              )}
             </div>
           </motion.div>
         )}
