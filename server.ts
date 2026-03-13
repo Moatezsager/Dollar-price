@@ -267,15 +267,47 @@ let appConfig = {
   ]
 };
 
-try {
-  const configPath = path.join(process.cwd(), 'config.json');
-  if (fs.existsSync(configPath)) {
-    appConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-  } else {
-    fs.writeFileSync(configPath, JSON.stringify(appConfig, null, 2));
+async function loadConfigFromSupabase() {
+  if (!supabase || !supabaseAnonKey || supabaseAnonKey.includes('dummy')) return;
+  try {
+    const { data, error } = await supabase
+      .from('app_config')
+      .select('config')
+      .eq('id', 1)
+      .single();
+      
+    if (error) {
+      if (error.code === 'PGRST116') {
+        // Row doesn't exist, create it
+        await supabase.from('app_config').insert([{ id: 1, config: appConfig }]);
+      } else if (!error.message.includes('relation "app_config" does not exist')) {
+        console.error("Error loading config from Supabase:", error);
+      }
+    } else if (data && data.config) {
+      appConfig = data.config;
+      console.log("Loaded config from Supabase successfully");
+    }
+  } catch (err) {
+    console.error("Failed to load config from Supabase", err);
   }
-} catch (err) {
-  console.error("Failed to load config.json, using defaults", err);
+}
+
+async function saveConfigToSupabase(newConfig: any) {
+  if (!supabase || !supabaseAnonKey || supabaseAnonKey.includes('dummy')) return false;
+  try {
+    const { error } = await supabase
+      .from('app_config')
+      .upsert({ id: 1, config: newConfig, updated_at: new Date().toISOString() });
+      
+    if (error) {
+      console.error("Error saving config to Supabase:", error);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error("Failed to save config to Supabase", err);
+    return false;
+  }
 }
 
 // Telegram channels for parallel market rates
@@ -432,8 +464,10 @@ async function fetchParallelRatesFromTelegram() {
 
 // Initial fetch and setup
 initializeRatesFromDB().then(() => {
-  fetchOfficialRates();
-  fetchParallelRatesFromTelegram();
+  loadConfigFromSupabase().then(() => {
+    fetchOfficialRates();
+    fetchParallelRatesFromTelegram();
+  });
 });
 
 // Update official rates every hour
@@ -498,15 +532,16 @@ async function startServer() {
     res.json(appConfig);
   });
 
-  app.post("/api/admin/config", requireAdmin, (req, res) => {
+  app.post("/api/admin/config", requireAdmin, async (req, res) => {
     try {
       const newConfig = req.body;
       if (!newConfig.channels || !newConfig.terms) {
         return res.status(400).json({ success: false, message: "بيانات غير صالحة" });
       }
       appConfig = newConfig;
-      const configPath = path.join(process.cwd(), 'config.json');
-      fs.writeFileSync(configPath, JSON.stringify(appConfig, null, 2));
+      
+      // Save to Supabase
+      await saveConfigToSupabase(appConfig);
       
       // Trigger a refresh with new config
       fetchParallelRatesFromTelegram();

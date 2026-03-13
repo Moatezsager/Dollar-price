@@ -10,6 +10,11 @@ registerSW({ immediate: true });
 
 const path = window.location.pathname;
 
+if (path === '/setup-device-auth-8899') {
+  localStorage.setItem('admin_device_token', 'authorized_device_token_xyz');
+  window.location.href = '/admin';
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     {path === '/admin' ? <Admin /> : <App />}

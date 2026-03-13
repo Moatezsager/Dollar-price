@@ -10,12 +10,24 @@ export default function Admin() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [isAuthorizedDevice, setIsAuthorizedDevice] = useState(true);
 
   useEffect(() => {
+    const deviceToken = localStorage.getItem("admin_device_token");
+    if (deviceToken !== "authorized_device_token_xyz") {
+      setIsAuthorizedDevice(false);
+      window.location.href = "/";
+      return;
+    }
+
     if (token) {
       fetchConfig();
     }
   }, [token]);
+
+  if (!isAuthorizedDevice) {
+    return null; // Don't render anything while redirecting
+  }
 
   const fetchConfig = async () => {
     try {
