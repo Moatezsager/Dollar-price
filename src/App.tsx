@@ -75,6 +75,7 @@ export default function App() {
   const [showNotificationSettings, setShowNotificationSettings] = useState(false);
   const [notificationThreshold, setNotificationThreshold] = useState(0.001);
   const [toasts, setToasts] = useState<{ id: string, title: string, body: string, type: 'up' | 'down' | 'info' }[]>([]);
+  const [onlineCount, setOnlineCount] = useState<number>(1);
   const reportRef = useRef<HTMLDivElement>(null);
   const ratesRef = useRef<Rates | null>(null);
   const thresholdRef = useRef<number>(0.001);
@@ -176,26 +177,54 @@ export default function App() {
     }
   };
 
-  const testNotification = () => {
-    const title = "🔔 إشعار تجريبي من مؤشر الدينار";
-    const body = "هذا مثال لشكل التنبيهات التي ستصلك عند تغير الأسعار.";
-    
-    addToast(title, body, "info");
+  useEffect(() => {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}`;
+    let socket: WebSocket | null = null;
+    let reconnectTimeout: any = null;
 
-    if (Notification.permission === 'granted') {
-      navigator.serviceWorker.ready.then((registration) => {
-        registration.showNotification(title, {
-          body,
-          icon: 'https://hatscripts.github.io/circle-flags/flags/ly.svg',
-          badge: 'https://hatscripts.github.io/circle-flags/flags/ly.svg',
-          vibrate: [100, 50, 100],
-          tag: 'test-notification',
-        } as any);
-      });
-    } else {
-      requestNotificationPermission();
-    }
-  };
+    const connect = () => {
+      socket = new WebSocket(wsUrl);
+
+      socket.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'online_count') {
+            setOnlineCount(data.count);
+          }
+        } catch (err) {
+          console.error('WebSocket message error:', err);
+        }
+      };
+
+      socket.onclose = () => {
+        reconnectTimeout = setTimeout(connect, 3000);
+      };
+
+      socket.onerror = () => {
+        socket?.close();
+      };
+    };
+
+    connect();
+
+    // Fallback polling for online count
+    const pollInterval = setInterval(async () => {
+      try {
+        const res = await fetch('/api/online-count');
+        const data = await res.json();
+        setOnlineCount(data.count);
+      } catch (err) {
+        // Ignore polling errors
+      }
+    }, 30000);
+
+    return () => {
+      socket?.close();
+      clearTimeout(reconnectTimeout);
+      clearInterval(pollInterval);
+    };
+  }, []);
 
   useEffect(() => {
     const handleOnline = () => setIsOffline(false);
@@ -479,14 +508,23 @@ export default function App() {
                 <span className="text-[10px] font-medium uppercase tracking-wider">وضع الأوفلاين</span>
               </div>
             )}
-            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/10 bg-white/5">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
-              <span className="text-[10px] font-mono text-zinc-300 tracking-wider uppercase" dir="ltr">
-                {lastFetchTime ? format(lastFetchTime, "HH:mm:ss") : "..."}
-              </span>
+            <div className="hidden sm:flex items-center gap-4 px-3 py-1.5 rounded-full border border-white/10 bg-white/5">
+              <div className="flex items-center gap-2">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                <span className="text-[10px] font-mono text-zinc-300 tracking-wider uppercase" dir="ltr">
+                  {lastFetchTime ? format(lastFetchTime, "HH:mm:ss") : "..."}
+                </span>
+              </div>
+              <div className="w-px h-3 bg-white/10"></div>
+              <div className="flex items-center gap-1.5">
+                <Globe className="w-3 h-3 text-zinc-500" />
+                <span className="text-[10px] font-mono text-zinc-400 tracking-wider">
+                  {onlineCount} <span className="text-[8px] opacity-50">ONLINE</span>
+                </span>
+              </div>
             </div>
             <button
               onClick={generatePDF}
@@ -730,6 +768,26 @@ export default function App() {
           </div>
         </section>
 
+        {/* Footer */}
+        <footer className="pt-16 pb-8 border-t border-white/5 flex flex-col items-center gap-6">
+          <div className="flex items-center gap-4 opacity-40 grayscale hover:opacity-100 hover:grayscale-0 transition-all duration-500">
+            <div className="w-8 h-8 rounded-full border border-white/20 flex items-center justify-center">
+              <Activity className="w-3 h-3 text-white" />
+            </div>
+            <span className="text-[10px] font-mono tracking-[0.2em] uppercase text-zinc-400">Dinar Index Libya</span>
+          </div>
+          
+          <div className="flex flex-col items-center gap-2">
+            <p className="text-[11px] text-zinc-500 font-light tracking-wide">
+              by <span className="text-white font-medium">GreenBox</span> © 2026
+            </p>
+            <div className="flex items-center gap-3 mt-2">
+              <div className="w-1 h-1 rounded-full bg-emerald-500/30"></div>
+              <div className="w-1 h-1 rounded-full bg-emerald-500/50"></div>
+              <div className="w-1 h-1 rounded-full bg-emerald-500/30"></div>
+            </div>
+          </div>
+        </footer>
       </main>
 
       {/* In-App Toasts */}
@@ -857,15 +915,6 @@ export default function App() {
                     <span>نظام اهتزاز مخصص للهواتف عند الارتفاع الحاد</span>
                   </div>
                 </div>
-
-                {/* Test Button */}
-                <button 
-                  onClick={testNotification}
-                  className="w-full py-3 px-4 rounded-2xl bg-white/5 border border-white/10 text-zinc-300 text-xs font-medium hover:bg-white/10 hover:text-white transition-all flex items-center justify-center gap-2"
-                >
-                  <Bell className="w-4 h-4" />
-                  إرسال تنبيه تجريبي للهاتف
-                </button>
               </div>
 
               <div className="p-6 bg-white/[0.02] border-t border-white/5">

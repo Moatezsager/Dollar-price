@@ -2,6 +2,8 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import { createClient } from '@supabase/supabase-js';
+import { WebSocketServer } from 'ws';
+import { createServer } from 'http';
 
 // Initialize Supabase client for server
 const supabaseUrl = process.env.VITE_SUPABASE_URL || 'https://rbqvldyagskdxjhnkqvt.supabase.co';
@@ -275,10 +277,17 @@ async function fetchParallelRatesFromTelegram() {
             const cleanText = textMatch[1].replace(/<[^>]+>/g, ' ');
             const time = new Date(timeMatch[1]).getTime();
             
-            const extract = (regex: RegExp, key: string, min: number, max: number) => {
+            // Skip messages that are clearly official bank reports unless they also mention parallel/black market
+            const isOfficialReport = /رسمي|المركزي|بفارق|نشرة|أسعار المصرف/i.test(cleanText);
+            const isParallelReport = /موازي|سوداء|كاش|خضراء|ورقة|سوق/i.test(cleanText);
+            if (isOfficialReport && !isParallelReport) continue;
+
+            const extract = (regex: RegExp, key: string, min: number, max: number, isInverse = false) => {
               const match = cleanText.match(regex);
               if (match && match[1]) {
-                const val = parseFloat(match[1]);
+                let val = parseFloat(match[1]);
+                if (isInverse && val > 0) val = 1 / val;
+                
                 if (!isNaN(val) && val > min && val < max) {
                   priceHistory[key].push({ value: val, time });
                   return true;
@@ -287,32 +296,38 @@ async function fetchParallelRatesFromTelegram() {
               return false;
             };
 
-            // USD Cash - Expanded with local terms like "خضراء", "ورقة"
-            extract(/(?:الدولار كاش|دولار كاش|الدولار|دولار|الخضراء|خضراء|ورقة|الورقة|كاش|الولايات المتحدة|usd|🇺🇸)\s*(?:=|:|:|بـ|-|على|شرى|بيع|\s)\s*(\d{1,2}(?:\.\d{1,3})?)/i, 'USD', 5.0, 25.0);
+            // USD Cash - Expanded with local terms
+            extract(/(?:الدولار كاش|دولار كاش|الدولار|دولار|الخضراء|خضراء|ورقة|الورقة|كاش|الولايات المتحدة|usd|🇺🇸)\s*[=:]?\s*(\d{1,2}(?:\.\d{1,3})?)/i, 'USD', 5.0, 25.0);
             
-            // USD Checks (Banks) - Expanded with bank names and "شيك"
-            extract(/(?:صكوك|بنوك|الدولار بنوك|صك|شيك|شيكات|مصرف|مصارف|الجمهورية|التجارة|التجارة والتنمية|الوحدة|الامان|الأمان|الصحاري|شمال أفريقيا|التجاري الوطني)\s*(?:=|:|:|بـ|-|على|شرى|بيع|\s)\s*(\d{1,2}(?:\.\d{1,3})?)/i, 'USD_CHECKS', 5.0, 25.0);
+            // USD Checks (Banks) - Expanded
+            extract(/(?:صكوك|بنوك|الدولار بنوك|صك|شيك|شيكات|مصرف|مصارف|الجمهورية|التجارة|التجارة والتنمية|الوحدة|الامان|الأمان|الصحاري|شمال أفريقيا|التجاري الوطني)\s*[=:]?\s*(\d{1,2}(?:\.\d{1,3})?)/i, 'USD_CHECKS', 5.0, 25.0);
             
             // EUR - Expanded
-            extract(/(?:يورو|اليورو|العملة الموحدة|الاوروبي|الأوروبي|eur|🇪🇺)\s*(?:=|:|:|بـ|-|على|شرى|بيع|\s)\s*(\d{1,2}(?:\.\d{1,3})?)/i, 'EUR', 5.0, 25.0);
+            extract(/(?:يورو|اليورو|العملة الموحدة|الاوروبي|الأوروبي|eur|🇪🇺)\s*[=:]?\s*(\d{1,2}(?:\.\d{1,3})?)/i, 'EUR', 5.0, 25.0);
             
             // GBP - Expanded
-            extract(/(?:باوند|الباوند|استرليني|الإسترليني|جنيه إسترليني|gbp|🇬🇧)\s*(?:=|:|:|بـ|-|على|شرى|بيع|\s)\s*(\d{1,2}(?:\.\d{1,3})?)/i, 'GBP', 5.0, 25.0);
+            extract(/(?:باوند|الباوند|استرليني|الإسترليني|جنيه إسترليني|gbp|🇬🇧)\s*[=:]?\s*(\d{1,2}(?:\.\d{1,3})?)/i, 'GBP', 5.0, 25.0);
             
-            // Gold - Expanded with "كسر", "مغلف", "سبائك"
-            extract(/(?:كسر الذهب عيار 18|كسر الذهب|ذهب كسر|الذهب|ذهب|سبائك|ليرة|مغلف)\s*(?:=|:|:|بـ|-|على|شرى|بيع|\s)\s*(\d{2,4}(?:\.\d+)?)/i, 'GOLD', 100, 5000);
+            // Gold - Expanded
+            extract(/(?:كسر الذهب عيار 18|كسر الذهب|ذهب كسر|الذهب|ذهب|سبائك|ليرة|مغلف)\s*[=:]?\s*(\d{2,4}(?:\.\d+)?)/i, 'GOLD', 100, 5000);
             
-            // Turkey Remittances - Expanded with city names and variations
-            extract(/(?:حوالات تركيا|حولات تركيا|حوالة تركيا|حواله تركيا|تحويل تركيا|تحويلات تركيا|تركي|اسطنبول|أنقرة|انقرة|تركيا|🇹🇷)\s*(?:=|:|:|بـ|-|على|شرى|بيع|\s)\s*(\d{1,2}(?:\.\d{1,3})?)/i, 'USD_TR', 5.0, 25.0);
+            // Turkey Remittances - Expanded
+            extract(/(?:حوالات تركيا|حولات تركيا|حوالة تركيا|حواله تركيا|تحويل تركيا|تحويلات تركيا|تركي|اسطنبول|أنقرة|انقرة|تركيا|🇹🇷)\s*[=:]?\s*(\d{1,2}(?:\.\d{1,3})?)/i, 'USD_TR', 5.0, 25.0);
             
-            // Dubai Remittances - Expanded with city names and variations
-            extract(/(?:حوالات دبي|حولات دبي|حوالة دبي|حواله دبي|تحويل دبي|تحويلات دبي|امارات|الإمارات|الامارات|دبي|أبوظبي|ابوظبي|الشارقة|🇦🇪)\s*(?:=|:|:|بـ|-|على|شرى|بيع|\s)\s*(\d{1,2}(?:\.\d{1,3})?)/i, 'USD_AE', 5.0, 25.0);
+            // Dubai Remittances - Expanded
+            extract(/(?:حوالات دبي|حولات دبي|حوالة دبي|حواله دبي|تحويل دبي|تحويلات دبي|امارات|الإمارات|الامارات|دبي|أبوظبي|ابوظبي|الشارقة|🇦🇪)\s*[=:]?\s*(\d{1,2}(?:\.\d{1,3})?)/i, 'USD_AE', 5.0, 25.0);
 
-            // Tunisian Dinar (TND) - Expanded
-            extract(/(?:دينار تونسي|دينار تونس|تونسي|تونس|tnd|🇹🇳)\s*(?:=|:|:|بـ|-|على|شرى|بيع|\s)\s*(\d{1,2}(?:\.\d{1,3})?)/i, 'TND', 0.5, 10.0);
+            // Tunisian Dinar (TND) - Support both directions and dots
+            // Standard: TND = X LYD (e.g. تونسي 3.22)
+            extract(/(?:دينار[\.\s]تونسي|تونسي|تونس|tnd|🇹🇳)\s*[=:]?\s*([1-9](?:\.\d+)?)/i, 'TND', 0.5, 10.0);
+            // Inverse: 1 LYD = X TND (e.g. ليبي=0.31 تونسي)
+            extract(/(?:دينار[\.\s]ليبي|ليبي)\s*[=:]?\s*(0\.\d+)\s*(?:دينار[\.\s]تونسي|تونسي|تونس|tnd|🇹🇳)/i, 'TND', 0.5, 10.0, true);
 
-            // Egyptian Pound (EGP) - Expanded
-            extract(/(?:جنيه مصري|جنية مصري|جنيه مصر|مصري|مصر|egp|🇪🇬)\s*(?:=|:|:|بـ|-|على|شرى|بيع|\s)\s*(\d{1,2}(?:\.\d{1,3})?)/i, 'EGP', 0.01, 5.0);
+            // Egyptian Pound (EGP) - Support both directions and dots
+            // Standard: EGP = X LYD (e.g. مصري 0.20)
+            extract(/(?:جنيه[\.\s]مصري|مصري|مصر|egp|🇪🇬)\s*[=:]?\s*(0\.\d+)/i, 'EGP', 0.01, 5.0);
+            // Inverse: 1 LYD = X EGP (e.g. ليبي=4.80 مصري)
+            extract(/(?:دينار[\.\s]ليبي|ليبي)\s*[=:]?\s*([1-9](?:\.\d+)?)\s*(?:جنيه[\.\s]مصري|مصري|مصر|egp|🇪🇬)/i, 'EGP', 0.01, 5.0, true);
           }
         }
       } catch (err) {
@@ -399,11 +414,38 @@ setInterval(fetchParallelRatesFromTelegram, 5 * 60 * 1000);
 
 async function startServer() {
   const app = express();
+  const server = createServer(app);
   const PORT = process.env.PORT || 3000;
+
+  // Online Users Tracking
+  const wss = new WebSocketServer({ server });
+  let onlineUsers = 0;
+
+  wss.on('connection', (ws) => {
+    onlineUsers++;
+    broadcastOnlineCount();
+
+    ws.on('close', () => {
+      onlineUsers = Math.max(0, onlineUsers - 1);
+      broadcastOnlineCount();
+    });
+  });
+
+  function broadcastOnlineCount() {
+    const data = JSON.stringify({ type: 'online_count', count: onlineUsers });
+    wss.clients.forEach((client) => {
+      if (client.readyState === 1) {
+        client.send(data);
+      }
+    });
+  }
 
   app.use(express.json());
 
   // API Routes
+  app.get("/api/online-count", (req, res) => {
+    res.json({ count: onlineUsers });
+  });
   app.get("/api/rates", (req, res) => {
     res.json(rates);
   });
@@ -446,7 +488,7 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  server.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
 }
