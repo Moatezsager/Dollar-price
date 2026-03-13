@@ -1,14 +1,17 @@
 import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
+import Admin from './Admin.tsx';
 import './index.css';
 import { registerSW } from 'virtual:pwa-register';
 
 // Register service worker
 registerSW({ immediate: true });
 
+const path = window.location.pathname;
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    {path === '/admin' ? <Admin /> : <App />}
   </StrictMode>,
 );

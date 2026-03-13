@@ -1,6 +1,7 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
+import fs from "fs";
 import { createClient } from '@supabase/supabase-js';
 import { WebSocketServer } from 'ws';
 import { createServer } from 'http';
@@ -192,7 +193,7 @@ async function fetchHistoryFromSupabase() {
       .from('exchange_rates')
       .select('*')
       .order('recorded_at', { ascending: false })
-      .limit(5000);
+      .limit(10000);
       
     if (error) {
       if (!error.message.includes('schema cache')) {
@@ -250,19 +251,46 @@ async function fetchOfficialRates() {
   }
 }
 
+// Dynamic Configuration
+let appConfig = {
+  channels: ["dollarr_ly", "musheermarket", "lydollar", "djheih2026", "suqalmushir"],
+  terms: [
+    { id: "USD", name: "دولار أمريكي", regex: "(?:الدولار|دولار|الخضراء|خضراء|ورقة|الورقة|كاش|usd|🇺🇸)\\s*(?:كاش)?\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,3})?)", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
+    { id: "USD_CHECKS", name: "دولار أمريكي (صكوك)", regex: "(?:صكوك|صك|بصك|بنوك|شيك|شيكات|مصرف|مصارف|بنوك)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,3})?)", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
+    { id: "EUR", name: "يورو", regex: "(?:يورو|اليورو|eur|🇪🇺)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,3})?)", min: 5.0, max: 25.0, isInverse: false, flag: "eu" },
+    { id: "GBP", name: "جنيه إسترليني", regex: "(?:باوند|استرليني|gbp|🇬🇧)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,3})?)", min: 5.0, max: 25.0, isInverse: false, flag: "gb" },
+    { id: "GOLD", name: "كسر الذهب", regex: "(?:كسر الذهب|ذهب كسر|ذهب|الذهب)\\s*(?:18)?\\s*[=:]?\\s*(\\d{2,4}(?:[\\.,]\\d+)?)", min: 100, max: 5000, isInverse: false, flag: "" },
+    { id: "USD_TR", name: "حوالات تركيا", regex: "(?:تركيا|تركي|اسطنبول|🇹🇷)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,3})?)", min: 5.0, max: 25.0, isInverse: false, flag: "tr" },
+    { id: "USD_AE", name: "حوالات دبي", regex: "(?:دبي|امارات|الإمارات|🇦🇪)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,3})?)", min: 5.0, max: 25.0, isInverse: false, flag: "ae" },
+    { id: "TND", name: "دينار تونسي", regex: "(?:تونسي|تونس|tnd|🇹🇳)\\s*[=:]?\\s*([1-9](?:[\\.,]\\d+)?)", min: 0.5, max: 10.0, isInverse: false, flag: "tn" },
+    { id: "EGP", name: "جنيه مصري", regex: "(?:مصري|مصر|egp|🇪🇬)\\s*[=:]?\\s*(0(?:[\\.,]\\d+))", min: 0.01, max: 5.0, isInverse: false, flag: "eg" }
+  ]
+};
+
+try {
+  const configPath = path.join(process.cwd(), 'config.json');
+  if (fs.existsSync(configPath)) {
+    appConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+  } else {
+    fs.writeFileSync(configPath, JSON.stringify(appConfig, null, 2));
+  }
+} catch (err) {
+  console.error("Failed to load config.json, using defaults", err);
+}
+
 // Telegram channels for parallel market rates
-const TELEGRAM_CHANNELS = ["dollarr_ly", "musheermarket", "lydollar", "djheih2026", "suqalmushir"];
 let lastSuccessfulScrape = new Date();
 
 async function fetchParallelRatesFromTelegram() {
   try {
-    const priceHistory: Record<string, { value: number, time: number }[]> = {
-      USD: [], USD_CHECKS: [], EUR: [], GBP: [], GOLD: [], USD_TR: [], USD_AE: [], TND: [], EGP: []
-    };
+    const priceHistory: Record<string, { value: number, time: number }[]> = {};
+    for (const term of appConfig.terms) {
+      priceHistory[term.id] = [];
+    }
 
     let successfulChannels = 0;
 
-    for (const channel of TELEGRAM_CHANNELS) {
+    for (const channel of appConfig.channels) {
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
@@ -292,30 +320,29 @@ async function fetchParallelRatesFromTelegram() {
             const isParallelReport = /موازي|سوداء|كاش|خضراء|ورقة|سوق/i.test(cleanText);
             if (isOfficialReport && !isParallelReport) continue;
 
-            const extract = (regex: RegExp, key: string, min: number, max: number, isInverse = false) => {
-              const match = cleanText.match(regex);
-              if (match && match[1]) {
-                let val = parseFloat(match[1].replace(',', '.'));
-                if (isInverse && val > 0) val = 1 / val;
-                
-                if (!isNaN(val) && val > min && val < max) {
-                  priceHistory[key].push({ value: val, time });
-                  return true;
+            const extract = (regexStr: string, key: string, min: number, max: number, isInverse = false) => {
+              try {
+                const regex = new RegExp(regexStr, 'i');
+                const match = cleanText.match(regex);
+                if (match && match[1]) {
+                  let val = parseFloat(match[1].replace(',', '.'));
+                  if (isInverse && val > 0) val = 1 / val;
+                  
+                  if (!isNaN(val) && val > min && val < max) {
+                    priceHistory[key].push({ value: val, time });
+                    return true;
+                  }
                 }
+              } catch (e) {
+                console.error("Invalid regex:", regexStr);
               }
               return false;
             };
 
-            // Improved Regex for better matching
-            extract(/(?:الدولار|دولار|الخضراء|خضراء|ورقة|الورقة|كاش|usd|🇺🇸)\s*(?:كاش)?\s*[=:]?\s*(\d{1,2}(?:[\.,]\d{1,3})?)/i, 'USD', 5.0, 25.0);
-            extract(/(?:صكوك|صك|بصك|بنوك|شيك|شيكات|مصرف|مصارف|بنوك)\s*[=:]?\s*(\d{1,2}(?:[\.,]\d{1,3})?)/i, 'USD_CHECKS', 5.0, 25.0);
-            extract(/(?:يورو|اليورو|eur|🇪🇺)\s*[=:]?\s*(\d{1,2}(?:[\.,]\d{1,3})?)/i, 'EUR', 5.0, 25.0);
-            extract(/(?:باوند|استرليني|gbp|🇬🇧)\s*[=:]?\s*(\d{1,2}(?:[\.,]\d{1,3})?)/i, 'GBP', 5.0, 25.0);
-            extract(/(?:كسر الذهب|ذهب كسر|ذهب|الذهب)\s*(?:18)?\s*[=:]?\s*(\d{2,4}(?:[\.,]\d+)?)/i, 'GOLD', 100, 5000);
-            extract(/(?:تركيا|تركي|اسطنبول|🇹🇷)\s*[=:]?\s*(\d{1,2}(?:[\.,]\d{1,3})?)/i, 'USD_TR', 5.0, 25.0);
-            extract(/(?:دبي|امارات|الإمارات|🇦🇪)\s*[=:]?\s*(\d{1,2}(?:[\.,]\d{1,3})?)/i, 'USD_AE', 5.0, 25.0);
-            extract(/(?:تونسي|تونس|tnd|🇹🇳)\s*[=:]?\s*([1-9](?:[\.,]\d+)?)/i, 'TND', 0.5, 10.0);
-            extract(/(?:مصري|مصر|egp|🇪🇬)\s*[=:]?\s*(0(?:[\.,]\d+))/i, 'EGP', 0.01, 5.0);
+            // Dynamic Regex extraction
+            for (const term of appConfig.terms) {
+              extract(term.regex, term.id, term.min, term.max, term.isInverse);
+            }
           }
         }
       } catch (err) {
@@ -353,24 +380,33 @@ async function fetchParallelRatesFromTelegram() {
         rates.previousParallel = { ...rates.parallel };
       }
       
-      rates.parallel.USD = latestRates.USD;
-      rates.parallel.USD_CHECKS = latestRates.USD_CHECKS || rates.parallel.USD_CHECKS || (latestRates.USD + 0.8);
-      rates.parallel.EUR = latestRates.EUR || rates.parallel.EUR || (latestRates.USD * 1.08);
-      rates.parallel.GBP = latestRates.GBP || rates.parallel.GBP || (latestRates.USD * 1.26);
-      rates.parallel.GOLD = latestRates.GOLD || rates.parallel.GOLD || 1280;
-      rates.parallel.USD_TR = latestRates.USD_TR || rates.parallel.USD_TR || latestRates.USD;
-      rates.parallel.USD_AE = latestRates.USD_AE || rates.parallel.USD_AE || latestRates.USD;
-      
-      rates.parallel.TND = latestRates.TND || rates.parallel.TND || (latestRates.USD * 0.32);
-      rates.parallel.TRY = latestRates.TRY || rates.parallel.TRY || (latestRates.USD * 0.03);
-      rates.parallel.EGP = latestRates.EGP || rates.parallel.EGP || (latestRates.USD * 0.02);
+      // Dynamically assign all extracted rates
+      for (const term of appConfig.terms) {
+        if (latestRates[term.id]) {
+          rates.parallel[term.id] = latestRates[term.id];
+        } else if (!rates.parallel[term.id]) {
+          // Initialize with some fallback if it doesn't exist at all
+          if (term.id === "USD_CHECKS") rates.parallel[term.id] = latestRates.USD + 0.8;
+          else if (term.id === "EUR") rates.parallel[term.id] = latestRates.USD * 1.08;
+          else if (term.id === "GBP") rates.parallel[term.id] = latestRates.USD * 1.26;
+          else if (term.id === "GOLD") rates.parallel[term.id] = 1280;
+          else if (term.id === "USD_TR" || term.id === "USD_AE") rates.parallel[term.id] = latestRates.USD;
+          else if (term.id === "TND") rates.parallel[term.id] = latestRates.USD * 0.32;
+          else if (term.id === "TRY") rates.parallel[term.id] = latestRates.USD * 0.03;
+          else if (term.id === "EGP") rates.parallel[term.id] = latestRates.USD * 0.02;
+          else rates.parallel[term.id] = 0; // Default for new unknown currencies
+        }
+      }
 
       // Override previous with actual Telegram history if available and realistic
-      if (previousRates.USD && Math.abs(previousRates.USD - latestRates.USD) < 1.5) {
-        rates.previousParallel.USD = previousRates.USD;
-      } else if (Math.abs(rates.previousParallel.USD - rates.parallel.USD) > 1.5) {
-        // If DB previous is too far (polluted jump from 7.30 to 10.79), reset it to current so change is 0
-        rates.previousParallel.USD = rates.parallel.USD;
+      for (const term of appConfig.terms) {
+        const key = term.id;
+        if (previousRates[key] && latestRates[key] && Math.abs(previousRates[key] - latestRates[key]) < (latestRates[key] * 0.2)) {
+          rates.previousParallel[key] = previousRates[key];
+        } else if (rates.previousParallel[key] && rates.parallel[key] && Math.abs(rates.previousParallel[key] - rates.parallel[key]) > (rates.parallel[key] * 0.2)) {
+          // If DB previous is too far (polluted jump), reset it to current so change is 0
+          rates.previousParallel[key] = rates.parallel[key];
+        }
       }
 
       rates.lastUpdated = new Date().toISOString();
@@ -384,6 +420,8 @@ async function fetchParallelRatesFromTelegram() {
         time: new Date().toISOString(),
         usdParallel: rates.parallel.USD,
         usdOfficial: rates.official.USD,
+        ratesParallel: { ...rates.parallel },
+        ratesOfficial: { ...rates.official }
       });
       if (history.length > 5000) history.shift();
     }
@@ -434,6 +472,53 @@ async function startServer() {
 
   app.use(express.json());
 
+  // --- Admin API ---
+  const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin123";
+  let adminToken = Math.random().toString(36).substring(2); // Simple in-memory token
+
+  app.post("/api/admin/login", (req, res) => {
+    const { password } = req.body;
+    if (password === ADMIN_PASSWORD) {
+      res.json({ success: true, token: adminToken });
+    } else {
+      res.status(401).json({ success: false, message: "كلمة المرور غير صحيحة" });
+    }
+  });
+
+  const requireAdmin = (req: any, res: any, next: any) => {
+    const authHeader = req.headers.authorization;
+    if (authHeader === `Bearer ${adminToken}`) {
+      next();
+    } else {
+      res.status(401).json({ success: false, message: "غير مصرح" });
+    }
+  };
+
+  app.get("/api/admin/config", requireAdmin, (req, res) => {
+    res.json(appConfig);
+  });
+
+  app.post("/api/admin/config", requireAdmin, (req, res) => {
+    try {
+      const newConfig = req.body;
+      if (!newConfig.channels || !newConfig.terms) {
+        return res.status(400).json({ success: false, message: "بيانات غير صالحة" });
+      }
+      appConfig = newConfig;
+      const configPath = path.join(process.cwd(), 'config.json');
+      fs.writeFileSync(configPath, JSON.stringify(appConfig, null, 2));
+      
+      // Trigger a refresh with new config
+      fetchParallelRatesFromTelegram();
+      
+      res.json({ success: true, message: "تم حفظ الإعدادات بنجاح" });
+    } catch (err) {
+      console.error("Error saving config:", err);
+      res.status(500).json({ success: false, message: "حدث خطأ أثناء الحفظ" });
+    }
+  });
+  // --- End Admin API ---
+
   // API Routes
   app.get("/api/online-count", (req, res) => {
     res.json({ count: onlineUsers });
@@ -446,6 +531,10 @@ async function startServer() {
       lastScrape: lastSuccessfulScrape,
       minutesSinceLastScrape
     });
+  });
+
+  app.get("/api/config", (req, res) => {
+    res.json({ terms: appConfig.terms });
   });
 
   app.get("/api/rates", (req, res) => {

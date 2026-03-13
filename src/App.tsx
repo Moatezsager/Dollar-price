@@ -78,15 +78,36 @@ export default function App() {
   const [toasts, setToasts] = useState<{ id: string, title: string, body: string, type: 'up' | 'down' | 'info' }[]>([]);
   const [onlineCount, setOnlineCount] = useState<number>(1);
   const [appStatus, setAppStatus] = useState<{ status: string, minutesSinceLastScrape: number } | null>(null);
+  const [configTerms, setConfigTerms] = useState<any[]>([]);
   const reportRef = useRef<HTMLDivElement>(null);
   const ratesRef = useRef<Rates | null>(null);
   const thresholdRef = useRef<number>(0.001);
   const lastNotifiedRef = useRef<Record<string, number>>({});
+  const configTermsRef = useRef<any[]>([]);
 
   // Keep refs in sync with state to avoid closure issues in setInterval
   useEffect(() => {
     ratesRef.current = rates;
   }, [rates]);
+
+  useEffect(() => {
+    configTermsRef.current = configTerms;
+  }, [configTerms]);
+
+  useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const response = await fetch('/api/config');
+        const data = await response.json();
+        if (data && data.terms) {
+          setConfigTerms(data.terms);
+        }
+      } catch (error) {
+        console.error("Failed to fetch config:", error);
+      }
+    };
+    fetchConfig();
+  }, []);
 
   useEffect(() => {
     thresholdRef.current = notificationThreshold;
@@ -281,7 +302,7 @@ export default function App() {
       
       if (currentRates) {
         // Check all parallel currencies
-        const currenciesToCheck = ["USD", "EUR", "GBP", "TRY", "TND", "EGP", "GOLD"];
+        const currenciesToCheck = Object.keys(newRates.parallel);
         
         currenciesToCheck.forEach(code => {
           const oldPrice = currentRates.parallel[code];
@@ -290,8 +311,8 @@ export default function App() {
           if (oldPrice && newPrice && Math.abs(oldPrice - newPrice) >= thresholdRef.current) {
             // Avoid notifying the same price twice in a row
             if (lastNotifiedRef.current[code] !== newPrice) {
-              const name = code === "GOLD" ? "كسر الذهب (18)" : 
-                           CURRENCIES.find(c => c.code === code)?.name || code;
+              const term = configTermsRef.current.find(t => t.id === code);
+              const name = term ? term.name : code;
               
               console.log(`Price change detected for ${code}: ${oldPrice} -> ${newPrice}`);
               showPriceNotification(code, name, oldPrice, newPrice);
@@ -722,53 +743,27 @@ export default function App() {
             <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest">السوق الموازي (عملات أخرى)</h3>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-8 gap-y-12">
-            {CURRENCIES.filter(c => c.code !== "USD").map(currency => {
-              const rate = rates?.parallel[currency.code] || 0;
-              const prevRate = rates?.previousParallel?.[currency.code] || rate;
+            {configTerms.filter(t => t.id !== "USD").map(term => {
+              const rate = rates?.parallel[term.id] || 0;
+              const prevRate = rates?.previousParallel?.[term.id] || rate;
               const isUp = rate > prevRate;
               const isDown = rate < prevRate;
 
               return (
                 <div 
-                  key={`parallel-${currency.code}`} 
-                  onClick={() => setSelectedRate({ code: currency.code, name: currency.name, market: 'parallel' })}
+                  key={`parallel-${term.id}`} 
+                  onClick={() => setSelectedRate({ code: term.id, name: term.name, market: 'parallel' })}
                   className="flex flex-col group p-3 sm:p-4 rounded-2xl hover:bg-white/[0.02] transition-colors -m-3 sm:-m-4 cursor-pointer"
                 >
                   <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
-                    <img src={`https://hatscripts.github.io/circle-flags/flags/${currency.flag}.svg`} alt={currency.name} className="w-5 h-5 sm:w-6 sm:h-6 drop-shadow-sm transition-transform group-hover:scale-110" referrerPolicy="no-referrer" />
-                    <span className="text-[11px] sm:text-xs font-medium text-zinc-300">{currency.name}</span>
-                  </div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-2xl font-light text-white font-mono tracking-tight group-hover:text-emerald-400 transition-colors">{rate.toFixed(2)}</span>
-                    {isUp ? <ArrowUpRight className="w-3 h-3 text-rose-400" /> : isDown ? <ArrowDownRight className="w-3 h-3 text-emerald-400" /> : null}
-                  </div>
-                  <span className="text-[10px] text-zinc-600 font-mono" dir="ltr">Prev: {prevRate.toFixed(2)}</span>
-                </div>
-              );
-            })}
-            
-            {PARALLEL_DETAILS.map(detail => {
-              const rate = rates?.parallel[detail.code] || 0;
-              const prevRate = rates?.previousParallel?.[detail.code] || rate;
-              const isUp = rate > prevRate;
-              const isDown = rate < prevRate;
-              const Icon = detail.icon;
-
-              return (
-                <div 
-                  key={`detail-${detail.code}`} 
-                  onClick={() => setSelectedRate({ code: detail.code, name: detail.name, market: 'parallel' })}
-                  className="flex flex-col group p-3 sm:p-4 rounded-2xl hover:bg-white/[0.02] transition-colors -m-3 sm:-m-4 cursor-pointer"
-                >
-                  <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
-                    {detail.flag ? (
-                      <img src={`https://hatscripts.github.io/circle-flags/flags/${detail.flag}.svg`} alt={detail.name} className="w-5 h-5 sm:w-6 sm:h-6 drop-shadow-sm transition-transform group-hover:scale-110" referrerPolicy="no-referrer" />
-                    ) : Icon ? (
+                    {term.flag ? (
+                      <img src={`https://hatscripts.github.io/circle-flags/flags/${term.flag}.svg`} alt={term.name} className="w-5 h-5 sm:w-6 sm:h-6 drop-shadow-sm transition-transform group-hover:scale-110" referrerPolicy="no-referrer" />
+                    ) : (
                       <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-400">
-                        <Icon className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                        <Coins className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                       </div>
-                    ) : null}
-                    <span className="text-[11px] sm:text-xs font-medium text-zinc-300">{detail.name}</span>
+                    )}
+                    <span className="text-[11px] sm:text-xs font-medium text-zinc-300">{term.name}</span>
                   </div>
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-2xl font-light text-white font-mono tracking-tight group-hover:text-emerald-400 transition-colors">{rate.toFixed(2)}</span>
@@ -818,7 +813,11 @@ export default function App() {
         <footer className="pt-16 pb-12 border-t border-white/5 flex flex-col items-center gap-8">
           <div className="flex flex-col items-center gap-4">
             <div className="flex items-center gap-4 opacity-40 grayscale hover:opacity-100 hover:grayscale-0 transition-all duration-500">
-              <div className="w-8 h-8 rounded-full border border-white/20 flex items-center justify-center">
+              <div 
+                className="w-8 h-8 rounded-full border border-white/20 flex items-center justify-center cursor-pointer"
+                onClick={() => window.location.href = '/admin'}
+                title="Admin Dashboard"
+              >
                 <Activity className="w-3 h-3 text-white" />
               </div>
               <span className="text-[10px] font-mono tracking-[0.2em] uppercase text-zinc-400">Dinar Index Libya</span>
@@ -1046,11 +1045,11 @@ export default function App() {
                 <td style={{ textAlign: 'center', padding: '15px 12px', color: '#999' }}>{prevUsdChecksRate.toFixed(2)} د.ل</td>
                 <td style={{ textAlign: 'left', padding: '15px 12px' }}>-</td>
               </tr>
-              {CURRENCIES.filter(c => c.code !== "USD").map(c => (
-                <tr key={`pdf-p-${c.code}`} style={{ borderTop: '1px solid #f3f4f6' }}>
+              {configTerms.filter(c => c.id !== "USD" && c.id !== "USD_CHECKS" && c.id !== "GOLD" && !c.id.startsWith("USD_")).map(c => (
+                <tr key={`pdf-p-${c.id}`} style={{ borderTop: '1px solid #f3f4f6' }}>
                   <td style={{ padding: '12px' }}>{c.name}</td>
-                  <td style={{ textAlign: 'center', padding: '12px' }}>{(rates?.parallel[c.code] || 0).toFixed(2)} د.ل</td>
-                  <td style={{ textAlign: 'center', padding: '12px', color: '#999' }}>{(rates?.previousParallel?.[c.code] || 0).toFixed(2)} د.ل</td>
+                  <td style={{ textAlign: 'center', padding: '12px' }}>{(rates?.parallel[c.id] || 0).toFixed(2)} د.ل</td>
+                  <td style={{ textAlign: 'center', padding: '12px', color: '#999' }}>{(rates?.previousParallel?.[c.id] || 0).toFixed(2)} د.ل</td>
                   <td style={{ textAlign: 'left', padding: '12px' }}>-</td>
                 </tr>
               ))}
@@ -1062,10 +1061,10 @@ export default function App() {
         <div style={{ marginBottom: '40px' }}>
           <h2 style={{ fontSize: '18px', backgroundColor: '#f3f4f6', padding: '10px', borderRadius: '8px', marginBottom: '20px' }}>المعادن والحوالات الخارجية</h2>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-            {PARALLEL_DETAILS.map(d => (
-              <div key={`pdf-d-${d.code}`} style={{ border: '1px solid #eee', padding: '15px', borderRadius: '12px' }}>
+            {configTerms.filter(t => t.id === "GOLD" || t.id.startsWith("USD_")).filter(t => t.id !== "USD_CHECKS").map(d => (
+              <div key={`pdf-d-${d.id}`} style={{ border: '1px solid #eee', padding: '15px', borderRadius: '12px' }}>
                 <p style={{ margin: '0 0 5px', color: '#666', fontSize: '12px' }}>{d.name}</p>
-                <p style={{ margin: '0', fontSize: '20px', fontWeight: 'bold' }}>{(rates?.parallel[d.code] || 0).toFixed(2)} {d.unit}</p>
+                <p style={{ margin: '0', fontSize: '20px', fontWeight: 'bold' }}>{(rates?.parallel[d.id] || 0).toFixed(2)} {d.id === "GOLD" ? "د.ل/ج" : "د.ل"}</p>
               </div>
             ))}
           </div>
