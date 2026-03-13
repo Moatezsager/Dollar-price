@@ -31,6 +31,7 @@ import {
 } from "recharts";
 import { format, formatDistanceToNow } from "date-fns";
 import { ar } from "date-fns/locale";
+import { logErrorToServer } from "./utils/logger";
 
 interface Rates {
   official: Record<string, number>;
@@ -104,6 +105,7 @@ export default function App() {
         }
       } catch (error) {
         console.error("Failed to fetch config:", error);
+        logErrorToServer(error, "App.tsx: fetchConfig");
       }
     };
     fetchConfig();
@@ -187,6 +189,7 @@ export default function App() {
       pdf.save(`تقرير-مؤشر-الدينار-${format(new Date(), 'yyyy-MM-dd-HHmm')}.pdf`);
     } catch (err) {
       console.error('Error generating PDF:', err);
+      logErrorToServer(err, "App.tsx: generatePDF");
     } finally {
       setIsGeneratingPDF(false);
     }
@@ -217,6 +220,7 @@ export default function App() {
           }
         } catch (err) {
           console.error('WebSocket message error:', err);
+          logErrorToServer(err, "App.tsx: WebSocket onmessage");
         }
       };
 
@@ -239,6 +243,7 @@ export default function App() {
         setOnlineCount(data.count);
       } catch (err) {
         // Ignore polling errors
+        logErrorToServer(err, "App.tsx: fetchOnlineCount polling");
       }
     }, 30000);
 
@@ -349,6 +354,7 @@ export default function App() {
         }
       } catch (err) {
         // Ignore status fetch errors
+        logErrorToServer(err, "App.tsx: fetchStatus");
       }
 
       // Persist to local storage
@@ -365,6 +371,7 @@ export default function App() {
         console.warn("Server might be restarting, retrying in next poll...");
       } else {
         console.error("Failed to fetch data:", error);
+        logErrorToServer(error, "App.tsx: fetchData");
         addToast("خطأ في التحديث", "تعذر الاتصال بالخادم، يرجى المحاولة لاحقاً", "info");
       }
     } finally {

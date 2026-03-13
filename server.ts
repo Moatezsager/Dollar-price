@@ -476,6 +476,45 @@ setInterval(fetchOfficialRates, 60 * 60 * 1000);
 // Update parallel rates from Telegram every 5 minutes
 setInterval(fetchParallelRatesFromTelegram, 5 * 60 * 1000);
 
+// Auto-cleanup old data to keep the database clean
+const cleanupOldData = async () => {
+  if (!supabase || !supabaseAnonKey || supabaseAnonKey.includes('dummy')) return;
+  
+  try {
+    console.log("Running scheduled database cleanup...");
+    
+    // 1. Clean up error_logs older than 7 days
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const { error: errLogsError } = await supabase
+      .from('error_logs')
+      .delete()
+      .lt('created_at', sevenDaysAgo);
+      
+    if (errLogsError && errLogsError.code !== '42P01') {
+      console.error("Error cleaning up error_logs:", errLogsError);
+    }
+
+    // 2. Clean up exchange_rates older than 30 days
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const { error: ratesError } = await supabase
+      .from('exchange_rates')
+      .delete()
+      .lt('recorded_at', thirtyDaysAgo);
+
+    if (ratesError && ratesError.code !== '42P01') {
+      console.error("Error cleaning up exchange_rates:", ratesError);
+    }
+
+    console.log("Database cleanup completed.");
+  } catch (error) {
+    console.error("Failed to run database cleanup:", error);
+  }
+};
+
+// Run cleanup once on startup, then every 24 hours
+cleanupOldData();
+setInterval(cleanupOldData, 24 * 60 * 60 * 1000);
+
 async function startServer() {
   const app = express();
   const server = createServer(app);
@@ -570,6 +609,37 @@ async function startServer() {
 
   app.get("/api/config", (req, res) => {
     res.json({ terms: appConfig.terms });
+  });
+
+  app.post("/api/logs/error", (req, res) => {
+    const { message, stack, context, url, userAgent } = req.body;
+    
+    console.error("\n[CLIENT ERROR LOG]");
+    console.error(`Time: ${new Date().toISOString()}`);
+    console.error(`Message: ${message}`);
+    console.error(`Context: ${context}`);
+    console.error(`URL: ${url}`);
+    console.error(`User Agent: ${userAgent}`);
+    if (stack) console.error(`Stack: ${stack}`);
+    console.error("-------------------\n");
+
+    // Optional: Save to Supabase if configured
+    if (supabase && supabaseAnonKey && !supabaseAnonKey.includes('dummy')) {
+      supabase.from('error_logs').insert([{
+        message,
+        stack,
+        context,
+        url,
+        user_agent: userAgent,
+        created_at: new Date().toISOString()
+      }]).then(({ error }) => {
+        if (error && error.code !== '42P01') { // Ignore "relation does not exist" error if table isn't created yet
+          console.error("Failed to save error log to Supabase:", error);
+        }
+      });
+    }
+
+    res.status(200).json({ success: true });
   });
 
   app.get("/api/rates", (req, res) => {

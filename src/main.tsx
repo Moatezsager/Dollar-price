@@ -4,6 +4,16 @@ import App from './App.tsx';
 import Admin from './Admin.tsx';
 import './index.css';
 import { registerSW } from 'virtual:pwa-register';
+import { logErrorToServer } from './utils/logger';
+
+// Global error handlers
+window.addEventListener('error', (event) => {
+  logErrorToServer(event.error || event.message, 'Global Error Handler');
+});
+
+window.addEventListener('unhandledrejection', (event) => {
+  logErrorToServer(event.reason, 'Unhandled Promise Rejection');
+});
 
 // Register service worker
 registerSW({ immediate: true });

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "motion/react";
 import { Settings, Save, Plus, Trash2, ArrowRight, ShieldCheck, LogOut, X } from "lucide-react";
+import { logErrorToServer } from "./utils/logger";
 
 export default function Admin() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -49,6 +50,7 @@ export default function Admin() {
       }
     } catch (err) {
       console.error(err);
+      logErrorToServer(err, "Admin.tsx: fetchConfig");
     }
   };
 
@@ -72,6 +74,7 @@ export default function Admin() {
       }
     } catch (err) {
       setError("خطأ في الاتصال");
+      logErrorToServer(err, "Admin.tsx: handleLogin");
     }
     setLoading(false);
   };
@@ -98,6 +101,7 @@ export default function Admin() {
       }
     } catch (err) {
       setError("خطأ في الحفظ");
+      logErrorToServer(err, "Admin.tsx: handleSave");
     }
     setLoading(false);
   };
