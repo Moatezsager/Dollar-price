@@ -25,7 +25,40 @@ interface LastChangedMap {
   [key: string]: string;
 }
 
-let rates = {
+interface Rates {
+  official: RateMap;
+  parallel: RateMap;
+  previousOfficial: RateMap;
+  previousParallel: RateMap;
+  lastUpdated: string;
+  lastChanged: {
+    official: LastChangedMap;
+    parallel: LastChangedMap;
+  };
+}
+
+interface HistoryPoint {
+  time: string;
+  usdParallel: number;
+  usdOfficial: number;
+  ratesParallel?: RateMap;
+  ratesOfficial?: RateMap;
+}
+
+interface AppConfig {
+  channels: string[];
+  terms: {
+    id: string;
+    name: string;
+    regex: string;
+    min: number;
+    max: number;
+    isInverse: boolean;
+    flag: string;
+  }[];
+}
+
+let rates: Rates = {
   official: {
     USD: 4.85,
     EUR: 5.25,
@@ -33,7 +66,7 @@ let rates = {
     TND: 1.55,
     TRY: 0.15,
     EGP: 0.10,
-  } as RateMap,
+  },
   parallel: {
     USD: 7.30,
     OFFICIAL_USD: 4.85,
@@ -46,7 +79,7 @@ let rates = {
     TND: 2.35,
     TRY: 0.22,
     EGP: 0.14,
-  } as RateMap,
+  },
   previousOfficial: {
     USD: 4.85,
     EUR: 5.25,
@@ -54,7 +87,7 @@ let rates = {
     TND: 1.55,
     TRY: 0.15,
     EGP: 0.10,
-  } as RateMap,
+  },
   previousParallel: {
     USD: 7.30,
     OFFICIAL_USD: 4.85,
@@ -67,11 +100,11 @@ let rates = {
     TND: 2.35,
     TRY: 0.22,
     EGP: 0.14,
-  } as RateMap,
+  },
   lastUpdated: new Date().toISOString(),
   lastChanged: {
-    official: {} as LastChangedMap,
-    parallel: {} as LastChangedMap,
+    official: {},
+    parallel: {},
   },
 };
 
@@ -80,7 +113,7 @@ Object.keys(rates.official).forEach(key => rates.lastChanged.official[key] = rat
 Object.keys(rates.parallel).forEach(key => rates.lastChanged.parallel[key] = rates.lastUpdated);
 
 // History for the chart (fallback if Supabase fails)
-let history: any[] = [];
+let history: HistoryPoint[] = [];
 const now = new Date();
 for (let i = 24; i >= 0; i--) {
   const time = new Date(now.getTime() - i * 60 * 60 * 1000);
@@ -274,8 +307,6 @@ async function fetchOfficialRates(): Promise<boolean> {
     "https://open.er-api.com/v6/latest/USD"
   ];
 
-  let anyChanged = false;
-
   for (const source of sources) {
     try {
       const controller = new AbortController();
@@ -286,9 +317,10 @@ async function fetchOfficialRates(): Promise<boolean> {
       const data = await response.json();
       
       if (data && data.rates && data.rates.LYD) {
+        let anyChanged = false;
         const lyd = data.rates.LYD;
         
-        const newOfficial = {
+        const newOfficial: RateMap = {
           USD: lyd,
           EUR: lyd / data.rates.EUR,
           GBP: lyd / data.rates.GBP,
@@ -297,10 +329,8 @@ async function fetchOfficialRates(): Promise<boolean> {
           EGP: lyd / data.rates.EGP,
         };
 
-        // Update lastChanged for all official rates that changed
         Object.entries(newOfficial).forEach(([key, val]) => {
           if (isSignificantChange(rates.official[key], val)) {
-            // Update previousOfficial for accuracy before overwriting
             rates.previousOfficial[key] = rates.official[key];
             rates.lastChanged.official[key] = new Date().toISOString();
             anyChanged = true;
@@ -310,11 +340,8 @@ async function fetchOfficialRates(): Promise<boolean> {
         if (anyChanged) {
           rates.official = { ...newOfficial };
           console.log(`Official rates updated due to changes from ${source}`);
-        } else {
-          console.log(`Official rates check: No significant changes from ${source}`);
         }
-
-        return anyChanged; // Success in fetching, return if anything changed
+        return anyChanged;
       }
     } catch (error) {
       console.error(`Error fetching official rates from ${source}:`, error);
@@ -324,7 +351,8 @@ async function fetchOfficialRates(): Promise<boolean> {
 }
 
 // Dynamic Configuration
-let appConfig = {
+// Dynamic Configuration
+let appConfig: AppConfig = {
   channels: ["dollarr_ly", "musheermarket", "lydollar", "djheih2026", "suqalmushir"],
   terms: [
     { id: "USD", name: "دولار أمريكي", regex: "(?:الدولار|دولار|الخضراء|خضراء|ورقة|الورقة|كاش|usd|🇺🇸)\\s*(?:كاش)?\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,3})?)", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
@@ -365,7 +393,7 @@ async function loadConfigFromSupabase() {
   }
 }
 
-async function saveConfigToSupabase(newConfig: any) {
+async function saveConfigToSupabase(newConfig: AppConfig) {
   if (!supabase || !supabaseAnonKey || supabaseAnonKey.includes('dummy')) return false;
   try {
     const { error } = await supabase
@@ -388,35 +416,38 @@ let lastSuccessfulScrape = new Date();
 
 async function fetchParallelRatesFromTelegram() {
   try {
-    const priceHistory: Record<string, { value: number, time: number }[]> = {};
+    const priceHistory: Record<string, { value: number, time: number, channel: string }[]> = {};
     for (const term of appConfig.terms) {
       priceHistory[term.id] = [];
     }
 
+    // Parallel Fetching for speed (Scraper Optimization)
     let successfulChannels = 0;
     let totalMessagesProcessed = 0;
 
-    for (const channel of appConfig.channels) {
+    const scrapeResults = await Promise.allSettled(appConfig.channels.map(async (channel) => {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
-
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
         const response = await fetch(`https://t.me/s/${channel}`, { signal: controller.signal });
         clearTimeout(timeoutId);
-        
-        if (!response.ok) {
-          console.warn(`[Scraper] Failed to fetch channel ${channel}: ${response.status}`);
-          continue;
-        }
-        
+        if (!response.ok) return null;
         const html = await response.text();
+        return { channel, html };
+      } catch (e) {
+        console.error(`Failed to fetch ${channel}:`, e);
+        return null;
+      }
+    }));
+
+    for (const result of scrapeResults) {
+      if (result.status === 'fulfilled' && result.value) {
+        const { channel, html } = result.value;
         const messageBlocks = html.split('tgme_widget_message_wrap');
         
         if (messageBlocks.length > 1) {
           successfulChannels++;
           totalMessagesProcessed += (messageBlocks.length - 1);
-        } else {
-          console.warn(`[Scraper] No messages found in channel ${channel} (Telegram might be blocking or page structure changed)`);
         }
 
         for (const block of messageBlocks) {
@@ -426,44 +457,25 @@ async function fetchParallelRatesFromTelegram() {
           if (textMatch && timeMatch) {
             const cleanText = textMatch[1].replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ');
             const time = new Date(timeMatch[1]).getTime();
-            
-            // Skip very old messages (older than 48h) to keep data fresh
             if (Date.now() - time > 48 * 60 * 60 * 1000) continue;
 
-            const isOfficialReport = /رسمي|المركزي|بفارق|نشرة|أسعار المصرف/i.test(cleanText);
-            const isParallelReport = /موازي|سوداء|كاش|خضراء|ورقة|سوق/i.test(cleanText);
-            
-            // If it's an official report, we still process it if it matches our terms
-            // but we don't skip it anymore if it's purely official
-            // if (isOfficialReport && !isParallelReport) continue; 
-
-            const extract = (regexStr: string, key: string, min: number, max: number, isInverse = false) => {
-              try {
-                const regex = new RegExp(regexStr, 'i');
-                const match = cleanText.match(regex);
-                if (match && match[1]) {
-                  let val = parseFloat(match[1].replace(',', '.'));
-                  if (isInverse && val > 0) val = 1 / val;
-                  
-                  if (!isNaN(val) && val > min && val < max) {
-                    priceHistory[key].push({ value: val, time });
-                    return true;
-                  }
+            const extractRate = (regexStr: string, key: string, min: number, max: number, isInverse = false) => {
+              const regex = new RegExp(regexStr, 'i');
+              const match = cleanText.match(regex);
+              if (match && match[1]) {
+                let val = parseFloat(match[1].replace(',', '.'));
+                if (isInverse && val > 0) val = 1 / val;
+                if (!isNaN(val) && val > min && val < max) {
+                  priceHistory[key].push({ value: val, time, channel });
                 }
-              } catch (e) {
-                console.error("Invalid regex:", regexStr);
               }
-              return false;
             };
 
-            // Dynamic Regex extraction
             for (const term of appConfig.terms) {
-              extract(term.regex, term.id, term.min, term.max, term.isInverse);
+              extractRate(term.regex, term.id, term.min, term.max, term.isInverse);
             }
           }
         }
-      } catch (err) {
-        console.error(`Error fetching from ${channel}:`, err);
       }
     }
 
@@ -476,18 +488,23 @@ async function fetchParallelRatesFromTelegram() {
     let newestMessageTime = 0;
 
     for (const key in priceHistory) {
-      // Sort all extracted prices for this currency by timestamp (oldest to newest)
-      const historyArr = priceHistory[key].sort((a, b) => a.time - b.time);
+      // Sort: Newest first, but if times are equal, prefer our owner channel 'djheih2026'
+      const historyArr = priceHistory[key].sort((a, b) => {
+        if (b.time !== a.time) return b.time - a.time;
+        if (b.channel === "djheih2026") return 1;
+        if (a.channel === "djheih2026") return -1;
+        return 0;
+      });
       
       if (historyArr.length > 0) {
-        latestRates[key] = historyArr[historyArr.length - 1].value; // Absolute latest price across all channels
-        const msgTime = historyArr[historyArr.length - 1].time;
+        latestRates[key] = historyArr[0].value; // Newest price (with owner preference)
+        const msgTime = historyArr[0].time;
         if (msgTime > newestMessageTime) {
           newestMessageTime = msgTime;
         }
         
-        // Find the true previous price (the last price that was different from the current one)
-        for (let i = historyArr.length - 2; i >= 0; i--) {
+        // Find the true previous price
+        for (let i = 1; i < historyArr.length; i++) {
           if (historyArr[i].value !== latestRates[key]) {
             previousRates[key] = historyArr[i].value;
             break;
@@ -636,7 +653,7 @@ async function startServer() {
   const wss = new WebSocketServer({ server });
   let onlineUsers = 0;
 
-  wss.on('connection', (ws) => {
+  wss.on('connection', (ws: any) => {
     onlineUsers++;
     broadcastOnlineCount();
 
@@ -648,7 +665,7 @@ async function startServer() {
 
   function broadcastOnlineCount() {
     const data = JSON.stringify({ type: 'online_count', count: onlineUsers });
-    wss.clients.forEach((client) => {
+    wss.clients.forEach((client: any) => {
       if (client.readyState === 1) {
         client.send(data);
       }
@@ -706,7 +723,7 @@ async function startServer() {
   const effectiveAdminPassword = ADMIN_PASSWORD || "admin123";
   let adminToken = Math.random().toString(36).substring(2) + Date.now().toString(36); // More complex token
 
-  app.post("/api/admin/login", (req, res) => {
+  app.post("/api/admin/login", (req: express.Request, res: express.Response) => {
     const { password } = req.body;
     if (password === effectiveAdminPassword) {
       res.json({ success: true, token: adminToken });
@@ -715,7 +732,7 @@ async function startServer() {
     }
   });
 
-  const requireAdmin = (req: any, res: any, next: any) => {
+  const requireAdmin = (req: express.Request, res: express.Response, next: express.NextFunction) => {
     const authHeader = req.headers.authorization;
     if (authHeader === `Bearer ${adminToken}`) {
       next();
@@ -724,24 +741,19 @@ async function startServer() {
     }
   };
 
-  app.get("/api/admin/config", requireAdmin, (req, res) => {
+  app.get("/api/admin/config", requireAdmin, (req: express.Request, res: express.Response) => {
     res.json(appConfig);
   });
 
-  app.post("/api/admin/config", requireAdmin, async (req, res) => {
+  app.post("/api/admin/config", requireAdmin, async (req: express.Request, res: express.Response) => {
     try {
-      const newConfig = req.body;
+      const newConfig = req.body as AppConfig;
       if (!newConfig.channels || !newConfig.terms) {
         return res.status(400).json({ success: false, message: "بيانات غير صالحة" });
       }
       appConfig = newConfig;
-      
-      // Save to Supabase
       await saveConfigToSupabase(appConfig);
-      
-      // Trigger a refresh with new config
       fetchParallelRatesFromTelegram();
-      
       res.json({ success: true, message: "تم حفظ الإعدادات بنجاح" });
     } catch (err) {
       console.error("Error saving config:", err);
@@ -751,11 +763,11 @@ async function startServer() {
   // --- End Admin API ---
 
   // API Routes
-  app.get("/api/online-count", (req, res) => {
+  app.get("/api/online-count", (req: express.Request, res: express.Response) => {
     res.json({ count: onlineUsers });
   });
 
-  app.get("/api/status", (req, res) => {
+  app.get("/api/status", (req: express.Request, res: express.Response) => {
     const minutesSinceLastScrape = Math.floor((Date.now() - lastSuccessfulScrape.getTime()) / 60000);
     res.json({ 
       status: minutesSinceLastScrape > 30 ? "stale" : "ok",
@@ -764,11 +776,11 @@ async function startServer() {
     });
   });
 
-  app.get("/api/config", (req, res) => {
+  app.get("/api/config", (req: express.Request, res: express.Response) => {
     res.json({ terms: appConfig.terms });
   });
 
-  app.post("/api/logs/error", (req, res) => {
+  app.post("/api/logs/error", (req: express.Request, res: express.Response) => {
     const { message, stack, context, url, userAgent } = req.body;
     
     console.error("\n[CLIENT ERROR LOG]");
@@ -799,7 +811,7 @@ async function startServer() {
     res.status(200).json({ success: true });
   });
 
-  app.get("/api/rates", async (req, res) => {
+  app.get("/api/rates", async (req: express.Request, res: express.Response) => {
     try {
       if (req.query.refresh === 'true') {
         await initializeRatesFromDB();
@@ -807,43 +819,36 @@ async function startServer() {
       res.json(rates);
     } catch (err) {
       console.error("Error in /api/rates:", err);
-      res.json(rates); // Return current memory rates as fallback
+      res.json(rates);
     }
   });
 
-  app.get("/api/refresh", async (req, res) => {
-    // 1. Set headers to bypass browser checks and caching
+  app.get("/api/refresh", async (req: express.Request, res: express.Response) => {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('X-Robots-Tag', 'noindex');
-    
-    // Tell Google Cloud/IAP or other proxies to bypass browser-specific protections for this route
     res.setHeader('X-Accel-Buffering', 'no');
 
     const userAgent = req.headers['user-agent'] || 'Unknown';
     const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
-    const providedKey = req.query.key;
+    const providedKey = req.query.key as string;
     const expectedKey = process.env.CRON_SECRET || "Lyd@2026!SecureCronRefreshKey_99xZ";
     
-    // 2. Key-based Authentication only (No cookies/sessions)
     if (providedKey !== expectedKey) {
       console.warn(`[Cron-Job] Unauthorized refresh attempt from IP: ${ip}`);
       return res.status(403).json({ success: false, error: "Forbidden: Invalid security key" });
     }
     
     console.log(`\n[Cron-Job] Refresh request received!`);
-    console.log(`Time: ${new Date().toLocaleString('ar-LY')}`);
-    console.log(`Caller: ${userAgent}`);
     
     try {
       const startTime = Date.now();
       const oldUsd = rates.parallel.USD;
       const oldOfficial = rates.official.USD;
 
-      // Execute scraping and detect actual changes
       const results = await Promise.all([
         fetchOfficialRates(),
         fetchParallelRatesFromTelegram()
@@ -855,29 +860,20 @@ async function startServer() {
         console.log("[Cron-Job] Changes detected! Saving to database...");
         await saveToSupabase();
       } else {
-        console.log("[Cron-Job] Checked all sources. No price changes found. Database record skipped to preserve update transparency.");
+        console.log("[Cron-Job] Checked all sources. No price changes found.");
       }
       
       const duration = Date.now() - startTime;
       const newUsd = rates.parallel.USD;
       const newOfficial = rates.official.USD;
       
-      console.log(`[Cron-Job] Refresh completed successfully in ${duration}ms`);
-      
-      // Return detailed JSON for verification
       res.status(200).json({ 
         success: true, 
         message: "Data refreshed successfully",
         details: {
           duration_ms: duration,
-          parallel_usd: {
-            current: newUsd,
-            changed: newUsd !== oldUsd
-          },
-          official_usd: {
-            current: newOfficial,
-            changed: newOfficial !== oldOfficial
-          },
+          parallel_usd: { current: newUsd, changed: newUsd !== oldUsd },
+          official_usd: { current: newOfficial, changed: newOfficial !== oldOfficial },
           last_scrape_time: new Date().toISOString()
         }
       });
@@ -887,7 +883,7 @@ async function startServer() {
     }
   });
 
-  app.get("/api/history", async (req, res) => {
+  app.get("/api/history", async (req: express.Request, res: express.Response) => {
     try {
       const dbHistory = await fetchHistoryFromSupabase();
       res.json(dbHistory);

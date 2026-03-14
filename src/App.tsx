@@ -969,7 +969,7 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 items-stretch">
+              <div className="flex flex-col lg:grid lg:grid-cols-5 gap-6 lg:gap-8 items-stretch">
                 {/* Source Input */}
                 <div className="lg:col-span-2 space-y-4">
                   <div className="relative group/input">
@@ -977,33 +977,35 @@ export default function App() {
                     <div className="relative">
                       <input 
                         type="number"
-                        value={converterAmount}
+                        value={converterAmount || ''}
                         onChange={(e) => setConverterAmount(Number(e.target.value))}
-                        className="w-full bg-white/[0.03] border border-white/10 rounded-[1.5rem] p-6 text-white font-mono text-3xl focus:outline-none focus:border-emerald-500/40 transition-all duration-500 shadow-inner"
+                        className="w-full bg-white/[0.03] border border-white/10 rounded-[1.5rem] p-5 sm:p-6 text-white font-mono text-2xl sm:text-3xl focus:outline-none focus:border-emerald-500/40 transition-all duration-500 shadow-inner appearance-none"
                         placeholder="0.00"
                       />
-                      <div className="absolute left-6 top-1/2 -translate-y-1/2 text-zinc-600 font-bold">
-                        {converterMode === 'toLYD' ? (configTerms.find(t => t.id === converterFrom)?.name || converterFrom) : 'دينار ليبي'}
+                      <div className="absolute left-4 sm:left-6 top-1/2 -translate-y-1/2 text-zinc-600 font-bold text-sm sm:text-base">
+                        {converterMode === 'toLYD' ? (configTerms.find(t => t.id === converterFrom)?.name.split(' ')[0] || converterFrom) : 'دينار ليبي'}
                       </div>
                     </div>
                   </div>
                   
                   <div className="flex items-center gap-3">
-                    <select 
-                      value={converterFrom}
-                      onChange={(e) => setConverterFrom(e.target.value)}
-                      className="flex-1 bg-white/[0.03] border border-white/5 rounded-2xl p-4 text-white font-bold focus:outline-none appearance-none cursor-pointer hover:bg-white/[0.05] transition-colors"
-                    >
-                      {configTerms.filter(t => !["GOLD", "OFFICIAL_USD"].includes(t.id)).map(t => (
-                        <option key={t.id} value={t.id} className="bg-[#121212]">{t.name}</option>
-                      ))}
-                    </select>
+                    <div className="flex-1 relative">
+                      <select 
+                        value={converterFrom}
+                        onChange={(e) => setConverterFrom(e.target.value)}
+                        className="w-full bg-white/[0.03] border border-white/5 rounded-2xl p-4 text-white font-bold focus:outline-none appearance-none cursor-pointer hover:bg-white/[0.05] transition-colors pr-4 text-sm sm:text-base"
+                      >
+                        {configTerms.filter(t => !["GOLD", "OFFICIAL_USD"].includes(t.id)).map(t => (
+                          <option key={t.id} value={t.id} className="bg-[#121212]">{t.name}</option>
+                        ))}
+                      </select>
+                    </div>
                     
                     <button 
                       onClick={() => setConverterMode(prev => prev === 'toLYD' ? 'fromLYD' : 'toLYD')}
-                      className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-white hover:bg-emerald-500 hover:text-black hover:border-emerald-500 transition-all duration-500 group/swap"
+                      className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-white hover:bg-emerald-500 hover:text-black hover:border-emerald-500 transition-all duration-500 group/swap shrink-0"
                     >
-                      <ArrowLeftRight className={`w-6 h-6 transition-transform duration-500 ${converterMode === 'fromLYD' ? 'rotate-180' : ''}`} />
+                      <ArrowLeftRight className={`w-5 h-5 sm:w-6 sm:h-6 transition-transform duration-500 ${converterMode === 'fromLYD' ? 'rotate-180' : ''}`} />
                     </button>
                   </div>
                 </div>
@@ -1017,27 +1019,31 @@ export default function App() {
 
                 {/* Result Display */}
                 <div className="lg:col-span-2">
-                  <div className="h-full bg-gradient-to-br from-white/[0.02] to-transparent border border-white/5 rounded-[2rem] p-8 flex flex-col items-center justify-center text-center relative overflow-hidden group/result shadow-2xl">
+                  <div className="h-full bg-gradient-to-br from-white/[0.02] to-transparent border border-white/5 rounded-[2rem] p-6 sm:p-8 flex flex-col items-center justify-center text-center relative overflow-hidden group/result shadow-2xl min-h-[160px]">
                     <div className="absolute inset-0 bg-emerald-500/[0.01] opacity-0 group-hover/result:opacity-100 transition-opacity duration-700"></div>
                     
-                    <span className="text-zinc-500 text-xs font-bold uppercase tracking-widest mb-6 block">النتيجة المقدرة</span>
+                    <span className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mb-4 sm:mb-6 block">النتيجة المقدرة</span>
                     
-                    <div className="flex items-baseline gap-4 relative z-10" dir="ltr">
+                    <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4 relative z-10 w-full" dir="ltr">
                       <motion.span 
                         key={`${converterResult}-${converterMode}`}
                         initial={{ opacity: 0, scale: 0.9, y: 10 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
-                        className="text-6xl sm:text-7xl font-light text-white font-mono tracking-tighter"
+                        className={`font-light text-white font-mono tracking-tighter break-all ${
+                          converterResult.toString().length > 10 ? 'text-3xl sm:text-4xl' : 
+                          converterResult.toString().length > 7 ? 'text-4xl sm:text-5xl' : 
+                          'text-5xl sm:text-7xl'
+                        }`}
                       >
-                        {converterResult.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {converterResult.toFixed(2)}
                       </motion.span>
-                      <span className="text-3xl text-emerald-500/70 font-light">
+                      <span className="text-xl sm:text-3xl text-emerald-500/70 font-light shrink-0">
                         {converterMode === 'fromLYD' ? (configTerms.find(t => t.id === converterFrom)?.name.split(' ')[0] || converterFrom) : 'د.ل'}
                       </span>
                     </div>
 
-                    <div className="mt-10 flex items-center gap-3 text-[10px] text-zinc-500 bg-black/40 px-5 py-2.5 rounded-full border border-white/5 backdrop-blur-md">
-                      <Zap className="w-3.5 h-3.5 text-yellow-500 animate-pulse" />
+                    <div className="mt-6 sm:mt-10 flex items-center gap-3 text-[9px] sm:text-[10px] text-zinc-500 bg-black/40 px-4 sm:px-5 py-2 sm:py-2.5 rounded-full border border-white/5 backdrop-blur-md">
+                      <Zap className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-yellow-500 animate-pulse" />
                       <span className="font-medium">بناءً على {converterMarket === 'parallel' ? 'أسعار السوق' : 'الأسعار الرسمية'} اللحظية</span>
                     </div>
                   </div>
