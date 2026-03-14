@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
@@ -26,6 +26,7 @@ import {
   Area,
   XAxis,
   YAxis,
+  CartesianGrid,
   ResponsiveContainer,
   Tooltip,
 } from "recharts";
@@ -428,6 +429,32 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
+  const chartData = useMemo(() => {
+    if (!selectedRate || !history.length) return [];
+    return history.map(h => {
+      const rateObj = selectedRate.market === 'parallel' ? h.ratesParallel : h.ratesOfficial;
+      let value = 0;
+      if (rateObj && rateObj[selectedRate.code]) {
+        value = rateObj[selectedRate.code];
+      } else if (selectedRate.code === 'USD') {
+        value = selectedRate.market === 'parallel' ? h.usdParallel : h.usdOfficial;
+      }
+      return {
+        time: h.time,
+        value: value
+      };
+    }).filter(d => d.value > 0);
+  }, [selectedRate, history]);
+
+  const chartStats = useMemo(() => {
+    if (!chartData.length) return { max: 0, min: 0, avg: 0 };
+    const values = chartData.map(d => d.value);
+    const max = Math.max(...values);
+    const min = Math.min(...values);
+    const avg = values.reduce((a, b) => a + b, 0) / values.length;
+    return { max, min, avg };
+  }, [chartData]);
+
   if (loading && !rates) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
@@ -463,17 +490,6 @@ export default function App() {
   const prevUsdChecksRate = rates?.previousParallel?.["USD_CHECKS"] || usdChecksRate;
   const usdChecksIsUp = usdChecksRate > prevUsdChecksRate;
   const usdChecksIsDown = usdChecksRate < prevUsdChecksRate;
-
-  const getChartData = () => {
-    if (!selectedRate) return [];
-    return history.map(h => {
-      const rateObj = selectedRate.market === 'parallel' ? h.ratesParallel : h.ratesOfficial;
-      return {
-        time: h.time,
-        value: rateObj ? rateObj[selectedRate.code] : (selectedRate.code === 'USD' ? (selectedRate.market === 'parallel' ? h.usdParallel : h.usdOfficial) : 0)
-      };
-    }).filter(d => d.value > 0);
-  };
 
   return (
     <div className="min-h-screen bg-[#050505] text-white font-sans selection:bg-emerald-500/20 relative overflow-hidden" dir="rtl">
@@ -565,7 +581,7 @@ export default function App() {
               
               <div className="p-6 h-[300px] sm:h-[400px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={getChartData()}>
+                  <AreaChart data={chartData}>
                     <defs>
                       <linearGradient id="popoverGradient" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
@@ -1080,6 +1096,172 @@ export default function App() {
                   className="w-full py-3 bg-white text-black text-sm font-bold rounded-2xl hover:bg-zinc-200 transition-colors"
                 >
                   حفظ الإعدادات
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+      
+      {/* Currency Chart Modal */}
+      <AnimatePresence>
+        {selectedRate && (
+          <div className="fixed inset-0 z-[160] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setSelectedRate(null)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-md"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-4xl bg-[#0a0a0a] border border-white/10 rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
+            >
+              <div className="p-6 border-b border-white/5 flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-400">
+                    <TrendingUp className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-white">{selectedRate.name}</h3>
+                    <p className="text-xs text-zinc-500 uppercase tracking-widest mt-0.5">
+                      {selectedRate.market === 'parallel' ? 'السوق الموازي' : 'السوق الرسمي'} • {selectedRate.code}
+                    </p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setSelectedRate(null)} 
+                  className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/10 transition-all"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-6 flex-1 overflow-hidden flex flex-col">
+                <div className="flex items-center justify-between mb-8">
+                  <div className="flex flex-col">
+                    <span className="text-xs text-zinc-500 mb-1">السعر الحالي</span>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-4xl font-mono font-bold text-white">
+                        {(selectedRate.market === 'parallel' ? rates?.parallel[selectedRate.code] : rates?.official[selectedRate.code])?.toFixed(2)}
+                      </span>
+                      <span className="text-sm text-zinc-500">د.ل</span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    <div className="px-3 py-1.5 rounded-xl bg-white/5 border border-white/5 text-[10px] font-medium text-zinc-400 uppercase tracking-widest">
+                      آخر 24 ساعة
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex-1 min-h-[350px] w-full relative">
+                  {chartData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%" key={selectedRate.code}>
+                      <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="modalChartGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.4}/>
+                            <stop offset="95%" stopColor="#10b981" stopOpacity={0.05}/>
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid 
+                          vertical={false} 
+                          stroke="rgba(255,255,255,0.03)" 
+                          strokeDasharray="3 3" 
+                        />
+                        <XAxis 
+                          dataKey="time" 
+                          hide 
+                        />
+                        <YAxis 
+                          domain={['auto', 'auto']} 
+                          orientation="right"
+                          tick={{ fontSize: 11, fill: '#a1a1aa', fontFamily: 'monospace', fontWeight: 500 }}
+                          axisLine={false}
+                          tickLine={false}
+                          tickFormatter={(val) => val.toFixed(2)}
+                          width={45}
+                        />
+                        <Tooltip
+                          contentStyle={{ 
+                            backgroundColor: "#0a0a0a", 
+                            border: "1px solid rgba(255,255,255,0.1)", 
+                            borderRadius: "16px", 
+                            color: "#fff", 
+                            boxShadow: "0 20px 50px -12px rgba(0, 0, 0, 0.5)",
+                            padding: "12px"
+                          }}
+                          itemStyle={{ color: "#10b981", fontFamily: "monospace", fontSize: "18px", fontWeight: "bold" }}
+                          labelStyle={{ color: "#71717a", fontSize: "11px", marginBottom: "6px", fontWeight: "medium" }}
+                          labelFormatter={(label) => {
+                            try {
+                              return format(new Date(label), "eeee, dd MMMM - HH:mm", { locale: ar });
+                            } catch (e) {
+                              return label;
+                            }
+                          }}
+                          formatter={(value: number) => [value.toFixed(3) + ' د.ل', 'السعر']}
+                        />
+                        <Area
+                          type="monotone"
+                          dataKey="value"
+                          stroke="#10b981"
+                          strokeWidth={3}
+                          fillOpacity={1}
+                          fill="url(#modalChartGradient)"
+                          dot={{ r: 3, fill: "#10b981", stroke: "#0a0a0a", strokeWidth: 2, fillOpacity: 1 }}
+                          activeDot={{ r: 6, fill: "#10b981", stroke: "#0a0a0a", strokeWidth: 3 }}
+                          isAnimationActive={false} // Disable animation for faster rendering in modal
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="flex flex-col items-center gap-2 opacity-20">
+                        <TrendingUp className="w-8 h-8" />
+                        <p className="text-xs font-mono">لا توجد بيانات تاريخية كافية</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-8 grid grid-cols-3 gap-4">
+                  <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5">
+                    <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-1">أعلى سعر</p>
+                    <p className="text-lg font-mono font-bold text-white">
+                      {chartStats.max.toFixed(2)}
+                    </p>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5">
+                    <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-1">أدنى سعر</p>
+                    <p className="text-lg font-mono font-bold text-white">
+                      {chartStats.min.toFixed(2)}
+                    </p>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5">
+                    <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-1">متوسط السعر</p>
+                    <p className="text-lg font-mono font-bold text-white">
+                      {chartStats.avg.toFixed(2)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-6 bg-white/[0.02] border-t border-white/5 flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-2 text-[10px] text-zinc-500">
+                  <Info className="w-3 h-3" />
+                  <span>البيانات معروضة لآخر 24 ساعة من التداولات</span>
+                </div>
+                <button 
+                  onClick={() => setSelectedRate(null)}
+                  className="px-6 py-2 bg-white text-black text-xs font-bold rounded-xl hover:bg-zinc-200 transition-colors"
+                >
+                  إغلاق
                 </button>
               </div>
             </motion.div>
