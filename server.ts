@@ -700,15 +700,23 @@ async function startServer() {
     res.status(200).json({ success: true });
   });
 
-  app.get("/api/rates", (req, res) => {
-    res.json(rates);
+  app.get("/api/rates", async (req, res) => {
+    try {
+      if (req.query.refresh === 'true') {
+        await initializeRatesFromDB();
+      }
+      res.json(rates);
+    } catch (err) {
+      console.error("Error in /api/rates:", err);
+      res.json(rates); // Return current memory rates as fallback
+    }
   });
 
   app.get("/api/refresh", async (req, res) => {
     const userAgent = req.headers['user-agent'] || 'Unknown';
     const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
     const providedKey = req.query.key;
-    const expectedKey = process.env.CRON_SECRET || "Lyd@2026!SecureCronRefreshKey#99xZ";
+    const expectedKey = process.env.CRON_SECRET || "Lyd@2026!SecureCronRefreshKey_99xZ";
     
     if (providedKey !== expectedKey) {
       console.warn(`[Cron-Job] Unauthorized refresh attempt from IP: ${ip}`);

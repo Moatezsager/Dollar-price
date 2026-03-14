@@ -295,11 +295,11 @@ export default function App() {
     };
   }, []);
 
-  const fetchData = async () => {
+  const fetchData = async (forceRefresh = false) => {
     setIsRefreshing(true);
     try {
       const [ratesResult, historyResult] = await Promise.allSettled([
-        fetch("/api/rates"),
+        fetch(forceRefresh ? "/api/rates?refresh=true" : "/api/rates"),
         fetch("/api/history"),
       ]);
       
@@ -637,10 +637,10 @@ export default function App() {
               <FileText className="w-4 h-4" />
             </button>
             <button
-              onClick={() => fetchData()}
+              onClick={() => fetchData(true)}
               disabled={isRefreshing}
               className={`p-2 rounded-full hover:bg-white/10 transition-colors text-zinc-400 hover:text-white ${isRefreshing ? 'animate-spin text-indigo-400' : ''}`}
-              title="تحديث البيانات"
+              title="تحديث البيانات من قاعدة البيانات"
             >
               <RefreshCw className="w-4 h-4" />
             </button>
