@@ -302,6 +302,46 @@ async function fetchHistoryFromSupabase() {
 
 // Fetch real official rates from open API
 async function fetchOfficialRates(): Promise<boolean> {
+  const ffKey = process.env.FAST_FOREX_KEY || "47a645d5c0-017a5a266c-tbwert"; // Using provided key as default or env
+  
+  // Try FastForex first (Premium/Faster)
+  try {
+    const ffResponse = await fetch(`https://api.fastforex.io/fetch-all?from=USD&api_key=${ffKey}`);
+    const ffData = await ffResponse.json();
+    
+    if (ffData && ffData.results && ffData.results.LYD) {
+      let anyChanged = false;
+      const lyd = ffData.results.LYD;
+      const res = ffData.results;
+      
+      const newOfficial: RateMap = {
+        USD: lyd,
+        EUR: lyd / (res.EUR || 1),
+        GBP: lyd / (res.GBP || 1),
+        TND: lyd / (res.TND || 1),
+        TRY: lyd / (res.TRY || 1),
+        EGP: lyd / (res.EGP || 1),
+      };
+
+      Object.entries(newOfficial).forEach(([key, val]) => {
+        if (isSignificantChange(rates.official[key], val)) {
+          rates.previousOfficial[key] = rates.official[key];
+          rates.lastChanged.official[key] = new Date().toISOString();
+          anyChanged = true;
+        }
+      });
+      
+      if (anyChanged) {
+        rates.official = { ...newOfficial };
+        console.log(`[Official] Rates updated via FastForex`);
+      }
+      return anyChanged;
+    }
+  } catch (e) {
+    console.warn("[Official] FastForex failed, falling back to public APIs");
+  }
+
+  // Fallback to free public APIs
   const sources = [
     "https://api.exchangerate-api.com/v4/latest/USD",
     "https://open.er-api.com/v6/latest/USD"
