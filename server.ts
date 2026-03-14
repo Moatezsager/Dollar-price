@@ -767,20 +767,37 @@ async function startServer() {
     
     try {
       const startTime = Date.now();
-      // Execute scraping immediately
+      const oldUsd = rates.parallel.USD;
+      const oldOfficial = rates.official.USD;
+
+      // Execute scraping
       await Promise.all([
         fetchOfficialRates(),
         fetchParallelRatesFromTelegram()
       ]);
+      
       const duration = Date.now() - startTime;
+      const newUsd = rates.parallel.USD;
+      const newOfficial = rates.official.USD;
       
       console.log(`[Cron-Job] Refresh completed successfully in ${duration}ms`);
       
-      // 3. Return 200 OK with simple JSON
+      // Return detailed JSON for verification
       res.status(200).json({ 
         success: true, 
         message: "Data refreshed successfully",
-        timestamp: new Date().toISOString()
+        details: {
+          duration_ms: duration,
+          parallel_usd: {
+            current: newUsd,
+            changed: newUsd !== oldUsd
+          },
+          official_usd: {
+            current: newOfficial,
+            changed: newOfficial !== oldOfficial
+          },
+          last_scrape_time: new Date().toISOString()
+        }
       });
     } catch (err) {
       console.error("[Cron-Job] Refresh failed:", err);
