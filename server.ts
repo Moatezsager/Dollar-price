@@ -84,6 +84,11 @@ for (let i = 24; i >= 0; i--) {
   });
 }
 
+// Helper to detect significant price changes (ignores tiny floating point noise)
+function isSignificantChange(val1: number, val2: number, threshold = 0.0001) {
+  return Math.abs((val1 || 0) - (val2 || 0)) > threshold;
+}
+
 // Initialize rates from Database on startup to ensure accuracy
 async function initializeRatesFromDB() {
   if (!supabase || !supabaseAnonKey || supabaseAnonKey.includes('dummy')) return;
@@ -105,21 +110,27 @@ async function initializeRatesFromDB() {
       const latestValidParallel = data.find(row => row.usd_parallel > 5.5) || data[0];
       
       if (latestValidParallel.rates_parallel && latestValidParallel.rates_parallel.USD > 5.5) {
-        rates.parallel = latestValidParallel.rates_parallel;
+        rates.parallel = { ...latestValidParallel.rates_parallel };
       }
       
       // Load lastChanged from the latest row if it exists
       if (latestValidParallel.last_changed) {
-        rates.lastChanged = latestValidParallel.last_changed;
+        // Ensure we deep copy to avoid reference issues
+        rates.lastChanged = JSON.parse(JSON.stringify(latestValidParallel.last_changed));
       } else {
-        // Fallback: Initialize if not in DB
-        Object.keys(rates.official).forEach(key => rates.lastChanged.official[key] = rates.lastUpdated);
-        Object.keys(rates.parallel).forEach(key => rates.lastChanged.parallel[key] = rates.lastUpdated);
+        // Fallback: Initialize if not in DB, but use a slightly older time to distinguish from "just changed"
+        const fallbackTime = new Date(Date.now() - 3600000).toISOString(); // 1 hour ago
+        Object.keys(rates.official).forEach(key => {
+          if (!rates.lastChanged.official[key]) rates.lastChanged.official[key] = fallbackTime;
+        });
+        Object.keys(rates.parallel).forEach(key => {
+          if (!rates.lastChanged.parallel[key]) rates.lastChanged.parallel[key] = fallbackTime;
+        });
       }
       
       // 2. Load official rates from the absolute latest row
       if (data[0].rates_official) {
-        rates.official = data[0].rates_official;
+        rates.official = { ...data[0].rates_official };
       }
       
       // 3. Find the true previous PARALLEL rate (different from current, and valid > 5.5)
@@ -284,12 +295,12 @@ async function fetchOfficialRates() {
 
         // Update lastChanged for all official rates that changed
         Object.entries(newOfficial).forEach(([key, val]) => {
-          if (rates.official[key] !== val) {
+          if (isSignificantChange(rates.official[key], val)) {
             rates.lastChanged.official[key] = new Date().toISOString();
           }
         });
         
-        rates.official = newOfficial;
+        rates.official = { ...newOfficial };
         
         console.log(`Official rates updated successfully from ${source}`);
         await saveToSupabase();
@@ -478,7 +489,7 @@ async function fetchParallelRatesFromTelegram() {
       console.log(`[Scraper] Success! Found USD rate: ${latestRates.USD}. Channels: ${successfulChannels}/${appConfig.channels.length}, Messages: ${totalMessagesProcessed}`);
       
       // Update official rates if found in Telegram (often faster than APIs)
-      if (latestRates.OFFICIAL_USD && latestRates.OFFICIAL_USD !== rates.official.USD) {
+      if (latestRates.OFFICIAL_USD && isSignificantChange(rates.official.USD, latestRates.OFFICIAL_USD)) {
         console.log(`[Scraper] Updating official rate from Telegram: ${latestRates.OFFICIAL_USD}`);
         rates.previousOfficial = { ...rates.official };
         rates.official.USD = latestRates.OFFICIAL_USD;
@@ -486,7 +497,7 @@ async function fetchParallelRatesFromTelegram() {
       }
 
       // Shift current to previous if it changed
-      if (latestRates.USD !== rates.parallel.USD) {
+      if (isSignificantChange(rates.parallel.USD, latestRates.USD)) {
         rates.previousParallel = { ...rates.parallel };
       }
       
@@ -494,7 +505,8 @@ async function fetchParallelRatesFromTelegram() {
       for (const term of appConfig.terms) {
         if (latestRates[term.id]) {
           // Update lastChanged only if the price actually changed
-          if (rates.parallel[term.id] !== latestRates[term.id]) {
+          if (isSignificantChange(rates.parallel[term.id], latestRates[term.id])) {
+            console.log(`[Scraper] Price change detected for ${term.id}: ${rates.parallel[term.id]} -> ${latestRates[term.id]}`);
             rates.lastChanged.parallel[term.id] = new Date().toISOString();
           }
           rates.parallel[term.id] = latestRates[term.id];
