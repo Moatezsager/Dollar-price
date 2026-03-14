@@ -246,7 +246,7 @@ async function fetchOfficialRates() {
       
       rates.lastUpdated = new Date().toISOString();
       console.log("Official rates updated successfully.");
-      saveToSupabase();
+      await saveToSupabase();
     }
   } catch (error) {
     console.error("Error fetching official rates:", error);
@@ -457,7 +457,7 @@ async function fetchParallelRatesFromTelegram() {
       console.log(`Parallel rates updated. Latest:`, latestRates.USD, `Previous:`, rates.previousParallel.USD);
       
       // Save the real fetched rates to Supabase
-      saveToSupabase();
+      await saveToSupabase();
       
       // Also update local history fallback
       history.push({
@@ -477,16 +477,9 @@ async function fetchParallelRatesFromTelegram() {
 // Initial fetch and setup
 initializeRatesFromDB().then(() => {
   loadConfigFromSupabase().then(() => {
-    fetchOfficialRates();
-    fetchParallelRatesFromTelegram();
+    console.log("Server initialized. Waiting for cron job to trigger /api/refresh.");
   });
 });
-
-// Update official rates every hour
-setInterval(fetchOfficialRates, 60 * 60 * 1000);
-
-// Update parallel rates from Telegram every 5 minutes
-setInterval(fetchParallelRatesFromTelegram, 5 * 60 * 1000);
 
 // Auto-cleanup old data to keep the database clean
 const cleanupOldData = async () => {
@@ -706,6 +699,13 @@ async function startServer() {
   app.get("/api/refresh", async (req, res) => {
     const userAgent = req.headers['user-agent'] || 'Unknown';
     const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    const providedKey = req.query.key;
+    const expectedKey = process.env.CRON_SECRET || "Lyd@2026!SecureCronRefreshKey#99xZ";
+    
+    if (providedKey !== expectedKey) {
+      console.warn(`[Cron-Job] Unauthorized refresh attempt from IP: ${ip}`);
+      return res.status(403).json({ success: false, error: "Forbidden: Invalid security key" });
+    }
     
     console.log(`\n[Cron-Job] Refresh request received!`);
     console.log(`Time: ${new Date().toLocaleString('ar-LY')}`);

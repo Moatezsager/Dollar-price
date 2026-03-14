@@ -295,25 +295,12 @@ export default function App() {
     };
   }, []);
 
-  const fetchData = async (force = false) => {
+  const fetchData = async () => {
     setIsRefreshing(true);
     try {
-      if (force) {
-        // Trigger a real scrape from sources on the server
-        const refreshRes = await fetch("/api/refresh");
-        if (!refreshRes.ok) throw new Error("Refresh failed");
-      }
-
-      const ratesPromise = fetch("/api/rates").catch(err => { throw err; });
-      const historyPromise = fetch("/api/history").catch(err => { throw err; });
-
-      // Prevent unhandled rejections if one fails before the other
-      ratesPromise.catch(() => {});
-      historyPromise.catch(() => {});
-
       const [ratesRes, historyRes] = await Promise.all([
-        ratesPromise,
-        historyPromise,
+        fetch("/api/rates"),
+        fetch("/api/history"),
       ]);
       
       if (!ratesRes.ok || !historyRes.ok) {
@@ -643,10 +630,10 @@ export default function App() {
               <FileText className="w-4 h-4" />
             </button>
             <button
-              onClick={() => fetchData(true)}
+              onClick={() => fetchData()}
               disabled={isRefreshing}
               className={`p-2 rounded-full hover:bg-white/10 transition-colors text-zinc-400 hover:text-white ${isRefreshing ? 'animate-spin text-indigo-400' : ''}`}
-              title="تحديث البيانات الآن من المصادر"
+              title="تحديث البيانات"
             >
               <RefreshCw className="w-4 h-4" />
             </button>
