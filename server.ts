@@ -108,6 +108,15 @@ async function initializeRatesFromDB() {
         rates.parallel = latestValidParallel.rates_parallel;
       }
       
+      // Load lastChanged from the latest row if it exists
+      if (latestValidParallel.last_changed) {
+        rates.lastChanged = latestValidParallel.last_changed;
+      } else {
+        // Fallback: Initialize if not in DB
+        Object.keys(rates.official).forEach(key => rates.lastChanged.official[key] = rates.lastUpdated);
+        Object.keys(rates.parallel).forEach(key => rates.lastChanged.parallel[key] = rates.lastUpdated);
+      }
+      
       // 2. Load official rates from the absolute latest row
       if (data[0].rates_official) {
         rates.official = data[0].rates_official;
@@ -162,6 +171,7 @@ async function saveToSupabase() {
       usd_official: rates.official.USD,
       rates_parallel: rates.parallel,
       rates_official: rates.official,
+      last_changed: rates.lastChanged,
       recorded_at: new Date().toISOString()
     };
 
@@ -173,8 +183,16 @@ async function saveToSupabase() {
       if (!error.message.includes('schema cache')) {
         console.error("Error saving to Supabase:", error.message);
         
-        // Fallback: If JSONB columns don't exist, try saving just the flat USD rates
-        if (error.message.includes('column') && error.message.includes('does not exist')) {
+        // Fallback: If last_changed column doesn't exist, try saving without it
+        if (error.message.includes('column "last_changed" does not exist')) {
+           await supabase.from('exchange_rates').insert([{
+              usd_parallel: rates.parallel.USD, 
+              usd_official: rates.official.USD,
+              rates_parallel: rates.parallel,
+              rates_official: rates.official,
+              recorded_at: new Date().toISOString()
+           }]);
+        } else if (error.message.includes('column') && error.message.includes('does not exist')) {
            await supabase.from('exchange_rates').insert([{
               usd_parallel: rates.parallel.USD, 
               usd_official: rates.official.USD,
@@ -475,22 +493,26 @@ async function fetchParallelRatesFromTelegram() {
       // Dynamically assign all extracted rates
       for (const term of appConfig.terms) {
         if (latestRates[term.id]) {
+          // Update lastChanged only if the price actually changed
           if (rates.parallel[term.id] !== latestRates[term.id]) {
             rates.lastChanged.parallel[term.id] = new Date().toISOString();
           }
           rates.parallel[term.id] = latestRates[term.id];
         } else if (!rates.parallel[term.id]) {
           // Initialize with some fallback if it doesn't exist at all
-          if (term.id === "USD_CHECKS") rates.parallel[term.id] = latestRates.USD + 0.8;
-          else if (term.id === "EUR") rates.parallel[term.id] = latestRates.USD * 1.08;
-          else if (term.id === "GBP") rates.parallel[term.id] = latestRates.USD * 1.26;
-          else if (term.id === "GOLD") rates.parallel[term.id] = 1280;
-          else if (term.id === "USD_TR" || term.id === "USD_AE") rates.parallel[term.id] = latestRates.USD;
-          else if (term.id === "TND") rates.parallel[term.id] = latestRates.USD * 0.32;
-          else if (term.id === "TRY") rates.parallel[term.id] = latestRates.USD * 0.03;
-          else if (term.id === "EGP") rates.parallel[term.id] = latestRates.USD * 0.02;
-          else if (term.id === "OFFICIAL_USD") rates.parallel[term.id] = rates.official.USD;
-          else rates.parallel[term.id] = 0; // Default for new unknown currencies
+          const fallbackValue = 
+            term.id === "USD_CHECKS" ? latestRates.USD + 0.8 :
+            term.id === "EUR" ? latestRates.USD * 1.08 :
+            term.id === "GBP" ? latestRates.USD * 1.26 :
+            term.id === "GOLD" ? 1280 :
+            (term.id === "USD_TR" || term.id === "USD_AE") ? latestRates.USD :
+            term.id === "TND" ? latestRates.USD * 0.32 :
+            term.id === "TRY" ? latestRates.USD * 0.03 :
+            term.id === "EGP" ? latestRates.USD * 0.02 :
+            term.id === "OFFICIAL_USD" ? rates.official.USD : 0;
+          
+          rates.parallel[term.id] = fallbackValue;
+          rates.lastChanged.parallel[term.id] = new Date().toISOString();
         }
       }
 
