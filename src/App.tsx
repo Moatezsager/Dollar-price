@@ -64,11 +64,18 @@ const CURRENCIES = [
   { code: "TND", name: "دينار تونسي", flag: "tn" },
   { code: "TRY", name: "ليرة تركية", flag: "tr" },
   { code: "EGP", name: "جنيه مصري", flag: "eg" },
+  { code: "JOD", name: "دينار أردني", flag: "jo" },
+  { code: "BHD", name: "دينار بحريني", flag: "bh" },
+  { code: "KWD", name: "دينار كويتي", flag: "kw" },
+  { code: "AED", name: "درهم إماراتي", flag: "ae" },
+  { code: "SAR", name: "ريال سعودي", flag: "sa" },
+  { code: "QAR", name: "ريال قطري", flag: "qa" },
 ];
 
 const PARALLEL_DETAILS = [
   { code: "USD_TR", name: "حوالات تركيا", flag: "tr", unit: "د.ل" },
   { code: "USD_AE", name: "حوالات دبي", flag: "ae", unit: "د.ل" },
+  { code: "USD_CN", name: "حوالات الصين", flag: "cn", unit: "د.ل" },
   { code: "GOLD", name: "كسر الذهب (18)", icon: Coins, unit: "د.ل/ج" },
 ];
 
@@ -842,7 +849,7 @@ export default function App() {
               <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest">السوق الموازي (عملات أجنبية)</h3>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-8 gap-y-12">
-              {configTerms.filter(t => ["EUR", "GBP", "TND", "TRY", "JOD", "GOLD", "EGP"].includes(t.id)).map(term => {
+              {configTerms.filter(t => ["EUR", "GBP", "TND", "TRY", "JOD", "BHD", "KWD", "AED", "SAR", "QAR", "GOLD", "EGP"].includes(t.id)).map(term => {
                 const rate = rates?.parallel[term.id] || 0;
                 const prevRate = rates?.previousParallel?.[term.id] || rate;
                 const isUp = rate > prevRate;

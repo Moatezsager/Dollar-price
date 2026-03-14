@@ -9,7 +9,11 @@ export const logErrorToServer = async (error: Error | string | unknown, context?
     } else if (typeof error === "string") {
       message = error;
     } else {
-      message = JSON.stringify(error);
+      try {
+        message = JSON.stringify(error);
+      } catch (e) {
+        message = "Error object could not be stringified: " + String(error);
+      }
     }
 
     await fetch('/api/logs/error', {
