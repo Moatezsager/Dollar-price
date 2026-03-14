@@ -1267,7 +1267,7 @@ export default function App() {
                 </button>
               </div>
 
-              <div className="p-6 flex-1 overflow-hidden flex flex-col">
+              <div className="p-6 flex-1 overflow-y-auto custom-scrollbar flex flex-col">
                 <div className="flex items-center justify-between mb-8">
                   <div className="flex flex-col">
                     <span className="text-xs text-zinc-500 mb-1">السعر الحالي</span>
@@ -1306,13 +1306,13 @@ export default function App() {
                           hide 
                         />
                         <YAxis 
-                          domain={['auto', 'auto']} 
+                          domain={[(dataMin: number) => dataMin - (dataMin * 0.01), (dataMax: number) => dataMax + (dataMax * 0.01)]} 
                           orientation="right"
-                          tick={{ fontSize: 11, fill: '#a1a1aa', fontFamily: 'monospace', fontWeight: 500 }}
+                          tick={{ fontSize: 10, fill: '#71717a', fontFamily: 'monospace' }}
                           axisLine={false}
                           tickLine={false}
                           tickFormatter={(val) => val.toFixed(2)}
-                          width={45}
+                          width={40}
                         />
                         <Tooltip
                           contentStyle={{ 
