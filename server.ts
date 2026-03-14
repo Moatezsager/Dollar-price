@@ -9,8 +9,12 @@ import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 
 // Initialize Supabase client for server
-const supabaseUrl = process.env.VITE_SUPABASE_URL || 'https://rbqvldyagskdxjhnkqvt.supabase.co';
-const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || ''; 
+const supabaseUrl = process.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY; 
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.warn("WARNING: Supabase credentials missing from environment variables.");
+}
 
 // Only create client if key is provided to avoid crashing on startup
 const supabase = supabaseAnonKey 
@@ -302,7 +306,12 @@ async function fetchHistoryFromSupabase() {
 
 // Fetch real official rates from open API
 async function fetchOfficialRates(): Promise<boolean> {
-  const ffKey = process.env.FAST_FOREX_KEY || "47a645d5c0-017a5a266c-tbwert"; // Using provided key as default or env
+  const ffKey = process.env.FAST_FOREX_KEY;
+  
+  if (!ffKey) {
+    console.warn("[Official] FastForex Key missing, skipping premium source");
+    return false;
+  }
   
   // Try FastForex first (Premium/Faster)
   try {
@@ -756,12 +765,13 @@ async function startServer() {
   // --- Admin API ---
   const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
   
-  if (!ADMIN_PASSWORD && process.env.NODE_ENV === "production") {
-    console.warn("WARNING: ADMIN_PASSWORD is not set in production. Using default (insecure).");
-  }
+  const effectiveAdminPassword = ADMIN_PASSWORD;
   
-  const effectiveAdminPassword = ADMIN_PASSWORD || "admin123";
-  let adminToken = Math.random().toString(36).substring(2) + Date.now().toString(36); // More complex token
+  if (!effectiveAdminPassword) {
+    console.error("CRITICAL: ADMIN_PASSWORD not set. Admin features will be disabled for security.");
+  }
+
+  let adminToken = Math.random().toString(36).substring(2) + Date.now().toString(36);
 
   app.post("/api/admin/login", (req: express.Request, res: express.Response) => {
     const { password } = req.body;
@@ -875,9 +885,9 @@ async function startServer() {
     const userAgent = req.headers['user-agent'] || 'Unknown';
     const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
     const providedKey = req.query.key as string;
-    const expectedKey = process.env.CRON_SECRET || "Lyd@2026!SecureCronRefreshKey_99xZ";
+    const expectedKey = process.env.CRON_SECRET;
     
-    if (providedKey !== expectedKey) {
+    if (!expectedKey || providedKey !== expectedKey) {
       console.warn(`[Cron-Job] Unauthorized refresh attempt from IP: ${ip}`);
       return res.status(403).json({ success: false, error: "Forbidden: Invalid security key" });
     }
