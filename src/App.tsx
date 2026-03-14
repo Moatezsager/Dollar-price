@@ -69,6 +69,7 @@ const PARALLEL_DETAILS = [
   { code: "USD_TR", name: "حوالات تركيا", flag: "tr", unit: "د.ل" },
   { code: "USD_AE", name: "حوالات دبي", flag: "ae", unit: "د.ل" },
   { code: "GOLD", name: "كسر الذهب (18)", icon: Coins, unit: "د.ل/ج" },
+  { code: "SILVER", name: "فضة (مسبوك)", icon: Coins, unit: "د.ل/ج" },
 ];
 
 export default function App() {

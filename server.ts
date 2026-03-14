@@ -404,16 +404,30 @@ async function fetchOfficialRates(): Promise<boolean> {
 let appConfig: AppConfig = {
   channels: ["dollarr_ly", "musheermarket", "lydollar", "djheih2026", "suqalmushir"],
   terms: [
-    { id: "USD", name: "دولار أمريكي", regex: "(?:الدولار|دولار|الخضراء|خضراء|ورقة|الورقة|كاش|usd|🇺🇸)\\s*(?:كاش)?\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,3})?)", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
+    { id: "GBP", name: "جنيه إسترليني", regex: "(?:GBP|جنيه استرليني|جنيه واحد)\\s+(?:\\d+\\s+)?([\\d\\.]+)", min: 5.0, max: 25.0, isInverse: false, flag: "gb" },
+    { id: "SAR", name: "ريال سعودي", regex: "(?:SAR|ريال سعودي|ريال واحد)\\s+(?:\\d+\\s+)?([\\d\\.]+)", min: 0.5, max: 5.0, isInverse: false, flag: "sa" },
+    { id: "TND", name: "دينار تونسي", regex: "(?:TND|دينار تونسي|دينار واحد)\\s+(?:\\d+\\s+)?([\\d\\.]+)", min: 0.5, max: 10.0, isInverse: false, flag: "tn" },
+    { id: "CNY", name: "إيوان صيني", regex: "(?:CNY|إيوان صيني|إيوان واحد)\\s+(?:\\d+\\s+)?([\\d\\.]+)", min: 0.1, max: 5.0, isInverse: false, flag: "cn" },
+    { id: "EUR", name: "يورو", regex: "(?:EUR|يورو|يورو واحد)\\s+(?:\\d+\\s+)?([\\d\\.]+)", min: 5.0, max: 25.0, isInverse: false, flag: "eu" },
+    { id: "AED", name: "درهم إماراتي", regex: "(?:AED|درهم إماراتي|درهم واحد)\\s+(?:\\d+\\s+)?([\\d\\.]+)", min: 0.5, max: 5.0, isInverse: false, flag: "ae" },
+    { id: "TRY", name: "ليرة تركية", regex: "(?:TRY|ليرة تركية|ليـرة)\\s+(?:\\d+\\s+)?([\\d\\.]+)", min: 0.05, max: 2.0, isInverse: false, flag: "tr" },
+    { id: "USD", name: "دولار أمريكي", regex: "(?:USD|دولار أمريكي|دولار واحد)\\s+(?:\\d+\\s+)?([\\d\\.]+)", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
     { id: "OFFICIAL_USD", name: "الدولار الرسمي", regex: "(?:الرسمي|المركزي|نشرة المصرف|المصرف المركزي)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,3})?)", min: 4.0, max: 6.0, isInverse: false, flag: "us" },
     { id: "USD_CHECKS", name: "دولار أمريكي (صكوك)", regex: "(?:صكوك|صك|بصك|بنوك|شيك|شيكات|مصرف|مصارف|بنوك)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,3})?)", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
-    { id: "EUR", name: "يورو", regex: "(?:يورو|اليورو|eur|🇪🇺)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,3})?)", min: 5.0, max: 25.0, isInverse: false, flag: "eu" },
-    { id: "GBP", name: "جنيه إسترليني", regex: "(?:باوند|استرليني|gbp|🇬🇧)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,3})?)", min: 5.0, max: 25.0, isInverse: false, flag: "gb" },
     { id: "GOLD", name: "كسر الذهب", regex: "(?:كسر الذهب|ذهب كسر|ذهب|الذهب)\\s*(?:18)?\\s*[=:]?\\s*(\\d{2,4}(?:[\\.,]\\d+)?)", min: 100, max: 5000, isInverse: false, flag: "" },
     { id: "USD_TR", name: "حوالات تركيا", regex: "(?:تركيا|تركي|اسطنبول|🇹🇷)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,3})?)", min: 5.0, max: 25.0, isInverse: false, flag: "tr" },
     { id: "USD_AE", name: "حوالات دبي", regex: "(?:دبي|امارات|الإمارات|🇦🇪)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,3})?)", min: 5.0, max: 25.0, isInverse: false, flag: "ae" },
-    { id: "TND", name: "دينار تونسي", regex: "(?:تونسي|تونس|tnd|🇹🇳)\\s*[=:]?\\s*([1-9](?:[\\.,]\\d+)?)", min: 0.5, max: 10.0, isInverse: false, flag: "tn" },
-    { id: "EGP", name: "جنيه مصري", regex: "(?:مصري|مصر|egp|🇪🇬)\\s*[=:]?\\s*(0(?:[\\.,]\\d+))", min: 0.01, max: 5.0, isInverse: false, flag: "eg" }
+    { id: "EGP", name: "جنيه مصري", regex: "(?:EGP|جنيه مصري|جنيه واحد)\\s+(?:\\d+\\s+)?([\\d\\.]+)", min: 0.01, max: 5.0, isInverse: false, flag: "eg" },
+    { id: "JOD", name: "دينار أردني", regex: "(?:JOD|دينار أردني|دينار واحد)\\s+(?:\\d+\\s+)?([\\d\\.]+)", min: 5.0, max: 25.0, isInverse: false, flag: "jo" },
+    { id: "USD_JBANK", name: "دولار صكوك الجمهورية", regex: "(?:jbank|دولار صكوك الجمهورية)\\s+(?:\\d+\\s+)?([\\d\\.]+)", min: 5.0, max: 25.0, isInverse: false, flag: "ly" },
+    { id: "USD_BCD", name: "دولار صكوك التجارة والتنمية", regex: "(?:bcd|دولار صكوك التجارة والتنمية)\\s+(?:\\d+\\s+)?([\\d\\.]+)", min: 5.0, max: 25.0, isInverse: false, flag: "ly" },
+    { id: "USD_NCB", name: "دولار صكوك التجاري الوطني", regex: "(?:NCB|دولار صكوك التجاري الوطني)\\s+(?:\\d+\\s+)?([\\d\\.]+)", min: 5.0, max: 25.0, isInverse: false, flag: "ly" },
+    { id: "USD_AB", name: "دولار صكوك الامان", regex: "(?:AB|دولار صكوك الامان)\\s+(?:\\d+\\s+)?([\\d\\.]+)", min: 5.0, max: 25.0, isInverse: false, flag: "ly" },
+    { id: "USD_WB", name: "دولار صكوك الوحدة", regex: "(?:WB|دولار صكوك الوحدة)\\s+(?:\\d+\\s+)?([\\d\\.]+)", min: 5.0, max: 25.0, isInverse: false, flag: "ly" },
+    { id: "USD_AE_TRANSFER", name: "حوالة دبي", regex: "(?:حوالة دبي)\\s+(?:\\d+\\s+)?([\\d\\.]+)", min: 5.0, max: 25.0, isInverse: false, flag: "ae" },
+    { id: "USD_TR_TRANSFER", name: "حوالة تركيا", regex: "(?:حوالة تركيا)\\s+(?:\\d+\\s+)?([\\d\\.]+)", min: 5.0, max: 25.0, isInverse: false, flag: "tr" },
+    { id: "USD_CN_TRANSFER", name: "حوالة الصين", regex: "(?:حوالة الصين)\\s+(?:\\d+\\s+)?([\\d\\.]+)", min: 5.0, max: 25.0, isInverse: false, flag: "cn" },
+    { id: "SILVER", name: "فضة (مسبوك)", regex: "(?:مسبوك فضة|فضة|فضة عيار 1000)\\s*(?:عيار 1000)?\\s*[=:]?\\s*(\\d{1,5}(?:[\\.,]\\d{1,3})?)", min: 10, max: 100, isInverse: false, flag: "" }
   ]
 };
 
