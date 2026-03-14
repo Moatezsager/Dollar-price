@@ -52,6 +52,11 @@ export default function Admin() {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
+        const contentType = res.headers.get("content-type");
+        if (!contentType || !contentType.includes("application/json")) {
+          const text = await res.text();
+          throw new Error(`Expected JSON, got: ${text}`);
+        }
         const data = await res.json();
         setConfig(data);
         setIsLoggedIn(true);
@@ -385,9 +390,9 @@ export default function Admin() {
                                   className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                                 />
                               </div>
-                              <div className="grid grid-cols-2 gap-3">
+                              <div className="grid grid-cols-3 gap-3">
                                 <div>
-                                  <label className="block text-xs text-zinc-400 mb-1">الحد الأدنى للسعر</label>
+                                  <label className="block text-xs text-zinc-400 mb-1">الحد الأدنى</label>
                                   <input
                                     type="number"
                                     value={term.min}
@@ -401,7 +406,7 @@ export default function Admin() {
                                   />
                                 </div>
                                 <div>
-                                  <label className="block text-xs text-zinc-400 mb-1">الحد الأقصى للسعر</label>
+                                  <label className="block text-xs text-zinc-400 mb-1">الحد الأقصى</label>
                                   <input
                                     type="number"
                                     value={term.max}
@@ -413,6 +418,21 @@ export default function Admin() {
                                     className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-center focus:border-blue-500 focus:outline-none"
                                     dir="ltr"
                                   />
+                                </div>
+                                <div>
+                                  <label className="block text-xs text-zinc-400 mb-1">عكس السعر</label>
+                                  <button
+                                    onClick={() => {
+                                      const newTerms = [...config.terms];
+                                      newTerms[idx].isInverse = !newTerms[idx].isInverse;
+                                      setConfig({ ...config, terms: newTerms });
+                                    }}
+                                    className={`w-full rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                                      term.isInverse ? 'bg-blue-500/20 text-blue-300' : 'bg-black/20 text-zinc-500'
+                                    }`}
+                                  >
+                                    {term.isInverse ? 'نعم' : 'لا'}
+                                  </button>
                                 </div>
                               </div>
                               <div>

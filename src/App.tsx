@@ -109,6 +109,14 @@ export default function App() {
     const fetchConfig = async () => {
       try {
         const response = await fetch('/api/config');
+        if (!response.ok) {
+          throw new Error(`Failed to fetch config: ${response.statusText}`);
+        }
+        const contentType = response.headers.get("content-type");
+        if (!contentType || !contentType.includes("application/json")) {
+          const text = await response.text();
+          throw new Error(`Expected JSON, got: ${text}`);
+        }
         const data = await response.json();
         if (data && data.terms) {
           setConfigTerms(data.terms);
@@ -341,16 +349,20 @@ export default function App() {
     setIsRefreshing(true);
     try {
       const [ratesResult, historyResult] = await Promise.allSettled([
-        fetch(forceRefresh ? "/api/rates?refresh=true" : "/api/rates"),
-        fetch("/api/history"),
+        fetch(forceRefresh ? "/api/rates?refresh=true" : "/api/rates").catch(e => e),
+        fetch("/api/history").catch(e => e),
       ]);
       
       if (ratesResult.status === 'rejected' || historyResult.status === 'rejected') {
         throw new Error("Network response was not ok");
       }
 
-      const ratesRes = ratesResult.value;
-      const historyRes = historyResult.value;
+      const ratesRes = (ratesResult as PromiseFulfilledResult<any>).value;
+      const historyRes = (historyResult as PromiseFulfilledResult<any>).value;
+
+      if (ratesRes instanceof Error || historyRes instanceof Error) {
+        throw new Error("Network response was not ok");
+      }
 
       if (!ratesRes.ok || !historyRes.ok) {
         if (ratesRes.status === 502 || historyRes.status === 502) return;
@@ -361,6 +373,10 @@ export default function App() {
       const historyContentType = historyRes.headers.get("content-type");
 
       if (!ratesContentType?.includes("application/json") || !historyContentType?.includes("application/json")) {
+        const ratesText = await ratesRes.text();
+        const historyText = await historyRes.text();
+        console.error("Non-JSON response:", { ratesText, historyText });
+        logErrorToServer(`Non-JSON response: rates=${ratesText}, history=${historyText}`, "App.tsx: fetchData content-type");
         return;
       }
 

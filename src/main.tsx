@@ -16,13 +16,18 @@ window.addEventListener('unhandledrejection', (event) => {
 });
 
 // Register service worker
-registerSW({ 
-  immediate: true,
-  onRegisterError(error) {
-    console.error('SW registration error', error);
-    logErrorToServer(error, 'Service Worker Registration Error');
-  }
-});
+try {
+  registerSW({ 
+    immediate: true,
+    onRegisterError(error) {
+      console.error('SW registration error', error);
+      logErrorToServer(error, 'Service Worker Registration Error');
+    }
+  });
+} catch (error) {
+  console.error('SW registration call error', error);
+  logErrorToServer(error, 'Service Worker Registration Call Error');
+}
 
 const path = window.location.pathname;
 
