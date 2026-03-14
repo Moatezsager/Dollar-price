@@ -62,7 +62,15 @@ let rates = {
     EGP: 0.14,
   },
   lastUpdated: new Date().toISOString(),
+  lastChanged: {
+    official: {} as Record<string, string>,
+    parallel: {} as Record<string, string>,
+  },
 };
+
+// Initialize lastChanged with current time
+Object.keys(rates.official).forEach(key => rates.lastChanged.official[key] = rates.lastUpdated);
+Object.keys(rates.parallel).forEach(key => rates.lastChanged.parallel[key] = rates.lastUpdated);
 
 // History for the chart (fallback if Supabase fails)
 let history: any[] = [];
@@ -244,9 +252,10 @@ async function fetchOfficialRates() {
         
         if (lyd !== rates.official.USD) {
           rates.previousOfficial = { ...rates.official };
+          rates.lastChanged.official.USD = new Date().toISOString();
         }
         
-        rates.official = {
+        const newOfficial = {
           USD: lyd,
           EUR: lyd / data.rates.EUR,
           GBP: lyd / data.rates.GBP,
@@ -254,6 +263,15 @@ async function fetchOfficialRates() {
           TRY: lyd / data.rates.TRY,
           EGP: lyd / data.rates.EGP,
         };
+
+        // Update lastChanged for all official rates that changed
+        Object.entries(newOfficial).forEach(([key, val]) => {
+          if (rates.official[key] !== val) {
+            rates.lastChanged.official[key] = new Date().toISOString();
+          }
+        });
+        
+        rates.official = newOfficial;
         
         console.log(`Official rates updated successfully from ${source}`);
         await saveToSupabase();
@@ -446,6 +464,7 @@ async function fetchParallelRatesFromTelegram() {
         console.log(`[Scraper] Updating official rate from Telegram: ${latestRates.OFFICIAL_USD}`);
         rates.previousOfficial = { ...rates.official };
         rates.official.USD = latestRates.OFFICIAL_USD;
+        rates.lastChanged.official.USD = new Date().toISOString();
       }
 
       // Shift current to previous if it changed
@@ -456,6 +475,9 @@ async function fetchParallelRatesFromTelegram() {
       // Dynamically assign all extracted rates
       for (const term of appConfig.terms) {
         if (latestRates[term.id]) {
+          if (rates.parallel[term.id] !== latestRates[term.id]) {
+            rates.lastChanged.parallel[term.id] = new Date().toISOString();
+          }
           rates.parallel[term.id] = latestRates[term.id];
         } else if (!rates.parallel[term.id]) {
           // Initialize with some fallback if it doesn't exist at all

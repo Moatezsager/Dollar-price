@@ -39,6 +39,10 @@ interface Rates {
   previousOfficial?: Record<string, number>;
   previousParallel?: Record<string, number>;
   lastUpdated: string;
+  lastChanged?: {
+    official: Record<string, string>;
+    parallel: Record<string, string>;
+  };
 }
 
 interface HistoryPoint {
@@ -173,6 +177,9 @@ export default function App() {
       // Ensure the report is visible for capture but off-screen
       const element = reportRef.current;
       element.style.display = 'block';
+      
+      // Small delay to ensure fonts are rendered
+      await new Promise(resolve => setTimeout(resolve, 500));
       
       const canvas = await html2canvas(element, {
         scale: 2, // Higher quality
@@ -438,6 +445,20 @@ export default function App() {
   const usdIsDown = usdRate < prevUsdRate;
   const usdChange = Math.abs(usdRate - prevUsdRate);
 
+  const LastChangedBadge = ({ date, className = "" }: { date?: string, className?: string }) => {
+    if (!date) return null;
+    try {
+      return (
+        <span className={`text-[9px] font-medium text-zinc-600 flex items-center gap-1 ${className}`}>
+          <Clock className="w-2.5 h-2.5 opacity-50" />
+          {formatDistanceToNow(new Date(date), { addSuffix: true, locale: ar })}
+        </span>
+      );
+    } catch (e) {
+      return null;
+    }
+  };
+
   const usdChecksRate = rates?.parallel["USD_CHECKS"] || 0;
   const prevUsdChecksRate = rates?.previousParallel?.["USD_CHECKS"] || usdChecksRate;
   const usdChecksIsUp = usdChecksRate > prevUsdChecksRate;
@@ -693,6 +714,8 @@ export default function App() {
               </AnimatePresence>
               <span className="text-xl sm:text-3xl lg:text-4xl text-zinc-500 font-light">د.ل</span>
               
+              <LastChangedBadge date={rates?.lastChanged?.parallel["USD"]} className="absolute -bottom-6 right-0" />
+
               {/* Subtle pulsing glow behind the price */}
               <motion.div 
                 animate={{ 
@@ -745,6 +768,7 @@ export default function App() {
                     <span className="text-3xl font-light text-white font-mono leading-none group-hover:text-emerald-400 transition-colors">{usdChecksRate.toFixed(2)}</span>
                     {usdChecksIsUp ? <ArrowUpRight className="w-4 h-4 text-rose-400" /> : usdChecksIsDown ? <ArrowDownRight className="w-4 h-4 text-emerald-400" /> : null}
                   </div>
+                  <LastChangedBadge date={rates?.lastChanged?.parallel["USD_CHECKS"]} className="mt-1" />
                 </div>
               </div>
               <div className="w-px h-12 bg-white/10 mx-2"></div>
@@ -834,7 +858,10 @@ export default function App() {
                     <span className="text-2xl font-light text-white font-mono tracking-tight group-hover:text-emerald-400 transition-colors">{rate.toFixed(2)}</span>
                     {isUp ? <ArrowUpRight className="w-3 h-3 text-rose-400" /> : isDown ? <ArrowDownRight className="w-3 h-3 text-emerald-400" /> : null}
                   </div>
-                  <span className="text-[10px] text-zinc-600 font-mono" dir="ltr">Prev: {prevRate.toFixed(2)}</span>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] text-zinc-600 font-mono" dir="ltr">Prev: {prevRate.toFixed(2)}</span>
+                    <LastChangedBadge date={rates?.lastChanged?.parallel[term.id]} />
+                  </div>
                 </div>
               );
             })}
@@ -867,7 +894,10 @@ export default function App() {
                     <span className="text-xl font-light text-zinc-300 font-mono tracking-tight group-hover:text-emerald-400 transition-colors">{rate.toFixed(2)}</span>
                     {isUp ? <ArrowUpRight className="w-3 h-3 text-rose-400 opacity-70" /> : isDown ? <ArrowDownRight className="w-3 h-3 text-emerald-400 opacity-70" /> : null}
                   </div>
-                  <span className="text-[10px] text-zinc-700 font-mono" dir="ltr">Prev: {prevRate.toFixed(2)}</span>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] text-zinc-700 font-mono" dir="ltr">Prev: {prevRate.toFixed(2)}</span>
+                    <LastChangedBadge date={rates?.lastChanged?.official[currency.code]} />
+                  </div>
                 </div>
               );
             })}
@@ -1068,7 +1098,8 @@ export default function App() {
           padding: '60px',
           backgroundColor: '#ffffff',
           color: '#0f172a',
-          fontFamily: "'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
+          fontFamily: "'Cairo', sans-serif",
+          lineHeight: '1.5'
         }}
         dir="rtl"
       >
@@ -1079,15 +1110,15 @@ export default function App() {
               <div style={{ width: '40px', height: '40px', borderRadius: '10px', backgroundColor: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
                 <Activity size={24} />
               </div>
-              <h1 style={{ fontSize: '32px', fontWeight: '800', color: '#0f172a', margin: '0', letterSpacing: '-0.02em' }}>مؤشر الدينار</h1>
+              <h1 style={{ fontSize: '32px', fontWeight: '800', color: '#0f172a', margin: '0', fontFamily: "'Cairo', sans-serif" }}>مؤشر الدينار</h1>
             </div>
-            <p style={{ fontSize: '16px', color: '#64748b', margin: '0', fontWeight: '500' }}>التقرير اليومي لتحليل أسعار الصرف في ليبيا</p>
+            <p style={{ fontSize: '16px', color: '#64748b', margin: '0', fontWeight: '600', fontFamily: "'Cairo', sans-serif" }}>التقرير اليومي لتحليل أسعار الصرف في ليبيا</p>
           </div>
           <div style={{ textAlign: 'left' }}>
             <div style={{ backgroundColor: '#f8fafc', padding: '12px 20px', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
-              <p style={{ fontSize: '11px', color: '#94a3b8', margin: '0 0 4px', textTransform: 'uppercase', fontWeight: '700', letterSpacing: '0.05em' }}>تاريخ الإصدار</p>
-              <p style={{ fontSize: '16px', fontWeight: '700', color: '#0f172a', margin: '0' }}>{format(new Date(), "dd MMMM yyyy", { locale: ar })}</p>
-              <p style={{ fontSize: '14px', fontWeight: '500', color: '#64748b', margin: '2px 0 0' }}>{format(new Date(), "HH:mm")}</p>
+              <p style={{ fontSize: '11px', color: '#94a3b8', margin: '0 0 4px', textTransform: 'uppercase', fontWeight: '700', fontFamily: "'Cairo', sans-serif" }}>تاريخ الإصدار</p>
+              <p style={{ fontSize: '16px', fontWeight: '700', color: '#0f172a', margin: '0', fontFamily: "'Cairo', sans-serif" }}>{format(new Date(), "dd MMMM yyyy", { locale: ar })}</p>
+              <p style={{ fontSize: '14px', fontWeight: '600', color: '#64748b', margin: '2px 0 0', fontFamily: "'Cairo', sans-serif" }}>{format(new Date(), "HH:mm")}</p>
             </div>
           </div>
         </div>
@@ -1096,22 +1127,22 @@ export default function App() {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '40px' }}>
           <div style={{ padding: '24px', borderRadius: '24px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-              <p style={{ fontSize: '14px', color: '#166534', fontWeight: '600', margin: '0' }}>الدولار الأمريكي (كاش)</p>
-              <div style={{ padding: '4px 10px', borderRadius: '8px', backgroundColor: '#16a34a', color: 'white', fontSize: '10px', fontWeight: '800' }}>الأكثر تداولاً</div>
+              <p style={{ fontSize: '14px', color: '#166534', fontWeight: '700', margin: '0', fontFamily: "'Cairo', sans-serif" }}>الدولار الأمريكي (كاش)</p>
+              <div style={{ padding: '4px 10px', borderRadius: '8px', backgroundColor: '#16a34a', color: 'white', fontSize: '10px', fontWeight: '800', fontFamily: "'Cairo', sans-serif" }}>الأكثر تداولاً</div>
             </div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-              <span style={{ fontSize: '42px', fontWeight: '800', color: '#14532d' }}>{usdRate.toFixed(2)}</span>
-              <span style={{ fontSize: '18px', color: '#166534', fontWeight: '500' }}>د.ل</span>
+              <span style={{ fontSize: '42px', fontWeight: '800', color: '#14532d', fontFamily: "'Cairo', sans-serif" }}>{usdRate.toFixed(2)}</span>
+              <span style={{ fontSize: '18px', color: '#166534', fontWeight: '600', fontFamily: "'Cairo', sans-serif" }}>د.ل</span>
             </div>
             <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '12px', borderTop: '1px solid #bbf7d0', paddingTop: '12px' }}>
               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <span style={{ fontSize: '10px', color: '#166534', opacity: 0.6, textTransform: 'uppercase' }}>السعر السابق</span>
-                <span style={{ fontSize: '14px', fontWeight: '700', color: '#14532d' }}>{prevUsdRate.toFixed(2)}</span>
+                <span style={{ fontSize: '10px', color: '#166534', opacity: 0.6, fontWeight: '700', fontFamily: "'Cairo', sans-serif" }}>السعر السابق</span>
+                <span style={{ fontSize: '14px', fontWeight: '700', color: '#14532d', fontFamily: "'Cairo', sans-serif" }}>{prevUsdRate.toFixed(2)}</span>
               </div>
               <div style={{ width: '1px', height: '24px', backgroundColor: '#bbf7d0' }}></div>
               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <span style={{ fontSize: '10px', color: '#166534', opacity: 0.6, textTransform: 'uppercase' }}>التغير اليومي</span>
-                <span style={{ fontSize: '14px', fontWeight: '700', color: usdIsUp ? '#dc2626' : '#16a34a' }}>
+                <span style={{ fontSize: '10px', color: '#166534', opacity: 0.6, fontWeight: '700', fontFamily: "'Cairo', sans-serif" }}>التغير اليومي</span>
+                <span style={{ fontSize: '14px', fontWeight: '700', color: usdIsUp ? '#dc2626' : '#16a34a', fontFamily: "'Cairo', sans-serif" }}>
                   {usdIsUp ? '↑' : '↓'} {usdChange.toFixed(2)}
                 </span>
               </div>
@@ -1119,17 +1150,17 @@ export default function App() {
           </div>
           <div style={{ padding: '24px', borderRadius: '24px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-              <p style={{ fontSize: '14px', color: '#475569', fontWeight: '600', margin: '0' }}>الدولار الأمريكي (صكوك)</p>
-              <div style={{ padding: '4px 10px', borderRadius: '8px', backgroundColor: '#475569', color: 'white', fontSize: '10px', fontWeight: '800' }}>المعاملات المصرفية</div>
+              <p style={{ fontSize: '14px', color: '#475569', fontWeight: '700', margin: '0', fontFamily: "'Cairo', sans-serif" }}>الدولار الأمريكي (صكوك)</p>
+              <div style={{ padding: '4px 10px', borderRadius: '8px', backgroundColor: '#475569', color: 'white', fontSize: '10px', fontWeight: '800', fontFamily: "'Cairo', sans-serif" }}>المعاملات المصرفية</div>
             </div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-              <span style={{ fontSize: '42px', fontWeight: '800', color: '#1e293b' }}>{usdChecksRate.toFixed(2)}</span>
-              <span style={{ fontSize: '18px', color: '#475569', fontWeight: '500' }}>د.ل</span>
+              <span style={{ fontSize: '42px', fontWeight: '800', color: '#1e293b', fontFamily: "'Cairo', sans-serif" }}>{usdChecksRate.toFixed(2)}</span>
+              <span style={{ fontSize: '18px', color: '#475569', fontWeight: '600', fontFamily: "'Cairo', sans-serif" }}>د.ل</span>
             </div>
             <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '12px', borderTop: '1px solid #e2e8f0', paddingTop: '12px' }}>
               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <span style={{ fontSize: '10px', color: '#64748b', opacity: 0.6, textTransform: 'uppercase' }}>السعر السابق</span>
-                <span style={{ fontSize: '14px', fontWeight: '700', color: '#1e293b' }}>{prevUsdChecksRate.toFixed(2)}</span>
+                <span style={{ fontSize: '10px', color: '#64748b', opacity: 0.6, fontWeight: '700', fontFamily: "'Cairo', sans-serif" }}>السعر السابق</span>
+                <span style={{ fontSize: '14px', fontWeight: '700', color: '#1e293b', fontFamily: "'Cairo', sans-serif" }}>{prevUsdChecksRate.toFixed(2)}</span>
               </div>
             </div>
           </div>
@@ -1137,17 +1168,17 @@ export default function App() {
 
         {/* Main Rates Table */}
         <div style={{ marginBottom: '40px' }}>
-          <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#0f172a', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#0f172a', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px', fontFamily: "'Cairo', sans-serif" }}>
             <div style={{ width: '8px', height: '18px', backgroundColor: '#10b981', borderRadius: '2px' }}></div>
             أسعار السوق الموازي الرئيسية
           </h2>
           <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '0 8px' }}>
             <thead>
               <tr>
-                <th style={{ textAlign: 'right', padding: '12px 20px', fontSize: '12px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: '700' }}>العملة</th>
-                <th style={{ textAlign: 'center', padding: '12px 20px', fontSize: '12px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: '700' }}>السعر الحالي</th>
-                <th style={{ textAlign: 'center', padding: '12px 20px', fontSize: '12px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: '700' }}>السعر السابق</th>
-                <th style={{ textAlign: 'left', padding: '12px 20px', fontSize: '12px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: '700' }}>الحالة</th>
+                <th style={{ textAlign: 'right', padding: '12px 20px', fontSize: '12px', color: '#94a3b8', fontWeight: '700', fontFamily: "'Cairo', sans-serif" }}>العملة</th>
+                <th style={{ textAlign: 'center', padding: '12px 20px', fontSize: '12px', color: '#94a3b8', fontWeight: '700', fontFamily: "'Cairo', sans-serif" }}>السعر الحالي</th>
+                <th style={{ textAlign: 'center', padding: '12px 20px', fontSize: '12px', color: '#94a3b8', fontWeight: '700', fontFamily: "'Cairo', sans-serif" }}>السعر السابق</th>
+                <th style={{ textAlign: 'left', padding: '12px 20px', fontSize: '12px', color: '#94a3b8', fontWeight: '700', fontFamily: "'Cairo', sans-serif" }}>الحالة</th>
               </tr>
             </thead>
             <tbody>
@@ -1157,10 +1188,10 @@ export default function App() {
                 const isUp = rate > prev;
                 return (
                   <tr key={`pdf-row-${c.id}`} style={{ backgroundColor: '#f8fafc' }}>
-                    <td style={{ padding: '16px 20px', borderRadius: '16px 0 0 16px', fontWeight: '700', color: '#1e293b' }}>{c.name}</td>
-                    <td style={{ textAlign: 'center', padding: '16px 20px', fontSize: '18px', fontWeight: '800', color: '#0f172a' }}>{rate.toFixed(2)}</td>
-                    <td style={{ textAlign: 'center', padding: '16px 20px', color: '#64748b', fontWeight: '500' }}>{prev.toFixed(2)}</td>
-                    <td style={{ textAlign: 'left', padding: '16px 20px', borderRadius: '0 16px 16px 0', color: isUp ? '#dc2626' : '#16a34a', fontWeight: '700' }}>
+                    <td style={{ padding: '16px 20px', borderRadius: '16px 0 0 16px', fontWeight: '700', color: '#1e293b', fontFamily: "'Cairo', sans-serif" }}>{c.name}</td>
+                    <td style={{ textAlign: 'center', padding: '16px 20px', fontSize: '18px', fontWeight: '800', color: '#0f172a', fontFamily: "'Cairo', sans-serif" }}>{rate.toFixed(2)}</td>
+                    <td style={{ textAlign: 'center', padding: '16px 20px', color: '#64748b', fontWeight: '600', fontFamily: "'Cairo', sans-serif" }}>{prev.toFixed(2)}</td>
+                    <td style={{ textAlign: 'left', padding: '16px 20px', borderRadius: '0 16px 16px 0', color: isUp ? '#dc2626' : '#16a34a', fontWeight: '700', fontFamily: "'Cairo', sans-serif" }}>
                       {rate === prev ? 'ثابت' : isUp ? '↑ ارتفاع' : '↓ انخفاض'}
                     </td>
                   </tr>
@@ -1172,7 +1203,7 @@ export default function App() {
 
         {/* Official Rates Section */}
         <div style={{ marginBottom: '40px' }}>
-          <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#0f172a', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#0f172a', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px', fontFamily: "'Cairo', sans-serif" }}>
             <div style={{ width: '8px', height: '18px', backgroundColor: '#3b82f6', borderRadius: '2px' }}></div>
             نشرة أسعار الصرف الرسمية
           </h2>
@@ -1181,10 +1212,10 @@ export default function App() {
               <div key={`pdf-off-${c.code}`} style={{ padding: '20px', borderRadius: '20px', border: '1px solid #e2e8f0', backgroundColor: '#ffffff' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
                   <img src={`https://hatscripts.github.io/circle-flags/flags/${c.flag}.svg`} alt={c.name} style={{ width: '20px', height: '20px' }} referrerPolicy="no-referrer" />
-                  <span style={{ fontSize: '12px', fontWeight: '700', color: '#64748b' }}>{c.code}</span>
+                  <span style={{ fontSize: '12px', fontWeight: '700', color: '#64748b', fontFamily: "'Cairo', sans-serif" }}>{c.code}</span>
                 </div>
-                <p style={{ fontSize: '24px', fontWeight: '800', color: '#1e293b', margin: '0' }}>{(rates?.official[c.code] || 0).toFixed(3)}</p>
-                <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px', fontWeight: '500' }}>دينار ليبي / وحدة</p>
+                <p style={{ fontSize: '24px', fontWeight: '800', color: '#1e293b', margin: '0', fontFamily: "'Cairo', sans-serif" }}>{(rates?.official[c.code] || 0).toFixed(3)}</p>
+                <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px', fontWeight: '600', fontFamily: "'Cairo', sans-serif" }}>دينار ليبي / وحدة</p>
               </div>
             ))}
           </div>
@@ -1194,15 +1225,15 @@ export default function App() {
         <div style={{ marginTop: '80px', paddingTop: '30px', borderTop: '1px solid #e2e8f0', textAlign: 'center' }}>
           <div style={{ display: 'flex', justifyContent: 'center', gap: '40px', marginBottom: '20px' }}>
             <div style={{ textAlign: 'center' }}>
-              <p style={{ fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: '700', marginBottom: '4px' }}>المصدر</p>
-              <p style={{ fontSize: '12px', color: '#475569', fontWeight: '600' }}>شبكة مراسلي مؤشر الدينار</p>
+              <p style={{ fontSize: '10px', color: '#94a3b8', fontWeight: '700', marginBottom: '4px', fontFamily: "'Cairo', sans-serif" }}>المصدر</p>
+              <p style={{ fontSize: '12px', color: '#475569', fontWeight: '700', fontFamily: "'Cairo', sans-serif" }}>شبكة مراسلي مؤشر الدينار</p>
             </div>
             <div style={{ textAlign: 'center' }}>
-              <p style={{ fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: '700', marginBottom: '4px' }}>الموقع الإلكتروني</p>
-              <p style={{ fontSize: '12px', color: '#475569', fontWeight: '600' }}>dinar-index.ly</p>
+              <p style={{ fontSize: '10px', color: '#94a3b8', fontWeight: '700', marginBottom: '4px', fontFamily: "'Cairo', sans-serif" }}>الموقع الإلكتروني</p>
+              <p style={{ fontSize: '12px', color: '#475569', fontWeight: '700', fontFamily: "'Cairo', sans-serif" }}>dinar-index.ly</p>
             </div>
           </div>
-          <p style={{ fontSize: '11px', color: '#94a3b8', lineHeight: '1.6', maxWidth: '500px', margin: '0 auto' }}>
+          <p style={{ fontSize: '11px', color: '#94a3b8', lineHeight: '1.6', maxWidth: '500px', margin: '0 auto', fontFamily: "'Cairo', sans-serif" }}>
             هذا التقرير استرشادي فقط ويعبر عن متوسط أسعار السوق اللحظية. لا يتحمل التطبيق أي مسؤولية عن القرارات المالية المتخذة بناءً على هذه البيانات.
           </p>
         </div>
