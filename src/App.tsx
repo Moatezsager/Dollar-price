@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "motion/react";
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import {
+  ArrowLeftRight,
   ArrowDownRight,
   ArrowUpRight,
   RefreshCw,
@@ -19,7 +20,8 @@ import {
   CheckCircle2,
   AlertCircle,
   Info,
-  WifiOff
+  WifiOff,
+  Zap
 } from "lucide-react";
 import {
   AreaChart,
@@ -455,29 +457,90 @@ export default function App() {
 
   const chartData = useMemo(() => {
     if (!selectedRate || !history.length) return [];
-    return history.map(h => {
+    
+    const data = history.map(h => {
       const rateObj = selectedRate.market === 'parallel' ? h.ratesParallel : h.ratesOfficial;
       let value = 0;
-      if (rateObj && rateObj[selectedRate.code]) {
-        value = rateObj[selectedRate.code];
-      } else if (selectedRate.code === 'USD') {
+      
+      // Attempt to get value from JSONB object first
+      if (rateObj && rateObj[selectedRate.code] !== undefined && rateObj[selectedRate.code] !== null) {
+        value = Number(rateObj[selectedRate.code]);
+      } 
+      
+      // Fallback for main USD if not in JSONB
+      if (value === 0 && selectedRate.code === 'USD') {
         value = selectedRate.market === 'parallel' ? h.usdParallel : h.usdOfficial;
       }
+      
       return {
         time: h.time,
         value: value
       };
     }).filter(d => d.value > 0);
+
+    // CRITICAL: Recharts needs data in ASCENDING order of time
+    return [...data].sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
   }, [selectedRate, history]);
 
   const chartStats = useMemo(() => {
     if (!chartData.length) return { max: 0, min: 0, avg: 0 };
     const values = chartData.map(d => d.value);
-    const max = Math.max(...values);
-    const min = Math.min(...values);
-    const avg = values.reduce((a, b) => a + b, 0) / values.length;
-    return { max, min, avg };
+    return {
+      max: Math.max(...values),
+      min: Math.min(...values),
+      avg: values.reduce((a, b) => a + b, 0) / values.length
+    };
   }, [chartData]);
+
+  // حساب التغير خلال 24 ساعة لجميع العملات
+  const trends24h = useMemo(() => {
+    if (!history.length || !rates) return {};
+    
+    // العثور على أقرب سجل منذ 24 ساعة
+    const oneDayAgo = new Date();
+    oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+    
+    const record24h = history.find(h => new Date(h.time) >= oneDayAgo) || history[0];
+    if (!record24h) return {};
+
+    const trends: Record<string, { parallel?: number, official?: number }> = {};
+
+    // معالجة السوق الموازي
+    Object.keys(rates.parallel).forEach(code => {
+      const current = rates.parallel[code];
+      const previous = record24h.ratesParallel?.[code] || (code === 'USD' ? record24h.usdParallel : null);
+      if (current && previous) {
+        trends[code] = { ...trends[code], parallel: ((current - previous) / previous) * 100 };
+      }
+    });
+
+    // معالجة السوق الرسمي
+    CURRENCIES.forEach(curr => {
+      const current = rates.official[curr.code];
+      const previous = record24h.ratesOfficial?.[curr.code] || (curr.code === 'USD' ? record24h.usdOfficial : null);
+      if (current && previous) {
+        trends[curr.code] = { ...trends[curr.code], official: ((current - previous) / previous) * 100 };
+      }
+    });
+
+    return trends;
+  }, [history, rates]);
+
+  // منطق محول العملات
+  const [converterAmount, setConverterAmount] = useState<number>(100);
+  const [converterFrom, setConverterFrom] = useState<string>("USD");
+  const [converterMarket, setConverterMarket] = useState<'parallel' | 'official'>("parallel");
+  const [converterMode, setConverterMode] = useState<'toLYD' | 'fromLYD'>("toLYD");
+
+  const converterResult = useMemo(() => {
+    if (!rates) return 0;
+    const rate = (converterMarket === 'parallel' ? rates.parallel[converterFrom] : rates.official[converterFrom]) || 0;
+    if (rate === 0) return 0;
+    
+    return converterMode === 'toLYD' 
+      ? converterAmount * rate 
+      : converterAmount / rate;
+  }, [converterAmount, converterFrom, converterMarket, converterMode, rates]);
 
   if (loading && !rates) {
     return (
@@ -566,157 +629,6 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Popover Chart */}
-      <AnimatePresence>
-        {selectedRate && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-6">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setSelectedRate(null)}
-              className="absolute inset-0 bg-black/90 backdrop-blur-md"
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 30 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 30 }}
-              className="relative w-full max-w-3xl bg-[#0c0c0c] border border-white/10 rounded-[2.5rem] overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
-            >
-              {/* Modal Header */}
-              <div className="p-5 sm:p-8 border-b border-white/5 flex items-center justify-between bg-gradient-to-b from-white/[0.02] to-transparent">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-400 border border-emerald-500/20 shadow-[0_0_20px_rgba(16,185,129,0.1)]">
-                    <Activity className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <h3 className="text-xl font-bold text-white tracking-tight">{selectedRate.name}</h3>
-                      <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest ${
-                        selectedRate.market === 'parallel' ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-blue-500/10 text-blue-500 border border-blue-500/20'
-                      }`}>
-                        {selectedRate.market === 'parallel' ? 'الموازي' : 'الرسمي'}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                       <p className="text-[10px] text-zinc-500 font-mono tracking-widest uppercase">Live Market Analytics</p>
-                       <span className="w-1 h-1 rounded-full bg-zinc-800"></span>
-                       <LastChangedBadge 
-                         date={rates?.[selectedRate.market === 'official' ? 'lastChanged' : 'lastChanged']?.[selectedRate.market]?.[selectedRate.code]} 
-                         className="!text-emerald-500/70" 
-                       />
-                    </div>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setSelectedRate(null)}
-                  className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-zinc-500 hover:text-white hover:bg-white/10 transition-all active:scale-90"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              
-              {/* Quick Stats Grid */}
-              <div className="grid grid-cols-3 gap-2 px-5 sm:px-8 py-4 sm:py-6 bg-white/[0.01]">
-                <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-3 sm:p-4 transition-all hover:bg-white/[0.05]">
-                  <span className="text-[9px] sm:text-[10px] text-zinc-500 font-bold uppercase tracking-widest block mb-1">أعلى سعر</span>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-sm sm:text-xl font-mono text-white font-light">{chartStats.max.toFixed(2)}</span>
-                    <span className="text-[9px] text-zinc-500">د.ل</span>
-                  </div>
-                </div>
-                <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-3 sm:p-4 transition-all hover:bg-white/[0.05]">
-                  <span className="text-[9px] sm:text-[10px] text-zinc-500 font-bold uppercase tracking-widest block mb-1">أقل سعر</span>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-sm sm:text-xl font-mono text-white font-light">{chartStats.min.toFixed(2)}</span>
-                    <span className="text-[9px] text-zinc-500">د.ل</span>
-                  </div>
-                </div>
-                <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-3 sm:p-4 transition-all hover:bg-white/[0.05]">
-                  <span className="text-[9px] sm:text-[10px] text-zinc-500 font-bold uppercase tracking-widest block mb-1">المتوسط</span>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-sm sm:text-xl font-mono text-emerald-400 font-light">{chartStats.avg.toFixed(2)}</span>
-                    <span className="text-[9px] text-zinc-500">د.ل</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Chart Content */}
-              <div className="px-2 sm:px-6 pb-6 flex-1 min-h-[250px] sm:min-h-[350px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartData}>
-                    <defs>
-                      <linearGradient id="popoverGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.4}/>
-                        <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" />
-                    <XAxis 
-                      dataKey="time" 
-                      hide={false}
-                      axisLine={false}
-                      tickLine={false}
-                      tick={{ fill: '#3f3f46', fontSize: 10, fontFamily: 'monospace' }}
-                      tickFormatter={(t) => format(new Date(t), "HH:mm")}
-                      minTickGap={40}
-                    />
-                    <YAxis 
-                      domain={['auto', 'auto']} 
-                      hide={false}
-                      axisLine={false}
-                      tickLine={false}
-                      tick={{ fill: '#3f3f46', fontSize: 10, fontFamily: 'monospace' }}
-                      orientation="left"
-                    />
-                    <Tooltip
-                      contentStyle={{ 
-                        backgroundColor: "rgba(12,12,12,0.95)", 
-                        border: "1px solid rgba(255,255,255,0.1)", 
-                        borderRadius: "20px", 
-                        padding: "12px 16px",
-                        backdropFilter: "blur(10px)",
-                        boxShadow: "0 20px 40px rgba(0,0,0,0.4)"
-                      }}
-                      itemStyle={{ color: "#10b981", fontFamily: "monospace", fontSize: "14px" }}
-                      labelStyle={{ color: "#71717a", fontSize: "11px", marginBottom: "6px", fontWeight: "bold" }}
-                      labelFormatter={(label) => format(new Date(label), "eeee, dd MMMM - HH:mm", { locale: ar })}
-                      formatter={(value: number) => [value.toFixed(3) + ' د.ل', 'السعر']}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="value"
-                      stroke="#10b981"
-                      strokeWidth={4}
-                      fillOpacity={1}
-                      fill="url(#popoverGradient)"
-                      isAnimationActive={true}
-                      animationDuration={1500}
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-              
-              {/* Modal Footer */}
-              <div className="p-5 sm:p-6 bg-white/[0.02] border-t border-white/5 flex items-center justify-between">
-                <div className="flex flex-col">
-                  <span className="text-[10px] text-zinc-600 font-bold uppercase tracking-wider mb-0.5">مصدر البيانات</span>
-                  <span className="text-xs text-zinc-400">قاعدة بيانات Supabase المزامنة لحظياً</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="flex flex-col items-end">
-                    <span className="text-[10px] text-zinc-600 font-bold uppercase tracking-wider mb-0.5 text-left">التحديث التلقائي</span>
-                    <div className="flex items-center gap-2">
-                       <span className="text-[10px] font-mono text-emerald-500 font-bold uppercase tracking-widest">Active Connection</span>
-                       <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)] animate-pulse"></div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
 
       {/* Header */}
       <header className="border-b border-white/5 sticky top-0 z-50 bg-[#050505]/80 backdrop-blur-xl">
@@ -920,6 +832,7 @@ export default function App() {
           </div>
         </section>
 
+
         {/* Data Grid: Other Parallel Currencies */}
         <section>
           <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-8">
@@ -936,24 +849,35 @@ export default function App() {
                 <div 
                   key={`parallel-${term.id}`} 
                   onClick={() => setSelectedRate({ code: term.id, name: term.name, market: 'parallel' })}
-                  className="flex flex-col group p-3 sm:p-4 rounded-2xl hover:bg-white/[0.02] transition-colors -m-3 sm:-m-4 cursor-pointer"
+                  className="flex flex-col group p-2.5 rounded-2xl hover:bg-white/[0.02] transition-colors -m-2.5 cursor-pointer relative"
                 >
-                  <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
-                    {term.flag ? (
-                      <img src={`https://hatscripts.github.io/circle-flags/flags/${term.flag}.svg`} alt={term.name} className="w-5 h-5 sm:w-6 sm:h-6 drop-shadow-sm transition-transform group-hover:scale-110" referrerPolicy="no-referrer" />
-                    ) : (
-                      <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-400">
-                        <Coins className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                      </div>
+                  <div className="flex items-center justify-between mb-3 sm:mb-4">
+                    <div className="flex items-center gap-2">
+                      {term.flag ? (
+                        <img src={`https://hatscripts.github.io/circle-flags/flags/${term.flag}.svg`} alt={term.name} className="w-5 h-5 drop-shadow-sm transition-transform group-hover:scale-110" referrerPolicy="no-referrer" />
+                      ) : (
+                        <div className="w-5 h-5 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-400">
+                          <Coins className="w-3 h-3" />
+                        </div>
+                      )}
+                      <span className="text-[11px] font-medium text-zinc-400">{term.name}</span>
+                    </div>
+                    
+                    {/* 24h Trend Badge */}
+                    {trends24h[term.id]?.parallel !== undefined && (
+                      <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-md ${
+                        trends24h[term.id].parallel! > 0 ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'
+                      }`}>
+                        {trends24h[term.id].parallel! > 0 ? '+' : ''}{trends24h[term.id].parallel!.toFixed(1)}%
+                      </span>
                     )}
-                    <span className="text-[11px] sm:text-xs font-medium text-zinc-300">{term.name}</span>
                   </div>
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-2xl font-light text-white font-mono tracking-tight group-hover:text-emerald-400 transition-colors">{rate.toFixed(2)}</span>
                     {isUp ? <ArrowUpRight className="w-3 h-3 text-rose-400" /> : isDown ? <ArrowDownRight className="w-3 h-3 text-emerald-400" /> : null}
                   </div>
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-[10px] text-zinc-600 font-mono" dir="ltr">Prev: {prevRate.toFixed(2)}</span>
+                    <span className="text-[9px] text-zinc-700 font-mono" dir="ltr">Prev: {prevRate.toFixed(2)}</span>
                     <LastChangedBadge date={rates?.lastChanged?.parallel[term.id]} />
                   </div>
                 </div>
@@ -978,23 +902,148 @@ export default function App() {
                 <div 
                   key={`official-${currency.code}`} 
                   onClick={() => setSelectedRate({ code: currency.code, name: currency.name, market: 'official' })}
-                  className="flex flex-col group p-3 sm:p-4 rounded-2xl hover:bg-white/[0.02] transition-colors -m-3 sm:-m-4 cursor-pointer"
+                  className="flex flex-col group p-3 rounded-2xl hover:bg-white/[0.02] transition-colors -m-3 cursor-pointer"
                 >
-                  <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
-                    <img src={`https://hatscripts.github.io/circle-flags/flags/${currency.flag}.svg`} alt={currency.name} className="w-4 h-4 sm:w-5 sm:h-5 drop-shadow-sm transition-transform group-hover:scale-110" referrerPolicy="no-referrer" />
-                    <span className="text-[11px] sm:text-xs font-medium text-zinc-400">{currency.code}</span>
+                  <div className="flex items-center justify-between mb-3 sm:mb-4">
+                    <div className="flex items-center gap-2 sm:gap-3">
+                      <img src={`https://hatscripts.github.io/circle-flags/flags/${currency.flag}.svg`} alt={currency.name} className="w-4 h-4 sm:w-5 sm:h-5 drop-shadow-sm transition-transform group-hover:scale-110" referrerPolicy="no-referrer" />
+                      <span className="text-[11px] sm:text-xs font-medium text-zinc-400">{currency.code}</span>
+                    </div>
+
+                    {/* 24h Trend Badge */}
+                    {trends24h[currency.code]?.official !== undefined && (
+                      <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-md ${
+                        trends24h[currency.code].official! > 0 ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'
+                      }`}>
+                        {trends24h[currency.code].official! > 0 ? '+' : ''}{trends24h[currency.code].official!.toFixed(1)}%
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-xl font-light text-zinc-300 font-mono tracking-tight group-hover:text-emerald-400 transition-colors">{rate.toFixed(2)}</span>
                     {isUp ? <ArrowUpRight className="w-3 h-3 text-rose-400 opacity-70" /> : isDown ? <ArrowDownRight className="w-3 h-3 text-emerald-400 opacity-70" /> : null}
                   </div>
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-[10px] text-zinc-700 font-mono" dir="ltr">Prev: {prevRate.toFixed(2)}</span>
+                    <span className="text-[9px] text-zinc-800 font-mono" dir="ltr">Prev: {prevRate.toFixed(2)}</span>
                     <LastChangedBadge date={rates?.lastChanged?.official[currency.code]} />
                   </div>
                 </div>
               );
             })}
+          </div>
+        </section>
+
+        {/* Improved Currency Converter - Bottom Section */}
+        <section className="mt-16">
+          <div className="bg-gradient-to-br from-white/[0.05] to-transparent border border-white/10 rounded-[3rem] p-8 sm:p-12 shadow-2xl relative overflow-hidden group text-right" dir="rtl">
+            {/* Background elements */}
+            <div className="absolute top-0 left-0 p-12 opacity-5 group-hover:opacity-10 transition-opacity duration-1000">
+              <RefreshCw className="w-48 h-48 text-white rotate-45" />
+            </div>
+            
+            <div className="relative z-10">
+              <div className="flex flex-col sm:flex-row items-center sm:justify-between gap-6 mb-12">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-400 shadow-inner">
+                    <ArrowLeftRight className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-black text-white tracking-tight">محول العملات</h3>
+                    <p className="text-[11px] text-zinc-500 uppercase tracking-[0.2em] font-mono font-bold">Smart Exchange Calculator</p>
+                  </div>
+                </div>
+
+                <div className="flex p-1.5 bg-white/[0.02] border border-white/5 rounded-2xl w-full sm:w-fit">
+                  <button 
+                    onClick={() => setConverterMarket('parallel')}
+                    className={`flex-1 sm:flex-none py-2.5 px-6 rounded-xl text-[11px] font-black transition-all duration-300 ${converterMarket === 'parallel' ? 'bg-emerald-500 text-[#050505] shadow-[0_8px_20px_-4px_rgba(16,185,129,0.4)]' : 'text-zinc-500 hover:text-white'}`}
+                  >
+                    السوق الموازي
+                  </button>
+                  <button 
+                    onClick={() => setConverterMarket('official')}
+                    className={`flex-1 sm:flex-none py-2.5 px-6 rounded-xl text-[11px] font-black transition-all duration-300 ${converterMarket === 'official' ? 'bg-indigo-500 text-white shadow-[0_8px_20px_-4px_rgba(79,70,229,0.4)]' : 'text-zinc-500 hover:text-white'}`}
+                  >
+                    السعر الرسمي
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 items-stretch">
+                {/* Source Input */}
+                <div className="lg:col-span-2 space-y-4">
+                  <div className="relative group/input">
+                    <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mr-4 mb-2 block">المبلغ المراد تحويله</label>
+                    <div className="relative">
+                      <input 
+                        type="number"
+                        value={converterAmount}
+                        onChange={(e) => setConverterAmount(Number(e.target.value))}
+                        className="w-full bg-white/[0.03] border border-white/10 rounded-[1.5rem] p-6 text-white font-mono text-3xl focus:outline-none focus:border-emerald-500/40 transition-all duration-500 shadow-inner"
+                        placeholder="0.00"
+                      />
+                      <div className="absolute left-6 top-1/2 -translate-y-1/2 text-zinc-600 font-bold">
+                        {converterMode === 'toLYD' ? (configTerms.find(t => t.id === converterFrom)?.name || converterFrom) : 'دينار ليبي'}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-3">
+                    <select 
+                      value={converterFrom}
+                      onChange={(e) => setConverterFrom(e.target.value)}
+                      className="flex-1 bg-white/[0.03] border border-white/5 rounded-2xl p-4 text-white font-bold focus:outline-none appearance-none cursor-pointer hover:bg-white/[0.05] transition-colors"
+                    >
+                      {configTerms.filter(t => !["GOLD", "OFFICIAL_USD"].includes(t.id)).map(t => (
+                        <option key={t.id} value={t.id} className="bg-[#121212]">{t.name}</option>
+                      ))}
+                    </select>
+                    
+                    <button 
+                      onClick={() => setConverterMode(prev => prev === 'toLYD' ? 'fromLYD' : 'toLYD')}
+                      className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-white hover:bg-emerald-500 hover:text-black hover:border-emerald-500 transition-all duration-500 group/swap"
+                    >
+                      <ArrowLeftRight className={`w-6 h-6 transition-transform duration-500 ${converterMode === 'fromLYD' ? 'rotate-180' : ''}`} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Arrow Decor - Hidden on mobile */}
+                <div className="hidden lg:flex items-center justify-center">
+                  <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center animate-pulse">
+                    <ArrowDownRight className="w-6 h-6 text-zinc-700 -rotate-45" />
+                  </div>
+                </div>
+
+                {/* Result Display */}
+                <div className="lg:col-span-2">
+                  <div className="h-full bg-gradient-to-br from-white/[0.02] to-transparent border border-white/5 rounded-[2rem] p-8 flex flex-col items-center justify-center text-center relative overflow-hidden group/result shadow-2xl">
+                    <div className="absolute inset-0 bg-emerald-500/[0.01] opacity-0 group-hover/result:opacity-100 transition-opacity duration-700"></div>
+                    
+                    <span className="text-zinc-500 text-xs font-bold uppercase tracking-widest mb-6 block">النتيجة المقدرة</span>
+                    
+                    <div className="flex items-baseline gap-4 relative z-10" dir="ltr">
+                      <motion.span 
+                        key={`${converterResult}-${converterMode}`}
+                        initial={{ opacity: 0, scale: 0.9, y: 10 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        className="text-6xl sm:text-7xl font-light text-white font-mono tracking-tighter"
+                      >
+                        {converterResult.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </motion.span>
+                      <span className="text-3xl text-emerald-500/70 font-light">
+                        {converterMode === 'fromLYD' ? (configTerms.find(t => t.id === converterFrom)?.name.split(' ')[0] || converterFrom) : 'د.ل'}
+                      </span>
+                    </div>
+
+                    <div className="mt-10 flex items-center gap-3 text-[10px] text-zinc-500 bg-black/40 px-5 py-2.5 rounded-full border border-white/5 backdrop-blur-md">
+                      <Zap className="w-3.5 h-3.5 text-yellow-500 animate-pulse" />
+                      <span className="font-medium">بناءً على {converterMarket === 'parallel' ? 'أسعار السوق' : 'الأسعار الرسمية'} اللحظية</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
 
