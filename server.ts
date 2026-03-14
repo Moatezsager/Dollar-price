@@ -80,9 +80,16 @@ let rates: Rates = {
     GOLD: 1280,
     USD_TR: 7.30,
     USD_AE: 7.30,
+    USD_CN: 7.32,
     TND: 2.35,
     TRY: 0.22,
     EGP: 0.14,
+    JOD: 10.15,
+    USD_JBANK: 8.10,
+    USD_BCD: 8.12,
+    USD_NCB: 8.10,
+    USD_AB: 8.10,
+    USD_WB: 8.12,
   },
   previousOfficial: {
     USD: 4.85,
@@ -101,9 +108,16 @@ let rates: Rates = {
     GOLD: 1280,
     USD_TR: 7.30,
     USD_AE: 7.30,
+    USD_CN: 7.32,
     TND: 2.35,
     TRY: 0.22,
     EGP: 0.14,
+    JOD: 10.15,
+    USD_JBANK: 8.10,
+    USD_BCD: 8.12,
+    USD_NCB: 8.10,
+    USD_AB: 8.10,
+    USD_WB: 8.12,
   },
   lastUpdated: new Date().toISOString(),
   lastChanged: {
@@ -404,30 +418,23 @@ async function fetchOfficialRates(): Promise<boolean> {
 let appConfig: AppConfig = {
   channels: ["dollarr_ly", "musheermarket", "lydollar", "djheih2026", "suqalmushir"],
   terms: [
-    { id: "GBP", name: "جنيه إسترليني", regex: "(?:GBP|جنيه استرليني|جنيه واحد)\\s+(?:\\d+\\s+)?([\\d\\.]+)", min: 5.0, max: 25.0, isInverse: false, flag: "gb" },
-    { id: "SAR", name: "ريال سعودي", regex: "(?:SAR|ريال سعودي|ريال واحد)\\s+(?:\\d+\\s+)?([\\d\\.]+)", min: 0.5, max: 5.0, isInverse: false, flag: "sa" },
-    { id: "TND", name: "دينار تونسي", regex: "(?:TND|دينار تونسي|دينار واحد)\\s+(?:\\d+\\s+)?([\\d\\.]+)", min: 0.5, max: 10.0, isInverse: false, flag: "tn" },
-    { id: "CNY", name: "إيوان صيني", regex: "(?:CNY|إيوان صيني|إيوان واحد)\\s+(?:\\d+\\s+)?([\\d\\.]+)", min: 0.1, max: 5.0, isInverse: false, flag: "cn" },
-    { id: "EUR", name: "يورو", regex: "(?:EUR|يورو|يورو واحد)\\s+(?:\\d+\\s+)?([\\d\\.]+)", min: 5.0, max: 25.0, isInverse: false, flag: "eu" },
-    { id: "AED", name: "درهم إماراتي", regex: "(?:AED|درهم إماراتي|درهم واحد)\\s+(?:\\d+\\s+)?([\\d\\.]+)", min: 0.5, max: 5.0, isInverse: false, flag: "ae" },
-    { id: "TRY", name: "ليرة تركية", regex: "(?:TRY|ليرة تركية|ليـرة)\\s+(?:\\d+\\s+)?([\\d\\.]+)", min: 0.05, max: 2.0, isInverse: false, flag: "tr" },
-    { id: "USD", name: "دولار أمريكي", regex: "(?:USD|دولار أمريكي|دولار واحد)\\s+(?:\\d+\\s+)?([\\d\\.]+)", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
-    { id: "OFFICIAL_USD", name: "الدولار الرسمي", regex: "(?:الرسمي|المركزي|نشرة المصرف|المصرف المركزي)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,3})?)", min: 4.0, max: 6.0, isInverse: false, flag: "us" },
-    { id: "USD_CHECKS", name: "دولار أمريكي (صكوك)", regex: "(?:صكوك|صك|بصك|بنوك|شيك|شيكات|مصرف|مصارف|بنوك)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,3})?)", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
-    { id: "GOLD", name: "كسر الذهب", regex: "(?:كسر الذهب|ذهب كسر|ذهب|الذهب)\\s*(?:18)?\\s*[=:]?\\s*(\\d{2,4}(?:[\\.,]\\d+)?)", min: 100, max: 5000, isInverse: false, flag: "" },
-    { id: "USD_TR", name: "حوالات تركيا", regex: "(?:تركيا|تركي|اسطنبول|🇹🇷)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,3})?)", min: 5.0, max: 25.0, isInverse: false, flag: "tr" },
-    { id: "USD_AE", name: "حوالات دبي", regex: "(?:دبي|امارات|الإمارات|🇦🇪)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,3})?)", min: 5.0, max: 25.0, isInverse: false, flag: "ae" },
-    { id: "EGP", name: "جنيه مصري", regex: "(?:EGP|جنيه مصري|جنيه واحد)\\s+(?:\\d+\\s+)?([\\d\\.]+)", min: 0.01, max: 5.0, isInverse: false, flag: "eg" },
-    { id: "JOD", name: "دينار أردني", regex: "(?:JOD|دينار أردني|دينار واحد)\\s+(?:\\d+\\s+)?([\\d\\.]+)", min: 5.0, max: 25.0, isInverse: false, flag: "jo" },
-    { id: "USD_JBANK", name: "دولار صكوك الجمهورية", regex: "(?:jbank|دولار صكوك الجمهورية)\\s+(?:\\d+\\s+)?([\\d\\.]+)", min: 5.0, max: 25.0, isInverse: false, flag: "ly" },
-    { id: "USD_BCD", name: "دولار صكوك التجارة والتنمية", regex: "(?:bcd|دولار صكوك التجارة والتنمية)\\s+(?:\\d+\\s+)?([\\d\\.]+)", min: 5.0, max: 25.0, isInverse: false, flag: "ly" },
-    { id: "USD_NCB", name: "دولار صكوك التجاري الوطني", regex: "(?:NCB|دولار صكوك التجاري الوطني)\\s+(?:\\d+\\s+)?([\\d\\.]+)", min: 5.0, max: 25.0, isInverse: false, flag: "ly" },
-    { id: "USD_AB", name: "دولار صكوك الامان", regex: "(?:AB|دولار صكوك الامان)\\s+(?:\\d+\\s+)?([\\d\\.]+)", min: 5.0, max: 25.0, isInverse: false, flag: "ly" },
-    { id: "USD_WB", name: "دولار صكوك الوحدة", regex: "(?:WB|دولار صكوك الوحدة)\\s+(?:\\d+\\s+)?([\\d\\.]+)", min: 5.0, max: 25.0, isInverse: false, flag: "ly" },
-    { id: "USD_AE_TRANSFER", name: "حوالة دبي", regex: "(?:حوالة دبي)\\s+(?:\\d+\\s+)?([\\d\\.]+)", min: 5.0, max: 25.0, isInverse: false, flag: "ae" },
-    { id: "USD_TR_TRANSFER", name: "حوالة تركيا", regex: "(?:حوالة تركيا)\\s+(?:\\d+\\s+)?([\\d\\.]+)", min: 5.0, max: 25.0, isInverse: false, flag: "tr" },
-    { id: "USD_CN_TRANSFER", name: "حوالة الصين", regex: "(?:حوالة الصين)\\s+(?:\\d+\\s+)?([\\d\\.]+)", min: 5.0, max: 25.0, isInverse: false, flag: "cn" },
-    { id: "SILVER", name: "فضة (مسبوك)", regex: "(?:مسبوك فضة|فضة|فضة عيار 1000)\\s*(?:عيار 1000)?\\s*[=:]?\\s*(\\d{1,5}(?:[\\.,]\\d{1,3})?)", min: 10, max: 100, isInverse: false, flag: "" }
+    { id: "USD", name: "دولار أمريكي", regex: "(?:الدولار|دولار|الخضراء|خضراء|كاش|usd|🇺🇸)\\s*(?:كاش)?\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
+    { id: "EUR", name: "يورو", regex: "(?:يورو|اليورو|eur|🇪🇺)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "eu" },
+    { id: "GBP", name: "جنيه إسترليني", regex: "(?:باوند|استرليني|gbp|🇬🇧)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "gb" },
+    { id: "TND", name: "دينار تونسي", regex: "(?:تونسي|تونس|tnd|🇹🇳)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 0.1, max: 10.0, isInverse: false, flag: "tn" },
+    { id: "EGP", name: "جنيه مصري", regex: "(?:مصري|مصر|egp|🇪🇬)\\s*[=:]?\\s*(\\d{0,1}(?:[\\.,]\\d{1,4})?)", min: 0.01, max: 5.0, isInverse: false, flag: "eg" },
+    { id: "TRY", name: "ليرة تركية", regex: "(?:ليرة|تركي|try|🇹🇷)\\s*[=:]?\\s*(\\d{0,1}(?:[\\.,]\\d{1,4})?)", min: 0.01, max: 5.0, isInverse: false, flag: "tr" },
+    { id: "JOD", name: "دينار أردني", regex: "(?:JOD|أردني|🇯🇴)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 30.0, isInverse: false, flag: "jo" },
+    { id: "USD_JBANK", name: "صكوك الجمهورية", regex: "(?:jbank|الجمهورية)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
+    { id: "USD_BCD", name: "صكوك التجارة", regex: "(?:bcd|التجارة والتنمية)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
+    { id: "USD_NCB", name: "صكوك التجاري", regex: "(?:NCB|التجاري الوطني)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
+    { id: "USD_AB", name: "صكوك الأمان", regex: "(?:AB|الأمان|الامان)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
+    { id: "USD_WB", name: "صكوك الوحدة", regex: "(?:WB|الوحدة)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
+    { id: "USD_AE", name: "حوالات دبي", regex: "(?:دبي|امارات|الإمارات|🇦🇪)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "ae" },
+    { id: "USD_TR", name: "حوالات تركيا", regex: "(?:تركيا|تركي|🇹🇷)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "tr" },
+    { id: "USD_CN", name: "حوالات الصين", regex: "(?:الصين|صينية|🇨🇳)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "cn" },
+    { id: "GOLD", name: "كسر الذهب", regex: "(?:كسر الذهب|ذهبي|ذهب)\\s*[=:]?\\s*(\\d{2,4}(?:[\\.,]\\d+)?)", min: 100, max: 5000, isInverse: false, flag: "ly" },
+    { id: "OFFICIAL_USD", name: "الدولار الرسمي", regex: "(?:الرسمي|المركزي)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 4.0, max: 6.0, isInverse: false, flag: "us" }
   ]
 };
 
@@ -824,6 +831,58 @@ async function startServer() {
       res.status(500).json({ success: false, message: "حدث خطأ أثناء الحفظ" });
     }
   });
+  app.post("/api/admin/refresh", requireAdmin, async (req: express.Request, res: express.Response) => {
+    try {
+      console.log(`[Admin] Manual refresh triggered`);
+      const officialUpdate = await fetchOfficialRates();
+      const parallelTally = await fetchParallelRatesFromTelegram();
+      
+      res.json({ 
+        success: true, 
+        message: "تم تشغيل عملية التحديث بنجاح",
+        details: {
+          official: officialUpdate ? "تم التحديث" : "لا يوجد تغيير",
+          parallel: parallelTally
+        }
+      });
+    } catch (err) {
+      console.error("Manual refresh failed:", err);
+      res.status(500).json({ success: false, message: "فشل التحديث اليدوي" });
+    }
+  });
+
+  app.get("/api/admin/stats", requireAdmin, async (req: express.Request, res: express.Response) => {
+    const minutesSinceLastScrape = Math.floor((Date.now() - lastSuccessfulScrape.getTime()) / 60000);
+    res.json({
+      onlineUsers,
+      lastSuccessfulScrape: lastSuccessfulScrape.toISOString(),
+      minutesSinceLastScrape,
+      channelsCount: appConfig.channels.length,
+      termsCount: appConfig.terms.length,
+      serverUptime: process.uptime(),
+      memoryUsage: process.memoryUsage()
+    });
+  });
+
+  app.get("/api/admin/error-logs", requireAdmin, async (req: express.Request, res: express.Response) => {
+    if (!supabase || !supabaseAnonKey || supabaseAnonKey.includes('dummy')) {
+      return res.json({ success: false, message: "قاعدة البيانات غير متصلة" });
+    }
+    try {
+      const { data, error } = await supabase
+        .from('error_logs')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(20);
+      
+      if (error) throw error;
+      res.json(data);
+    } catch (err) {
+      console.error("Error fetching logs:", err);
+      res.status(500).json({ success: false, message: "فشل جلب السجلات" });
+    }
+  });
+
   // --- End Admin API ---
 
   // API Routes

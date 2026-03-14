@@ -21,7 +21,8 @@ import {
   AlertCircle,
   Info,
   WifiOff,
-  Zap
+  Zap,
+  Send
 } from "lucide-react";
 import {
   AreaChart,
@@ -69,7 +70,6 @@ const PARALLEL_DETAILS = [
   { code: "USD_TR", name: "حوالات تركيا", flag: "tr", unit: "د.ل" },
   { code: "USD_AE", name: "حوالات دبي", flag: "ae", unit: "د.ل" },
   { code: "GOLD", name: "كسر الذهب (18)", icon: Coins, unit: "د.ل/ج" },
-  { code: "SILVER", name: "فضة (مسبوك)", icon: Coins, unit: "د.ل/ج" },
 ];
 
 export default function App() {
@@ -109,14 +109,6 @@ export default function App() {
     const fetchConfig = async () => {
       try {
         const response = await fetch('/api/config');
-        if (!response.ok) {
-          throw new Error(`Failed to fetch config: ${response.statusText}`);
-        }
-        const contentType = response.headers.get("content-type");
-        if (!contentType || !contentType.includes("application/json")) {
-          const text = await response.text();
-          throw new Error(`Expected JSON, got: ${text}`);
-        }
         const data = await response.json();
         if (data && data.terms) {
           setConfigTerms(data.terms);
@@ -349,20 +341,16 @@ export default function App() {
     setIsRefreshing(true);
     try {
       const [ratesResult, historyResult] = await Promise.allSettled([
-        fetch(forceRefresh ? "/api/rates?refresh=true" : "/api/rates").catch(e => e),
-        fetch("/api/history").catch(e => e),
+        fetch(forceRefresh ? "/api/rates?refresh=true" : "/api/rates"),
+        fetch("/api/history"),
       ]);
       
       if (ratesResult.status === 'rejected' || historyResult.status === 'rejected') {
         throw new Error("Network response was not ok");
       }
 
-      const ratesRes = (ratesResult as PromiseFulfilledResult<any>).value;
-      const historyRes = (historyResult as PromiseFulfilledResult<any>).value;
-
-      if (ratesRes instanceof Error || historyRes instanceof Error) {
-        throw new Error("Network response was not ok");
-      }
+      const ratesRes = ratesResult.value;
+      const historyRes = historyResult.value;
 
       if (!ratesRes.ok || !historyRes.ok) {
         if (ratesRes.status === 502 || historyRes.status === 502) return;
@@ -373,16 +361,11 @@ export default function App() {
       const historyContentType = historyRes.headers.get("content-type");
 
       if (!ratesContentType?.includes("application/json") || !historyContentType?.includes("application/json")) {
-        const ratesText = await ratesRes.text();
-        const historyText = await historyRes.text();
-        console.error("Non-JSON response:", { ratesText, historyText });
-        logErrorToServer(`Non-JSON response: rates=${ratesText}, history=${historyText}`, "App.tsx: fetchData content-type");
         return;
       }
 
       const newRates = await ratesRes.json();
       const newHistory = await historyRes.json();
-      console.log("Fetched new history:", newHistory);
       
       // Check for price changes to notify using the ref to get the latest state
       let hasChanges = false;
@@ -494,7 +477,7 @@ export default function App() {
         time: h.time,
         value: value
       };
-    }).filter(d => d.value >= 0);
+    }).filter(d => d.value > 0);
 
     // CRITICAL: Recharts needs data in ASCENDING order of time
     return [...data].sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
@@ -852,55 +835,154 @@ export default function App() {
 
 
         {/* Data Grid: Other Parallel Currencies */}
-        <section>
-          <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-8">
-            <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest">السوق الموازي (عملات أخرى)</h3>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-8 gap-y-12">
-            {configTerms.filter(t => t.id !== "USD" && t.id !== "OFFICIAL_USD").map(term => {
-              const rate = rates?.parallel[term.id] || 0;
-              const prevRate = rates?.previousParallel?.[term.id] || rate;
-              const isUp = rate > prevRate;
-              const isDown = rate < prevRate;
+        <section className="space-y-16">
+          {/* 1. Foreign Currencies Group */}
+          <div>
+            <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-8">
+              <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest">السوق الموازي (عملات أجنبية)</h3>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-8 gap-y-12">
+              {configTerms.filter(t => ["EUR", "GBP", "TND", "TRY", "JOD", "GOLD", "EGP"].includes(t.id)).map(term => {
+                const rate = rates?.parallel[term.id] || 0;
+                const prevRate = rates?.previousParallel?.[term.id] || rate;
+                const isUp = rate > prevRate;
+                const isDown = rate < prevRate;
 
-              return (
-                <div 
-                  key={`parallel-${term.id}`} 
-                  onClick={() => setSelectedRate({ code: term.id, name: term.name, market: 'parallel' })}
-                  className="flex flex-col group p-2.5 rounded-2xl hover:bg-white/[0.02] transition-colors -m-2.5 cursor-pointer relative"
-                >
-                  <div className="flex items-center justify-between mb-3 sm:mb-4">
-                    <div className="flex items-center gap-2">
-                      {term.flag ? (
-                        <img src={`https://hatscripts.github.io/circle-flags/flags/${term.flag}.svg`} alt={term.name} className="w-5 h-5 drop-shadow-sm transition-transform group-hover:scale-110" referrerPolicy="no-referrer" />
-                      ) : (
-                        <div className="w-5 h-5 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-400">
-                          <Coins className="w-3 h-3" />
-                        </div>
+                return (
+                  <div 
+                    key={`parallel-${term.id}`} 
+                    onClick={() => setSelectedRate({ code: term.id, name: term.name, market: 'parallel' })}
+                    className="flex flex-col group p-2.5 rounded-2xl hover:bg-white/[0.02] transition-colors -m-2.5 cursor-pointer relative"
+                  >
+                    <div className="flex items-center justify-between mb-3 sm:mb-4">
+                      <div className="flex items-center gap-2">
+                        {term.flag ? (
+                          <img src={`https://hatscripts.github.io/circle-flags/flags/${term.flag}.svg`} alt={term.name} className="w-5 h-5 drop-shadow-sm transition-transform group-hover:scale-110" referrerPolicy="no-referrer" />
+                        ) : (
+                          <div className="w-5 h-5 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-400">
+                            <Coins className="w-3 h-3" />
+                          </div>
+                        )}
+                        <span className="text-[11px] font-medium text-zinc-400">{term.name}</span>
+                      </div>
+                      {trends24h[term.id]?.parallel !== undefined && (
+                        <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-md ${
+                          trends24h[term.id].parallel! > 0 ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'
+                        }`}>
+                          {trends24h[term.id].parallel! > 0 ? '+' : ''}{trends24h[term.id].parallel!.toFixed(1)}%
+                        </span>
                       )}
-                      <span className="text-[11px] font-medium text-zinc-400">{term.name}</span>
                     </div>
-                    
-                    {/* 24h Trend Badge */}
-                    {trends24h[term.id]?.parallel !== undefined && (
-                      <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-md ${
-                        trends24h[term.id].parallel! > 0 ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'
-                      }`}>
-                        {trends24h[term.id].parallel! > 0 ? '+' : ''}{trends24h[term.id].parallel!.toFixed(1)}%
-                      </span>
-                    )}
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-2xl font-light text-white font-mono tracking-tight group-hover:text-emerald-400 transition-colors">{rate.toFixed(2)}</span>
+                      {isUp ? <ArrowUpRight className="w-3 h-3 text-rose-400" /> : isDown ? <ArrowDownRight className="w-3 h-3 text-emerald-400" /> : null}
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[9px] text-zinc-700 font-mono" dir="ltr">السابق: {prevRate.toFixed(2)}</span>
+                      <LastChangedBadge date={rates?.lastChanged?.parallel[term.id]} />
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-2xl font-light text-white font-mono tracking-tight group-hover:text-emerald-400 transition-colors">{rate.toFixed(2)}</span>
-                    {isUp ? <ArrowUpRight className="w-3 h-3 text-rose-400" /> : isDown ? <ArrowDownRight className="w-3 h-3 text-emerald-400" /> : null}
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 2. Bank Checks Group */}
+          <div>
+            <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-8">
+              <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest">أسعار صكوك المصارف التجارية (USD)</h3>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-8 gap-y-12">
+              {configTerms.filter(t => t.id.startsWith("USD_") && !["USD_AE", "USD_TR", "USD_CN"].includes(t.id)).map(term => {
+                const rate = rates?.parallel[term.id] || 0;
+                const prevRate = rates?.previousParallel?.[term.id] || rate;
+                const isUp = rate > prevRate;
+                const isDown = rate < prevRate;
+
+                return (
+                  <div 
+                    key={`parallel-${term.id}`} 
+                    onClick={() => setSelectedRate({ code: term.id, name: term.name, market: 'parallel' })}
+                    className="flex flex-col group p-2.5 rounded-2xl hover:bg-white/[0.02] transition-colors -m-2.5 cursor-pointer relative"
+                  >
+                    <div className="flex items-center justify-between mb-3 sm:mb-4">
+                      <div className="flex items-center gap-2">
+                        <div className="w-5 h-5 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-400">
+                          <Building2 className="w-3 h-3" />
+                        </div>
+                        <span className="text-[11px] font-medium text-zinc-400">{term.name}</span>
+                      </div>
+                      {trends24h[term.id]?.parallel !== undefined && (
+                        <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-md ${
+                          trends24h[term.id].parallel! > 0 ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'
+                        }`}>
+                          {trends24h[term.id].parallel! > 0 ? '+' : ''}{trends24h[term.id].parallel!.toFixed(1)}%
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-2xl font-light text-white font-mono tracking-tight group-hover:text-blue-400 transition-colors">{rate.toFixed(2)}</span>
+                      {isUp ? <ArrowUpRight className="w-3 h-3 text-rose-400" /> : isDown ? <ArrowDownRight className="w-3 h-3 text-emerald-400" /> : null}
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                       <span className="text-[9px] text-zinc-700 font-mono" dir="ltr">السابق: {prevRate.toFixed(2)}</span>
+                       <LastChangedBadge date={rates?.lastChanged?.parallel[term.id]} />
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[9px] text-zinc-700 font-mono" dir="ltr">Prev: {prevRate.toFixed(2)}</span>
-                    <LastChangedBadge date={rates?.lastChanged?.parallel[term.id]} />
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 3. Transfers Group */}
+          <div>
+            <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-8">
+              <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest">حوالات العملة (خارج ليبيا)</h3>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-8 gap-y-12">
+              {configTerms.filter(t => ["USD_AE", "USD_TR", "USD_CN"].includes(t.id)).map(term => {
+                const rate = rates?.parallel[term.id] || 0;
+                const prevRate = rates?.previousParallel?.[term.id] || rate;
+                const isUp = rate > prevRate;
+                const isDown = rate < prevRate;
+
+                return (
+                  <div 
+                    key={`parallel-${term.id}`} 
+                    onClick={() => setSelectedRate({ code: term.id, name: term.name, market: 'parallel' })}
+                    className="flex flex-col group p-2.5 rounded-2xl hover:bg-white/[0.02] transition-colors -m-2.5 cursor-pointer relative"
+                  >
+                    <div className="flex items-center justify-between mb-3 sm:mb-4">
+                      <div className="flex items-center gap-2">
+                        {term.flag ? (
+                          <img src={`https://hatscripts.github.io/circle-flags/flags/${term.flag}.svg`} alt={term.name} className="w-5 h-5 drop-shadow-sm transition-transform group-hover:scale-110" referrerPolicy="no-referrer" />
+                        ) : (
+                          <div className="w-5 h-5 rounded-full bg-indigo-500/10 flex items-center justify-center text-indigo-400">
+                            <Send className="w-3 h-3" />
+                          </div>
+                        )}
+                        <span className="text-[11px] font-medium text-zinc-400">{term.name}</span>
+                      </div>
+                      {trends24h[term.id]?.parallel !== undefined && (
+                        <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-md ${
+                          trends24h[term.id].parallel! > 0 ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'
+                        }`}>
+                          {trends24h[term.id].parallel! > 0 ? '+' : ''}{trends24h[term.id].parallel!.toFixed(1)}%
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-2xl font-light text-white font-mono tracking-tight group-hover:text-indigo-400 transition-colors">{rate.toFixed(2)}</span>
+                      {isUp ? <ArrowUpRight className="w-3 h-3 text-rose-400" /> : isDown ? <ArrowDownRight className="w-3 h-3 text-emerald-400" /> : null}
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                       <span className="text-[9px] text-zinc-700 font-mono" dir="ltr">السابق: {prevRate.toFixed(2)}</span>
+                       <LastChangedBadge date={rates?.lastChanged?.parallel[term.id]} />
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         </section>
 
@@ -1310,46 +1392,95 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="h-[300px] w-full bg-zinc-900/50 rounded-2xl border border-zinc-800 p-4 mb-8">
+                <div className="flex-1 min-h-[350px] w-full relative">
                   {chartData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={chartData}>
+                    <ResponsiveContainer width="100%" height="100%" key={selectedRate.code}>
+                      <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
                         <defs>
-                          <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
-                            <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                          <linearGradient id="modalChartGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.4}/>
+                            <stop offset="95%" stopColor="#10b981" stopOpacity={0.05}/>
                           </linearGradient>
                         </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-                        <XAxis dataKey="time" hide />
-                        <YAxis domain={['auto', 'auto']} orientation="right" stroke="#71717a" tick={{fontSize: 12}} />
-                        <Tooltip 
-                          contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', borderRadius: '12px' }}
-                          itemStyle={{ color: '#10b981' }}
+                        <CartesianGrid 
+                          vertical={false} 
+                          stroke="rgba(255,255,255,0.03)" 
+                          strokeDasharray="3 3" 
                         />
-                        <Area type="monotone" dataKey="value" stroke="#10b981" strokeWidth={2} fill="url(#chartGradient)" />
+                        <XAxis 
+                          dataKey="time" 
+                          hide 
+                        />
+                        <YAxis 
+                          domain={[(dataMin: number) => dataMin - (dataMin * 0.01), (dataMax: number) => dataMax + (dataMax * 0.01)]} 
+                          orientation="right"
+                          tick={{ fontSize: 10, fill: '#71717a', fontFamily: 'monospace' }}
+                          axisLine={false}
+                          tickLine={false}
+                          tickFormatter={(val) => val.toFixed(2)}
+                          width={40}
+                        />
+                        <Tooltip
+                          contentStyle={{ 
+                            backgroundColor: "#0a0a0a", 
+                            border: "1px solid rgba(255,255,255,0.1)", 
+                            borderRadius: "16px", 
+                            color: "#fff", 
+                            boxShadow: "0 20px 50px -12px rgba(0, 0, 0, 0.5)",
+                            padding: "12px"
+                          }}
+                          itemStyle={{ color: "#10b981", fontFamily: "monospace", fontSize: "18px", fontWeight: "bold" }}
+                          labelStyle={{ color: "#71717a", fontSize: "11px", marginBottom: "6px", fontWeight: "medium" }}
+                          labelFormatter={(label) => {
+                            try {
+                              return format(new Date(label), "eeee, dd MMMM - HH:mm", { locale: ar });
+                            } catch (e) {
+                              return label;
+                            }
+                          }}
+                          formatter={(value: number) => [value.toFixed(3) + ' د.ل', 'السعر']}
+                        />
+                        <Area
+                          type="monotone"
+                          dataKey="value"
+                          stroke="#10b981"
+                          strokeWidth={3}
+                          fillOpacity={1}
+                          fill="url(#modalChartGradient)"
+                          dot={{ r: 3, fill: "#10b981", stroke: "#0a0a0a", strokeWidth: 2, fillOpacity: 1 }}
+                          activeDot={{ r: 6, fill: "#10b981", stroke: "#0a0a0a", strokeWidth: 3 }}
+                          isAnimationActive={false} // Disable animation for faster rendering in modal
+                        />
                       </AreaChart>
                     </ResponsiveContainer>
                   ) : (
-                    <div className="flex items-center justify-center h-full text-zinc-500">
-                      لا توجد بيانات كافية لعرض الرسم البياني
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="flex flex-col items-center gap-2 opacity-20">
+                        <TrendingUp className="w-8 h-8" />
+                        <p className="text-xs font-mono">لا توجد بيانات تاريخية كافية</p>
+                      </div>
                     </div>
                   )}
                 </div>
 
-                {/* Stats */}
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800">
-                    <p className="text-[10px] text-zinc-500 uppercase">الأعلى</p>
-                    <p className="text-lg font-mono font-bold text-white">{chartStats.max.toFixed(2)}</p>
+                <div className="mt-8 grid grid-cols-3 gap-4">
+                  <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5">
+                    <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-1">أعلى سعر</p>
+                    <p className="text-lg font-mono font-bold text-white">
+                      {chartStats.max.toFixed(2)}
+                    </p>
                   </div>
-                  <div className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800">
-                    <p className="text-[10px] text-zinc-500 uppercase">الأدنى</p>
-                    <p className="text-lg font-mono font-bold text-white">{chartStats.min.toFixed(2)}</p>
+                  <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5">
+                    <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-1">أدنى سعر</p>
+                    <p className="text-lg font-mono font-bold text-white">
+                      {chartStats.min.toFixed(2)}
+                    </p>
                   </div>
-                  <div className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800">
-                    <p className="text-[10px] text-zinc-500 uppercase">المتوسط</p>
-                    <p className="text-lg font-mono font-bold text-white">{chartStats.avg.toFixed(2)}</p>
+                  <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5">
+                    <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-1">متوسط السعر</p>
+                    <p className="text-lg font-mono font-bold text-white">
+                      {chartStats.avg.toFixed(2)}
+                    </p>
                   </div>
                 </div>
               </div>
