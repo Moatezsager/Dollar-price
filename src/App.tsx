@@ -130,22 +130,45 @@ export default function App() {
     }, 5000);
   };
 
-    const showPriceNotification = async (code: string, name: string, oldPrice: number, newPrice: number) => {
+  const showPriceNotification = async (code: string, name: string, oldPrice: number, newPrice: number) => {
     const diff = newPrice - oldPrice;
     const absDiff = Math.abs(diff);
     
-    // Only notify if change is above threshold
+    // 1. تحقق من حد التغيير (Threshold)
     if (absDiff < thresholdRef.current) return;
+
+    // 2. منع التكرار الذكي: تحقق من آخر سعر تم التنبيه به وآخر وقت
+    try {
+      const lastNotifyData = localStorage.getItem(`last_notify_${code}`);
+      if (lastNotifyData) {
+        const { price, time } = JSON.parse(lastNotifyData);
+        const timeDiff = Date.now() - time;
+        
+        // إذا كان السعر هو نفسه ولم يمر 10 دقائق، لا تكرر الإشعار
+        if (price === newPrice && timeDiff < 10 * 60 * 1000) {
+          console.log(`[Notification] Skipping duplicate for ${code}`);
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn("Notification storage check failed", e);
+    }
 
     const direction = diff > 0 ? 'ارتفاع' : 'انخفاض';
     const arrow = diff > 0 ? '📈' : '📉';
     const title = `${arrow} ${direction} في سعر ${name}`;
     const body = `السعر الجديد: ${newPrice.toFixed(2)} د.ل (تغير بمقدار ${diff > 0 ? '+' : ''}${diff.toFixed(2)})`;
 
-    // In-app toast
+    // تسجيل التنبيه الحالي لمنع التكرار
+    localStorage.setItem(`last_notify_${code}`, JSON.stringify({
+      price: newPrice,
+      time: Date.now()
+    }));
+
+    // In-app toast (دائماً يظهر للمستخدم النشط)
     addToast(title, body, diff > 0 ? 'up' : 'down');
 
-    // Native notification - check permission directly to be safe
+    // Native notification
     try {
       if (Notification.permission === 'granted' && 'serviceWorker' in navigator) {
         const registration = await navigator.serviceWorker.ready;
@@ -155,12 +178,13 @@ export default function App() {
             icon: 'https://hatscripts.github.io/circle-flags/flags/ly.svg',
             badge: 'https://hatscripts.github.io/circle-flags/flags/ly.svg',
             vibrate: [200, 100, 200],
-            tag: `price-change-${code}`,
+            tag: `price-change-${code}`, // استخدام Tag لمنع تراكم الإشعارات لنفس العملة
             renotify: true,
             data: { url: window.location.origin },
+            silent: false,
+            dir: 'rtl',
             actions: [
-              { action: 'open', title: 'فتح التطبيق' },
-              { action: 'close', title: 'تجاهل' }
+              { action: 'open', title: 'فتح التطبيق' }
             ]
           } as any);
         }

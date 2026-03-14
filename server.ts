@@ -190,7 +190,7 @@ async function saveToSupabase() {
       rates_parallel: rates.parallel,
       rates_official: rates.official,
       last_changed: rates.lastChanged,
-      recorded_at: new Date().toISOString()
+      recorded_at: rates.lastUpdated // استخدام وقت كتابة الرسالة في تيليجرام لضمان الشفافية
     };
 
     const { error } = await supabase
