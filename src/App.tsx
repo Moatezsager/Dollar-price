@@ -569,94 +569,148 @@ export default function App() {
       {/* Popover Chart */}
       <AnimatePresence>
         {selectedRate && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-6">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setSelectedRate(null)}
-              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+              className="absolute inset-0 bg-black/90 backdrop-blur-md"
             />
             <motion.div
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              initial={{ opacity: 0, scale: 0.95, y: 30 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative w-full max-w-2xl bg-[#0a0a0a] border border-white/10 rounded-3xl overflow-hidden shadow-2xl"
+              exit={{ opacity: 0, scale: 0.95, y: 30 }}
+              className="relative w-full max-w-3xl bg-[#0c0c0c] border border-white/10 rounded-[2.5rem] overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
             >
-              <div className="p-6 border-b border-white/5 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-400">
-                    <Activity className="w-4 h-4" />
+              {/* Modal Header */}
+              <div className="p-5 sm:p-8 border-b border-white/5 flex items-center justify-between bg-gradient-to-b from-white/[0.02] to-transparent">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-400 border border-emerald-500/20 shadow-[0_0_20px_rgba(16,185,129,0.1)]">
+                    <Activity className="w-6 h-6" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-medium text-white">{selectedRate.name}</h3>
-                    <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-widest">
-                      {selectedRate.market === 'parallel' ? 'السوق الموازي' : 'السوق الرسمي'}
-                    </p>
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <h3 className="text-xl font-bold text-white tracking-tight">{selectedRate.name}</h3>
+                      <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest ${
+                        selectedRate.market === 'parallel' ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-blue-500/10 text-blue-500 border border-blue-500/20'
+                      }`}>
+                        {selectedRate.market === 'parallel' ? 'الموازي' : 'الرسمي'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                       <p className="text-[10px] text-zinc-500 font-mono tracking-widest uppercase">Live Market Analytics</p>
+                       <span className="w-1 h-1 rounded-full bg-zinc-800"></span>
+                       <LastChangedBadge 
+                         date={rates?.[selectedRate.market === 'official' ? 'lastChanged' : 'lastChanged']?.[selectedRate.market]?.[selectedRate.code]} 
+                         className="!text-emerald-500/70" 
+                       />
+                    </div>
                   </div>
                 </div>
                 <button
                   onClick={() => setSelectedRate(null)}
-                  className="p-2 rounded-full hover:bg-white/10 transition-colors text-zinc-500 hover:text-white"
+                  className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-zinc-500 hover:text-white hover:bg-white/10 transition-all active:scale-90"
                 >
-                  <RefreshCw className="w-4 h-4 rotate-45" />
+                  <X className="w-5 h-5" />
                 </button>
               </div>
               
-              <div className="p-6 h-[300px] sm:h-[400px]">
+              {/* Quick Stats Grid */}
+              <div className="grid grid-cols-3 gap-2 px-5 sm:px-8 py-4 sm:py-6 bg-white/[0.01]">
+                <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-3 sm:p-4 transition-all hover:bg-white/[0.05]">
+                  <span className="text-[9px] sm:text-[10px] text-zinc-500 font-bold uppercase tracking-widest block mb-1">أعلى سعر</span>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-sm sm:text-xl font-mono text-white font-light">{chartStats.max.toFixed(2)}</span>
+                    <span className="text-[9px] text-zinc-500">د.ل</span>
+                  </div>
+                </div>
+                <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-3 sm:p-4 transition-all hover:bg-white/[0.05]">
+                  <span className="text-[9px] sm:text-[10px] text-zinc-500 font-bold uppercase tracking-widest block mb-1">أقل سعر</span>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-sm sm:text-xl font-mono text-white font-light">{chartStats.min.toFixed(2)}</span>
+                    <span className="text-[9px] text-zinc-500">د.ل</span>
+                  </div>
+                </div>
+                <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-3 sm:p-4 transition-all hover:bg-white/[0.05]">
+                  <span className="text-[9px] sm:text-[10px] text-zinc-500 font-bold uppercase tracking-widest block mb-1">المتوسط</span>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-sm sm:text-xl font-mono text-emerald-400 font-light">{chartStats.avg.toFixed(2)}</span>
+                    <span className="text-[9px] text-zinc-500">د.ل</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Chart Content */}
+              <div className="px-2 sm:px-6 pb-6 flex-1 min-h-[250px] sm:min-h-[350px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={chartData}>
                     <defs>
                       <linearGradient id="popoverGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.4}/>
                         <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
                       </linearGradient>
                     </defs>
+                    <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" />
                     <XAxis 
                       dataKey="time" 
                       hide={false}
                       axisLine={false}
                       tickLine={false}
-                      tick={{ fill: '#52525b', fontSize: 10, fontFamily: 'monospace' }}
+                      tick={{ fill: '#3f3f46', fontSize: 10, fontFamily: 'monospace' }}
                       tickFormatter={(t) => format(new Date(t), "HH:mm")}
-                      minTickGap={30}
+                      minTickGap={40}
                     />
                     <YAxis 
                       domain={['auto', 'auto']} 
                       hide={false}
                       axisLine={false}
                       tickLine={false}
-                      tick={{ fill: '#52525b', fontSize: 10, fontFamily: 'monospace' }}
+                      tick={{ fill: '#3f3f46', fontSize: 10, fontFamily: 'monospace' }}
                       orientation="left"
                     />
                     <Tooltip
-                      contentStyle={{ backgroundColor: "#0a0a0a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "16px", color: "#fff" }}
-                      itemStyle={{ color: "#10b981", fontFamily: "monospace" }}
-                      labelStyle={{ color: "#71717a", fontSize: "12px", marginBottom: "4px" }}
-                      labelFormatter={(label) => format(new Date(label), "dd MMMM yyyy - HH:mm", { locale: ar })}
+                      contentStyle={{ 
+                        backgroundColor: "rgba(12,12,12,0.95)", 
+                        border: "1px solid rgba(255,255,255,0.1)", 
+                        borderRadius: "20px", 
+                        padding: "12px 16px",
+                        backdropFilter: "blur(10px)",
+                        boxShadow: "0 20px 40px rgba(0,0,0,0.4)"
+                      }}
+                      itemStyle={{ color: "#10b981", fontFamily: "monospace", fontSize: "14px" }}
+                      labelStyle={{ color: "#71717a", fontSize: "11px", marginBottom: "6px", fontWeight: "bold" }}
+                      labelFormatter={(label) => format(new Date(label), "eeee, dd MMMM - HH:mm", { locale: ar })}
                       formatter={(value: number) => [value.toFixed(3) + ' د.ل', 'السعر']}
                     />
                     <Area
                       type="monotone"
                       dataKey="value"
                       stroke="#10b981"
-                      strokeWidth={3}
+                      strokeWidth={4}
                       fillOpacity={1}
                       fill="url(#popoverGradient)"
-                      isAnimationActive={history.length < 200}
-                      animationDuration={1000}
+                      isAnimationActive={true}
+                      animationDuration={1500}
                     />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
               
-              <div className="p-6 bg-white/[0.02] border-t border-white/5 flex items-center justify-between">
-                <div className="text-xs text-zinc-500">
-                  بيانات تاريخية مستخرجة من قاعدة البيانات
+              {/* Modal Footer */}
+              <div className="p-5 sm:p-6 bg-white/[0.02] border-t border-white/5 flex items-center justify-between">
+                <div className="flex flex-col">
+                  <span className="text-[10px] text-zinc-600 font-bold uppercase tracking-wider mb-0.5">مصدر البيانات</span>
+                  <span className="text-xs text-zinc-400">قاعدة بيانات Supabase المزامنة لحظياً</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                  <span className="text-[10px] font-mono text-emerald-500 uppercase tracking-widest">Live Data</span>
+                <div className="flex items-center gap-3">
+                  <div className="flex flex-col items-end">
+                    <span className="text-[10px] text-zinc-600 font-bold uppercase tracking-wider mb-0.5 text-left">التحديث التلقائي</span>
+                    <div className="flex items-center gap-2">
+                       <span className="text-[10px] font-mono text-emerald-500 font-bold uppercase tracking-widest">Active Connection</span>
+                       <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)] animate-pulse"></div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </motion.div>
