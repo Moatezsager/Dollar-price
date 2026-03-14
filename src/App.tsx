@@ -1035,7 +1035,7 @@ export default function App() {
                           'text-5xl sm:text-7xl'
                         }`}
                       >
-                        {converterResult.toFixed(2)}
+                        {converterResult % 1 === 0 ? converterResult : converterResult.toFixed(2)}
                       </motion.span>
                       <span className="text-xl sm:text-3xl text-emerald-500/70 font-light shrink-0">
                         {converterMode === 'fromLYD' ? (configTerms.find(t => t.id === converterFrom)?.name.split(' ')[0] || converterFrom) : 'د.ل'}
