@@ -17,7 +17,14 @@ const supabase = supabaseAnonKey
   ? createClient(supabaseUrl, supabaseAnonKey)
   : null;
 
-// Initial data for the Libyan Dinar exchange rates
+interface RateMap {
+  [key: string]: number;
+}
+
+interface LastChangedMap {
+  [key: string]: string;
+}
+
 let rates = {
   official: {
     USD: 4.85,
@@ -26,7 +33,7 @@ let rates = {
     TND: 1.55,
     TRY: 0.15,
     EGP: 0.10,
-  },
+  } as RateMap,
   parallel: {
     USD: 7.30,
     OFFICIAL_USD: 4.85,
@@ -39,7 +46,7 @@ let rates = {
     TND: 2.35,
     TRY: 0.22,
     EGP: 0.14,
-  },
+  } as RateMap,
   previousOfficial: {
     USD: 4.85,
     EUR: 5.25,
@@ -47,7 +54,7 @@ let rates = {
     TND: 1.55,
     TRY: 0.15,
     EGP: 0.10,
-  },
+  } as RateMap,
   previousParallel: {
     USD: 7.30,
     OFFICIAL_USD: 4.85,
@@ -60,11 +67,11 @@ let rates = {
     TND: 2.35,
     TRY: 0.22,
     EGP: 0.14,
-  },
+  } as RateMap,
   lastUpdated: new Date().toISOString(),
   lastChanged: {
-    official: {} as Record<string, string>,
-    parallel: {} as Record<string, string>,
+    official: {} as LastChangedMap,
+    parallel: {} as LastChangedMap,
   },
 };
 
@@ -261,11 +268,13 @@ async function fetchHistoryFromSupabase() {
 }
 
 // Fetch real official rates from open API
-async function fetchOfficialRates() {
+async function fetchOfficialRates(): Promise<boolean> {
   const sources = [
     "https://api.exchangerate-api.com/v4/latest/USD",
     "https://open.er-api.com/v6/latest/USD"
   ];
+
+  let anyChanged = false;
 
   for (const source of sources) {
     try {
@@ -279,11 +288,6 @@ async function fetchOfficialRates() {
       if (data && data.rates && data.rates.LYD) {
         const lyd = data.rates.LYD;
         
-        if (lyd !== rates.official.USD) {
-          rates.previousOfficial = { ...rates.official };
-          rates.lastChanged.official.USD = new Date().toISOString();
-        }
-        
         const newOfficial = {
           USD: lyd,
           EUR: lyd / data.rates.EUR,
@@ -296,20 +300,27 @@ async function fetchOfficialRates() {
         // Update lastChanged for all official rates that changed
         Object.entries(newOfficial).forEach(([key, val]) => {
           if (isSignificantChange(rates.official[key], val)) {
+            // Update previousOfficial for accuracy before overwriting
+            rates.previousOfficial[key] = rates.official[key];
             rates.lastChanged.official[key] = new Date().toISOString();
+            anyChanged = true;
           }
         });
         
-        rates.official = { ...newOfficial };
-        
-        console.log(`Official rates updated successfully from ${source}`);
-        await saveToSupabase();
-        return; // Success, exit the loop
+        if (anyChanged) {
+          rates.official = { ...newOfficial };
+          console.log(`Official rates updated due to changes from ${source}`);
+        } else {
+          console.log(`Official rates check: No significant changes from ${source}`);
+        }
+
+        return anyChanged; // Success in fetching, return if anything changed
       }
     } catch (error) {
       console.error(`Error fetching official rates from ${source}:`, error);
     }
   }
+  return false;
 }
 
 // Dynamic Configuration
@@ -486,32 +497,35 @@ async function fetchParallelRatesFromTelegram() {
     }
 
     if (latestRates.USD) {
-      console.log(`[Scraper] Success! Found USD rate: ${latestRates.USD}. Channels: ${successfulChannels}/${appConfig.channels.length}, Messages: ${totalMessagesProcessed}`);
+      console.log(`[Scraper] Scrape check completed. USD found: ${latestRates.USD}`);
       
+      let anyChanged = false;
+
       // Update official rates if found in Telegram (often faster than APIs)
       if (latestRates.OFFICIAL_USD && isSignificantChange(rates.official.USD, latestRates.OFFICIAL_USD)) {
         console.log(`[Scraper] Updating official rate from Telegram: ${latestRates.OFFICIAL_USD}`);
-        rates.previousOfficial = { ...rates.official };
+        rates.previousOfficial.USD = rates.official.USD;
         rates.official.USD = latestRates.OFFICIAL_USD;
         rates.lastChanged.official.USD = new Date().toISOString();
+        anyChanged = true;
       }
 
-      // Shift current to previous if it changed
-      if (isSignificantChange(rates.parallel.USD, latestRates.USD)) {
-        rates.previousParallel = { ...rates.parallel };
-      }
-      
       // Dynamically assign all extracted rates
       for (const term of appConfig.terms) {
-        if (latestRates[term.id]) {
+        const currentVal = rates.parallel[term.id];
+        const newVal = latestRates[term.id];
+
+        if (newVal) {
           // Update lastChanged only if the price actually changed
-          if (isSignificantChange(rates.parallel[term.id], latestRates[term.id])) {
-            console.log(`[Scraper] Price change detected for ${term.id}: ${rates.parallel[term.id]} -> ${latestRates[term.id]}`);
+          if (isSignificantChange(currentVal, newVal)) {
+            console.log(`[Scraper] Price change detected for ${term.id}: ${currentVal} -> ${newVal}`);
+            rates.previousParallel[term.id] = currentVal;
+            rates.parallel[term.id] = newVal;
             rates.lastChanged.parallel[term.id] = new Date().toISOString();
+            anyChanged = true;
           }
-          rates.parallel[term.id] = latestRates[term.id];
-        } else if (!rates.parallel[term.id]) {
-          // Initialize with some fallback if it doesn't exist at all
+        } else if (!currentVal) {
+          // Initialize with some fallback if it doesn't exist at all (initial setup)
           const fallbackValue = 
             term.id === "USD_CHECKS" ? latestRates.USD + 0.8 :
             term.id === "EUR" ? latestRates.USD * 1.08 :
@@ -525,40 +539,43 @@ async function fetchParallelRatesFromTelegram() {
           
           rates.parallel[term.id] = fallbackValue;
           rates.lastChanged.parallel[term.id] = new Date().toISOString();
+          anyChanged = true;
         }
       }
 
-      // Override previous with actual Telegram history if available and realistic
+      // Refine previous rates with actual Telegram history if available and realistic
       for (const term of appConfig.terms) {
         const key = term.id;
         if (previousRates[key] && latestRates[key] && Math.abs(previousRates[key] - latestRates[key]) < (latestRates[key] * 0.2)) {
-          rates.previousParallel[key] = previousRates[key];
-        } else if (rates.previousParallel[key] && rates.parallel[key] && Math.abs(rates.previousParallel[key] - rates.parallel[key]) > (rates.parallel[key] * 0.2)) {
-          // If DB previous is too far (polluted jump), reset it to current so change is 0
-          rates.previousParallel[key] = rates.parallel[key];
+          // If we found a different previous rate in the telegram history, we could use it
+          // But our goal is "accurate date of LAST CHANGE", so we keep the memory one unless it's null
+          if (!rates.previousParallel[key]) rates.previousParallel[key] = previousRates[key];
         }
       }
 
-      if (newestMessageTime > 0) {
-        rates.lastUpdated = new Date(newestMessageTime).toISOString();
-      } else {
-        rates.lastUpdated = new Date().toISOString();
+      if (anyChanged) {
+        if (newestMessageTime > 0) {
+          rates.lastUpdated = new Date(newestMessageTime).toISOString();
+        } else {
+          rates.lastUpdated = new Date().toISOString();
+        }
+        
+        console.log(`[Scraper] Applied changes. New USD: ${rates.parallel.USD}`);
+        
+        // Also update local history fallback for chart
+        history.push({
+          time: new Date().toISOString(),
+          usdParallel: rates.parallel.USD,
+          usdOfficial: rates.official.USD,
+          ratesParallel: { ...rates.parallel },
+          ratesOfficial: { ...rates.official }
+        });
+        if (history.length > 5000) history.shift();
       }
-      console.log(`Parallel rates updated. Latest:`, latestRates.USD, `Previous:`, rates.previousParallel.USD);
-      
-      // Save the real fetched rates to Supabase
-      await saveToSupabase();
-      
-      // Also update local history fallback
-      history.push({
-        time: new Date().toISOString(),
-        usdParallel: rates.parallel.USD,
-        usdOfficial: rates.official.USD,
-        ratesParallel: { ...rates.parallel },
-        ratesOfficial: { ...rates.official }
-      });
-      if (history.length > 5000) history.shift();
+
+      return anyChanged;
     }
+    return false;
   } catch (error) {
     console.error("Error fetching from Telegram:", error);
   }
@@ -826,11 +843,20 @@ async function startServer() {
       const oldUsd = rates.parallel.USD;
       const oldOfficial = rates.official.USD;
 
-      // Execute scraping
-      await Promise.all([
+      // Execute scraping and detect actual changes
+      const results = await Promise.all([
         fetchOfficialRates(),
         fetchParallelRatesFromTelegram()
       ]);
+      
+      const anyChangesDetected = results.some(r => r === true);
+
+      if (anyChangesDetected) {
+        console.log("[Cron-Job] Changes detected! Saving to database...");
+        await saveToSupabase();
+      } else {
+        console.log("[Cron-Job] Checked all sources. No price changes found. Database record skipped to preserve update transparency.");
+      }
       
       const duration = Date.now() - startTime;
       const newUsd = rates.parallel.USD;
