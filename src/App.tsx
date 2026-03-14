@@ -125,7 +125,7 @@ export default function App() {
     }, 5000);
   };
 
-  const showPriceNotification = (code: string, name: string, oldPrice: number, newPrice: number) => {
+    const showPriceNotification = async (code: string, name: string, oldPrice: number, newPrice: number) => {
     const diff = newPrice - oldPrice;
     const absDiff = Math.abs(diff);
     
@@ -141,27 +141,28 @@ export default function App() {
     addToast(title, body, diff > 0 ? 'up' : 'down');
 
     // Native notification - check permission directly to be safe
-    if (Notification.permission === 'granted' && 'serviceWorker' in navigator) {
-      navigator.serviceWorker.ready.then((registration) => {
-        registration.showNotification(title, {
-          body,
-          icon: 'https://hatscripts.github.io/circle-flags/flags/ly.svg',
-          badge: 'https://hatscripts.github.io/circle-flags/flags/ly.svg',
-          vibrate: [200, 100, 200],
-          tag: `price-change-${code}`,
-          renotify: true,
-          data: { url: window.location.origin },
-          actions: [
-            { action: 'open', title: 'فتح التطبيق' },
-            { action: 'close', title: 'تجاهل' }
-          ]
-        } as any).catch(err => {
-          console.error("Failed to show notification:", err);
-          logErrorToServer(err, "App.tsx: showNotification");
-        });
-      }).catch(err => {
-        console.error("Service worker not ready:", err);
-      });
+    try {
+      if (Notification.permission === 'granted' && 'serviceWorker' in navigator) {
+        const registration = await navigator.serviceWorker.ready;
+        if (registration) {
+          await registration.showNotification(title, {
+            body,
+            icon: 'https://hatscripts.github.io/circle-flags/flags/ly.svg',
+            badge: 'https://hatscripts.github.io/circle-flags/flags/ly.svg',
+            vibrate: [200, 100, 200],
+            tag: `price-change-${code}`,
+            renotify: true,
+            data: { url: window.location.origin },
+            actions: [
+              { action: 'open', title: 'فتح التطبيق' },
+              { action: 'close', title: 'تجاهل' }
+            ]
+          } as any);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to show notification:", err);
+      logErrorToServer(err, "App.tsx: showNotification");
     }
   };
 
@@ -229,27 +230,33 @@ export default function App() {
     let reconnectTimeout: any = null;
 
     const connect = () => {
-      socket = new WebSocket(wsUrl);
+      try {
+        socket = new WebSocket(wsUrl);
 
-      socket.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          if (data.type === 'online_count') {
-            setOnlineCount(data.count);
+        socket.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (data.type === 'online_count') {
+              setOnlineCount(data.count);
+            }
+          } catch (err) {
+            console.error('WebSocket message error:', err);
+            logErrorToServer(err, "App.tsx: WebSocket onmessage");
           }
-        } catch (err) {
-          console.error('WebSocket message error:', err);
-          logErrorToServer(err, "App.tsx: WebSocket onmessage");
-        }
-      };
+        };
 
-      socket.onclose = () => {
-        reconnectTimeout = setTimeout(connect, 3000);
-      };
+        socket.onclose = () => {
+          reconnectTimeout = setTimeout(connect, 3000);
+        };
 
-      socket.onerror = () => {
-        socket?.close();
-      };
+        socket.onerror = () => {
+          socket?.close();
+        };
+      } catch (err) {
+        console.error('WebSocket connection error:', err);
+        logErrorToServer(err, "App.tsx: WebSocket connect");
+        reconnectTimeout = setTimeout(connect, 5000);
+      }
     };
 
     connect();
@@ -801,7 +808,7 @@ export default function App() {
             <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest">السوق الموازي (عملات أخرى)</h3>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-8 gap-y-12">
-            {configTerms.filter(t => t.id !== "USD").map(term => {
+            {configTerms.filter(t => t.id !== "USD" && t.id !== "OFFICIAL_USD").map(term => {
               const rate = rates?.parallel[term.id] || 0;
               const prevRate = rates?.previousParallel?.[term.id] || rate;
               const isUp = rate > prevRate;

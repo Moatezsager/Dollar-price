@@ -29,6 +29,7 @@ let rates = {
   },
   parallel: {
     USD: 7.30,
+    OFFICIAL_USD: 4.85,
     USD_CHECKS: 8.00,
     EUR: 7.85,
     GBP: 9.20,
@@ -49,6 +50,7 @@ let rates = {
   },
   previousParallel: {
     USD: 7.30,
+    OFFICIAL_USD: 4.85,
     USD_CHECKS: 8.00,
     EUR: 7.85,
     GBP: 9.20,
@@ -223,32 +225,43 @@ async function fetchHistoryFromSupabase() {
 
 // Fetch real official rates from open API
 async function fetchOfficialRates() {
-  try {
-    const response = await fetch("https://open.er-api.com/v6/latest/USD");
-    const data = await response.json();
-    
-    if (data && data.rates && data.rates.LYD) {
-      const lyd = data.rates.LYD;
+  const sources = [
+    "https://api.exchangerate-api.com/v4/latest/USD",
+    "https://open.er-api.com/v6/latest/USD"
+  ];
+
+  for (const source of sources) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
+      const response = await fetch(source, { signal: controller.signal });
+      clearTimeout(timeoutId);
       
-      // Only update previous rate if the new rate is actually different
-      if (lyd !== rates.official.USD) {
-        rates.previousOfficial = { ...rates.official };
+      const data = await response.json();
+      
+      if (data && data.rates && data.rates.LYD) {
+        const lyd = data.rates.LYD;
+        
+        if (lyd !== rates.official.USD) {
+          rates.previousOfficial = { ...rates.official };
+        }
+        
+        rates.official = {
+          USD: lyd,
+          EUR: lyd / data.rates.EUR,
+          GBP: lyd / data.rates.GBP,
+          TND: lyd / data.rates.TND,
+          TRY: lyd / data.rates.TRY,
+          EGP: lyd / data.rates.EGP,
+        };
+        
+        console.log(`Official rates updated successfully from ${source}`);
+        await saveToSupabase();
+        return; // Success, exit the loop
       }
-      
-      rates.official = {
-        USD: lyd,
-        EUR: lyd / data.rates.EUR,
-        GBP: lyd / data.rates.GBP,
-        TND: lyd / data.rates.TND,
-        TRY: lyd / data.rates.TRY,
-        EGP: lyd / data.rates.EGP,
-      };
-      
-      console.log("Official rates updated successfully.");
-      await saveToSupabase();
+    } catch (error) {
+      console.error(`Error fetching official rates from ${source}:`, error);
     }
-  } catch (error) {
-    console.error("Error fetching official rates:", error);
   }
 }
 
@@ -257,6 +270,7 @@ let appConfig = {
   channels: ["dollarr_ly", "musheermarket", "lydollar", "djheih2026", "suqalmushir"],
   terms: [
     { id: "USD", name: "دولار أمريكي", regex: "(?:الدولار|دولار|الخضراء|خضراء|ورقة|الورقة|كاش|usd|🇺🇸)\\s*(?:كاش)?\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,3})?)", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
+    { id: "OFFICIAL_USD", name: "الدولار الرسمي", regex: "(?:الرسمي|المركزي|نشرة المصرف|المصرف المركزي)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,3})?)", min: 4.0, max: 6.0, isInverse: false, flag: "us" },
     { id: "USD_CHECKS", name: "دولار أمريكي (صكوك)", regex: "(?:صكوك|صك|بصك|بنوك|شيك|شيكات|مصرف|مصارف|بنوك)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,3})?)", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
     { id: "EUR", name: "يورو", regex: "(?:يورو|اليورو|eur|🇪🇺)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,3})?)", min: 5.0, max: 25.0, isInverse: false, flag: "eu" },
     { id: "GBP", name: "جنيه إسترليني", regex: "(?:باوند|استرليني|gbp|🇬🇧)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,3})?)", min: 5.0, max: 25.0, isInverse: false, flag: "gb" },
@@ -360,7 +374,10 @@ async function fetchParallelRatesFromTelegram() {
 
             const isOfficialReport = /رسمي|المركزي|بفارق|نشرة|أسعار المصرف/i.test(cleanText);
             const isParallelReport = /موازي|سوداء|كاش|خضراء|ورقة|سوق/i.test(cleanText);
-            if (isOfficialReport && !isParallelReport) continue;
+            
+            // If it's an official report, we still process it if it matches our terms
+            // but we don't skip it anymore if it's purely official
+            // if (isOfficialReport && !isParallelReport) continue; 
 
             const extract = (regexStr: string, key: string, min: number, max: number, isInverse = false) => {
               try {
@@ -423,6 +440,14 @@ async function fetchParallelRatesFromTelegram() {
 
     if (latestRates.USD) {
       console.log(`[Scraper] Success! Found USD rate: ${latestRates.USD}. Channels: ${successfulChannels}/${appConfig.channels.length}, Messages: ${totalMessagesProcessed}`);
+      
+      // Update official rates if found in Telegram (often faster than APIs)
+      if (latestRates.OFFICIAL_USD && latestRates.OFFICIAL_USD !== rates.official.USD) {
+        console.log(`[Scraper] Updating official rate from Telegram: ${latestRates.OFFICIAL_USD}`);
+        rates.previousOfficial = { ...rates.official };
+        rates.official.USD = latestRates.OFFICIAL_USD;
+      }
+
       // Shift current to previous if it changed
       if (latestRates.USD !== rates.parallel.USD) {
         rates.previousParallel = { ...rates.parallel };
@@ -442,6 +467,7 @@ async function fetchParallelRatesFromTelegram() {
           else if (term.id === "TND") rates.parallel[term.id] = latestRates.USD * 0.32;
           else if (term.id === "TRY") rates.parallel[term.id] = latestRates.USD * 0.03;
           else if (term.id === "EGP") rates.parallel[term.id] = latestRates.USD * 0.02;
+          else if (term.id === "OFFICIAL_USD") rates.parallel[term.id] = rates.official.USD;
           else rates.parallel[term.id] = 0; // Default for new unknown currencies
         }
       }
