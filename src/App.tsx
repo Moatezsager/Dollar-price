@@ -298,11 +298,18 @@ export default function App() {
   const fetchData = async () => {
     setIsRefreshing(true);
     try {
-      const [ratesRes, historyRes] = await Promise.all([
+      const [ratesResult, historyResult] = await Promise.allSettled([
         fetch("/api/rates"),
         fetch("/api/history"),
       ]);
       
+      if (ratesResult.status === 'rejected' || historyResult.status === 'rejected') {
+        throw new Error("Network response was not ok");
+      }
+
+      const ratesRes = ratesResult.value;
+      const historyRes = historyResult.value;
+
       if (!ratesRes.ok || !historyRes.ok) {
         if (ratesRes.status === 502 || historyRes.status === 502) return;
         throw new Error("Network response was not ok");
@@ -472,7 +479,7 @@ export default function App() {
                     {isOffline ? (
                       "يرجى التحقق من اتصال الإنترنت للحصول على آخر التحديثات اللحظية."
                     ) : (
-                      `آخر تحديث ناجح كان منذ ${appStatus?.minutesSinceLastScrape} دقيقة. الأسعار قد تختلف.`
+                      `آخر تحديث كان منذ ${appStatus?.minutesSinceLastScrape} دقيقة. الأسعار قد تختلف.`
                     )}
                   </p>
                 </div>

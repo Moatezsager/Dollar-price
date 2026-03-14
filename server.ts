@@ -244,7 +244,6 @@ async function fetchOfficialRates() {
         EGP: lyd / data.rates.EGP,
       };
       
-      rates.lastUpdated = new Date().toISOString();
       console.log("Official rates updated successfully.");
       await saveToSupabase();
     }
@@ -399,6 +398,7 @@ async function fetchParallelRatesFromTelegram() {
 
     const latestRates: Record<string, number> = {};
     const previousRates: Record<string, number> = {};
+    let newestMessageTime = 0;
 
     for (const key in priceHistory) {
       // Sort all extracted prices for this currency by timestamp (oldest to newest)
@@ -406,6 +406,10 @@ async function fetchParallelRatesFromTelegram() {
       
       if (historyArr.length > 0) {
         latestRates[key] = historyArr[historyArr.length - 1].value; // Absolute latest price across all channels
+        const msgTime = historyArr[historyArr.length - 1].time;
+        if (msgTime > newestMessageTime) {
+          newestMessageTime = msgTime;
+        }
         
         // Find the true previous price (the last price that was different from the current one)
         for (let i = historyArr.length - 2; i >= 0; i--) {
@@ -453,7 +457,11 @@ async function fetchParallelRatesFromTelegram() {
         }
       }
 
-      rates.lastUpdated = new Date().toISOString();
+      if (newestMessageTime > 0) {
+        rates.lastUpdated = new Date(newestMessageTime).toISOString();
+      } else {
+        rates.lastUpdated = new Date().toISOString();
+      }
       console.log(`Parallel rates updated. Latest:`, latestRates.USD, `Previous:`, rates.previousParallel.USD);
       
       // Save the real fetched rates to Supabase
