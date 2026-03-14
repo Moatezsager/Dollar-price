@@ -739,11 +739,23 @@ async function startServer() {
   });
 
   app.get("/api/refresh", async (req, res) => {
+    // 1. Set headers to bypass browser checks and caching
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('X-Robots-Tag', 'noindex');
+    
+    // Tell Google Cloud/IAP or other proxies to bypass browser-specific protections for this route
+    res.setHeader('X-Accel-Buffering', 'no');
+
     const userAgent = req.headers['user-agent'] || 'Unknown';
     const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
     const providedKey = req.query.key;
     const expectedKey = process.env.CRON_SECRET || "Lyd@2026!SecureCronRefreshKey_99xZ";
     
+    // 2. Key-based Authentication only (No cookies/sessions)
     if (providedKey !== expectedKey) {
       console.warn(`[Cron-Job] Unauthorized refresh attempt from IP: ${ip}`);
       return res.status(403).json({ success: false, error: "Forbidden: Invalid security key" });
@@ -752,10 +764,10 @@ async function startServer() {
     console.log(`\n[Cron-Job] Refresh request received!`);
     console.log(`Time: ${new Date().toLocaleString('ar-LY')}`);
     console.log(`Caller: ${userAgent}`);
-    console.log(`IP: ${ip}`);
     
     try {
       const startTime = Date.now();
+      // Execute scraping immediately
       await Promise.all([
         fetchOfficialRates(),
         fetchParallelRatesFromTelegram()
@@ -763,11 +775,12 @@ async function startServer() {
       const duration = Date.now() - startTime;
       
       console.log(`[Cron-Job] Refresh completed successfully in ${duration}ms`);
-      res.json({ 
+      
+      // 3. Return 200 OK with simple JSON
+      res.status(200).json({ 
         success: true, 
         message: "Data refreshed successfully",
-        timestamp: new Date().toISOString(),
-        caller: userAgent
+        timestamp: new Date().toISOString()
       });
     } catch (err) {
       console.error("[Cron-Job] Refresh failed:", err);
