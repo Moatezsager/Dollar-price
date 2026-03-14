@@ -382,6 +382,7 @@ export default function App() {
 
       const newRates = await ratesRes.json();
       const newHistory = await historyRes.json();
+      console.log("Fetched new history:", newHistory);
       
       // Check for price changes to notify using the ref to get the latest state
       let hasChanges = false;
@@ -493,7 +494,7 @@ export default function App() {
         time: h.time,
         value: value
       };
-    }).filter(d => d.value > 0);
+    }).filter(d => d.value >= 0);
 
     // CRITICAL: Recharts needs data in ASCENDING order of time
     return [...data].sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
@@ -1309,95 +1310,46 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="flex-1 min-h-[350px] w-full relative">
+                <div className="h-[300px] w-full bg-zinc-900/50 rounded-2xl border border-zinc-800 p-4 mb-8">
                   {chartData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%" key={selectedRate.code}>
-                      <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={chartData}>
                         <defs>
-                          <linearGradient id="modalChartGradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.4}/>
-                            <stop offset="95%" stopColor="#10b981" stopOpacity={0.05}/>
+                          <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                            <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
                           </linearGradient>
                         </defs>
-                        <CartesianGrid 
-                          vertical={false} 
-                          stroke="rgba(255,255,255,0.03)" 
-                          strokeDasharray="3 3" 
+                        <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
+                        <XAxis dataKey="time" hide />
+                        <YAxis domain={['auto', 'auto']} orientation="right" stroke="#71717a" tick={{fontSize: 12}} />
+                        <Tooltip 
+                          contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', borderRadius: '12px' }}
+                          itemStyle={{ color: '#10b981' }}
                         />
-                        <XAxis 
-                          dataKey="time" 
-                          hide 
-                        />
-                        <YAxis 
-                          domain={[(dataMin: number) => dataMin - (dataMin * 0.01), (dataMax: number) => dataMax + (dataMax * 0.01)]} 
-                          orientation="right"
-                          tick={{ fontSize: 10, fill: '#71717a', fontFamily: 'monospace' }}
-                          axisLine={false}
-                          tickLine={false}
-                          tickFormatter={(val) => val.toFixed(2)}
-                          width={40}
-                        />
-                        <Tooltip
-                          contentStyle={{ 
-                            backgroundColor: "#0a0a0a", 
-                            border: "1px solid rgba(255,255,255,0.1)", 
-                            borderRadius: "16px", 
-                            color: "#fff", 
-                            boxShadow: "0 20px 50px -12px rgba(0, 0, 0, 0.5)",
-                            padding: "12px"
-                          }}
-                          itemStyle={{ color: "#10b981", fontFamily: "monospace", fontSize: "18px", fontWeight: "bold" }}
-                          labelStyle={{ color: "#71717a", fontSize: "11px", marginBottom: "6px", fontWeight: "medium" }}
-                          labelFormatter={(label) => {
-                            try {
-                              return format(new Date(label), "eeee, dd MMMM - HH:mm", { locale: ar });
-                            } catch (e) {
-                              return label;
-                            }
-                          }}
-                          formatter={(value: number) => [value.toFixed(3) + ' د.ل', 'السعر']}
-                        />
-                        <Area
-                          type="monotone"
-                          dataKey="value"
-                          stroke="#10b981"
-                          strokeWidth={3}
-                          fillOpacity={1}
-                          fill="url(#modalChartGradient)"
-                          dot={{ r: 3, fill: "#10b981", stroke: "#0a0a0a", strokeWidth: 2, fillOpacity: 1 }}
-                          activeDot={{ r: 6, fill: "#10b981", stroke: "#0a0a0a", strokeWidth: 3 }}
-                          isAnimationActive={false} // Disable animation for faster rendering in modal
-                        />
+                        <Area type="monotone" dataKey="value" stroke="#10b981" strokeWidth={2} fill="url(#chartGradient)" />
                       </AreaChart>
                     </ResponsiveContainer>
                   ) : (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="flex flex-col items-center gap-2 opacity-20">
-                        <TrendingUp className="w-8 h-8" />
-                        <p className="text-xs font-mono">لا توجد بيانات تاريخية كافية</p>
-                      </div>
+                    <div className="flex items-center justify-center h-full text-zinc-500">
+                      لا توجد بيانات كافية لعرض الرسم البياني
                     </div>
                   )}
                 </div>
 
-                <div className="mt-8 grid grid-cols-3 gap-4">
-                  <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5">
-                    <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-1">أعلى سعر</p>
-                    <p className="text-lg font-mono font-bold text-white">
-                      {chartStats.max.toFixed(2)}
-                    </p>
+                {/* Stats */}
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800">
+                    <p className="text-[10px] text-zinc-500 uppercase">الأعلى</p>
+                    <p className="text-lg font-mono font-bold text-white">{chartStats.max.toFixed(2)}</p>
                   </div>
-                  <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5">
-                    <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-1">أدنى سعر</p>
-                    <p className="text-lg font-mono font-bold text-white">
-                      {chartStats.min.toFixed(2)}
-                    </p>
+                  <div className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800">
+                    <p className="text-[10px] text-zinc-500 uppercase">الأدنى</p>
+                    <p className="text-lg font-mono font-bold text-white">{chartStats.min.toFixed(2)}</p>
                   </div>
-                  <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5">
-                    <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-1">متوسط السعر</p>
-                    <p className="text-lg font-mono font-bold text-white">
-                      {chartStats.avg.toFixed(2)}
-                    </p>
+                  <div className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800">
+                    <p className="text-[10px] text-zinc-500 uppercase">المتوسط</p>
+                    <p className="text-lg font-mono font-bold text-white">{chartStats.avg.toFixed(2)}</p>
                   </div>
                 </div>
               </div>
