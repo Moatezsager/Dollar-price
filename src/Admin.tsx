@@ -480,7 +480,7 @@ export default function Admin() {
                             <div className="flex items-center gap-4">
                               <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center border border-white/10 group-hover:scale-105 transition-transform overflow-hidden">
                                 {term.flag ? (
-                                  <img src={`https://hatscripts.github.io/circle-flags/flags/${term.flag}.svg`} alt="flag" className="w-8 h-8 drop-shadow-lg" />
+                                  <img src={`https://flagcdn.com/w80/${term.flag.toLowerCase()}.png`} alt="flag" className="w-8 h-8 rounded-full object-cover drop-shadow-lg" />
                                 ) : (
                                   <Coins className="w-6 h-6 text-zinc-600" />
                                 )}
@@ -592,7 +592,7 @@ export default function Admin() {
                                             dir="ltr"
                                           />
                                           <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center">
-                                            {term.flag && <img src={`https://hatscripts.github.io/circle-flags/flags/${term.flag}.svg`} className="w-6 h-6" />}
+                                            {term.flag && <img src={`https://flagcdn.com/w80/${term.flag.toLowerCase()}.png`} className="w-6 h-6 rounded-full object-cover" />}
                                           </div>
                                         </div>
                                       </div>

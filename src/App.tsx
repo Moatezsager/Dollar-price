@@ -104,6 +104,14 @@ export default function App() {
   const lastNotifiedRef = useRef<Record<string, number>>({});
   const configTermsRef = useRef<any[]>([]);
 
+  // Derive dynamic currencies from configTerms to support user-added currencies
+  const dynamicCurrencies = useMemo(() => {
+    if (configTerms.length === 0) return CURRENCIES;
+    return configTerms
+      .filter(t => t.id !== "OFFICIAL_USD" && !t.id.startsWith("USD_") && t.id !== "GOLD")
+      .map(t => ({ code: t.id, name: t.name, flag: t.flag }));
+  }, [configTerms]);
+
   // Keep refs in sync with state to avoid closure issues in setInterval
   useEffect(() => {
     ratesRef.current = rates;
@@ -186,8 +194,8 @@ export default function App() {
         if (registration) {
           await registration.showNotification(title, {
             body,
-            icon: 'https://hatscripts.github.io/circle-flags/flags/ly.svg',
-            badge: 'https://hatscripts.github.io/circle-flags/flags/ly.svg',
+            icon: 'https://flagcdn.com/w80/ly.png',
+            badge: 'https://flagcdn.com/w80/ly.png',
             vibrate: [200, 100, 200],
             tag: `price-change-${code}`, // استخدام Tag لمنع تراكم الإشعارات لنفس العملة
             renotify: true,
@@ -407,7 +415,7 @@ export default function App() {
           const newPrice = newRates.official[code];
           if (oldPrice && newPrice && Math.abs(oldPrice - newPrice) >= thresholdRef.current) {
             if (lastNotifiedRef.current[`OFFICIAL_${code}`] !== newPrice) {
-              showPriceNotification(`OFFICIAL_${code}`, `السعر الرسمي - ${CURRENCIES.find(c => c.code === code)?.name}`, oldPrice, newPrice);
+              showPriceNotification(`OFFICIAL_${code}`, `السعر الرسمي - ${dynamicCurrencies.find(c => c.code === code)?.name}`, oldPrice, newPrice);
               lastNotifiedRef.current[`OFFICIAL_${code}`] = newPrice;
               hasChanges = true;
             }
@@ -524,7 +532,7 @@ export default function App() {
     });
 
     // معالجة السوق الرسمي
-    CURRENCIES.forEach(curr => {
+    dynamicCurrencies.forEach(curr => {
       const current = rates.official[curr.code];
       const previous = record24h.ratesOfficial?.[curr.code] || (curr.code === 'USD' ? record24h.usdOfficial : null);
       if (current && previous) {
@@ -698,7 +706,7 @@ export default function App() {
           <div className="w-full lg:w-auto">
             <div className="flex items-center gap-3 mb-4 sm:mb-6">
               <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full overflow-hidden shadow-[0_0_15px_rgba(16,185,129,0.3)] shrink-0">
-                <img src="https://hatscripts.github.io/circle-flags/flags/us.svg" alt="US Flag" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                <img src="https://flagcdn.com/w160/us.png" alt="US Flag" className="w-full h-full object-cover rounded-full" />
               </div>
               <div className="flex items-center gap-2.5">
                 <h2 className="text-sm sm:text-base font-medium text-emerald-400 tracking-wide">السوق الموازي • دولار أمريكي</h2>
@@ -850,7 +858,7 @@ export default function App() {
               <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest">السوق الموازي (عملات أجنبية)</h3>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-8 gap-y-12">
-              {configTerms.filter(t => ["EUR", "GBP", "TND", "TRY", "JOD", "BHD", "KWD", "AED", "SAR", "QAR", "GOLD", "EGP", "CNY"].includes(t.id)).map(term => {
+              {configTerms.filter(t => t.id !== "USD" && t.id !== "OFFICIAL_USD" && !t.id.startsWith("USD_")).map(term => {
                 const rate = rates?.parallel[term.id] || 0;
                 const prevRate = rates?.previousParallel?.[term.id] || rate;
                 const isUp = rate > prevRate;
@@ -865,7 +873,7 @@ export default function App() {
                     <div className="flex items-center justify-between mb-3 sm:mb-4">
                       <div className="flex items-center gap-2">
                         {term.flag ? (
-                          <img src={`https://flagcdn.com/${term.flag}.svg`} alt={term.name} className="w-5 h-5 drop-shadow-sm transition-transform group-hover:scale-110" referrerPolicy="no-referrer" />
+                          <img src={`https://flagcdn.com/w80/${term.flag.toLowerCase()}.png`} alt={term.name} className="w-5 h-5 rounded-full object-cover drop-shadow-sm transition-transform group-hover:scale-110" />
                         ) : (
                           <div className="w-5 h-5 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-400">
                             <Coins className="w-3 h-3" />
@@ -963,7 +971,7 @@ export default function App() {
                     <div className="flex items-center justify-between mb-3 sm:mb-4">
                       <div className="flex items-center gap-2">
                         {term.flag ? (
-                          <img src={`https://flagcdn.com/${term.flag}.svg`} alt={term.name} className="w-5 h-5 drop-shadow-sm transition-transform group-hover:scale-110" referrerPolicy="no-referrer" />
+                          <img src={`https://flagcdn.com/w80/${term.flag.toLowerCase()}.png`} alt={term.name} className="w-5 h-5 rounded-full object-cover drop-shadow-sm transition-transform group-hover:scale-110" />
                         ) : (
                           <div className="w-5 h-5 rounded-full bg-indigo-500/10 flex items-center justify-center text-indigo-400">
                             <Send className="w-3 h-3" />
@@ -1000,7 +1008,7 @@ export default function App() {
             <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest">السوق الرسمي (مصرف ليبيا المركزي)</h3>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-x-8 gap-y-12">
-            {CURRENCIES.map(currency => {
+            {dynamicCurrencies.map(currency => {
               const rate = rates?.official[currency.code] || 0;
               const prevRate = rates?.previousOfficial?.[currency.code] || rate;
               const isUp = rate > prevRate;
@@ -1014,7 +1022,7 @@ export default function App() {
                 >
                   <div className="flex items-center justify-between mb-3 sm:mb-4">
                     <div className="flex items-center gap-2 sm:gap-3">
-                      <img src={`https://flagcdn.com/${currency.flag}.svg`} alt={currency.name} className="w-4 h-4 sm:w-5 sm:h-5 drop-shadow-sm transition-transform group-hover:scale-110" referrerPolicy="no-referrer" />
+                      <img src={`https://flagcdn.com/w80/${currency.flag.toLowerCase()}.png`} alt={currency.name} className="w-4 h-4 sm:w-5 sm:h-5 rounded-full object-cover drop-shadow-sm transition-transform group-hover:scale-110" />
                       <span className="text-[11px] sm:text-xs font-medium text-zinc-400">{currency.code}</span>
                     </div>
 
@@ -1631,10 +1639,10 @@ export default function App() {
             نشرة أسعار الصرف الرسمية
           </h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
-            {CURRENCIES.filter(c => ["USD", "EUR", "GBP"].includes(c.code)).map(c => (
+            {dynamicCurrencies.filter(c => ["USD", "EUR", "GBP"].includes(c.code)).map(c => (
               <div key={`pdf-off-${c.code}`} style={{ padding: '20px', borderRadius: '20px', border: '1px solid #e2e8f0', backgroundColor: '#ffffff' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                  <img src={`https://flagcdn.com/${c.flag}.svg`} alt={c.name} style={{ width: '20px', height: '20px' }} referrerPolicy="no-referrer" />
+                  <img src={`https://flagcdn.com/w80/${c.flag.toLowerCase()}.png`} alt={c.name} style={{ width: '20px', height: '20px', borderRadius: '50%', objectFit: 'cover' }} />
                   <span style={{ fontSize: '12px', fontWeight: '700', color: '#64748b', fontFamily: "'Cairo', sans-serif" }}>{c.code}</span>
                 </div>
                 <p style={{ fontSize: '24px', fontWeight: '800', color: '#1e293b', margin: '0', fontFamily: "'Cairo', sans-serif" }}>{(rates?.official[c.code] || 0).toFixed(3)}</p>

@@ -609,11 +609,14 @@ async function loadConfigFromSupabase() {
       dbConfig.terms = dbConfig.terms.map(dbTerm => {
         const defaultTerm = appConfig.terms.find(t => t.id === dbTerm.id);
         if (defaultTerm) {
-          // Keep DB values for price/regex, but ensure flag is present from defaults if missing
+          // Keep DB values for price/regex/flag/name, but ensure flag/name are present from defaults if missing
+          const isValidFlag = dbTerm.flag && dbTerm.flag !== "undefined" && dbTerm.flag !== "null" && dbTerm.flag.trim() !== "";
+          const isValidName = dbTerm.name && dbTerm.name !== "undefined" && dbTerm.name !== "null" && dbTerm.name.trim() !== "";
           return {
             ...defaultTerm, // Start with defaults
-            ...dbTerm,      // Override with DB values (except if DB value is missing)
-            flag: dbTerm.flag || defaultTerm.flag // Force flag from defaults if DB is empty
+            ...dbTerm,      // Override with DB values
+            flag: isValidFlag ? dbTerm.flag : defaultTerm.flag, // Use DB flag if valid, otherwise default
+            name: isValidName ? dbTerm.name : defaultTerm.name  // Use DB name if valid, otherwise default
           };
         }
         return dbTerm;
@@ -641,7 +644,7 @@ async function saveConfigToSupabase(newConfig: AppConfig) {
   try {
     const { error } = await supabase
       .from('app_config')
-      .upsert({ id: 1, config: newConfig, updated_at: new Date().toISOString() });
+      .upsert({ id: 1, config: newConfig });
       
     if (error) {
       console.error("Error saving config to Supabase:", error);
@@ -1046,7 +1049,10 @@ async function startServer() {
         return res.status(400).json({ success: false, message: "بيانات غير صالحة" });
       }
       appConfig = newConfig;
-      await saveConfigToSupabase(appConfig);
+      const saved = await saveConfigToSupabase(appConfig);
+      if (!saved) {
+        return res.status(500).json({ success: false, message: "تم تحديث السيرفر، لكن فشل الحفظ في قاعدة البيانات" });
+      }
       fetchParallelRatesFromTelegram();
       res.json({ success: true, message: "تم حفظ الإعدادات بنجاح" });
     } catch (err) {
