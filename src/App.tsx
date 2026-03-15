@@ -181,10 +181,14 @@ export default function App() {
     const body = `السعر الجديد: ${newPrice.toFixed(2)} د.ل (تغير بمقدار ${diff > 0 ? '+' : ''}${diff.toFixed(2)})`;
 
     // تسجيل التنبيه الحالي لمنع التكرار
-    localStorage.setItem(`last_notify_${code}`, JSON.stringify({
-      price: newPrice,
-      time: Date.now()
-    }));
+    try {
+      localStorage.setItem(`last_notify_${code}`, JSON.stringify({
+        price: newPrice,
+        time: Date.now()
+      }));
+    } catch (e) {
+      console.warn("Failed to save notification state to localStorage", e);
+    }
 
     // In-app toast (دائماً يظهر للمستخدم النشط)
     addToast(title, body, diff > 0 ? 'up' : 'down');
@@ -407,7 +411,10 @@ export default function App() {
               const name = term ? term.name : code;
               
               console.log(`Price change detected for ${code}: ${oldPrice} -> ${newPrice}`);
-              showPriceNotification(code, name, oldPrice, newPrice);
+              showPriceNotification(code, name, oldPrice, newPrice).catch(err => {
+                console.error("Error in showPriceNotification:", err);
+                logErrorToServer(err, "App.tsx: showPriceNotification parallel");
+              });
               lastNotifiedRef.current[code] = newPrice;
               hasChanges = true;
             }
@@ -420,7 +427,10 @@ export default function App() {
           const newPrice = newRates.official[code];
           if (oldPrice && newPrice && Math.abs(oldPrice - newPrice) >= thresholdRef.current) {
             if (lastNotifiedRef.current[`OFFICIAL_${code}`] !== newPrice) {
-              showPriceNotification(`OFFICIAL_${code}`, `السعر الرسمي - ${dynamicCurrencies.find(c => c.code === code)?.name}`, oldPrice, newPrice);
+              showPriceNotification(`OFFICIAL_${code}`, `السعر الرسمي - ${dynamicCurrencies.find(c => c.code === code)?.name}`, oldPrice, newPrice).catch(err => {
+                console.error("Error in showPriceNotification official:", err);
+                logErrorToServer(err, "App.tsx: showPriceNotification official");
+              });
               lastNotifiedRef.current[`OFFICIAL_${code}`] = newPrice;
               hasChanges = true;
             }

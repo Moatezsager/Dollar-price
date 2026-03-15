@@ -101,6 +101,7 @@ export default function Admin() {
       }
     } catch (err) {
       console.warn("Stats fetch failed");
+      logErrorToServer(err, "Admin.tsx: fetchStats");
     }
   };
 
@@ -115,6 +116,7 @@ export default function Admin() {
       }
     } catch (err) {
       console.warn("Logs fetch failed");
+      logErrorToServer(err, "Admin.tsx: fetchLogs");
     }
   };
 

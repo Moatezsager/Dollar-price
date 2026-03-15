@@ -502,6 +502,12 @@ async function fetchOfficialRates(): Promise<boolean> {
         TND: lyd / (res.TND || 1),
         TRY: lyd / (res.TRY || 1),
         EGP: lyd / (res.EGP || 1),
+        JOD: lyd / (res.JOD || 1),
+        AED: lyd / (res.AED || 1),
+        SAR: lyd / (res.SAR || 1),
+        BHD: lyd / (res.BHD || 1),
+        KWD: lyd / (res.KWD || 1),
+        QAR: lyd / (res.QAR || 1),
       };
 
       Object.entries(newOfficial).forEach(([key, val]) => {
@@ -514,6 +520,9 @@ async function fetchOfficialRates(): Promise<boolean> {
       
       if (anyChanged) {
         rates.official = { ...rates.official, ...newOfficial };
+        // Sync OFFICIAL_USD in parallel rates
+        rates.parallel.OFFICIAL_USD = rates.official.USD;
+        rates.lastChanged.parallel.OFFICIAL_USD = new Date().toISOString();
         console.log(`[Official] Rates updated via FastForex`);
       }
       return anyChanged;
@@ -566,6 +575,9 @@ async function fetchOfficialRates(): Promise<boolean> {
         
         if (anyChanged) {
           rates.official = { ...rates.official, ...newOfficial };
+          // Sync OFFICIAL_USD in parallel rates
+          rates.parallel.OFFICIAL_USD = rates.official.USD;
+          rates.lastChanged.parallel.OFFICIAL_USD = new Date().toISOString();
           console.log(`Official rates updated due to changes from ${source}`);
         }
         return anyChanged;
@@ -820,31 +832,6 @@ async function fetchParallelRatesFromTelegram() {
       console.log(`[Scraper] Scrape check completed. USD found: ${latestRates.USD}`);
       
       let anyChanged = false;
-
-      // Update official rates if found in Telegram (often faster than APIs)
-      // Update official rates if found in Telegram (often faster than APIs)
-      const officialKeys = {
-        OFFICIAL_USD: 'USD',
-        OFFICIAL_EUR: 'EUR',
-        OFFICIAL_GBP: 'GBP',
-        OFFICIAL_TND: 'TND',
-        OFFICIAL_SAR: 'SAR',
-        OFFICIAL_AED: 'AED',
-        OFFICIAL_TRY: 'TRY',
-        OFFICIAL_CNY: 'CNY'
-      };
-
-      for (const [aiKey, rateKey] of Object.entries(officialKeys)) {
-        if (latestRates[aiKey]) {
-          if (isSignificantChange(rates.official[rateKey], latestRates[aiKey])) {
-            console.log(`[Scraper] Updating official ${rateKey} from Telegram: ${latestRates[aiKey]}`);
-            rates.previousOfficial[rateKey] = rates.official[rateKey];
-            rates.official[rateKey] = latestRates[aiKey];
-            rates.lastChanged.official[rateKey] = new Date().toISOString();
-            anyChanged = true;
-          }
-        }
-      }
 
       // Dynamically assign all extracted rates
       for (const term of appConfig.terms) {
