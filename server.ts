@@ -265,8 +265,15 @@ async function extractRatesWithAI(text: string) {
   }
 }
 
+let lastRatesFetchTime = 0;
+const RATES_CACHE_TTL = 30 * 1000; // 30 seconds
+
 // Initialize rates from Database on startup to ensure accuracy
 async function initializeRatesFromDB() {
+  if (Date.now() - lastRatesFetchTime < RATES_CACHE_TTL) {
+    return; // Use memory cache
+  }
+
   if (!supabase || !supabaseAnonKey || supabaseAnonKey.includes('dummy')) return;
   
   try {
@@ -338,6 +345,7 @@ async function initializeRatesFromDB() {
         rates.previousOfficial = { ...rates.official };
       }
       
+      lastRatesFetchTime = Date.now();
       console.log("Successfully initialized and validated rates from database.");
     }
   } catch (err) {
@@ -411,13 +419,26 @@ async function saveToSupabase() {
         .from('exchange_rates')
         .delete()
         .lt('recorded_at', thirtyDaysAgo.toISOString());
+        
+      // Invalidate caches after successful save
+      cachedHistory = null;
+      lastHistoryFetchTime = 0;
+      lastRatesFetchTime = 0;
     }
   } catch (err) {
     console.error("Supabase save error:", err);
   }
 }
 
+let cachedHistory: HistoryPoint[] | null = null;
+let lastHistoryFetchTime = 0;
+const HISTORY_CACHE_TTL = 60 * 1000; // 1 minute
+
 async function fetchHistoryFromSupabase() {
+  if (cachedHistory && Date.now() - lastHistoryFetchTime < HISTORY_CACHE_TTL) {
+    return cachedHistory;
+  }
+
   if (!supabase || !supabaseAnonKey || supabaseAnonKey.includes('dummy')) return history;
   
   try {
@@ -435,7 +456,7 @@ async function fetchHistoryFromSupabase() {
     }
     
     if (data && data.length > 0) {
-      return data.reverse()
+      cachedHistory = data.reverse()
         .map(row => ({
           time: row.recorded_at,
           usdParallel: row.usd_parallel || (row.rates_parallel ? row.rates_parallel.USD : 0),
@@ -446,6 +467,8 @@ async function fetchHistoryFromSupabase() {
           previousOfficial: row.previous_official
         }))
         .filter(item => item.usdParallel > 5.5 || item.usdOfficial > 0);
+      lastHistoryFetchTime = Date.now();
+      return cachedHistory;
     }
   } catch (err) {
     console.error("Error fetching history from Supabase:", err);
@@ -1053,7 +1076,12 @@ async function startServer() {
       if (!saved) {
         return res.status(500).json({ success: false, message: "تم تحديث السيرفر، لكن فشل الحفظ في قاعدة البيانات" });
       }
-      fetchParallelRatesFromTelegram();
+      
+      const parallelTally = await fetchParallelRatesFromTelegram();
+      if (parallelTally) {
+        await saveToSupabase();
+      }
+      
       res.json({ success: true, message: "تم حفظ الإعدادات بنجاح" });
     } catch (err) {
       console.error("Error saving config:", err);
@@ -1066,12 +1094,17 @@ async function startServer() {
       const officialUpdate = await fetchOfficialRates();
       const parallelTally = await fetchParallelRatesFromTelegram();
       
+      if (officialUpdate || parallelTally) {
+        console.log("[Admin] Changes detected! Saving to database...");
+        await saveToSupabase();
+      }
+      
       res.json({ 
         success: true, 
         message: "تم تشغيل عملية التحديث بنجاح",
         details: {
           official: officialUpdate ? "تم التحديث" : "لا يوجد تغيير",
-          parallel: parallelTally
+          parallel: parallelTally ? "تم التحديث" : "لا يوجد تغيير"
         }
       });
     } catch (err) {
@@ -1200,39 +1233,82 @@ async function startServer() {
     try {
       const startTime = Date.now();
       const oldUsd = rates.parallel.USD;
-      const oldOfficial = rates.official.USD;
 
-      const results = await Promise.all([
-        fetchOfficialRates(),
-        fetchParallelRatesFromTelegram()
-      ]);
+      const parallelUpdate = await fetchParallelRatesFromTelegram();
       
-      const anyChangesDetected = results.some(r => r === true);
-
-      if (anyChangesDetected) {
-        console.log("[Cron-Job] Changes detected! Saving to database...");
+      if (parallelUpdate) {
+        console.log("[Cron-Job] Parallel changes detected! Saving to database...");
         await saveToSupabase();
       } else {
-        console.log("[Cron-Job] Checked all sources. No price changes found.");
+        console.log("[Cron-Job] Checked parallel sources. No price changes found.");
       }
       
       const duration = Date.now() - startTime;
       const newUsd = rates.parallel.USD;
+      
+      res.status(200).json({ 
+        success: true, 
+        message: "Parallel data refreshed successfully",
+        details: {
+          duration_ms: duration,
+          parallel_usd: { current: newUsd, changed: newUsd !== oldUsd },
+          last_scrape_time: new Date().toISOString()
+        }
+      });
+    } catch (err) {
+      console.error("[Cron-Job] Parallel refresh failed:", err);
+      res.status(500).json({ success: false, error: "Failed to refresh parallel data" });
+    }
+  });
+
+  app.get("/api/refresh-official", async (req: express.Request, res: express.Response) => {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('X-Robots-Tag', 'noindex');
+    res.setHeader('X-Accel-Buffering', 'no');
+
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    const providedKey = req.query.key as string;
+    const expectedKey = process.env.CRON_SECRET;
+    
+    if (!expectedKey || providedKey !== expectedKey) {
+      console.warn(`[Cron-Job-Official] Unauthorized refresh attempt from IP: ${ip}`);
+      return res.status(403).json({ success: false, error: "Forbidden: Invalid security key" });
+    }
+    
+    console.log(`\n[Cron-Job-Official] Official refresh request received!`);
+    
+    try {
+      const startTime = Date.now();
+      const oldOfficial = rates.official.USD;
+
+      const officialUpdate = await fetchOfficialRates();
+      
+      if (officialUpdate) {
+        console.log("[Cron-Job-Official] Official changes detected! Saving to database...");
+        await saveToSupabase();
+      } else {
+        console.log("[Cron-Job-Official] Checked official sources. No price changes found.");
+      }
+      
+      const duration = Date.now() - startTime;
       const newOfficial = rates.official.USD;
       
       res.status(200).json({ 
         success: true, 
-        message: "Data refreshed successfully",
+        message: "Official data refreshed successfully",
         details: {
           duration_ms: duration,
-          parallel_usd: { current: newUsd, changed: newUsd !== oldUsd },
           official_usd: { current: newOfficial, changed: newOfficial !== oldOfficial },
           last_scrape_time: new Date().toISOString()
         }
       });
     } catch (err) {
-      console.error("[Cron-Job] Refresh failed:", err);
-      res.status(500).json({ success: false, error: "Failed to refresh data" });
+      console.error("[Cron-Job-Official] Official refresh failed:", err);
+      res.status(500).json({ success: false, error: "Failed to refresh official data" });
     }
   });
 
