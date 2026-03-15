@@ -7,6 +7,10 @@ import { WebSocketServer } from 'ws';
 import { createServer } from 'http';
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
+import { GoogleGenAI } from "@google/genai";
+
+// Initialize AI
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 // Initialize Supabase client for server
 const supabaseUrl = process.env.VITE_SUPABASE_URL;
@@ -169,6 +173,72 @@ function isSignificantChange(val1: number, val2: number, threshold = 0.0001) {
   return Math.abs((val1 || 0) - (val2 || 0)) > threshold;
 }
 
+/**
+ * AI-powered rate extraction from text
+ * Uses Gemini to intelligently parse complex or unstructured messages
+ */
+async function extractRatesWithAI(text: string) {
+  if (!process.env.GEMINI_API_KEY) return null;
+  
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-latest",
+      contents: `You are a High-Intelligence Financial Analyst specialized in the Libyan Foreign Exchange Market. 
+      Your goal is to perform a deep semantic analysis of Telegram messages to extract currency rates with 100% accuracy.
+
+      CORE INTELLIGENCE REQUIREMENTS:
+      1. DEEP SEMANTIC UNDERSTANDING: Do not just look for keywords. Understand the full context of the sentence. Even if the grammar is broken, the text is fragmented, or there are heavy typos, use your linguistic intelligence to reconstruct the intended meaning.
+      2. LINGUISTIC FLEXIBILITY: You understand Libyan dialect, market shorthand, and common spelling mistakes. (e.g., "دولارر", "دولا", "خضرا", "صك", "حواله"). These are not errors to be ignored, but signals to be interpreted.
+      3. CONTEXTUAL DISTINCTION:
+         - PARALLEL (الموازي): Default market. Keywords: كاش، في اليد، السوق، خضراء، دولار، أو مجرد ذكر السعر.
+         - OFFICIAL (الرسمي): Keywords: رسمي، مركزي، منظومة، سعر المصرف، عطاء.
+         - CHEQUES (صكوك): Identify the specific bank. (الجمهورية، التجارة، التجاري، الأمان، الوحدة).
+         - TRANSFERS (حوالات): Identify the destination. (دبي/الإمارات، تركيا، الصين).
+      4. NUMERICAL PRECISION: Extract numbers regardless of format (Arabic ٠-٩ or Western 0-9). Interpret "5.85" and "5,85" both as 5.85.
+
+      MESSAGE TO ANALYZE:
+      "${text}"
+
+      MAPPING LOGIC:
+      - "صكوك الجمهورية" / "jbank" -> USD_JBANK
+      - "صكوك التجارة" / "bcd" -> USD_BCD
+      - "صكوك التجاري" / "ncb" -> USD_NCB
+      - "صكوك الأمان" / "ab" -> USD_AB
+      - "صكوك الوحدة" / "wb" -> USD_WB
+      - "حوالات دبي" / "ae" -> USD_AE
+      - "حوالات تركيا" / "tr" -> USD_TR
+      - "حوالات الصين" / "cn" -> USD_CN
+      - "كسر الذهب" -> GOLD
+
+      OUTPUT FORMAT:
+      Return ONLY a valid JSON object. Use null for missing values.
+      {
+        "USD": number, "EUR": number, "GBP": number, "TND": number, "EGP": number, "TRY": number,
+        "JOD": number, "BHD": number, "KWD": number, "AED": number, "SAR": number, "QAR": number,
+        "CNY": number, "GOLD": number, "USD_JBANK": number, "USD_BCD": number, "USD_NCB": number,
+        "USD_AB": number, "USD_WB": number, "USD_AE": number, "USD_TR": number, "USD_CN": number,
+        "OFFICIAL_USD": number
+      }`,
+      config: {
+        responseMimeType: "application/json",
+      }
+    });
+    
+    const result = JSON.parse(response.text);
+    // Filter out nulls
+    const cleanResult: Record<string, number> = {};
+    for (const key in result) {
+      if (result[key] !== null && typeof result[key] === 'number') {
+        cleanResult[key] = result[key];
+      }
+    }
+    return Object.keys(cleanResult).length > 0 ? cleanResult : null;
+  } catch (error) {
+    console.error("AI Extraction Error:", error);
+    return null;
+  }
+}
+
 // Initialize rates from Database on startup to ensure accuracy
 async function initializeRatesFromDB() {
   if (!supabase || !supabaseAnonKey || supabaseAnonKey.includes('dummy')) return;
@@ -195,8 +265,12 @@ async function initializeRatesFromDB() {
       
       // Load lastChanged from the latest row if it exists
       if (latestValidParallel.last_changed) {
-        // Ensure we deep copy to avoid reference issues
-        rates.lastChanged = JSON.parse(JSON.stringify(latestValidParallel.last_changed));
+        // Merge instead of overwrite to keep defaults for new currencies
+        const dbLastChanged = latestValidParallel.last_changed;
+        rates.lastChanged = {
+          official: { ...rates.lastChanged.official, ...(dbLastChanged.official || {}) },
+          parallel: { ...rates.lastChanged.parallel, ...(dbLastChanged.parallel || {}) }
+        };
       } else {
         // Fallback: Initialize if not in DB, but use a slightly older time to distinguish from "just changed"
         const fallbackTime = new Date(Date.now() - 3600000).toISOString(); // 1 hour ago
@@ -262,6 +336,8 @@ async function saveToSupabase() {
       usd_official: rates.official.USD,
       rates_parallel: rates.parallel,
       rates_official: rates.official,
+      previous_parallel: rates.previousParallel,
+      previous_official: rates.previousOfficial,
       last_changed: rates.lastChanged,
       recorded_at: rates.lastUpdated // استخدام وقت كتابة الرسالة في تيليجرام لضمان الشفافية
     };
@@ -274,8 +350,17 @@ async function saveToSupabase() {
       if (!error.message.includes('schema cache')) {
         console.error("Error saving to Supabase:", error.message);
         
-        // Fallback: If last_changed column doesn't exist, try saving without it
-        if (error.message.includes('column "last_changed" does not exist')) {
+        // Fallback: If columns don't exist, try saving without them
+        if (error.message.includes('column "previous_parallel" does not exist') || error.message.includes('column "previous_official" does not exist')) {
+           await supabase.from('exchange_rates').insert([{
+              usd_parallel: rates.parallel.USD, 
+              usd_official: rates.official.USD,
+              rates_parallel: rates.parallel,
+              rates_official: rates.official,
+              last_changed: rates.lastChanged,
+              recorded_at: rates.lastUpdated
+           }]);
+        } else if (error.message.includes('column "last_changed" does not exist')) {
            await supabase.from('exchange_rates').insert([{
               usd_parallel: rates.parallel.USD, 
               usd_official: rates.official.USD,
@@ -330,7 +415,9 @@ async function fetchHistoryFromSupabase() {
           usdParallel: row.usd_parallel || (row.rates_parallel ? row.rates_parallel.USD : 0),
           usdOfficial: row.usd_official || (row.rates_official ? row.rates_official.USD : 0),
           ratesParallel: row.rates_parallel || { USD: row.usd_parallel },
-          ratesOfficial: row.rates_official || { USD: row.usd_official }
+          ratesOfficial: row.rates_official || { USD: row.usd_official },
+          previousParallel: row.previous_parallel,
+          previousOfficial: row.previous_official
         }))
         .filter(item => item.usdParallel > 5.5 || item.usdOfficial > 0);
     }
@@ -466,6 +553,7 @@ let appConfig: AppConfig = {
     { id: "USD_AE", name: "حوالات دبي", regex: "(?:دبي|امارات|الإمارات|🇦🇪)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "ae" },
     { id: "USD_TR", name: "حوالات تركيا", regex: "(?:تركيا|تركي|🇹🇷)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "tr" },
     { id: "USD_CN", name: "حوالات الصين", regex: "(?:الصين|صينية|🇨🇳)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "cn" },
+    { id: "CNY", name: "يوان صيني", regex: "(?:cny|CNY|يوان|🇨🇳)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 0.5, max: 5.0, isInverse: false, flag: "cn" },
     { id: "GOLD", name: "كسر الذهب", regex: "(?:كسر الذهب|ذهبي|ذهب)\\s*[=:]?\\s*(\\d{2,4}(?:[\\.,]\\d+)?)", min: 100, max: 5000, isInverse: false, flag: "ly" },
     { id: "OFFICIAL_USD", name: "الدولار الرسمي", regex: "(?:الرسمي|المركزي)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 4.0, max: 6.0, isInverse: false, flag: "us" }
   ]
@@ -579,6 +667,8 @@ async function fetchParallelRatesFromTelegram() {
           totalMessagesProcessed += (messageBlocks.length - 1);
         }
 
+        let newestMessageInChannel = { text: '', time: 0 };
+
         for (const block of messageBlocks) {
           const textMatch = block.match(/<div class="tgme_widget_message_text[^>]*>(.*?)<\/div>/);
           const timeMatch = block.match(/<time datetime="([^"]+)"/);
@@ -587,6 +677,10 @@ async function fetchParallelRatesFromTelegram() {
             const cleanText = textMatch[1].replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ');
             const time = new Date(timeMatch[1]).getTime();
             if (Date.now() - time > 48 * 60 * 60 * 1000) continue;
+
+            if (time > newestMessageInChannel.time) {
+              newestMessageInChannel = { text: cleanText, time };
+            }
 
             const extractRate = (regexStr: string, key: string, min: number, max: number, isInverse = false) => {
               const regex = new RegExp(regexStr, 'i');
@@ -602,6 +696,34 @@ async function fetchParallelRatesFromTelegram() {
 
             for (const term of appConfig.terms) {
               extractRate(term.regex, term.id, term.min, term.max, term.isInverse);
+            }
+          }
+        }
+
+        // AI Extraction for the newest message in this channel (Smart Background Processing)
+        // Optimization: Only call AI if regex failed to find rates in this message, or if it's a complex message
+        if (newestMessageInChannel.text && (Date.now() - newestMessageInChannel.time < 12 * 60 * 60 * 1000)) {
+          // Check if regex already found something for this specific message time
+          const regexFoundSomething = Object.values(priceHistory).some(history => 
+            history.some(p => p.time === newestMessageInChannel.time && p.channel === channel)
+          );
+
+          if (!regexFoundSomething) {
+            try {
+              const aiRates = await extractRatesWithAI(newestMessageInChannel.text);
+              if (aiRates) {
+                for (const key in aiRates) {
+                  if (priceHistory[key]) {
+                    // Only add if not already caught by regex or if it's a different value
+                    const exists = priceHistory[key].some(p => p.time === newestMessageInChannel.time && Math.abs(p.value - aiRates[key]) < 0.001);
+                    if (!exists) {
+                      priceHistory[key].push({ value: aiRates[key], time: newestMessageInChannel.time, channel: `${channel} (AI)` });
+                    }
+                  }
+                }
+              }
+            } catch (aiErr) {
+              console.error(`AI extraction failed for ${channel}, falling back to regex results:`, aiErr);
             }
           }
         }
