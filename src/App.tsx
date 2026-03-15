@@ -865,7 +865,7 @@ export default function App() {
                     <div className="flex items-center justify-between mb-3 sm:mb-4">
                       <div className="flex items-center gap-2">
                         {term.flag ? (
-                          <img src={`https://hatscripts.github.io/circle-flags/flags/${term.flag}.svg`} alt={term.name} className="w-5 h-5 drop-shadow-sm transition-transform group-hover:scale-110" referrerPolicy="no-referrer" />
+                          <img src={`https://flagcdn.com/${term.flag}.svg`} alt={term.name} className="w-5 h-5 drop-shadow-sm transition-transform group-hover:scale-110" referrerPolicy="no-referrer" />
                         ) : (
                           <div className="w-5 h-5 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-400">
                             <Coins className="w-3 h-3" />
@@ -963,7 +963,7 @@ export default function App() {
                     <div className="flex items-center justify-between mb-3 sm:mb-4">
                       <div className="flex items-center gap-2">
                         {term.flag ? (
-                          <img src={`https://hatscripts.github.io/circle-flags/flags/${term.flag}.svg`} alt={term.name} className="w-5 h-5 drop-shadow-sm transition-transform group-hover:scale-110" referrerPolicy="no-referrer" />
+                          <img src={`https://flagcdn.com/${term.flag}.svg`} alt={term.name} className="w-5 h-5 drop-shadow-sm transition-transform group-hover:scale-110" referrerPolicy="no-referrer" />
                         ) : (
                           <div className="w-5 h-5 rounded-full bg-indigo-500/10 flex items-center justify-center text-indigo-400">
                             <Send className="w-3 h-3" />
@@ -1014,7 +1014,7 @@ export default function App() {
                 >
                   <div className="flex items-center justify-between mb-3 sm:mb-4">
                     <div className="flex items-center gap-2 sm:gap-3">
-                      <img src={`https://hatscripts.github.io/circle-flags/flags/${currency.flag}.svg`} alt={currency.name} className="w-4 h-4 sm:w-5 sm:h-5 drop-shadow-sm transition-transform group-hover:scale-110" referrerPolicy="no-referrer" />
+                      <img src={`https://flagcdn.com/${currency.flag}.svg`} alt={currency.name} className="w-4 h-4 sm:w-5 sm:h-5 drop-shadow-sm transition-transform group-hover:scale-110" referrerPolicy="no-referrer" />
                       <span className="text-[11px] sm:text-xs font-medium text-zinc-400">{currency.code}</span>
                     </div>
 
@@ -1634,7 +1634,7 @@ export default function App() {
             {CURRENCIES.filter(c => ["USD", "EUR", "GBP"].includes(c.code)).map(c => (
               <div key={`pdf-off-${c.code}`} style={{ padding: '20px', borderRadius: '20px', border: '1px solid #e2e8f0', backgroundColor: '#ffffff' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                  <img src={`https://hatscripts.github.io/circle-flags/flags/${c.flag}.svg`} alt={c.name} style={{ width: '20px', height: '20px' }} referrerPolicy="no-referrer" />
+                  <img src={`https://flagcdn.com/${c.flag}.svg`} alt={c.name} style={{ width: '20px', height: '20px' }} referrerPolicy="no-referrer" />
                   <span style={{ fontSize: '12px', fontWeight: '700', color: '#64748b', fontFamily: "'Cairo', sans-serif" }}>{c.code}</span>
                 </div>
                 <p style={{ fontSize: '24px', fontWeight: '800', color: '#1e293b', margin: '0', fontFamily: "'Cairo', sans-serif" }}>{(rates?.official[c.code] || 0).toFixed(3)}</p>
