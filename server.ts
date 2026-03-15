@@ -214,26 +214,27 @@ async function extractRatesWithAI(text: string) {
         - "الليرة التركية" -> OFFICIAL_TRY
         - "الايوان الصيني" -> OFFICIAL_CNY
       - If message is PARALLEL/MARKET (سوق موازي):
-        - "الدولار" / "usd" / "مصراته" -> USD
-        - "يورو" / "eur" -> EUR
-        - "استرليني" / "gbp" -> GBP
+        - "الدولار" / "usd" / "مصراته" / "💵" -> USD
+        - "يورو" / "eur" / "💶" -> EUR
+        - "استرليني" / "gbp" / "الباوند" / "💷" -> GBP
         - "تونسي" / "tnd" -> TND
         - "مصري" / "egp" -> EGP
         - "ليرة تركية" / "try" -> TRY
         - "أردني" / "jod" -> JOD
-        - "صكوك الجمهورية" / "jbank" -> USD_JBANK
-        - "صكوك التجاري" / "ncb" -> USD_NCB
-        - "صكوك التجارة" / "bcd" -> USD_BCD
-        - "صكوك الأمان" / "ab" -> USD_AB
-        - "صكوك الوحدة" / "wb" -> USD_WB
+        - "صكوك" / "بصك" / "jbank" / "ncb" -> Apply the SAME value to USD_JBANK and USD_NCB unless a specific bank is named.
+        - "التجارة والتنمية" / "bcd" -> USD_BCD
+        - "الأمان" / "ab" -> USD_AB
+        - "الوحدة" / "wb" -> USD_WB
         - "حوالة دبي" / "ae" -> USD_AE
         - "حوالة تركيا" / "tr" -> USD_TR
         - "حوالة الصين" / "cn" -> USD_CN
-        - IMPORTANT: If a generic "Cheque" (صك) or "Cheques" (صكوك) rate is mentioned without a specific bank, or if it's a general market cheque rate, apply that value to BOTH "USD_JBANK" and "USD_NCB".
-      - General Mapping (Parallel):
-        - "يورو" -> EUR, "باوند" -> GBP, "تونسي" -> TND, "مصري" -> EGP, "ليرة" -> TRY, "أردني" -> JOD, "بحريني" -> BHD, "كويتي" -> KWD, "إماراتي" -> AED, "سعودي" -> SAR, "قطري" -> QAR, "يوان" -> CNY, "ذهب" -> GOLD
-        - "صكوك الجمهورية" -> USD_JBANK, "صكوك التجارة" -> USD_BCD, "صكوك التجاري" -> USD_NCB, "صكوك الأمان" -> USD_AB, "صكوك الوحدة" -> USD_WB
-        - "حوالات دبي" -> USD_AE, "حوالات تركيا" -> USD_TR, "حوالات الصين" -> USD_CN
+        - "ذهب كسر" / "كسر الذهب" / "💎" (in context of gold) -> GOLD
+      
+      BEHAVIOR RULES:
+      1. IGNORE DATES/TIMES in the text. Look only for prices.
+      2. If a value is listed twice (BUY/SELL), take the SELL (higher if selling, lower if buying - usually the first number in parallel market tables).
+      3. For "GOLD", extract the gram price (e.g., 1233).
+      4. "صكوك" (Cheques) are often unified. If you see "صكوك = 11.45", then set USD_JBANK=11.45 and USD_NCB=11.45.
 
       OUTPUT FORMAT:
       Return ONLY a valid JSON object. Use null for missing values.
@@ -466,50 +467,58 @@ async function fetchFromCBL(): Promise<RateMap | null> {
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000);
-    // CBL direct rates page (Arabic version usually updated first)
-    const response = await fetch('https://cbl.gov.ly/', { signal: controller.signal });
+    // Use the specific exchange rates page which is more reliable than the homepage
+    const response = await fetch('https://cbl.gov.ly/currency-exchange-rates/', { 
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      }
+    });
     clearTimeout(timeoutId);
     
     if (!response.ok) return null;
     const html = await response.text();
     
-    // Pattern extraction for CBL table
-    // Example: <tr><td>الدولار الأمريكي</td><td>4.8456</td><td>4.8214</td></tr>
     const currencies = [
       { id: "USD", names: ["الدولار الأمريكي", "USD"] },
       { id: "EUR", names: ["اليورو", "EUR", "EURO"] },
-      { id: "GBP", names: ["الجنيه الإسترليني", "GBP", "STIRLING"] },
+      { id: "GBP", names: ["الجنيه الإسترليني", "GBP", "STIRLING", "الجنيه الاسترليني"] },
       { id: "TND", names: ["الدينار التونسي", "TND"] },
-      { id: "EGP", names: ["الجنيه المصري", "EGP"] },
       { id: "TRY", names: ["الليرة التركية", "TRY"] },
       { id: "SAR", names: ["الريال السعودي", "SAR"] },
-      { id: "AED", names: ["الدرهم الإماراتي", "AED"] },
-      { id: "JOD", names: ["الدينار الأردني", "JOD"] },
+      { id: "AED", names: ["الدرهم الإماراتي", "AED", "الدرهم الاماراتي"] },
+      { id: "CAD", names: ["الدولار الكندي", "CAD"] },
     ];
 
     const results: RateMap = {};
     
+    // Split by rows to ensure we only match numbers within the correct row
+    const rows = html.split(/<tr[^>]*>/i);
+    
     for (const currency of currencies) {
       for (const name of currency.names) {
-        // Look for the currency name followed by numbers in the next cells
-        const regex = new RegExp(`${name}[\\s\\S]*?(\\d+\\.\\d+)[\\s\\S]*?(\\d+\\.\\d+)`, 'i');
-        const match = html.match(regex);
-        if (match && match[1]) {
-          const buyRate = parseFloat(match[1]);
-          const sellRate = parseFloat(match[2]);
-          // Use sell rate as the primary official rate if it looks reasonable
-          if (!isNaN(sellRate) && sellRate > 0) {
-            results[currency.id] = sellRate;
-            break;
+        // Find the specific row containing this currency name
+        const targetRow = rows.find(row => row.includes(name));
+        if (targetRow) {
+          // Extract the "Average" (المتوسط) rate
+          // Looking for the number after the "المتوسط:" span
+          const rateMatch = targetRow.match(/المتوسط:\s*<\/span>\s*([\d.]+)/i);
+          if (rateMatch && rateMatch[1]) {
+            const val = parseFloat(rateMatch[1]);
+            if (!isNaN(val) && val > 0) {
+              results[currency.id] = val;
+              break; 
+            }
           }
         }
       }
     }
 
-    if (results.USD && results.USD > 4.0 && results.USD < 6.0) {
-      console.log("[CBL Scraper] Successfully extracted rates from CBL website");
+    if (results.USD && results.USD > 4.0 && results.USD < 8.0) {
+      console.log(`[CBL Scraper] Successfully extracted ${Object.keys(results).length} rates from CBL website (USD: ${results.USD})`);
       return results;
     }
+    console.warn("[CBL Scraper] Could not find valid USD rate in the HTML");
     return null;
   } catch (err) {
     console.error("[CBL Scraper] Error scraping CBL website:", err);
@@ -653,29 +662,29 @@ async function fetchOfficialRates(): Promise<boolean> {
 let appConfig: AppConfig = {
   channels: ["dollarr_ly", "musheermarket", "lydollar", "djheih2026", "suqalmushir"],
   terms: [
-    { id: "USD", name: "دولار أمريكي", regex: "(?:الدولار|دولار|الخضراء|خضراء|كاش|usd|🇺🇸)\\s*(?:كاش)?\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
-    { id: "EUR", name: "يورو", regex: "(?:يورو|اليورو|eur|🇪🇺)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "eu" },
-    { id: "GBP", name: "جنيه إسترليني", regex: "(?:باوند|استرليني|gbp|🇬🇧)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "gb" },
-    { id: "TND", name: "دينار تونسي", regex: "(?:تونسي|تونس|tnd|🇹🇳)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 0.1, max: 10.0, isInverse: false, flag: "tn" },
-    { id: "EGP", name: "جنيه مصري", regex: "(?:مصري|مصر|egp|🇪🇬)\\s*[=:]?\\s*(\\d{0,1}(?:[\\.,]\\d{1,4})?)", min: 0.01, max: 5.0, isInverse: false, flag: "eg" },
-    { id: "TRY", name: "ليرة تركية", regex: "(?:ليرة|تركي|try|🇹🇷)\\s*[=:]?\\s*(\\d{0,1}(?:[\\.,]\\d{1,4})?)", min: 0.01, max: 5.0, isInverse: false, flag: "tr" },
-    { id: "JOD", name: "دينار أردني", regex: "(?:jod|JOD|أردني|🇯🇴)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 30.0, isInverse: false, flag: "jo" },
-    { id: "BHD", name: "دينار بحريني", regex: "(?:bhd|BHD|بحريني|🇧🇭)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 10.0, max: 50.0, isInverse: false, flag: "bh" },
-    { id: "KWD", name: "دينار كويتي", regex: "(?:kwd|KWD|كويتي|🇰🇼)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 10.0, max: 60.0, isInverse: false, flag: "kw" },
-    { id: "AED", name: "درهم إماراتي", regex: "(?:aed|AED|إماراتي|امارات|🇦🇪)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 0.5, max: 10.0, isInverse: false, flag: "ae" },
-    { id: "SAR", name: "ريال سعودي", regex: "(?:sar|SAR|سعودي|ريال|🇸🇦)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 0.5, max: 10.0, isInverse: false, flag: "sa" },
-    { id: "QAR", name: "ريال قطري", regex: "(?:qar|QAR|قطري|🇶🇦)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 0.5, max: 10.0, isInverse: false, flag: "qa" },
-    { id: "USD_JBANK", name: "صكوك الجمهورية", regex: "(?:jbank|الجمهورية)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
-    { id: "USD_BCD", name: "صكوك التجارة", regex: "(?:bcd|التجارة والتنمية)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
-    { id: "USD_NCB", name: "صكوك التجاري", regex: "(?:NCB|التجاري الوطني)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
-    { id: "USD_AB", name: "صكوك الأمان", regex: "(?:AB|الأمان|الامان)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
-    { id: "USD_WB", name: "صكوك الوحدة", regex: "(?:WB|الوحدة)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
-    { id: "USD_AE", name: "حوالات دبي", regex: "(?:دبي|امارات|الإمارات|🇦🇪)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "ae" },
-    { id: "USD_TR", name: "حوالات تركيا", regex: "(?:تركيا|تركي|🇹🇷)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "tr" },
-    { id: "USD_CN", name: "حوالات الصين", regex: "(?:الصين|صينية|🇨🇳)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "cn" },
-    { id: "CNY", name: "يوان صيني", regex: "(?:cny|CNY|يوان|🇨🇳)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 0.5, max: 5.0, isInverse: false, flag: "cn" },
-    { id: "GOLD", name: "كسر الذهب", regex: "(?:كسر الذهب|ذهبي|ذهب)\\s*[=:]?\\s*(\\d{2,4}(?:[\\.,]\\d+)?)", min: 100, max: 5000, isInverse: false, flag: "ly" },
-    { id: "OFFICIAL_USD", name: "الدولار الرسمي", regex: "(?:الرسمي|المركزي)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 4.0, max: 6.0, isInverse: false, flag: "us" }
+    { id: "USD", name: "دولار أمريكي", regex: "(?:الدولار|دولار|الخضراء|خضراء|كاش|💵|usd|🇺🇸)[\\s\\S]*?(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
+    { id: "EUR", name: "يورو", regex: "(?:يورو|اليورو|💶|eur|🇪🇺)[\\s\\S]*?(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "eu" },
+    { id: "GBP", name: "جنيه إسترليني", regex: "(?:باوند|استرليني|الباوند|💷|gbp|🇬🇧)[\\s\\S]*?(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "gb" },
+    { id: "TND", name: "دينار تونسي", regex: "(?:تونسي|تونس|tnd|🇹🇳)[\\s\\S]*?(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 0.1, max: 10.0, isInverse: false, flag: "tn" },
+    { id: "EGP", name: "جنيه مصري", regex: "(?:مصري|مصر|egp|🇪🇬)[\\s\\S]*?(\\d{0,1}(?:[\\.,]\\d{1,4})?)", min: 0.01, max: 5.0, isInverse: false, flag: "eg" },
+    { id: "TRY", name: "ليرة تركية", regex: "(?:ليرة|تركي|try|🇹🇷)[\\s\\S]*?(\\d{0,1}(?:[\\.,]\\d{1,4})?)", min: 0.01, max: 5.0, isInverse: false, flag: "tr" },
+    { id: "JOD", name: "دينار أردني", regex: "(?:jod|JOD|أردني|🇯🇴)[\\s\\S]*?(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 30.0, isInverse: false, flag: "jo" },
+    { id: "BHD", name: "دينار بحريني", regex: "(?:bhd|BHD|بحريني|🇧🇭)[\\s\\S]*?(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 10.0, max: 50.0, isInverse: false, flag: "bh" },
+    { id: "KWD", name: "دينار كويتي", regex: "(?:kwd|KWD|كويتي|🇰🇼)[\\s\\S]*?(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 10.0, max: 60.0, isInverse: false, flag: "kw" },
+    { id: "AED", name: "درهم إماراتي", regex: "(?:aed|AED|إماراتي|امارات|🇦🇪)[\\s\\S]*?(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 0.5, max: 10.0, isInverse: false, flag: "ae" },
+    { id: "SAR", name: "ريال سعودي", regex: "(?:sar|SAR|سعودي|ريال|🇸🇦)[\\s\\S]*?(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 0.5, max: 10.0, isInverse: false, flag: "sa" },
+    { id: "QAR", name: "ريال قطري", regex: "(?:qar|QAR|قطري|🇶🇦)[\\s\\S]*?(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 0.5, max: 10.0, isInverse: false, flag: "qa" },
+    { id: "USD_JBANK", name: "صكوك الجمهورية", regex: "(?:jbank|الجمهورية|صكوك|بصك)[\\s\\S]*?(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
+    { id: "USD_BCD", name: "صكوك التجارة", regex: "(?:bcd|التجارة والتنمية)[\\s\\S]*?(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
+    { id: "USD_NCB", name: "صكوك التجاري", regex: "(?:NCB|التجاري الوطني|صكوك|بصك)[\\s\\S]*?(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
+    { id: "USD_AB", name: "صكوك الأمان", regex: "(?:AB|الأمان|الامان)[\\s\\S]*?(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
+    { id: "USD_WB", name: "صكوك الوحدة", regex: "(?:WB|الوحدة)[\\s\\S]*?(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
+    { id: "USD_AE", name: "حوالات دبي", regex: "(?:دبي|امارات|الإمارات|🇦🇪)[\\s\\S]*?(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "ae" },
+    { id: "USD_TR", name: "حوالات تركيا", regex: "(?:تركيا|تركي|🇹🇷)[\\s\\S]*?(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "tr" },
+    { id: "USD_CN", name: "حوالات الصين", regex: "(?:الصين|صينية|🇨🇳)[\\s\\S]*?(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "cn" },
+    { id: "CNY", name: "يوان صيني", regex: "(?:cny|CNY|يوان|🇨🇳)[\\s\\S]*?(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 0.5, max: 5.0, isInverse: false, flag: "cn" },
+    { id: "GOLD", name: "كسر الذهب", regex: "(?:كسر الذهب|ذهبي|ذهب|💎)[\\s\\S]*?(\\d{2,4}(?:[\\.,]\\d+)?)", min: 100, max: 5000, isInverse: false, flag: "ly" },
+    { id: "OFFICIAL_USD", name: "الدولار الرسمي", regex: "(?:الرسمي|المركزي)[\\s\\S]*?(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 4.0, max: 6.0, isInverse: false, flag: "us" }
   ]
 };
 
