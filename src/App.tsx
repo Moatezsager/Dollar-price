@@ -70,6 +70,7 @@ const CURRENCIES = [
   { code: "AED", name: "درهم إماراتي", flag: "ae" },
   { code: "SAR", name: "ريال سعودي", flag: "sa" },
   { code: "QAR", name: "ريال قطري", flag: "qa" },
+  { code: "CNY", name: "يوان صيني", flag: "cn" },
 ];
 
 const PARALLEL_DETAILS = [
@@ -849,7 +850,7 @@ export default function App() {
               <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest">السوق الموازي (عملات أجنبية)</h3>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-8 gap-y-12">
-              {configTerms.filter(t => ["EUR", "GBP", "TND", "TRY", "JOD", "BHD", "KWD", "AED", "SAR", "QAR", "GOLD", "EGP"].includes(t.id)).map(term => {
+              {configTerms.filter(t => ["EUR", "GBP", "TND", "TRY", "JOD", "BHD", "KWD", "AED", "SAR", "QAR", "GOLD", "EGP", "CNY"].includes(t.id)).map(term => {
                 const rate = rates?.parallel[term.id] || 0;
                 const prevRate = rates?.previousParallel?.[term.id] || rate;
                 const isUp = rate > prevRate;

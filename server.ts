@@ -452,7 +452,7 @@ let appConfig: AppConfig = {
     { id: "TND", name: "دينار تونسي", regex: "(?:تونسي|تونس|tnd|🇹🇳)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 0.1, max: 10.0, isInverse: false, flag: "tn" },
     { id: "EGP", name: "جنيه مصري", regex: "(?:مصري|مصر|egp|🇪🇬)\\s*[=:]?\\s*(\\d{0,1}(?:[\\.,]\\d{1,4})?)", min: 0.01, max: 5.0, isInverse: false, flag: "eg" },
     { id: "TRY", name: "ليرة تركية", regex: "(?:ليرة|تركي|try|🇹🇷)\\s*[=:]?\\s*(\\d{0,1}(?:[\\.,]\\d{1,4})?)", min: 0.01, max: 5.0, isInverse: false, flag: "tr" },
-    { id: "JOD", name: "دينار أردني", regex: "(?:jod|JOD|أردني|🇦🇯|🇯🇴)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 30.0, isInverse: false, flag: "jo" },
+    { id: "JOD", name: "دينار أردني", regex: "(?:jod|JOD|أردني|🇯🇴)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 30.0, isInverse: false, flag: "jo" },
     { id: "BHD", name: "دينار بحريني", regex: "(?:bhd|BHD|بحريني|🇧🇭)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 10.0, max: 50.0, isInverse: false, flag: "bh" },
     { id: "KWD", name: "دينار كويتي", regex: "(?:kwd|KWD|كويتي|🇰🇼)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 10.0, max: 60.0, isInverse: false, flag: "kw" },
     { id: "AED", name: "درهم إماراتي", regex: "(?:aed|AED|إماراتي|امارات|🇦🇪)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 0.5, max: 10.0, isInverse: false, flag: "ae" },
@@ -488,19 +488,37 @@ async function loadConfigFromSupabase() {
         console.error("Error loading config from Supabase:", error);
       }
     } else if (data && data.config) {
-      // Merge terms: keep existing terms from Supabase, add new ones if missing
-      const existingIds = new Set(data.config.terms.map((t: any) => t.id));
-      const mergedTerms = [...data.config.terms];
-      for (const term of appConfig.terms) {
-        if (!existingIds.has(term.id)) {
-          mergedTerms.push(term);
+      // Robust Merge & Repair Logic
+      const dbConfig = data.config as AppConfig;
+      
+      // 1. Repair flags and missing fields for existing terms
+      dbConfig.terms = dbConfig.terms.map(dbTerm => {
+        const defaultTerm = appConfig.terms.find(t => t.id === dbTerm.id);
+        if (defaultTerm) {
+          // Keep DB values for price/regex, but ensure flag is present from defaults if missing
+          return {
+            ...defaultTerm, // Start with defaults
+            ...dbTerm,      // Override with DB values (except if DB value is missing)
+            flag: dbTerm.flag || defaultTerm.flag // Force flag from defaults if DB is empty
+          };
+        }
+        return dbTerm;
+      });
+
+      // 2. Add entirely new terms that are in the code but not in the DB
+      const existingIds = new Set(dbConfig.terms.map(t => t.id));
+      for (const defaultTerm of appConfig.terms) {
+        if (!existingIds.has(defaultTerm.id)) {
+          dbConfig.terms.push(defaultTerm);
+          console.log(`[Migration] Added missing term: ${defaultTerm.id}`);
         }
       }
-      appConfig = { ...data.config, terms: mergedTerms };
-      console.log("Loaded and merged config from Supabase successfully");
+
+      appConfig = dbConfig;
+      console.log("Loaded, merged and repaired config from Supabase successfully");
     }
   } catch (err) {
-    console.error("Failed to load config from Supabase", err);
+    console.error("Failed to load/repair config from Supabase", err);
   }
 }
 
