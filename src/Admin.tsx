@@ -353,7 +353,7 @@ export default function Admin() {
         </div>
       </header>
 
-      <main className="flex-1 max-w-7xl w-full mx-auto p-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6">
         <AnimatePresence mode="wait">
           {activeTab === 'config' && (
             <motion.div 
@@ -361,29 +361,29 @@ export default function Admin() {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="grid grid-cols-1 lg:grid-cols-12 gap-8"
+              className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-8"
             >
               {/* Sidebar Config */}
-              <div className="lg:col-span-4 space-y-6">
-                <section className="bg-white/[0.02] border border-white/5 rounded-[2rem] p-8">
-                  <div className="flex items-center justify-between mb-8">
-                    <h2 className="text-xl font-black flex items-center gap-3 text-emerald-400">
-                      <Globe className="w-6 h-6" />
+              <div className="lg:col-span-4 space-y-4 md:space-y-6">
+                <section className="bg-white/[0.02] border border-white/5 rounded-2xl md:rounded-[2rem] p-4 md:p-8">
+                  <div className="flex items-center justify-between mb-6 md:mb-8">
+                    <h2 className="text-lg md:text-xl font-black flex items-center gap-2 md:gap-3 text-emerald-400">
+                      <Globe className="w-5 h-5 md:w-6 md:h-6" />
                       مصادر البيانات
                     </h2>
                     <button
                       onClick={() => setConfig({ ...config, channels: [...config.channels, ""] })}
-                      className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center hover:bg-emerald-500/20 transition-all"
+                      className="w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center hover:bg-emerald-500/20 transition-all"
                     >
-                      <Plus className="w-5 h-5" />
+                      <Plus className="w-4 h-4 md:w-5 md:h-5" />
                     </button>
                   </div>
-                  <p className="text-sm text-zinc-500 mb-6 font-medium">نظام قنوات تليجرام التي يتم مراقبتها آلياً</p>
-                  <div className="space-y-4">
+                  <p className="text-xs md:text-sm text-zinc-500 mb-4 md:mb-6 font-medium">نظام قنوات تليجرام التي يتم مراقبتها آلياً</p>
+                  <div className="space-y-3 md:space-y-4">
                     {config.channels.map((channel: string, idx: number) => (
-                      <div key={idx} className="group relative flex items-center gap-3">
-                        <div className="absolute -right-3 top-1/2 -translate-y-1/2 w-1 h-0 group-focus-within:h-6 bg-emerald-500 transition-all rounded-full"></div>
-                        <span className="text-zinc-600 font-mono text-[10px] uppercase tracking-tighter shrink-0 pt-0.5">Telegram</span>
+                      <div key={idx} className="group relative flex items-center gap-2 md:gap-3">
+                        <div className="absolute -right-2 md:-right-3 top-1/2 -translate-y-1/2 w-1 h-0 group-focus-within:h-6 bg-emerald-500 transition-all rounded-full"></div>
+                        <span className="text-[9px] md:text-[10px] text-zinc-600 font-mono uppercase tracking-tighter shrink-0 pt-0.5">TG</span>
                         <input
                           type="text"
                           value={channel}
@@ -392,7 +392,7 @@ export default function Admin() {
                             newChannels[idx] = e.target.value;
                             setConfig({ ...config, channels: newChannels });
                           }}
-                          className="flex-1 bg-white/[0.03] border border-white/5 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-emerald-500/50 focus:bg-white/5 transition-all font-mono"
+                          className="flex-1 bg-white/[0.03] border border-white/5 rounded-lg md:rounded-xl px-3 md:px-4 py-2 md:py-3 text-xs md:text-sm focus:outline-none focus:border-emerald-500/50 focus:bg-white/5 transition-all font-mono"
                           dir="ltr"
                           placeholder="channel_name"
                         />
@@ -401,7 +401,7 @@ export default function Admin() {
                             const newChannels = config.channels.filter((_: any, i: number) => i !== idx);
                             setConfig({ ...config, channels: newChannels });
                           }}
-                          className="w-10 h-10 rounded-xl text-zinc-600 hover:text-rose-400 hover:bg-rose-500/5 transition-all opacity-0 group-hover:opacity-100"
+                          className="w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl text-zinc-600 hover:text-rose-400 hover:bg-rose-500/5 transition-all opacity-0 group-hover:opacity-100"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -412,24 +412,24 @@ export default function Admin() {
               </div>
 
               {/* Main Terms Area */}
-              <div className="lg:col-span-8 space-y-6">
-                <section className="bg-white/[0.02] border border-white/5 rounded-[2rem] p-8">
-                  <div className="flex flex-col sm:flex-row items-center justify-between gap-6 mb-10">
+              <div className="lg:col-span-8 space-y-4 md:space-y-6">
+                <section className="bg-white/[0.02] border border-white/5 rounded-2xl md:rounded-[2rem] p-4 md:p-8">
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4 md:gap-6 mb-6 md:mb-10">
                     <div>
-                      <h2 className="text-2xl font-black text-blue-400 flex items-center gap-3">
-                        <Layers className="w-7 h-7" />
-                        نظام التعرف الذكي (Terms)
+                      <h2 className="text-xl md:text-2xl font-black text-blue-400 flex items-center gap-2 md:gap-3">
+                        <Layers className="w-6 h-6 md:w-7 md:h-7" />
+                        نظام التعرف الذكي
                       </h2>
-                      <p className="text-sm text-zinc-500 mt-2 font-medium">تحكم في الكلمات الدلالية وقواعد البحث البرمجية لضمان دقة استخراج الأسعار</p>
+                      <p className="text-xs md:text-sm text-zinc-500 mt-1 md:mt-2 font-medium">تحكم في الكلمات الدلالية وقواعد البحث البرمجية</p>
                     </div>
                     <button
                       onClick={() => setConfig({
                         ...config,
                         terms: [...config.terms, { id: "NEW", name: "عملة جديدة", regex: "(?:كلمة|أخرى)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d+)?)", min: 0.1, max: 100, isInverse: false, flag: "" }]
                       })}
-                      className="px-6 py-3 rounded-2xl bg-blue-600 text-white font-black hover:bg-blue-500 transition-all active:scale-95 shadow-lg shadow-blue-900/40 flex items-center gap-2 shrink-0"
+                      className="w-full sm:w-auto px-4 md:px-6 py-3 rounded-xl md:rounded-2xl bg-blue-600 text-white font-black hover:bg-blue-500 transition-all active:scale-95 shadow-lg shadow-blue-900/40 flex items-center justify-center gap-2 shrink-0"
                     >
-                      <Plus className="w-5 h-5 font-black" />
+                      <Plus className="w-4 h-4 md:w-5 md:h-5 font-black" />
                       إضافة عملة
                     </button>
                   </div>
@@ -655,6 +655,18 @@ export default function Admin() {
                     })}
                   </div>
                 </section>
+                
+                {/* Mobile Save Button */}
+                <div className="block lg:hidden sticky bottom-4 z-40">
+                  <button
+                    onClick={handleSave}
+                    disabled={loading}
+                    className="w-full py-4 rounded-2xl bg-emerald-500 text-black font-black flex items-center justify-center gap-2 hover:bg-emerald-400 transition-all active:scale-95 shadow-xl shadow-emerald-500/20 disabled:opacity-50"
+                  >
+                    <Save className="w-5 h-5" />
+                    <span>حفظ التغييرات</span>
+                  </button>
+                </div>
               </div>
             </motion.div>
           )}
