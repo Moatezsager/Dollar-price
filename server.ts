@@ -66,6 +66,28 @@ interface AppConfig {
   }[];
 }
 
+// Arabic Logging Utility
+async function logErrorArabic(message: string, context = "النظام", stack?: string, url?: string) {
+  if (!supabase || !supabaseAnonKey || supabaseAnonKey.includes('dummy')) {
+    console.error(`[ArabicLog] ${context}: ${message}`);
+    return;
+  }
+  
+  try {
+    const { error } = await supabase.from('error_logs').insert([{
+      message: message,
+      context: context,
+      stack: stack,
+      url: url,
+      created_at: new Date().toISOString()
+    }]);
+    
+    if (error) console.error("Failed to save Arabic error log:", error.message);
+  } catch (err) {
+    console.error("Critical error in logErrorArabic:", err);
+  }
+}
+
 let rates: Rates = {
   official: {
     USD: 4.85,
@@ -278,80 +300,129 @@ async function initializeRatesFromDB(force = false) {
   if (!supabase || !supabaseAnonKey || supabaseAnonKey.includes('dummy')) return;
   
   try {
-    const { data, error } = await supabase
-      .from('exchange_rates')
+    // 1. Fetch latest parallel rates
+    const { data: parallelData, error: parallelError } = await supabase
+      .from('parallel_rates')
       .select('*')
       .order('recorded_at', { ascending: false })
-      .limit(50); // Fetch latest records to reconstruct current state
-      
-    if (error) {
-      console.error("Error initializing rates from DB:", error.message);
-      return;
+      .limit(50);
+
+    // 2. Fetch latest official rates
+    const { data: officialData, error: officialError } = await supabase
+      .from('official_rates')
+      .select('*')
+      .order('recorded_at', { ascending: false })
+      .limit(50);
+
+    // Check for errors (ignore table not found errors during migration)
+    const isParallelTableMissing = parallelError && parallelError.message.includes('relation "parallel_rates" does not exist');
+    const isOfficialTableMissing = officialError && officialError.message.includes('relation "official_rates" does not exist');
+
+    if (isParallelTableMissing || isOfficialTableMissing) {
+      console.warn("[DB] New tables missing, falling back to legacy exchange_rates table");
+      const { data, error } = await supabase
+        .from('exchange_rates')
+        .select('*')
+        .order('recorded_at', { ascending: false })
+        .limit(50);
+        
+      if (!error && data && data.length > 0) {
+        const latestRow = data[0];
+        if (latestRow.rates_parallel) rates.parallel = { ...rates.parallel, ...latestRow.rates_parallel };
+        if (latestRow.rates_official) rates.official = { ...rates.official, ...latestRow.rates_official };
+        if (latestRow.last_changed) {
+          rates.lastChanged = {
+            official: { ...rates.lastChanged.official, ...(latestRow.last_changed.official || {}) },
+            parallel: { ...rates.lastChanged.parallel, ...(latestRow.last_changed.parallel || {}) }
+          };
+        }
+        rates.lastUpdated = latestRow.recorded_at || new Date().toISOString();
+        
+        const findPrev = (curr: RateMap, isP: boolean) => {
+          const prev: RateMap = { ...curr };
+          for (const code in curr) {
+            const diff = data.find((row: any) => {
+              const r = isP ? row.rates_parallel : row.rates_official;
+              return r && isSignificantChange(r[code], curr[code]);
+            });
+            if (diff) {
+              const r = isP ? (diff as any).rates_parallel : (diff as any).rates_official;
+              prev[code] = r[code];
+            }
+          }
+          return prev;
+        };
+        rates.previousParallel = findPrev(rates.parallel, true);
+        rates.previousOfficial = findPrev(rates.official, false);
+      }
+    } else {
+      // Use new tables
+      if (parallelData && parallelData.length > 0) {
+        const latest = parallelData[0];
+        if (latest.rates) rates.parallel = { ...rates.parallel, ...latest.rates };
+        if (latest.last_changed) rates.lastChanged.parallel = { ...rates.lastChanged.parallel, ...latest.last_changed };
+        rates.lastUpdated = latest.recorded_at;
+        
+        // Find previous parallel
+        for (const code in rates.parallel) {
+          const diff = parallelData.find(r => r.rates && isSignificantChange(r.rates[code], rates.parallel[code]));
+          if (diff) rates.previousParallel[code] = diff.rates[code];
+        }
+      }
+
+      if (officialData && officialData.length > 0) {
+        const latest = officialData[0];
+        if (latest.rates) rates.official = { ...rates.official, ...latest.rates };
+        // Find previous official
+        for (const code in rates.official) {
+          const diff = officialData.find(r => r.rates && isSignificantChange(r.rates[code], rates.official[code]));
+          if (diff) rates.previousOfficial[code] = diff.rates[code];
+        }
+        // Update combined time if officially newer
+        if (new Date(latest.recorded_at) > new Date(rates.lastUpdated)) {
+           rates.lastUpdated = latest.recorded_at;
+        }
+      }
     }
     
-    if (data && data.length > 0) {
-      // Use the absolute latest record for primary rates
-      const latestRow = data[0];
-      
-      if (latestRow.rates_parallel) {
-        rates.parallel = { ...rates.parallel, ...latestRow.rates_parallel };
-      }
-      if (latestRow.rates_official) {
-        rates.official = { ...rates.official, ...latestRow.rates_official };
-      }
-      
-      // Load lastChanged to ensure the frontend shows correct "time since last change"
-      if (latestRow.last_changed) {
-        rates.lastChanged = {
-          official: { ...rates.lastChanged.official, ...(latestRow.last_changed.official || {}) },
-          parallel: { ...rates.lastChanged.parallel, ...(latestRow.last_changed.parallel || {}) }
-        };
-      }
-      
-      rates.lastUpdated = latestRow.recorded_at || new Date().toISOString();
-
-      // Find true previous rates for all currencies
-      const findPrevious = (currentRates: RateMap, isParallel: boolean) => {
-        const prev: RateMap = { ...currentRates };
-        for (const code in currentRates) {
-          const firstDifferent = data.find((row: any) => {
-            const rowRates = isParallel ? row.rates_parallel : row.rates_official;
-            return rowRates && isSignificantChange(rowRates[code], currentRates[code]);
-          });
-          if (firstDifferent) {
-            const rowRates = isParallel ? (firstDifferent as any).rates_parallel : (firstDifferent as any).rates_official;
-            prev[code] = rowRates[code];
-          }
-        }
-        return prev;
-      };
-
-      rates.previousParallel = findPrevious(rates.parallel, true);
-      rates.previousOfficial = findPrevious(rates.official, false);
-      
-      lastRatesFetchTime = Date.now();
-      console.log(`[DB] Successfully loaded latest state (Parallel USD: ${rates.parallel.USD})`);
-    } else {
-      console.warn("[DB] No data found in exchange_rates table. Using defaults.");
-    }
+    lastRatesFetchTime = Date.now();
+    console.log(`[DB] Successfully loaded state from separated tables (Parallel USD: ${rates.parallel.USD})`);
   } catch (err) {
     console.error("Error initializing rates from DB:", err);
   }
 }
 
-async function saveToSupabase() {
+async function saveToSupabase(type: 'parallel' | 'official' | 'both' = 'both') {
   if (!supabase || !supabaseAnonKey || supabaseAnonKey.includes('dummy')) return; 
   
-  // Prevent saving corrupted data (Parallel USD should never be < 5.5)
-  if (rates.parallel.USD < 5.5) {
-    console.warn("Attempted to save invalid parallel rate. Aborting save.");
-    return;
-  }
-  
   try {
-    // Save all currencies as JSONB to ensure we capture everything accurately
-    // without breaking the database schema.
-    const record = { 
+    const results = [];
+    
+    // 1. Save Parallel Rates if needed
+    if (type === 'parallel' || type === 'both') {
+      if (rates.parallel.USD >= 5.5) {
+        results.push(supabase.from('parallel_rates').insert([{
+          usd: rates.parallel.USD,
+          rates: rates.parallel,
+          last_changed: rates.lastChanged.parallel,
+          recorded_at: rates.lastUpdated
+        }]));
+      }
+    }
+    
+    // 2. Save Official Rates if needed
+    if (type === 'official' || type === 'both') {
+      if (rates.official.USD > 0) {
+        results.push(supabase.from('official_rates').insert([{
+          usd: rates.official.USD,
+          rates: rates.official,
+          recorded_at: new Date().toISOString()
+        }]));
+      }
+    }
+
+    // 3. Fallback: Save to legacy table for backward compatibility during transition
+    const legacyRecord = { 
       usd_parallel: rates.parallel.USD, 
       usd_official: rates.official.USD,
       rates_parallel: rates.parallel,
@@ -359,60 +430,41 @@ async function saveToSupabase() {
       previous_parallel: rates.previousParallel,
       previous_official: rates.previousOfficial,
       last_changed: rates.lastChanged,
-      recorded_at: rates.lastUpdated // استخدام وقت كتابة الرسالة في تيليجرام لضمان الشفافية
+      recorded_at: rates.lastUpdated
     };
+    results.push(supabase.from('exchange_rates').insert([legacyRecord]));
 
-    const { error } = await supabase
-      .from('exchange_rates')
-      .insert([record]);
-      
-    if (error) {
-      if (!error.message.includes('schema cache')) {
-        console.error("Error saving to Supabase:", error.message);
-        
-        // Fallback: If columns don't exist, try saving without them
-        if (error.message.includes('column "previous_parallel" does not exist') || error.message.includes('column "previous_official" does not exist')) {
-           await supabase.from('exchange_rates').insert([{
-              usd_parallel: rates.parallel.USD, 
-              usd_official: rates.official.USD,
-              rates_parallel: rates.parallel,
-              rates_official: rates.official,
-              last_changed: rates.lastChanged,
-              recorded_at: rates.lastUpdated
-           }]);
-        } else if (error.message.includes('column "last_changed" does not exist')) {
-           await supabase.from('exchange_rates').insert([{
-              usd_parallel: rates.parallel.USD, 
-              usd_official: rates.official.USD,
-              rates_parallel: rates.parallel,
-              rates_official: rates.official,
-              recorded_at: new Date().toISOString()
-           }]);
-        } else if (error.message.includes('column') && error.message.includes('does not exist')) {
-           await supabase.from('exchange_rates').insert([{
-              usd_parallel: rates.parallel.USD, 
-              usd_official: rates.official.USD,
-              recorded_at: new Date().toISOString()
-           }]);
-        }
+    const settled = await Promise.allSettled(results);
+    
+    // Log errors but don't crash (some tables might not exist yet)
+    settled.forEach((res, i) => {
+      if (res.status === 'rejected') {
+        console.error(`Save error for source ${i}:`, res.reason);
       }
-    } else {
-      // Cleanup old records (older than 30 days) to prevent database bloat
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      
-      await supabase
-        .from('exchange_rates')
-        .delete()
-        .lt('recorded_at', thirtyDaysAgo.toISOString());
+    });
+
+    // Cleanup old records from ALL tables (maintenance)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const cutoff = thirtyDaysAgo.toISOString();
+    
+    await Promise.allSettled([
+      supabase.from('parallel_rates').delete().lt('recorded_at', cutoff),
+      supabase.from('official_rates').delete().lt('recorded_at', cutoff),
+      supabase.from('exchange_rates').delete().lt('recorded_at', cutoff)
+    ]);
         
-      // Invalidate caches after successful save
-      cachedHistory = null;
-      lastHistoryFetchTime = 0;
-      lastRatesFetchTime = 0;
-    }
+    // Invalidate caches
+    cachedHistory = null;
+    lastHistoryFetchTime = 0;
+    lastRatesFetchTime = 0;
+    
+    // Log success in Arabic
+    const typeLabel = type === 'parallel' ? 'سوق موازي' : type === 'official' ? 'رسمي' : 'متكامل';
+    console.log(`[DB] Successfully saved ${typeLabel} rates to database`);
   } catch (err) {
-    console.error("Supabase save error:", err);
+    console.error("Supabase unified save error:", err);
+    await logErrorArabic(`فشل حفظ البيانات في قاعدة البيانات: ${type === 'parallel' ? 'موازي' : 'رسمي'}`, "حفظ البيانات", String(err));
   }
 }
 
@@ -428,36 +480,90 @@ async function fetchHistoryFromSupabase() {
   if (!supabase || !supabaseAnonKey || supabaseAnonKey.includes('dummy')) return history;
   
   try {
-    const { data, error } = await supabase
-      .from('exchange_rates')
-      .select('*')
-      .order('recorded_at', { ascending: false })
-      .limit(10000);
-      
-    if (error) {
-      if (!error.message.includes('schema cache')) {
-        console.error("Supabase fetch error:", error.message);
-      }
-      return history; // fallback
+    // Fetch parallel and official history in parallel for speed
+    const [parallelRes, officialRes] = await Promise.all([
+      supabase.from('parallel_rates').select('*').order('recorded_at', { ascending: false }).limit(2000),
+      supabase.from('official_rates').select('*').order('recorded_at', { ascending: false }).limit(2000)
+    ]);
+
+    // Check for "table not found" errors - fallback to legacy if tables are missing
+    if (parallelRes.error?.message.includes('relation "parallel_rates" does not exist') || 
+        officialRes.error?.message.includes('relation "official_rates" does not exist')) {
+        
+        const { data, error } = await supabase.from('exchange_rates').select('*').order('recorded_at', { ascending: false }).limit(1000);
+        if (!error && data) {
+           cachedHistory = data.reverse().map((row: any) => ({
+              time: row.recorded_at,
+              usdParallel: row.usd_parallel || (row.rates_parallel ? row.rates_parallel.USD : 0),
+              usdOfficial: row.usd_official || (row.rates_official ? row.rates_official.USD : 0),
+              ratesParallel: row.rates_parallel || { USD: row.usd_parallel },
+              ratesOfficial: row.rates_official || { USD: row.usd_official },
+              previousParallel: row.previous_parallel,
+              previousOfficial: row.previous_official
+           })).filter((item: any) => item.usdParallel > 5.5 || item.usdOfficial > 0);
+           lastHistoryFetchTime = Date.now();
+           return cachedHistory;
+        }
+        return history;
     }
+
+    const parallelData = parallelRes.data || [];
+    const officialData = officialRes.data || [];
+
+    // Merge strategy: We want a continuous timeline. 
+    // Since parallel and official points might not align in time, we create a unified map of timestamps
+    const timelineMap = new Map<string, Partial<HistoryPoint>>();
+
+    parallelData.forEach((row: any) => {
+      const time = new Date(row.recorded_at).toISOString();
+      timelineMap.set(time, {
+        time,
+        usdParallel: row.usd,
+        ratesParallel: row.rates || { USD: row.usd }
+      });
+    });
+
+    officialData.forEach((row: any) => {
+      const time = new Date(row.recorded_at).toISOString();
+      if (timelineMap.has(time)) {
+        const existing = timelineMap.get(time)!;
+        existing.usdOfficial = row.usd;
+        existing.ratesOfficial = row.rates || { USD: row.usd };
+      } else {
+        timelineMap.set(time, {
+          time,
+          usdOfficial: row.usd,
+          ratesOfficial: row.rates || { USD: row.usd }
+        });
+      }
+    });
+
+    // Sort by time and fill gaps (e.g. if a parallel point has no official data, use the closest previous official)
+    const sortedPoints = Array.from(timelineMap.values()).sort((a, b) => 
+      new Date(a.time!).getTime() - new Date(b.time!).getTime()
+    );
+
+    let lastParallel: any = rates.parallel;
+    let lastOfficial: any = rates.official;
     
-    if (data && data.length > 0) {
-      cachedHistory = data.reverse()
-        .map((row: any) => ({
-          time: row.recorded_at,
-          usdParallel: row.usd_parallel || (row.rates_parallel ? row.rates_parallel.USD : 0),
-          usdOfficial: row.usd_official || (row.rates_official ? row.rates_official.USD : 0),
-          ratesParallel: row.rates_parallel || { USD: row.usd_parallel },
-          ratesOfficial: row.rates_official || { USD: row.usd_official },
-          previousParallel: row.previous_parallel,
-          previousOfficial: row.previous_official
-        }))
-        .filter((item: any) => item.usdParallel > 5.5 || item.usdOfficial > 0);
+    // Reverse filling is tricky for charts, usually we just want to ensure each point has both for the frontend
+    // but the frontend is designed to handle missing values or we can interpolate.
+    // For now, let's just ensure they exist to avoid crashes.
+    const completedHistory = sortedPoints.map(p => ({
+      time: p.time!,
+      usdParallel: p.usdParallel || 0,
+      usdOfficial: p.usdOfficial || 0,
+      ratesParallel: p.ratesParallel || {},
+      ratesOfficial: p.ratesOfficial || {}
+    })) as HistoryPoint[];
+
+    if (completedHistory.length > 0) {
+      cachedHistory = completedHistory;
       lastHistoryFetchTime = Date.now();
       return cachedHistory;
     }
   } catch (err) {
-    console.error("Error fetching history from Supabase:", err);
+    console.error("Error fetching history from separated tables:", err);
   }
   return history;
 }
@@ -519,9 +625,11 @@ async function fetchFromCBL(): Promise<RateMap | null> {
       return results;
     }
     console.warn("[CBL Scraper] Could not find valid USD rate in the HTML");
+    await logErrorArabic("فشل استخراج الدولار من موقع المصرف المركزي - قد يكون الهيكل تغير", "مصرف ليبيا المركزي");
     return null;
   } catch (err) {
     console.error("[CBL Scraper] Error scraping CBL website:", err);
+    await logErrorArabic("خطأ تقني أثناء كشط موقع المصرف المركزي", "مصرف ليبيا المركزي", String(err));
     return null;
   }
 }
@@ -783,10 +891,11 @@ async function fetchParallelRatesFromTelegram() {
         if (!response.ok) return null;
         const html = await response.text();
         return { channel, html };
-      } catch (e) {
-        console.error(`Failed to fetch ${channel}:`, e);
-        return null;
-      }
+        } catch (e) {
+          console.error(`Failed to fetch ${channel}:`, e);
+          await logErrorArabic(`فشل الاتصال بقناة تيليجرام: ${channel}`, "الكاشط", String(e));
+          return null;
+        }
     }));
 
     for (const result of scrapeResults) {
@@ -1139,7 +1248,7 @@ async function startServer() {
       
       const parallelTally = await fetchParallelRatesFromTelegram();
       if (parallelTally) {
-        await saveToSupabase();
+        await saveToSupabase('parallel');
       }
       
       res.json({ success: true, message: "تم حفظ الإعدادات بنجاح" });
@@ -1156,7 +1265,8 @@ async function startServer() {
       
       if (officialUpdate || parallelTally) {
         console.log("[Admin] Changes detected! Saving to database...");
-        await saveToSupabase();
+        const saveType = (officialUpdate && parallelTally) ? 'both' : (officialUpdate ? 'official' : 'parallel');
+        await saveToSupabase(saveType);
       }
       
       res.json({ 
@@ -1229,6 +1339,12 @@ async function startServer() {
   app.post("/api/logs/error", (req: express.Request, res: express.Response) => {
     const { message, stack, context, url, userAgent } = req.body;
     
+    // Translation map for common client errors
+    let arabicMessage = message;
+    if (message?.includes("Failed to fetch")) arabicMessage = "فشل في جلب البيانات من السيرفر (مشكلة اتصال)";
+    if (message?.includes("Unexpected token")) arabicMessage = "خطأ في معالجة البيانات المستلمة من السيرفر";
+    if (message?.includes("NetworkError")) arabicMessage = "خطأ في الشبكة - تعذر الاتصال";
+
     console.error("\n[CLIENT ERROR LOG]");
     console.error(`Time: ${new Date().toISOString()}`);
     console.error(`Message: ${message}`);
@@ -1238,21 +1354,8 @@ async function startServer() {
     if (stack) console.error(`Stack: ${stack}`);
     console.error("-------------------\n");
 
-    // Optional: Save to Supabase if configured
-    if (supabase && supabaseAnonKey && !supabaseAnonKey.includes('dummy')) {
-      supabase.from('error_logs').insert([{
-        message,
-        stack,
-        context,
-        url,
-        user_agent: userAgent,
-        created_at: new Date().toISOString()
-      }]).then(({ error }) => {
-        if (error && error.code !== '42P01') { // Ignore "relation does not exist" error if table isn't created yet
-          console.error("Failed to save error log to Supabase:", error);
-        }
-      });
-    }
+    // Save to Supabase
+    logErrorArabic(arabicMessage || message, context || "تطبيق العميل", stack, url);
 
     res.status(200).json({ success: true });
   });
@@ -1299,7 +1402,7 @@ async function startServer() {
       let changed = false;
       if (parallelUpdate) {
         console.log("[Cron-Job] Parallel changes detected! Saving to database...");
-        await saveToSupabase();
+        await saveToSupabase('parallel');
         changed = true;
       } else {
         console.log("[Cron-Job] Checked parallel sources. No price changes found.");
@@ -1358,7 +1461,7 @@ async function startServer() {
       let changed = false;
       if (officialUpdate) {
         console.log("[Cron-Job-Official] Official changes detected! Saving to database...");
-        await saveToSupabase();
+        await saveToSupabase('official');
         changed = true;
       } else {
         console.log("[Cron-Job-Official] Checked official sources. No price changes found.");
@@ -1401,28 +1504,35 @@ async function startServer() {
 
       console.log(`[Maintenance] Manual cleanup triggered. Removing records older than ${cutoff}`);
 
-      // Delete old exchange rates
-      const { count: ratesCount, error: ratesError } = await supabase
-        .from('exchange_rates')
-        .delete({ count: 'exact' })
-        .lt('recorded_at', cutoff);
+      // Perform all deletions in parallel
+      const [legacyRes, parallelRes, officialRes, logsRes] = await Promise.all([
+        supabase.from('exchange_rates').delete({ count: 'exact' }).lt('recorded_at', cutoff),
+        supabase.from('parallel_rates').delete({ count: 'exact' }).lt('recorded_at', cutoff),
+        supabase.from('official_rates').delete({ count: 'exact' }).lt('recorded_at', cutoff),
+        supabase.from('error_logs').delete({ count: 'exact' }).lt('created_at', cutoff)
+      ]);
 
-      // Delete old error logs
-      const { count: logsCount, error: logsError } = await supabase
-        .from('error_logs')
-        .delete({ count: 'exact' })
-        .lt('created_at', cutoff);
+      const removedRates = (legacyRes.count || 0) + (parallelRes.count || 0) + (officialRes.count || 0);
+      const removedLogs = logsRes.count || 0;
 
-      if (ratesError || logsError) {
-        console.error("Cleanup error:", ratesError || logsError);
+      if (legacyRes.error || parallelRes.error || officialRes.error || logsRes.error) {
+        console.error("Cleanup partial error:", { 
+          legacy: legacyRes.error, 
+          parallel: parallelRes.error, 
+          official: officialRes.error, 
+          logs: logsRes.error 
+        });
       }
 
       res.json({
         success: true,
-        message: "تم تنظيف قاعدة البيانات بنجاح (سجلات أقدم من يومين)",
+        message: "تم تنظيف كافة جداول قاعدة البيانات بنجاح (سجلات أقدم من يومين)",
         details: {
-          removed_rates: ratesCount || 0,
-          removed_logs: logsCount || 0,
+          removed_exchange_rates: legacyRes.count || 0,
+          removed_parallel_rates: parallelRes.count || 0,
+          removed_official_rates: officialRes.count || 0,
+          total_removed_rates: removedRates,
+          removed_logs: removedLogs,
           cutoff_date: cutoff
         }
       });

@@ -1,4 +1,4 @@
-export const logErrorToServer = async (error: Error | string | unknown, context?: string) => {
+export const logErrorToServer = async (error: Error | string | unknown, context?: string, arabicDescription?: string) => {
   try {
     let message = "Unknown error";
     let stack = "";
@@ -20,7 +20,7 @@ export const logErrorToServer = async (error: Error | string | unknown, context?
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        message,
+        message: arabicDescription || message,
         stack,
         context: context || 'General',
         url: window.location.href,
