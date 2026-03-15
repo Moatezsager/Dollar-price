@@ -1358,14 +1358,12 @@ export default function App() {
             >
               <div className="p-6 border-b border-white/5 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-400 shrink-0">
-                    <FlagIcon 
-                      flagCode={configTerms.find(t => t.id === selectedRate.code)?.flag || CURRENCIES.find(c => c.code === selectedRate.code)?.flag} 
-                      name={selectedRate.name} 
-                      className="w-10 h-10" 
-                      fallbackType="coins" 
-                    />
-                  </div>
+                  <FlagIcon 
+                    flagCode={configTerms.find(t => t.id === selectedRate.code)?.flag || CURRENCIES.find(c => c.code === selectedRate.code)?.flag} 
+                    name={selectedRate.name} 
+                    className="w-10 h-10 text-emerald-400" 
+                    fallbackType="coins" 
+                  />
                   <div>
                     <h3 className="text-xl font-bold text-white">{selectedRate.name}</h3>
                     <p className="text-xs text-zinc-500 uppercase tracking-widest mt-0.5">
@@ -1611,7 +1609,15 @@ export default function App() {
                 const isUp = rate > prev;
                 return (
                   <tr key={`pdf-row-${c.id}`} style={{ backgroundColor: '#f8fafc' }}>
-                    <td style={{ padding: '16px 20px', borderRadius: '16px 0 0 16px', fontWeight: '700', color: '#1e293b', fontFamily: "'Cairo', sans-serif" }}>{c.name}</td>
+                    <td style={{ padding: '16px 20px', borderRadius: '16px 0 0 16px', fontWeight: '700', color: '#1e293b', fontFamily: "'Cairo', sans-serif", display: 'flex', alignItems: 'center', gap: '8px' }}>
+                       <FlagIcon 
+                    flagCode={c.flag} 
+                    name={c.name} 
+                    className="w-5 h-5" 
+                    fallbackType="coins" 
+                  />
+                      {c.name}
+                    </td>
                     <td style={{ textAlign: 'center', padding: '16px 20px', fontSize: '18px', fontWeight: '800', color: '#0f172a', fontFamily: "'Cairo', sans-serif" }}>{rate.toFixed(2)}</td>
                     <td style={{ textAlign: 'center', padding: '16px 20px', color: '#64748b', fontWeight: '600', fontFamily: "'Cairo', sans-serif" }}>{prev.toFixed(2)}</td>
                     <td style={{ textAlign: 'left', padding: '16px 20px', borderRadius: '0 16px 16px 0', color: isUp ? '#dc2626' : '#16a34a', fontWeight: '700', fontFamily: "'Cairo', sans-serif" }}>
@@ -1634,13 +1640,12 @@ export default function App() {
             {dynamicCurrencies.filter(c => ["USD", "EUR", "GBP"].includes(c.code)).map(c => (
               <div key={`pdf-off-${c.code}`} style={{ padding: '20px', borderRadius: '20px', border: '1px solid #e2e8f0', backgroundColor: '#ffffff' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                  {c.flag && c.flag.trim() !== "" && c.flag !== "undefined" && c.flag !== "null" ? (
-                    <img src={`https://flagcdn.com/w80/${c.flag.trim().toLowerCase()}.png`} alt={c.name} style={{ width: '20px', height: '20px', borderRadius: '50%', objectFit: 'cover' }} />
-                  ) : (
-                    <div style={{ width: '20px', height: '20px', borderRadius: '50%', backgroundColor: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <span style={{ fontSize: '10px', color: '#64748b' }}>{c.code.substring(0, 2)}</span>
-                    </div>
-                  )}
+                  <FlagIcon 
+                    flagCode={c.flag} 
+                    name={c.name} 
+                    className="w-5 h-5 sm:w-6 sm:h-6" 
+                    fallbackType="coins" 
+                  />
                   <span style={{ fontSize: '12px', fontWeight: '700', color: '#64748b', fontFamily: "'Cairo', sans-serif" }}>{c.code}</span>
                 </div>
                 <p style={{ fontSize: '24px', fontWeight: '800', color: '#1e293b', margin: '0', fontFamily: "'Cairo', sans-serif" }}>{(rates?.official[c.code] || 0).toFixed(3)}</p>
