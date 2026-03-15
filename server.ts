@@ -190,7 +190,7 @@ async function initializeRatesFromDB() {
       const latestValidParallel = data.find(row => row.usd_parallel > 5.5) || data[0];
       
       if (latestValidParallel.rates_parallel && latestValidParallel.rates_parallel.USD > 5.5) {
-        rates.parallel = { ...latestValidParallel.rates_parallel };
+        rates.parallel = { ...rates.parallel, ...latestValidParallel.rates_parallel };
       }
       
       // Load lastChanged from the latest row if it exists
@@ -210,7 +210,7 @@ async function initializeRatesFromDB() {
       
       // 2. Load official rates from the absolute latest row
       if (data[0].rates_official) {
-        rates.official = { ...data[0].rates_official };
+        rates.official = { ...rates.official, ...data[0].rates_official };
       }
       
       // 3. Find the true previous PARALLEL rate (different from current, and valid > 5.5)
@@ -221,7 +221,7 @@ async function initializeRatesFromDB() {
       );
       
       if (previousParallelRow && previousParallelRow.rates_parallel) {
-        rates.previousParallel = previousParallelRow.rates_parallel;
+        rates.previousParallel = { ...rates.previousParallel, ...previousParallelRow.rates_parallel };
       } else {
         rates.previousParallel = { ...rates.parallel };
       }
@@ -233,7 +233,7 @@ async function initializeRatesFromDB() {
       );
       
       if (previousOfficialRow && previousOfficialRow.rates_official) {
-        rates.previousOfficial = previousOfficialRow.rates_official;
+        rates.previousOfficial = { ...rates.previousOfficial, ...previousOfficialRow.rates_official };
       } else {
         rates.previousOfficial = { ...rates.official };
       }
@@ -377,7 +377,7 @@ async function fetchOfficialRates(): Promise<boolean> {
       });
       
       if (anyChanged) {
-        rates.official = { ...newOfficial };
+        rates.official = { ...rates.official, ...newOfficial };
         console.log(`[Official] Rates updated via FastForex`);
       }
       return anyChanged;
@@ -429,7 +429,7 @@ async function fetchOfficialRates(): Promise<boolean> {
         });
         
         if (anyChanged) {
-          rates.official = { ...newOfficial };
+          rates.official = { ...rates.official, ...newOfficial };
           console.log(`Official rates updated due to changes from ${source}`);
         }
         return anyChanged;
@@ -488,8 +488,16 @@ async function loadConfigFromSupabase() {
         console.error("Error loading config from Supabase:", error);
       }
     } else if (data && data.config) {
-      appConfig = data.config;
-      console.log("Loaded config from Supabase successfully");
+      // Merge terms: keep existing terms from Supabase, add new ones if missing
+      const existingIds = new Set(data.config.terms.map((t: any) => t.id));
+      const mergedTerms = [...data.config.terms];
+      for (const term of appConfig.terms) {
+        if (!existingIds.has(term.id)) {
+          mergedTerms.push(term);
+        }
+      }
+      appConfig = { ...data.config, terms: mergedTerms };
+      console.log("Loaded and merged config from Supabase successfully");
     }
   } catch (err) {
     console.error("Failed to load config from Supabase", err);
