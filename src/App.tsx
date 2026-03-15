@@ -706,8 +706,8 @@ export default function App() {
         <section className="flex flex-col lg:flex-row items-start lg:items-end justify-between gap-8 lg:gap-12">
           <div className="w-full lg:w-auto">
             <div className="flex items-center gap-3 mb-4 sm:mb-6">
-              <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full overflow-hidden shadow-[0_0_15px_rgba(16,185,129,0.3)] shrink-0">
-                <img src="https://flagcdn.com/w160/us.png" alt="US Flag" className="w-full h-full object-cover rounded-full" />
+              <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full shadow-[0_0_15px_rgba(16,185,129,0.3)] shrink-0">
+                <FlagIcon flagCode="us" name="US Flag" className="w-full h-full" />
               </div>
               <div className="flex items-center gap-2.5">
                 <h2 className="text-sm sm:text-base font-medium text-emerald-400 tracking-wide">السوق الموازي • دولار أمريكي</h2>

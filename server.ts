@@ -827,7 +827,8 @@ async function loadConfigFromSupabase() {
             min: defaultTerm.min,     // OVERRIDE with latest code constraints
             max: defaultTerm.max,     // OVERRIDE with latest code constraints
             name: dbTerm.name || defaultTerm.name,
-            flag: dbTerm.flag || defaultTerm.flag
+            // Ensure flag is valid and not a string "undefined"/"null"
+            flag: (dbTerm.flag && dbTerm.flag !== "undefined" && dbTerm.flag !== "null") ? dbTerm.flag : defaultTerm.flag
           };
         }
         return dbTerm;
@@ -1171,7 +1172,7 @@ async function startServer() {
     contentSecurityPolicy: {
       directives: {
         ...helmet.contentSecurityPolicy.getDefaultDirectives(),
-        "img-src": ["'self'", "data:", "https://hatscripts.github.io", "https://picsum.photos", "https://*.supabase.co", "https://*.google.com", "https://*.gstatic.com"],
+        "img-src": ["'self'", "data:", "https://flagcdn.com", "https://hatscripts.github.io", "https://picsum.photos", "https://*.supabase.co", "https://*.google.com", "https://*.gstatic.com"],
         "connect-src": ["'self'", "https://open.er-api.com", "https://t.me", "https://*.supabase.co", "wss:", "ws:", "https://*.google.com", "https://*.gstatic.com", "https://*.googleapis.com"],
         "script-src": ["'self'", "'unsafe-inline'", "'unsafe-eval'", "blob:", "https://*.google.com", "https://*.gstatic.com"],
         "font-src": ["'self'", "https://fonts.gstatic.com", "data:", "https://*.googleapis.com"],
