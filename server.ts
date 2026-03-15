@@ -662,29 +662,29 @@ async function fetchOfficialRates(): Promise<boolean> {
 let appConfig: AppConfig = {
   channels: ["dollarr_ly", "musheermarket", "lydollar", "djheih2026", "suqalmushir"],
   terms: [
-    { id: "USD", name: "دولار أمريكي", regex: "(?:الدولار|دولار|الخضراء|خضراء|كاش|💵|usd|🇺🇸)[\\s\\S]*?(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
-    { id: "EUR", name: "يورو", regex: "(?:يورو|اليورو|💶|eur|🇪🇺)[\\s\\S]*?(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "eu" },
-    { id: "GBP", name: "جنيه إسترليني", regex: "(?:باوند|استرليني|الباوند|💷|gbp|🇬🇧)[\\s\\S]*?(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "gb" },
-    { id: "TND", name: "دينار تونسي", regex: "(?:تونسي|تونس|tnd|🇹🇳)[\\s\\S]*?(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 0.1, max: 10.0, isInverse: false, flag: "tn" },
-    { id: "EGP", name: "جنيه مصري", regex: "(?:مصري|مصر|egp|🇪🇬)[\\s\\S]*?(\\d{0,1}(?:[\\.,]\\d{1,4})?)", min: 0.01, max: 5.0, isInverse: false, flag: "eg" },
-    { id: "TRY", name: "ليرة تركية", regex: "(?:ليرة|تركي|try|🇹🇷)[\\s\\S]*?(\\d{0,1}(?:[\\.,]\\d{1,4})?)", min: 0.01, max: 5.0, isInverse: false, flag: "tr" },
-    { id: "JOD", name: "دينار أردني", regex: "(?:jod|JOD|أردني|🇯🇴)[\\s\\S]*?(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 30.0, isInverse: false, flag: "jo" },
-    { id: "BHD", name: "دينار بحريني", regex: "(?:bhd|BHD|بحريني|🇧🇭)[\\s\\S]*?(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 10.0, max: 50.0, isInverse: false, flag: "bh" },
-    { id: "KWD", name: "دينار كويتي", regex: "(?:kwd|KWD|كويتي|🇰🇼)[\\s\\S]*?(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 10.0, max: 60.0, isInverse: false, flag: "kw" },
-    { id: "AED", name: "درهم إماراتي", regex: "(?:aed|AED|إماراتي|امارات|🇦🇪)[\\s\\S]*?(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 0.5, max: 10.0, isInverse: false, flag: "ae" },
-    { id: "SAR", name: "ريال سعودي", regex: "(?:sar|SAR|سعودي|ريال|🇸🇦)[\\s\\S]*?(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 0.5, max: 10.0, isInverse: false, flag: "sa" },
-    { id: "QAR", name: "ريال قطري", regex: "(?:qar|QAR|قطري|🇶🇦)[\\s\\S]*?(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 0.5, max: 10.0, isInverse: false, flag: "qa" },
-    { id: "USD_JBANK", name: "صكوك الجمهورية", regex: "(?:jbank|الجمهورية|صكوك|بصك)[\\s\\S]*?(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
-    { id: "USD_BCD", name: "صكوك التجارة", regex: "(?:bcd|التجارة والتنمية)[\\s\\S]*?(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
-    { id: "USD_NCB", name: "صكوك التجاري", regex: "(?:NCB|التجاري الوطني|صكوك|بصك)[\\s\\S]*?(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
-    { id: "USD_AB", name: "صكوك الأمان", regex: "(?:AB|الأمان|الامان)[\\s\\S]*?(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
-    { id: "USD_WB", name: "صكوك الوحدة", regex: "(?:WB|الوحدة)[\\s\\S]*?(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
-    { id: "USD_AE", name: "حوالات دبي", regex: "(?:دبي|امارات|الإمارات|🇦🇪)[\\s\\S]*?(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "ae" },
-    { id: "USD_TR", name: "حوالات تركيا", regex: "(?:تركيا|تركي|🇹🇷)[\\s\\S]*?(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "tr" },
-    { id: "USD_CN", name: "حوالات الصين", regex: "(?:الصين|صينية|🇨🇳)[\\s\\S]*?(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "cn" },
-    { id: "CNY", name: "يوان صيني", regex: "(?:cny|CNY|يوان|🇨🇳)[\\s\\S]*?(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 0.5, max: 5.0, isInverse: false, flag: "cn" },
-    { id: "GOLD", name: "كسر الذهب", regex: "(?:كسر الذهب|ذهبي|ذهب|💎)[\\s\\S]*?(\\d{2,4}(?:[\\.,]\\d+)?)", min: 100, max: 5000, isInverse: false, flag: "ly" },
-    { id: "OFFICIAL_USD", name: "الدولار الرسمي", regex: "(?:الرسمي|المركزي)[\\s\\S]*?(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 4.0, max: 6.0, isInverse: false, flag: "us" }
+    { id: "USD", name: "دولار أمريكي", regex: "(?:الدولار|دولار|الخضراء|خضراء|كاش|💵|usd|🇺🇸)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
+    { id: "EUR", name: "يورو", regex: "(?:يورو|اليورو|💶|eur|🇪🇺)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "eu" },
+    { id: "GBP", name: "جنيه إسترليني", regex: "(?:باوند|استرليني|الباوند|💷|gbp|🇬🇧)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "gb" },
+    { id: "TND", name: "دينار تونسي", regex: "(?:تونسي|تونس|tnd|🇹🇳)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 0.1, max: 10.0, isInverse: false, flag: "tn" },
+    { id: "EGP", name: "جنيه مصري", regex: "(?:مصري|مصر|egp|🇪🇬)[^\\d]{0,25}(\\d{0,1}(?:[\\.,]\\d{1,4})?)", min: 0.01, max: 5.0, isInverse: false, flag: "eg" },
+    { id: "TRY", name: "ليرة تركية", regex: "(?:ليرة|تركي|try|🇹🇷)[^\\d]{0,25}(\\d{0,1}(?:[\\.,]\\d{1,4})?)", min: 0.01, max: 5.0, isInverse: false, flag: "tr" },
+    { id: "JOD", name: "دينار أردني", regex: "(?:jod|JOD|أردني|🇯🇴)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 30.0, isInverse: false, flag: "jo" },
+    { id: "BHD", name: "دينار بحريني", regex: "(?:bhd|BHD|بحريني|🇧🇭)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 10.0, max: 50.0, isInverse: false, flag: "bh" },
+    { id: "KWD", name: "دينار كويتي", regex: "(?:kwd|KWD|كويتي|🇰🇼)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 10.0, max: 60.0, isInverse: false, flag: "kw" },
+    { id: "AED", name: "درهم إماراتي", regex: "(?:aed|AED|إماراتي|امارات|🇦🇪)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 0.5, max: 10.0, isInverse: false, flag: "ae" },
+    { id: "SAR", name: "ريال سعودي", regex: "(?:sar|SAR|سعودي|ريال|🇸🇦)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 0.5, max: 10.0, isInverse: false, flag: "sa" },
+    { id: "QAR", name: "ريال قطري", regex: "(?:qar|QAR|قطري|🇶🇦)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 0.5, max: 10.0, isInverse: false, flag: "qa" },
+    { id: "USD_JBANK", name: "صكوك الجمهورية", regex: "(?:jbank|الجمهورية|صكوك|بصك)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
+    { id: "USD_BCD", name: "صكوك التجارة", regex: "(?:bcd|التجارة والتنمية)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
+    { id: "USD_NCB", name: "صكوك التجاري", regex: "(?:NCB|التجاري الوطني|صكوك|بصك)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
+    { id: "USD_AB", name: "صكوك الأمان", regex: "(?:AB|الأمان|الامان)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
+    { id: "USD_WB", name: "صكوك الوحدة", regex: "(?:WB|الوحدة)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
+    { id: "USD_AE", name: "حوالات دبي", regex: "(?:دبي|امارات|الإمارات|🇦🇪)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "ae" },
+    { id: "USD_TR", name: "حوالات تركيا", regex: "(?:تركيا|تركي|🇹🇷)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "tr" },
+    { id: "USD_CN", name: "حوالات الصين", regex: "(?:الصين|صينية|🇨🇳)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "cn" },
+    { id: "CNY", name: "يوان صيني", regex: "(?:cny|CNY|يوان|🇨🇳)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 0.5, max: 5.0, isInverse: false, flag: "cn" },
+    { id: "GOLD", name: "كسر الذهب", regex: "(?:كسر الذهب|ذهبي|ذهب|💎)[^\\d]{0,25}(\\d{2,4}(?:[\\.,]\\d+)?)", min: 100, max: 5000, isInverse: false, flag: "ly" },
+    { id: "OFFICIAL_USD", name: "الدولار الرسمي", regex: "(?:الرسمي|المركزي)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 4.0, max: 6.0, isInverse: false, flag: "us" }
   ]
 };
 
@@ -712,14 +712,14 @@ async function loadConfigFromSupabase() {
       dbConfig.terms = dbConfig.terms.map(dbTerm => {
         const defaultTerm = appConfig.terms.find(t => t.id === dbTerm.id);
         if (defaultTerm) {
-          // Keep DB values for price/regex/flag/name, but ensure flag/name are present from defaults if missing
-          const isValidFlag = dbTerm.flag && dbTerm.flag !== "undefined" && dbTerm.flag !== "null" && dbTerm.flag.trim() !== "";
-          const isValidName = dbTerm.name && dbTerm.name !== "undefined" && dbTerm.name !== "null" && dbTerm.name.trim() !== "";
+          // IMPORTANT: We override DB regex with Code regex to ensure bug fixes propagate!
           return {
-            ...defaultTerm, // Start with defaults
-            ...dbTerm,      // Override with DB values
-            flag: isValidFlag ? dbTerm.flag : defaultTerm.flag, // Use DB flag if valid, otherwise default
-            name: isValidName ? dbTerm.name : defaultTerm.name  // Use DB name if valid, otherwise default
+            ...dbTerm,      // Start with DB values
+            regex: defaultTerm.regex, // OVERRIDE with latest code regex
+            min: defaultTerm.min,     // OVERRIDE with latest code constraints
+            max: defaultTerm.max,     // OVERRIDE with latest code constraints
+            name: dbTerm.name || defaultTerm.name,
+            flag: dbTerm.flag || defaultTerm.flag
           };
         }
         return dbTerm;
@@ -864,6 +864,9 @@ async function fetchParallelRatesFromTelegram() {
 
     if (successfulChannels > 0) {
       lastSuccessfulScrape = new Date();
+      console.log(`[Scraper] Successfully processed ${totalMessagesProcessed} messages from ${successfulChannels} channels.`);
+    } else {
+      console.warn("[Scraper] Failed to fetch any messages from any channels.");
     }
 
     const latestRates: Record<string, number> = {};
@@ -896,10 +899,12 @@ async function fetchParallelRatesFromTelegram() {
       }
     }
 
-    if (latestRates.USD) {
-      console.log(`[Scraper] Scrape check completed. USD found: ${latestRates.USD}`);
+    const foundKeys = Object.keys(latestRates);
+    if (foundKeys.length > 0) {
+      console.log(`[Scraper] Scrape check completed. Found rates for: ${foundKeys.join(', ')}`);
       
       let anyChanged = false;
+      const primaryUsd = latestRates.USD || rates.parallel.USD;
 
       // Dynamically assign all extracted rates
       for (const term of appConfig.terms) {
@@ -918,14 +923,14 @@ async function fetchParallelRatesFromTelegram() {
         } else if (!currentVal) {
           // Initialize with some fallback if it doesn't exist at all (initial setup)
           const fallbackValue = 
-            term.id === "USD_CHECKS" ? latestRates.USD + 0.8 :
-            term.id === "EUR" ? latestRates.USD * 1.08 :
-            term.id === "GBP" ? latestRates.USD * 1.26 :
+            term.id === "USD_CHECKS" ? primaryUsd + 0.8 :
+            term.id === "EUR" ? primaryUsd * 1.08 :
+            term.id === "GBP" ? primaryUsd * 1.26 :
             term.id === "GOLD" ? 1280 :
-            (term.id === "USD_TR" || term.id === "USD_AE") ? latestRates.USD :
-            term.id === "TND" ? latestRates.USD * 0.32 :
-            term.id === "TRY" ? latestRates.USD * 0.03 :
-            term.id === "EGP" ? latestRates.USD * 0.02 :
+            (term.id === "USD_TR" || term.id === "USD_AE") ? primaryUsd :
+            term.id === "TND" ? primaryUsd * 0.32 :
+            term.id === "TRY" ? primaryUsd * 0.03 :
+            term.id === "EGP" ? primaryUsd * 0.02 :
             term.id === "OFFICIAL_USD" ? rates.official.USD : 0;
           
           rates.parallel[term.id] = fallbackValue;
@@ -1374,6 +1379,56 @@ async function startServer() {
     } catch (err) {
       console.error("[Cron-Job-Official] Official refresh failed:", err);
       res.status(500).json({ success: false, error: "Internal server error during official refresh" });
+    }
+  });
+
+  app.get("/api/cleanup-db", async (req: express.Request, res: express.Response) => {
+    const providedKey = req.query.key as string;
+    const expectedKey = process.env.CRON_SECRET;
+    
+    if (!expectedKey || providedKey !== expectedKey) {
+      return res.status(403).json({ success: false, error: "Forbidden" });
+    }
+
+    if (!supabase || !supabaseAnonKey || supabaseAnonKey.includes('dummy')) {
+      return res.status(500).json({ success: false, error: "Database not connected" });
+    }
+
+    try {
+      const twoDaysAgo = new Date();
+      twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+      const cutoff = twoDaysAgo.toISOString();
+
+      console.log(`[Maintenance] Manual cleanup triggered. Removing records older than ${cutoff}`);
+
+      // Delete old exchange rates
+      const { count: ratesCount, error: ratesError } = await supabase
+        .from('exchange_rates')
+        .delete({ count: 'exact' })
+        .lt('recorded_at', cutoff);
+
+      // Delete old error logs
+      const { count: logsCount, error: logsError } = await supabase
+        .from('error_logs')
+        .delete({ count: 'exact' })
+        .lt('created_at', cutoff);
+
+      if (ratesError || logsError) {
+        console.error("Cleanup error:", ratesError || logsError);
+      }
+
+      res.json({
+        success: true,
+        message: "تم تنظيف قاعدة البيانات بنجاح (سجلات أقدم من يومين)",
+        details: {
+          removed_rates: ratesCount || 0,
+          removed_logs: logsCount || 0,
+          cutoff_date: cutoff
+        }
+      });
+    } catch (err) {
+      console.error("[Maintenance] Cleanup failed:", err);
+      res.status(500).json({ success: false, error: "Internal server error during cleanup" });
     }
   });
 
