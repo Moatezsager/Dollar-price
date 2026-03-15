@@ -269,8 +269,8 @@ let lastRatesFetchTime = 0;
 const RATES_CACHE_TTL = 30 * 1000; // 30 seconds
 
 // Initialize rates from Database on startup to ensure accuracy
-async function initializeRatesFromDB() {
-  if (Date.now() - lastRatesFetchTime < RATES_CACHE_TTL) {
+async function initializeRatesFromDB(force = false) {
+  if (!force && Date.now() - lastRatesFetchTime < RATES_CACHE_TTL) {
     return; // Use memory cache
   }
 
@@ -281,7 +281,7 @@ async function initializeRatesFromDB() {
       .from('exchange_rates')
       .select('*')
       .order('recorded_at', { ascending: false })
-      .limit(100); // Fetch enough to find valid distinct prices
+      .limit(50); // Fetch latest records to reconstruct current state
       
     if (error) {
       console.error("Error initializing rates from DB:", error.message);
@@ -289,64 +289,49 @@ async function initializeRatesFromDB() {
     }
     
     if (data && data.length > 0) {
-      // 1. Find the latest VALID parallel row (USD > 5.5 to filter out accidental official rates)
-      const latestValidParallel = data.find(row => row.usd_parallel > 5.5) || data[0];
+      // Use the absolute latest record for primary rates
+      const latestRow = data[0];
       
-      if (latestValidParallel.rates_parallel && latestValidParallel.rates_parallel.USD > 5.5) {
-        rates.parallel = { ...rates.parallel, ...latestValidParallel.rates_parallel };
+      if (latestRow.rates_parallel) {
+        rates.parallel = { ...rates.parallel, ...latestRow.rates_parallel };
+      }
+      if (latestRow.rates_official) {
+        rates.official = { ...rates.official, ...latestRow.rates_official };
       }
       
-      // Load lastChanged from the latest row if it exists
-      if (latestValidParallel.last_changed) {
-        // Merge instead of overwrite to keep defaults for new currencies
-        const dbLastChanged = latestValidParallel.last_changed;
+      // Load lastChanged to ensure the frontend shows correct "time since last change"
+      if (latestRow.last_changed) {
         rates.lastChanged = {
-          official: { ...rates.lastChanged.official, ...(dbLastChanged.official || {}) },
-          parallel: { ...rates.lastChanged.parallel, ...(dbLastChanged.parallel || {}) }
+          official: { ...rates.lastChanged.official, ...(latestRow.last_changed.official || {}) },
+          parallel: { ...rates.lastChanged.parallel, ...(latestRow.last_changed.parallel || {}) }
         };
-      } else {
-        // Fallback: Initialize if not in DB, but use a slightly older time to distinguish from "just changed"
-        const fallbackTime = new Date(Date.now() - 3600000).toISOString(); // 1 hour ago
-        Object.keys(rates.official).forEach(key => {
-          if (!rates.lastChanged.official[key]) rates.lastChanged.official[key] = fallbackTime;
-        });
-        Object.keys(rates.parallel).forEach(key => {
-          if (!rates.lastChanged.parallel[key]) rates.lastChanged.parallel[key] = fallbackTime;
-        });
       }
       
-      // 2. Load official rates from the absolute latest row
-      if (data[0].rates_official) {
-        rates.official = { ...rates.official, ...data[0].rates_official };
-      }
-      
-      // 3. Find the true previous PARALLEL rate (different from current, and valid > 5.5)
-      const previousParallelRow = data.find(row => 
-        row.usd_parallel !== rates.parallel.USD && 
-        row.usd_parallel > 5.5 &&
-        Math.abs(row.usd_parallel - rates.parallel.USD) < 1.5 // Ensure it's a realistic previous price, not a polluted jump
-      );
-      
-      if (previousParallelRow && previousParallelRow.rates_parallel) {
-        rates.previousParallel = { ...rates.previousParallel, ...previousParallelRow.rates_parallel };
-      } else {
-        rates.previousParallel = { ...rates.parallel };
-      }
+      rates.lastUpdated = latestRow.recorded_at || new Date().toISOString();
 
-      // 4. Find the true previous OFFICIAL rate (different from current)
-      const previousOfficialRow = data.find(row => 
-        row.usd_official !== rates.official.USD &&
-        row.usd_official > 0
-      );
-      
-      if (previousOfficialRow && previousOfficialRow.rates_official) {
-        rates.previousOfficial = { ...rates.previousOfficial, ...previousOfficialRow.rates_official };
-      } else {
-        rates.previousOfficial = { ...rates.official };
-      }
+      // Find true previous rates for all currencies
+      const findPrevious = (currentRates: RateMap, isParallel: boolean) => {
+        const prev: RateMap = { ...currentRates };
+        for (const code in currentRates) {
+          const firstDifferent = data.find((row: any) => {
+            const rowRates = isParallel ? row.rates_parallel : row.rates_official;
+            return rowRates && isSignificantChange(rowRates[code], currentRates[code]);
+          });
+          if (firstDifferent) {
+            const rowRates = isParallel ? (firstDifferent as any).rates_parallel : (firstDifferent as any).rates_official;
+            prev[code] = rowRates[code];
+          }
+        }
+        return prev;
+      };
+
+      rates.previousParallel = findPrevious(rates.parallel, true);
+      rates.previousOfficial = findPrevious(rates.official, false);
       
       lastRatesFetchTime = Date.now();
-      console.log("Successfully initialized and validated rates from database.");
+      console.log(`[DB] Successfully loaded latest state (Parallel USD: ${rates.parallel.USD})`);
+    } else {
+      console.warn("[DB] No data found in exchange_rates table. Using defaults.");
     }
   } catch (err) {
     console.error("Error initializing rates from DB:", err);
@@ -457,7 +442,7 @@ async function fetchHistoryFromSupabase() {
     
     if (data && data.length > 0) {
       cachedHistory = data.reverse()
-        .map(row => ({
+        .map((row: any) => ({
           time: row.recorded_at,
           usdParallel: row.usd_parallel || (row.rates_parallel ? row.rates_parallel.USD : 0),
           usdOfficial: row.usd_official || (row.rates_official ? row.rates_official.USD : 0),
@@ -466,7 +451,7 @@ async function fetchHistoryFromSupabase() {
           previousParallel: row.previous_parallel,
           previousOfficial: row.previous_official
         }))
-        .filter(item => item.usdParallel > 5.5 || item.usdOfficial > 0);
+        .filter((item: any) => item.usdParallel > 5.5 || item.usdOfficial > 0);
       lastHistoryFetchTime = Date.now();
       return cachedHistory;
     }
@@ -476,59 +461,134 @@ async function fetchHistoryFromSupabase() {
   return history;
 }
 
+// Fetch official rates from Central Bank of Libya website
+async function fetchFromCBL(): Promise<RateMap | null> {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    // CBL direct rates page (Arabic version usually updated first)
+    const response = await fetch('https://cbl.gov.ly/', { signal: controller.signal });
+    clearTimeout(timeoutId);
+    
+    if (!response.ok) return null;
+    const html = await response.text();
+    
+    // Pattern extraction for CBL table
+    // Example: <tr><td>الدولار الأمريكي</td><td>4.8456</td><td>4.8214</td></tr>
+    const currencies = [
+      { id: "USD", names: ["الدولار الأمريكي", "USD"] },
+      { id: "EUR", names: ["اليورو", "EUR", "EURO"] },
+      { id: "GBP", names: ["الجنيه الإسترليني", "GBP", "STIRLING"] },
+      { id: "TND", names: ["الدينار التونسي", "TND"] },
+      { id: "EGP", names: ["الجنيه المصري", "EGP"] },
+      { id: "TRY", names: ["الليرة التركية", "TRY"] },
+      { id: "SAR", names: ["الريال السعودي", "SAR"] },
+      { id: "AED", names: ["الدرهم الإماراتي", "AED"] },
+      { id: "JOD", names: ["الدينار الأردني", "JOD"] },
+    ];
+
+    const results: RateMap = {};
+    
+    for (const currency of currencies) {
+      for (const name of currency.names) {
+        // Look for the currency name followed by numbers in the next cells
+        const regex = new RegExp(`${name}[\\s\\S]*?(\\d+\\.\\d+)[\\s\\S]*?(\\d+\\.\\d+)`, 'i');
+        const match = html.match(regex);
+        if (match && match[1]) {
+          const buyRate = parseFloat(match[1]);
+          const sellRate = parseFloat(match[2]);
+          // Use sell rate as the primary official rate if it looks reasonable
+          if (!isNaN(sellRate) && sellRate > 0) {
+            results[currency.id] = sellRate;
+            break;
+          }
+        }
+      }
+    }
+
+    if (results.USD && results.USD > 4.0 && results.USD < 6.0) {
+      console.log("[CBL Scraper] Successfully extracted rates from CBL website");
+      return results;
+    }
+    return null;
+  } catch (err) {
+    console.error("[CBL Scraper] Error scraping CBL website:", err);
+    return null;
+  }
+}
+
 // Fetch real official rates from open API
 async function fetchOfficialRates(): Promise<boolean> {
+  // 1. Try CBL Website First (Most Accurate for Libya)
+  const cblRates = await fetchFromCBL();
+  if (cblRates) {
+    let anyChanged = false;
+    Object.entries(cblRates).forEach(([key, val]) => {
+      if (isSignificantChange(rates.official[key], val)) {
+        rates.previousOfficial[key] = rates.official[key];
+        rates.lastChanged.official[key] = new Date().toISOString();
+        anyChanged = true;
+      }
+    });
+
+    if (anyChanged) {
+      rates.official = { ...rates.official, ...cblRates };
+      rates.parallel.OFFICIAL_USD = rates.official.USD;
+      rates.lastChanged.parallel.OFFICIAL_USD = new Date().toISOString();
+      console.log(`[Official] Rates updated via CBL Scraper`);
+    }
+    return anyChanged;
+  }
+
   const ffKey = process.env.FAST_FOREX_KEY;
   
   if (!ffKey) {
     console.warn("[Official] FastForex Key missing, skipping premium source");
-    return false;
-  }
-  
-  // Try FastForex first (Premium/Faster)
-  try {
-    const ffResponse = await fetch(`https://api.fastforex.io/fetch-all?from=USD&api_key=${ffKey}`);
-    const ffData = await ffResponse.json();
-    
-    if (ffData && ffData.results && ffData.results.LYD) {
-      let anyChanged = false;
-      const lyd = ffData.results.LYD;
-      const res = ffData.results;
+  } else {
+    // Try FastForex (Secondary)
+    try {
+      const ffResponse = await fetch(`https://api.fastforex.io/fetch-all?from=USD&api_key=${ffKey}`);
+      const ffData = await ffResponse.json();
       
-      const newOfficial: RateMap = {
-        USD: lyd,
-        EUR: lyd / (res.EUR || 1),
-        GBP: lyd / (res.GBP || 1),
-        TND: lyd / (res.TND || 1),
-        TRY: lyd / (res.TRY || 1),
-        EGP: lyd / (res.EGP || 1),
-        JOD: lyd / (res.JOD || 1),
-        AED: lyd / (res.AED || 1),
-        SAR: lyd / (res.SAR || 1),
-        BHD: lyd / (res.BHD || 1),
-        KWD: lyd / (res.KWD || 1),
-        QAR: lyd / (res.QAR || 1),
-      };
+      if (ffData && ffData.results && ffData.results.LYD) {
+        let anyChanged = false;
+        const lyd = ffData.results.LYD;
+        const res = ffData.results;
+        
+        const newOfficial: RateMap = {
+          USD: lyd,
+          EUR: lyd / (res.EUR || 1),
+          GBP: lyd / (res.GBP || 1),
+          TND: lyd / (res.TND || 1),
+          TRY: lyd / (res.TRY || 1),
+          EGP: lyd / (res.EGP || 1),
+          JOD: lyd / (res.JOD || 1),
+          AED: lyd / (res.AED || 1),
+          SAR: lyd / (res.SAR || 1),
+          BHD: lyd / (res.BHD || 1),
+          KWD: lyd / (res.KWD || 1),
+          QAR: lyd / (res.QAR || 1),
+        };
 
-      Object.entries(newOfficial).forEach(([key, val]) => {
-        if (isSignificantChange(rates.official[key], val)) {
-          rates.previousOfficial[key] = rates.official[key];
-          rates.lastChanged.official[key] = new Date().toISOString();
-          anyChanged = true;
+        Object.entries(newOfficial).forEach(([key, val]) => {
+          if (isSignificantChange(rates.official[key], val)) {
+            rates.previousOfficial[key] = rates.official[key];
+            rates.lastChanged.official[key] = new Date().toISOString();
+            anyChanged = true;
+          }
+        });
+        
+        if (anyChanged) {
+          rates.official = { ...rates.official, ...newOfficial };
+          rates.parallel.OFFICIAL_USD = rates.official.USD;
+          rates.lastChanged.parallel.OFFICIAL_USD = new Date().toISOString();
+          console.log(`[Official] Rates updated via FastForex`);
         }
-      });
-      
-      if (anyChanged) {
-        rates.official = { ...rates.official, ...newOfficial };
-        // Sync OFFICIAL_USD in parallel rates
-        rates.parallel.OFFICIAL_USD = rates.official.USD;
-        rates.lastChanged.parallel.OFFICIAL_USD = new Date().toISOString();
-        console.log(`[Official] Rates updated via FastForex`);
+        return anyChanged;
       }
-      return anyChanged;
+    } catch (e) {
+      console.warn("[Official] FastForex failed, falling back to public APIs");
     }
-  } catch (e) {
-    console.warn("[Official] FastForex failed, falling back to public APIs");
   }
 
   // Fallback to free public APIs
@@ -552,17 +612,17 @@ async function fetchOfficialRates(): Promise<boolean> {
         
         const newOfficial: RateMap = {
           USD: lyd,
-          EUR: lyd / data.rates.EUR,
-          GBP: lyd / data.rates.GBP,
-          TND: lyd / data.rates.TND,
-          TRY: lyd / data.rates.TRY,
-          EGP: lyd / data.rates.EGP,
-          JOD: lyd / data.rates.JOD,
-          AED: lyd / data.rates.AED,
-          SAR: lyd / data.rates.SAR,
-          BHD: lyd / data.rates.BHD,
-          KWD: lyd / data.rates.KWD,
-          QAR: lyd / data.rates.QAR,
+          EUR: lyd / (data.rates.EUR || 1),
+          GBP: lyd / (data.rates.GBP || 1),
+          TND: lyd / (data.rates.TND || 1),
+          TRY: lyd / (data.rates.TRY || 1),
+          EGP: lyd / (data.rates.EGP || 1),
+          JOD: lyd / (data.rates.JOD || 1),
+          AED: lyd / (data.rates.AED || 1),
+          SAR: lyd / (data.rates.SAR || 1),
+          BHD: lyd / (data.rates.BHD || 1),
+          KWD: lyd / (data.rates.KWD || 1),
+          QAR: lyd / (data.rates.QAR || 1),
         };
 
         Object.entries(newOfficial).forEach(([key, val]) => {
@@ -575,10 +635,9 @@ async function fetchOfficialRates(): Promise<boolean> {
         
         if (anyChanged) {
           rates.official = { ...rates.official, ...newOfficial };
-          // Sync OFFICIAL_USD in parallel rates
           rates.parallel.OFFICIAL_USD = rates.official.USD;
           rates.lastChanged.parallel.OFFICIAL_USD = new Date().toISOString();
-          console.log(`Official rates updated due to changes from ${source}`);
+          console.log(`Official rates updated via ${source}`);
         }
         return anyChanged;
       }
@@ -1186,9 +1245,8 @@ async function startServer() {
 
   app.get("/api/rates", async (req: express.Request, res: express.Response) => {
     try {
-      if (req.query.refresh === 'true') {
-        await initializeRatesFromDB();
-      }
+      const force = req.query.refresh === 'true';
+      await initializeRatesFromDB(force);
       res.json(rates);
     } catch (err) {
       console.error("Error in /api/rates:", err);
@@ -1221,13 +1279,21 @@ async function startServer() {
       const startTime = Date.now();
       const oldUsd = rates.parallel.USD;
 
+      // 1. Fetch data from Telegram
       const parallelUpdate = await fetchParallelRatesFromTelegram();
       
+      let changed = false;
       if (parallelUpdate) {
         console.log("[Cron-Job] Parallel changes detected! Saving to database...");
         await saveToSupabase();
+        changed = true;
       } else {
         console.log("[Cron-Job] Checked parallel sources. No price changes found.");
+        // Even if no price changed, we might want to sync memory cache with DB 
+        // if memory was lost (e.g. server restart)
+        if (rates.parallel.USD < 1) {
+          await initializeRatesFromDB(true);
+        }
       }
       
       const duration = Date.now() - startTime;
@@ -1235,16 +1301,16 @@ async function startServer() {
       
       res.status(200).json({ 
         success: true, 
-        message: "Parallel data refreshed successfully",
+        message: changed ? "Parallel data updated and saved" : "No changes detected, DB stays synced",
         details: {
           duration_ms: duration,
-          parallel_usd: { current: newUsd, changed: newUsd !== oldUsd },
-          last_scrape_time: new Date().toISOString()
+          parallel_usd: { current: newUsd, changed },
+          last_sync: new Date().toISOString()
         }
       });
     } catch (err) {
       console.error("[Cron-Job] Parallel refresh failed:", err);
-      res.status(500).json({ success: false, error: "Failed to refresh parallel data" });
+      res.status(500).json({ success: false, error: "Internal server error during refresh" });
     }
   });
 
@@ -1272,11 +1338,14 @@ async function startServer() {
       const startTime = Date.now();
       const oldOfficial = rates.official.USD;
 
+      // 1. Fetch official rates (CBL + fallbacks)
       const officialUpdate = await fetchOfficialRates();
       
+      let changed = false;
       if (officialUpdate) {
         console.log("[Cron-Job-Official] Official changes detected! Saving to database...");
         await saveToSupabase();
+        changed = true;
       } else {
         console.log("[Cron-Job-Official] Checked official sources. No price changes found.");
       }
@@ -1286,16 +1355,16 @@ async function startServer() {
       
       res.status(200).json({ 
         success: true, 
-        message: "Official data refreshed successfully",
+        message: changed ? "Official data updated and saved" : "No changes detected",
         details: {
           duration_ms: duration,
-          official_usd: { current: newOfficial, changed: newOfficial !== oldOfficial },
-          last_scrape_time: new Date().toISOString()
+          official_usd: { current: newOfficial, changed },
+          last_sync: new Date().toISOString()
         }
       });
     } catch (err) {
       console.error("[Cron-Job-Official] Official refresh failed:", err);
-      res.status(500).json({ success: false, error: "Failed to refresh official data" });
+      res.status(500).json({ success: false, error: "Internal server error during official refresh" });
     }
   });
 

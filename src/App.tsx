@@ -389,7 +389,7 @@ export default function App() {
         return;
       }
 
-      const newRates = await ratesRes.json();
+      const newRates: Rates = await ratesRes.json();
       const newHistory = await historyRes.json();
       
       // Check for price changes to notify using the ref to get the latest state
@@ -397,49 +397,38 @@ export default function App() {
       const currentRates = ratesRef.current;
       
       if (currentRates) {
-        // Check all parallel currencies
-        const currenciesToCheck = Object.keys(newRates.parallel);
+        // Only notify if the change is significant and the new date is newer than what we have
+        const isNewer = new Date(newRates.lastUpdated).getTime() > new Date(currentRates.lastUpdated).getTime();
         
-        currenciesToCheck.forEach(code => {
-          const oldPrice = currentRates.parallel[code];
-          const newPrice = newRates.parallel[code];
+        if (isNewer) {
+          // Check all parallel currencies
+          const currenciesToCheck = Object.keys(newRates.parallel);
           
-          if (oldPrice && newPrice && Math.abs(oldPrice - newPrice) >= thresholdRef.current) {
-            // Avoid notifying the same price twice in a row
-            if (lastNotifiedRef.current[code] !== newPrice) {
-              const term = configTermsRef.current.find(t => t.id === code);
-              const name = term ? term.name : code;
-              
-              console.log(`Price change detected for ${code}: ${oldPrice} -> ${newPrice}`);
-              showPriceNotification(code, name, oldPrice, newPrice).catch(err => {
-                console.error("Error in showPriceNotification:", err);
-                logErrorToServer(err, "App.tsx: showPriceNotification parallel");
-              });
-              lastNotifiedRef.current[code] = newPrice;
-              hasChanges = true;
+          currenciesToCheck.forEach(code => {
+            const oldPrice = currentRates.parallel[code];
+            const newPrice = newRates.parallel[code];
+            
+            // Significant change threshold (0.001 Dinar)
+            if (oldPrice && newPrice && Math.abs(oldPrice - newPrice) >= thresholdRef.current) {
+              // Avoid notifying the same price twice if it hasn't changed since last notify
+              if (lastNotifiedRef.current[code] !== newPrice) {
+                const term = configTermsRef.current.find(t => t.id === code);
+                const name = term ? term.name : code;
+                
+                showPriceNotification(code, name, oldPrice, newPrice).catch(err => {
+                  console.error("Error showing notification:", err);
+                });
+                lastNotifiedRef.current[code] = newPrice;
+                hasChanges = true;
+              }
             }
-          }
-        });
-
-        // Also check official rates for major changes
-        ["USD", "EUR"].forEach(code => {
-          const oldPrice = currentRates.official[code];
-          const newPrice = newRates.official[code];
-          if (oldPrice && newPrice && Math.abs(oldPrice - newPrice) >= thresholdRef.current) {
-            if (lastNotifiedRef.current[`OFFICIAL_${code}`] !== newPrice) {
-              showPriceNotification(`OFFICIAL_${code}`, `السعر الرسمي - ${dynamicCurrencies.find(c => c.code === code)?.name}`, oldPrice, newPrice).catch(err => {
-                console.error("Error in showPriceNotification official:", err);
-                logErrorToServer(err, "App.tsx: showPriceNotification official");
-              });
-              lastNotifiedRef.current[`OFFICIAL_${code}`] = newPrice;
-              hasChanges = true;
-            }
-          }
-        });
+          });
+        }
       }
 
       setRates(newRates);
       setHistory(newHistory);
+      // We use server-provided lastUpdated for business logic, but keep track of sync time
       setLastFetchTime(new Date());
 
       // Fetch status
@@ -450,7 +439,6 @@ export default function App() {
           setAppStatus(statusData);
         }
       } catch (err) {
-        // Ignore status fetch errors
         logErrorToServer(err, "App.tsx: fetchStatus");
       }
 
@@ -464,12 +452,10 @@ export default function App() {
 
       if (hasChanges) {
         addToast("تم تحديث الأسعار", "تم رصد تغييرات جديدة في السوق وتحديث البيانات", "info");
-      } else if (lastFetchTime) {
-        addToast("البيانات محدثة", "أنت تشاهد أحدث الأسعار المتوفرة حالياً", "info");
       }
     } catch (error) {
       if (error instanceof TypeError && error.message === "Failed to fetch") {
-        console.warn("Server might be restarting, retrying in next poll...");
+        console.warn("Server might be restarting...");
       } else {
         console.error("Failed to fetch data:", error);
         logErrorToServer(error, "App.tsx: fetchData");
