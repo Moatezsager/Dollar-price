@@ -9,6 +9,7 @@ import {
 import { format } from "date-fns";
 import { ar } from "date-fns/locale";
 import { logErrorToServer } from "./utils/logger";
+import { FlagIcon } from "./components/FlagIcon";
 
 interface Stats {
   onlineUsers: number;
@@ -479,11 +480,7 @@ export default function Admin() {
                           >
                             <div className="flex items-center gap-4">
                               <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center border border-white/10 group-hover:scale-105 transition-transform overflow-hidden">
-                                {term.flag ? (
-                                  <img src={`https://flagcdn.com/w80/${term.flag.toLowerCase()}.png`} alt="flag" className="w-8 h-8 rounded-full object-cover drop-shadow-lg" />
-                                ) : (
-                                  <Coins className="w-6 h-6 text-zinc-600" />
-                                )}
+                                <FlagIcon flagCode={term.flag} name="flag" className="w-8 h-8" fallbackType="coins" />
                               </div>
                               <div>
                                 <h3 className="text-lg font-black text-white">{term.name}</h3>
@@ -591,8 +588,8 @@ export default function Admin() {
                                             className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm font-mono outline-none"
                                             dir="ltr"
                                           />
-                                          <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center">
-                                            {term.flag && <img src={`https://flagcdn.com/w80/${term.flag.toLowerCase()}.png`} className="w-6 h-6 rounded-full object-cover" />}
+                                          <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center overflow-hidden">
+                                            <FlagIcon flagCode={term.flag} name="flag" className="w-6 h-6" fallbackType="coins" />
                                           </div>
                                         </div>
                                       </div>

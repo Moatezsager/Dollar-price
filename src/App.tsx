@@ -36,6 +36,7 @@ import {
 import { format, formatDistanceToNow } from "date-fns";
 import { ar } from "date-fns/locale";
 import { logErrorToServer } from "./utils/logger";
+import { FlagIcon } from "./components/FlagIcon";
 
 interface Rates {
   official: Record<string, number>;
@@ -121,19 +122,20 @@ export default function App() {
     configTermsRef.current = configTerms;
   }, [configTerms]);
 
-  useEffect(() => {
-    const fetchConfig = async () => {
-      try {
-        const response = await fetch('/api/config');
-        const data = await response.json();
-        if (data && data.terms) {
-          setConfigTerms(data.terms);
-        }
-      } catch (error) {
-        console.error("Failed to fetch config:", error);
-        logErrorToServer(error, "App.tsx: fetchConfig");
+  const fetchConfig = async () => {
+    try {
+      const response = await fetch(`/api/config?t=${Date.now()}`);
+      const data = await response.json();
+      if (data && data.terms) {
+        setConfigTerms(data.terms);
       }
-    };
+    } catch (error) {
+      console.error("Failed to fetch config:", error);
+      logErrorToServer(error, "App.tsx: fetchConfig");
+    }
+  };
+
+  useEffect(() => {
     fetchConfig();
   }, []);
 
@@ -356,6 +358,9 @@ export default function App() {
   const fetchData = async (forceRefresh = false) => {
     setIsRefreshing(true);
     try {
+      if (forceRefresh) {
+        await fetchConfig();
+      }
       const [ratesResult, historyResult] = await Promise.allSettled([
         fetch(forceRefresh ? "/api/rates?refresh=true" : "/api/rates"),
         fetch("/api/history"),
@@ -783,7 +788,7 @@ export default function App() {
             >
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-400 shrink-0">
-                  <Building2 className="w-5 h-5" />
+                  <FlagIcon flagCode="us" name="دولار أمريكي (صكوك)" className="w-10 h-10" fallbackType="building" />
                 </div>
                 <div className="flex flex-col">
                   <span className="text-xs text-zinc-500 font-medium mb-1">دولار (صكوك)</span>
@@ -872,13 +877,7 @@ export default function App() {
                   >
                     <div className="flex items-center justify-between mb-3 sm:mb-4">
                       <div className="flex items-center gap-2">
-                        {term.flag ? (
-                          <img src={`https://flagcdn.com/w80/${term.flag.toLowerCase()}.png`} alt={term.name} className="w-5 h-5 rounded-full object-cover drop-shadow-sm transition-transform group-hover:scale-110" />
-                        ) : (
-                          <div className="w-5 h-5 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-400">
-                            <Coins className="w-3 h-3" />
-                          </div>
-                        )}
+                        <FlagIcon flagCode={term.flag} name={term.name} fallbackType="coins" />
                         <span className="text-[11px] font-medium text-zinc-400">{term.name}</span>
                       </div>
                       {trends24h[term.id]?.parallel !== undefined && (
@@ -923,9 +922,7 @@ export default function App() {
                   >
                     <div className="flex items-center justify-between mb-3 sm:mb-4">
                       <div className="flex items-center gap-2">
-                        <div className="w-5 h-5 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-400">
-                          <Building2 className="w-3 h-3" />
-                        </div>
+                        <FlagIcon flagCode={term.flag} name={term.name} fallbackType="building" />
                         <span className="text-[11px] font-medium text-zinc-400">{term.name}</span>
                       </div>
                       {trends24h[term.id]?.parallel !== undefined && (
@@ -970,13 +967,7 @@ export default function App() {
                   >
                     <div className="flex items-center justify-between mb-3 sm:mb-4">
                       <div className="flex items-center gap-2">
-                        {term.flag ? (
-                          <img src={`https://flagcdn.com/w80/${term.flag.toLowerCase()}.png`} alt={term.name} className="w-5 h-5 rounded-full object-cover drop-shadow-sm transition-transform group-hover:scale-110" />
-                        ) : (
-                          <div className="w-5 h-5 rounded-full bg-indigo-500/10 flex items-center justify-center text-indigo-400">
-                            <Send className="w-3 h-3" />
-                          </div>
-                        )}
+                        <FlagIcon flagCode={term.flag} name={term.name} fallbackType="send" />
                         <span className="text-[11px] font-medium text-zinc-400">{term.name}</span>
                       </div>
                       {trends24h[term.id]?.parallel !== undefined && (
@@ -1022,7 +1013,7 @@ export default function App() {
                 >
                   <div className="flex items-center justify-between mb-3 sm:mb-4">
                     <div className="flex items-center gap-2 sm:gap-3">
-                      <img src={`https://flagcdn.com/w80/${currency.flag.toLowerCase()}.png`} alt={currency.name} className="w-4 h-4 sm:w-5 sm:h-5 rounded-full object-cover drop-shadow-sm transition-transform group-hover:scale-110" />
+                      <FlagIcon flagCode={currency.flag} name={currency.name} className="w-4 h-4 sm:w-5 sm:h-5" fallbackType="coins" />
                       <span className="text-[11px] sm:text-xs font-medium text-zinc-400">{currency.code}</span>
                     </div>
 
@@ -1371,8 +1362,13 @@ export default function App() {
             >
               <div className="p-6 border-b border-white/5 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-400">
-                    <TrendingUp className="w-5 h-5" />
+                  <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-400 shrink-0">
+                    <FlagIcon 
+                      flagCode={configTerms.find(t => t.id === selectedRate.code)?.flag || CURRENCIES.find(c => c.code === selectedRate.code)?.flag} 
+                      name={selectedRate.name} 
+                      className="w-10 h-10" 
+                      fallbackType="coins" 
+                    />
                   </div>
                   <div>
                     <h3 className="text-xl font-bold text-white">{selectedRate.name}</h3>
@@ -1642,7 +1638,13 @@ export default function App() {
             {dynamicCurrencies.filter(c => ["USD", "EUR", "GBP"].includes(c.code)).map(c => (
               <div key={`pdf-off-${c.code}`} style={{ padding: '20px', borderRadius: '20px', border: '1px solid #e2e8f0', backgroundColor: '#ffffff' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                  <img src={`https://flagcdn.com/w80/${c.flag.toLowerCase()}.png`} alt={c.name} style={{ width: '20px', height: '20px', borderRadius: '50%', objectFit: 'cover' }} />
+                  {c.flag && c.flag.trim() !== "" && c.flag !== "undefined" && c.flag !== "null" ? (
+                    <img src={`https://flagcdn.com/w80/${c.flag.trim().toLowerCase()}.png`} alt={c.name} style={{ width: '20px', height: '20px', borderRadius: '50%', objectFit: 'cover' }} />
+                  ) : (
+                    <div style={{ width: '20px', height: '20px', borderRadius: '50%', backgroundColor: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <span style={{ fontSize: '10px', color: '#64748b' }}>{c.code.substring(0, 2)}</span>
+                    </div>
+                  )}
                   <span style={{ fontSize: '12px', fontWeight: '700', color: '#64748b', fontFamily: "'Cairo', sans-serif" }}>{c.code}</span>
                 </div>
                 <p style={{ fontSize: '24px', fontWeight: '800', color: '#1e293b', margin: '0', fontFamily: "'Cairo', sans-serif" }}>{(rates?.official[c.code] || 0).toFixed(3)}</p>

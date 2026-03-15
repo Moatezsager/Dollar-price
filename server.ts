@@ -1129,6 +1129,7 @@ async function startServer() {
   });
 
   app.get("/api/config", (req: express.Request, res: express.Response) => {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
     res.json({ terms: appConfig.terms });
   });
 
