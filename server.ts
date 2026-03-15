@@ -191,9 +191,12 @@ async function extractRatesWithAI(text: string) {
       2. OFFICIAL VS PARALLEL DISTINCTION:
          - OFFICIAL (الرسمي): Keywords: مصرف ليبيا المركزي، رسمي، مركزي، منظومة، سعر المصرف. 
          - If the message is from the Central Bank or mentions "Official Rates", map the USD rate to "OFFICIAL_USD".
-         - In official tables (like the one below), the first numerical value after the currency name is the BUY rate (سعر الشراء). Use this value.
-         - Example Table Row: "8  الدولار الأمريكي  دولار واحد  6.4324  6.4003" -> OFFICIAL_USD is 6.4324.
-         - PARALLEL (الموازي): Default market. Keywords: كاش، في اليد، السوق، خضراء.
+         - In official tables, the first numerical value after the currency name is the BUY rate (سعر الشراء). Use this value.
+         - Example Official: "8  الدولار الأمريكي  6.4324  6.4003" -> OFFICIAL_USD is 6.4324.
+         - PARALLEL (الموازي): Default market. Keywords: كاش، في اليد، السوق، خضراء، سوق موازي.
+         - In parallel market tables (like the one below), the first numerical value after the currency name is the SELL rate (سعر البيع). Use this value.
+         - Example Parallel: "USD دولار مدينة مصراته 10.7900 10.7875" -> USD is 10.7900.
+         - Example Parallel: "jbank دولار صكوك الجمهورية 11.6000 11.5975" -> USD_JBANK is 11.6000.
       3. LINGUISTIC FLEXIBILITY: Understand Libyan dialect and shorthand. Typos are signals to be interpreted.
       4. NUMERICAL PRECISION: Extract numbers regardless of format (Arabic ٠-٩ or Western 0-9).
 
@@ -210,8 +213,23 @@ async function extractRatesWithAI(text: string) {
         - "الدرهم الاماراتي" -> OFFICIAL_AED
         - "الليرة التركية" -> OFFICIAL_TRY
         - "الايوان الصيني" -> OFFICIAL_CNY
-      - If message is PARALLEL/MARKET:
-        - "الدولار" / "usd" -> USD
+      - If message is PARALLEL/MARKET (سوق موازي):
+        - "الدولار" / "usd" / "مصراته" -> USD
+        - "يورو" / "eur" -> EUR
+        - "استرليني" / "gbp" -> GBP
+        - "تونسي" / "tnd" -> TND
+        - "مصري" / "egp" -> EGP
+        - "ليرة تركية" / "try" -> TRY
+        - "أردني" / "jod" -> JOD
+        - "صكوك الجمهورية" / "jbank" -> USD_JBANK
+        - "صكوك التجاري" / "ncb" -> USD_NCB
+        - "صكوك التجارة" / "bcd" -> USD_BCD
+        - "صكوك الأمان" / "ab" -> USD_AB
+        - "صكوك الوحدة" / "wb" -> USD_WB
+        - "حوالة دبي" / "ae" -> USD_AE
+        - "حوالة تركيا" / "tr" -> USD_TR
+        - "حوالة الصين" / "cn" -> USD_CN
+        - IMPORTANT: If a generic "Cheque" (صك) or "Cheques" (صكوك) rate is mentioned without a specific bank, or if it's a general market cheque rate, apply that value to BOTH "USD_JBANK" and "USD_NCB".
       - General Mapping (Parallel):
         - "يورو" -> EUR, "باوند" -> GBP, "تونسي" -> TND, "مصري" -> EGP, "ليرة" -> TRY, "أردني" -> JOD, "بحريني" -> BHD, "كويتي" -> KWD, "إماراتي" -> AED, "سعودي" -> SAR, "قطري" -> QAR, "يوان" -> CNY, "ذهب" -> GOLD
         - "صكوك الجمهورية" -> USD_JBANK, "صكوك التجارة" -> USD_BCD, "صكوك التجاري" -> USD_NCB, "صكوك الأمان" -> USD_AB, "صكوك الوحدة" -> USD_WB
