@@ -187,28 +187,35 @@ async function extractRatesWithAI(text: string) {
       Your goal is to perform a deep semantic analysis of Telegram messages to extract currency rates with 100% accuracy.
 
       CORE INTELLIGENCE REQUIREMENTS:
-      1. DEEP SEMANTIC UNDERSTANDING: Do not just look for keywords. Understand the full context of the sentence. Even if the grammar is broken, the text is fragmented, or there are heavy typos, use your linguistic intelligence to reconstruct the intended meaning.
-      2. LINGUISTIC FLEXIBILITY: You understand Libyan dialect, market shorthand, and common spelling mistakes. (e.g., "دولارر", "دولا", "خضرا", "صك", "حواله"). These are not errors to be ignored, but signals to be interpreted.
-      3. CONTEXTUAL DISTINCTION:
-         - PARALLEL (الموازي): Default market. Keywords: كاش، في اليد، السوق، خضراء، دولار، أو مجرد ذكر السعر.
-         - OFFICIAL (الرسمي): Keywords: رسمي، مركزي، منظومة، سعر المصرف، عطاء.
-         - CHEQUES (صكوك): Identify the specific bank. (الجمهورية، التجارة، التجاري، الأمان، الوحدة).
-         - TRANSFERS (حوالات): Identify the destination. (دبي/الإمارات، تركيا، الصين).
-      4. NUMERICAL PRECISION: Extract numbers regardless of format (Arabic ٠-٩ or Western 0-9). Interpret "5.85" and "5,85" both as 5.85.
+      1. DEEP SEMANTIC UNDERSTANDING: Understand the full context. Even if grammar is broken or text is fragmented, reconstruct the intended meaning.
+      2. OFFICIAL VS PARALLEL DISTINCTION:
+         - OFFICIAL (الرسمي): Keywords: مصرف ليبيا المركزي، رسمي، مركزي، منظومة، سعر المصرف. 
+         - If the message is from the Central Bank or mentions "Official Rates", map the USD rate to "OFFICIAL_USD".
+         - In official tables (like the one below), the first numerical value after the currency name is the BUY rate (سعر الشراء). Use this value.
+         - Example Table Row: "8  الدولار الأمريكي  دولار واحد  6.4324  6.4003" -> OFFICIAL_USD is 6.4324.
+         - PARALLEL (الموازي): Default market. Keywords: كاش، في اليد، السوق، خضراء.
+      3. LINGUISTIC FLEXIBILITY: Understand Libyan dialect and shorthand. Typos are signals to be interpreted.
+      4. NUMERICAL PRECISION: Extract numbers regardless of format (Arabic ٠-٩ or Western 0-9).
 
       MESSAGE TO ANALYZE:
       "${text}"
 
       MAPPING LOGIC:
-      - "صكوك الجمهورية" / "jbank" -> USD_JBANK
-      - "صكوك التجارة" / "bcd" -> USD_BCD
-      - "صكوك التجاري" / "ncb" -> USD_NCB
-      - "صكوك الأمان" / "ab" -> USD_AB
-      - "صكوك الوحدة" / "wb" -> USD_WB
-      - "حوالات دبي" / "ae" -> USD_AE
-      - "حوالات تركيا" / "tr" -> USD_TR
-      - "حوالات الصين" / "cn" -> USD_CN
-      - "كسر الذهب" -> GOLD
+      - If message is OFFICIAL/BANK (مصرف ليبيا المركزي):
+        - "الدولار الأمريكي" -> OFFICIAL_USD
+        - "اليورو" -> OFFICIAL_EUR
+        - "الجنيه الاسترليني" -> OFFICIAL_GBP
+        - "الدينار التونسي" -> OFFICIAL_TND
+        - "الريال السعودي" -> OFFICIAL_SAR
+        - "الدرهم الاماراتي" -> OFFICIAL_AED
+        - "الليرة التركية" -> OFFICIAL_TRY
+        - "الايوان الصيني" -> OFFICIAL_CNY
+      - If message is PARALLEL/MARKET:
+        - "الدولار" / "usd" -> USD
+      - General Mapping (Parallel):
+        - "يورو" -> EUR, "باوند" -> GBP, "تونسي" -> TND, "مصري" -> EGP, "ليرة" -> TRY, "أردني" -> JOD, "بحريني" -> BHD, "كويتي" -> KWD, "إماراتي" -> AED, "سعودي" -> SAR, "قطري" -> QAR, "يوان" -> CNY, "ذهب" -> GOLD
+        - "صكوك الجمهورية" -> USD_JBANK, "صكوك التجارة" -> USD_BCD, "صكوك التجاري" -> USD_NCB, "صكوك الأمان" -> USD_AB, "صكوك الوحدة" -> USD_WB
+        - "حوالات دبي" -> USD_AE, "حوالات تركيا" -> USD_TR, "حوالات الصين" -> USD_CN
 
       OUTPUT FORMAT:
       Return ONLY a valid JSON object. Use null for missing values.
@@ -217,7 +224,8 @@ async function extractRatesWithAI(text: string) {
         "JOD": number, "BHD": number, "KWD": number, "AED": number, "SAR": number, "QAR": number,
         "CNY": number, "GOLD": number, "USD_JBANK": number, "USD_BCD": number, "USD_NCB": number,
         "USD_AB": number, "USD_WB": number, "USD_AE": number, "USD_TR": number, "USD_CN": number,
-        "OFFICIAL_USD": number
+        "OFFICIAL_USD": number, "OFFICIAL_EUR": number, "OFFICIAL_GBP": number, "OFFICIAL_TND": number,
+        "OFFICIAL_SAR": number, "OFFICIAL_AED": number, "OFFICIAL_TRY": number, "OFFICIAL_CNY": number
       }`,
       config: {
         responseMimeType: "application/json",
@@ -770,12 +778,28 @@ async function fetchParallelRatesFromTelegram() {
       let anyChanged = false;
 
       // Update official rates if found in Telegram (often faster than APIs)
-      if (latestRates.OFFICIAL_USD && isSignificantChange(rates.official.USD, latestRates.OFFICIAL_USD)) {
-        console.log(`[Scraper] Updating official rate from Telegram: ${latestRates.OFFICIAL_USD}`);
-        rates.previousOfficial.USD = rates.official.USD;
-        rates.official.USD = latestRates.OFFICIAL_USD;
-        rates.lastChanged.official.USD = new Date().toISOString();
-        anyChanged = true;
+      // Update official rates if found in Telegram (often faster than APIs)
+      const officialKeys = {
+        OFFICIAL_USD: 'USD',
+        OFFICIAL_EUR: 'EUR',
+        OFFICIAL_GBP: 'GBP',
+        OFFICIAL_TND: 'TND',
+        OFFICIAL_SAR: 'SAR',
+        OFFICIAL_AED: 'AED',
+        OFFICIAL_TRY: 'TRY',
+        OFFICIAL_CNY: 'CNY'
+      };
+
+      for (const [aiKey, rateKey] of Object.entries(officialKeys)) {
+        if (latestRates[aiKey]) {
+          if (isSignificantChange(rates.official[rateKey], latestRates[aiKey])) {
+            console.log(`[Scraper] Updating official ${rateKey} from Telegram: ${latestRates[aiKey]}`);
+            rates.previousOfficial[rateKey] = rates.official[rateKey];
+            rates.official[rateKey] = latestRates[aiKey];
+            rates.lastChanged.official[rateKey] = new Date().toISOString();
+            anyChanged = true;
+          }
+        }
       }
 
       // Dynamically assign all extracted rates
