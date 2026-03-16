@@ -21,6 +21,19 @@ interface Stats {
   memoryUsage: { rss: number; heapUsed: number; heapTotal: number };
 }
 
+const extractKeywordsAndSuffix = (regex: string) => {
+  try {
+    const match = regex.match(/^\(\?\:(.+?)\)(.*)$/);
+    if (match) {
+      return {
+        keywords: match[1].split('|').filter(Boolean),
+        suffix: match[2]
+      };
+    }
+  } catch (e) {}
+  return { keywords: [], suffix: regex };
+};
+
 export default function Admin() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [password, setPassword] = useState("");
@@ -601,19 +614,93 @@ export default function Admin() {
                                       {/* Keywords Editor (Improved) */}
                                       <div className="bg-black/40 border border-white/5 rounded-2xl p-4 flex-1">
                                         <div className="flex items-center justify-between mb-4">
-                                          <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">محرر قواعد البحث (REGEX)</label>
-                                          <Info className="w-4 h-4 text-zinc-700 hover:text-blue-400 cursor-help" />
+                                          <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">الكلمات الدلالية للبحث</label>
+                                          <Info className="w-4 h-4 text-zinc-700 hover:text-blue-400 cursor-help" title="الكلمات التي يبحث عنها النظام للتعرف على العملة" />
                                         </div>
-                                        <textarea
-                                          value={term.regex}
-                                          onChange={(e) => {
-                                            const newTerms = [...config.terms];
-                                            newTerms[idx].regex = e.target.value;
-                                            setConfig({ ...config, terms: newTerms });
-                                          }}
-                                          className="w-full h-24 bg-transparent border border-white/10 rounded-xl px-4 py-3 text-sm font-mono text-emerald-400 focus:border-blue-500/50 outline-none resize-none leading-relaxed"
-                                          dir="ltr"
-                                        />
+                                        
+                                        {/* Visual Keyword Editor */}
+                                        <div className="mb-4">
+                                          <div className="flex flex-wrap gap-2 mb-3">
+                                            {extractKeywordsAndSuffix(term.regex).keywords.map((kw, kIdx) => (
+                                              <span key={kIdx} className="flex items-center gap-1 bg-blue-500/10 text-blue-400 px-2.5 py-1 rounded-lg text-xs font-medium border border-blue-500/20">
+                                                {kw}
+                                                <button 
+                                                  onClick={() => {
+                                                    const { keywords, suffix } = extractKeywordsAndSuffix(term.regex);
+                                                    const updated = keywords.filter((_, i) => i !== kIdx);
+                                                    const newTerms = [...config.terms];
+                                                    newTerms[idx].regex = updated.length > 0 ? `(?:${updated.join('|')})${suffix}` : suffix;
+                                                    setConfig({ ...config, terms: newTerms });
+                                                  }}
+                                                  className="hover:text-rose-400 hover:bg-rose-500/10 rounded-full p-0.5 transition-colors"
+                                                >
+                                                  <X className="w-3 h-3" />
+                                                </button>
+                                              </span>
+                                            ))}
+                                          </div>
+                                          <div className="flex gap-2">
+                                            <input
+                                              type="text"
+                                              placeholder="إضافة كلمة جديدة..."
+                                              value={newKeywords[idx] || ""}
+                                              onChange={(e) => setNewKeywords({ ...newKeywords, [idx]: e.target.value })}
+                                              onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                  e.preventDefault();
+                                                  const kw = newKeywords[idx]?.trim();
+                                                  if (kw) {
+                                                    const { keywords, suffix } = extractKeywordsAndSuffix(term.regex);
+                                                    if (!keywords.includes(kw)) {
+                                                      const updated = [...keywords, kw];
+                                                      const newTerms = [...config.terms];
+                                                      newTerms[idx].regex = `(?:${updated.join('|')})${suffix}`;
+                                                      setConfig({ ...config, terms: newTerms });
+                                                    }
+                                                    setNewKeywords({ ...newKeywords, [idx]: "" });
+                                                  }
+                                                }
+                                              }}
+                                              className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-blue-500/50"
+                                            />
+                                            <button
+                                              onClick={() => {
+                                                const kw = newKeywords[idx]?.trim();
+                                                if (kw) {
+                                                  const { keywords, suffix } = extractKeywordsAndSuffix(term.regex);
+                                                  if (!keywords.includes(kw)) {
+                                                    const updated = [...keywords, kw];
+                                                    const newTerms = [...config.terms];
+                                                    newTerms[idx].regex = `(?:${updated.join('|')})${suffix}`;
+                                                    setConfig({ ...config, terms: newTerms });
+                                                  }
+                                                  setNewKeywords({ ...newKeywords, [idx]: "" });
+                                                }
+                                              }}
+                                              className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded-xl text-xs font-bold transition-colors"
+                                            >
+                                              إضافة
+                                            </button>
+                                          </div>
+                                        </div>
+
+                                        {/* Advanced Regex Editor (Collapsible) */}
+                                        <details className="group mt-4">
+                                          <summary className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest cursor-pointer hover:text-zinc-300 transition-colors flex items-center gap-2 select-none mb-2">
+                                            <span>محرر REGEX المتقدم</span>
+                                            <ChevronDown className="w-3 h-3 group-open:rotate-180 transition-transform" />
+                                          </summary>
+                                          <textarea
+                                            value={term.regex}
+                                            onChange={(e) => {
+                                              const newTerms = [...config.terms];
+                                              newTerms[idx].regex = e.target.value;
+                                              setConfig({ ...config, terms: newTerms });
+                                            }}
+                                            className="w-full h-20 bg-transparent border border-white/10 rounded-xl px-4 py-3 text-xs font-mono text-emerald-400 focus:border-blue-500/50 outline-none resize-none leading-relaxed"
+                                            dir="ltr"
+                                          />
+                                        </details>
                                         
                                         <div className="mt-6 flex flex-col gap-3">
                                           <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">تجربة فورية</label>
