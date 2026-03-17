@@ -28,6 +28,10 @@ export const logErrorToServer = async (error: Error | string | unknown, context?
       })
     });
   } catch (e) {
-    console.error('Failed to send error log to server', e);
+    if (e instanceof TypeError && e.message === 'Failed to fetch') {
+      // Silently ignore fetch errors for the logger to avoid console spam when offline
+    } else {
+      console.error('Failed to send error log to server', e);
+    }
   }
 };

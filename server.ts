@@ -9,8 +9,14 @@ import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import { GoogleGenAI } from "@google/genai";
 
-// Initialize AI
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+// Initialize AI lazily
+let aiClient: GoogleGenAI | null = null;
+function getAIClient() {
+  if (!aiClient && process.env.GEMINI_API_KEY) {
+    aiClient = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  }
+  return aiClient;
+}
 
 // Initialize Supabase client for server
 const supabaseUrl = process.env.VITE_SUPABASE_URL;
@@ -200,7 +206,8 @@ function isSignificantChange(val1: number, val2: number, threshold = 0.0001) {
  * Uses Gemini to intelligently parse complex or unstructured messages
  */
 async function extractRatesWithAI(text: string) {
-  if (!process.env.GEMINI_API_KEY) return null;
+  const ai = getAIClient();
+  if (!ai) return null;
   
   try {
     const response = await ai.models.generateContent({
@@ -1313,6 +1320,58 @@ async function startServer() {
     } catch (err) {
       console.error("Error fetching logs:", err);
       res.status(500).json({ success: false, message: "فشل جلب السجلات" });
+    }
+  });
+
+  app.post("/api/admin/ai-extract", requireAdmin, async (req: express.Request, res: express.Response) => {
+    try {
+      const { text } = req.body;
+      if (!text) {
+        return res.status(400).json({ success: false, message: "No text provided" });
+      }
+      
+      const extractedRates = await extractRatesWithAI(text);
+      if (extractedRates) {
+        res.json({ success: true, extractedRates });
+      } else {
+        res.json({ success: false, message: "لم يتمكن المساعد من استخراج أي أسعار أو أن مفتاح API غير متوفر" });
+      }
+    } catch (err) {
+      console.error("AI extraction failed:", err);
+      res.status(500).json({ success: false, message: "فشل استخراج البيانات بواسطة الذكاء الاصطناعي" });
+    }
+  });
+
+  app.post("/api/admin/rates", requireAdmin, async (req: express.Request, res: express.Response) => {
+    try {
+      const { updates } = req.body;
+      if (!updates || typeof updates !== 'object') {
+        return res.status(400).json({ success: false, message: "Invalid updates object" });
+      }
+      
+      let changed = false;
+      for (const [key, value] of Object.entries(updates)) {
+        const numValue = Number(value);
+        if (!isNaN(numValue) && numValue > 0) {
+          if (rates.parallel[key] !== numValue) {
+            rates.previousParallel[key] = rates.parallel[key] || numValue;
+            rates.parallel[key] = numValue;
+            rates.lastChanged.parallel[key] = new Date().toISOString();
+            changed = true;
+          }
+        }
+      }
+      
+      if (changed) {
+        rates.lastUpdated = new Date().toISOString();
+        await saveToSupabase('parallel');
+        res.json({ success: true, message: "تم تحديث الأسعار بنجاح" });
+      } else {
+        res.json({ success: true, message: "لم يتم اكتشاف أي تغييرات" });
+      }
+    } catch (err) {
+      console.error("Manual rate update failed:", err);
+      res.status(500).json({ success: false, message: "فشل تحديث الأسعار" });
     }
   });
 

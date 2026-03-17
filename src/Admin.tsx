@@ -49,13 +49,18 @@ export default function Admin() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [activeTab, setActiveTab] = useState<'config' | 'stats' | 'logs'>('config');
+  const [activeTab, setActiveTab] = useState<'config' | 'stats' | 'logs' | 'ai'>('config');
   const [isAuthorizedDevice, setIsAuthorizedDevice] = useState(true);
 
   const [expandedTermIdx, setExpandedTermIdx] = useState<number | null>(null);
   const [testTexts, setTestTexts] = useState<Record<number, string>>({});
   const [newKeywords, setNewKeywords] = useState<Record<number, string>>({});
   const [searchPath, setSearchPath] = useState("");
+
+  const [aiText, setAiText] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [extractedRates, setExtractedRates] = useState<Record<string, number> | null>(null);
+  const [currentRates, setCurrentRates] = useState<Record<string, number>>({});
 
   useEffect(() => {
     let deviceToken = null;
@@ -214,6 +219,75 @@ export default function Admin() {
     setIsLoggedIn(false);
   };
 
+  const fetchCurrentRates = async () => {
+    try {
+      const res = await fetch("/api/rates");
+      if (res.ok) {
+        const data = await res.json();
+        setCurrentRates(data.parallel || {});
+      }
+    } catch (err) {
+      console.error("Failed to fetch current rates", err);
+    }
+  };
+
+  const handleAIExtract = async () => {
+    if (!aiText.trim()) return;
+    setAiLoading(true);
+    setError("");
+    setSuccess("");
+    try {
+      await fetchCurrentRates();
+      const res = await fetch("/api/admin/ai-extract", {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ text: aiText })
+      });
+      const data = await res.json();
+      if (data.success && data.extractedRates) {
+        setExtractedRates(data.extractedRates);
+        setSuccess("تم استخراج الأسعار بنجاح");
+      } else {
+        setError(data.message || "فشل استخراج الأسعار");
+      }
+    } catch (err) {
+      setError("خطأ في الاتصال بالمساعد الذكي");
+    }
+    setAiLoading(false);
+  };
+
+  const handleAISave = async () => {
+    if (!extractedRates) return;
+    setAiLoading(true);
+    setError("");
+    setSuccess("");
+    try {
+      const res = await fetch("/api/admin/rates", {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ updates: extractedRates })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSuccess("تم تحديث الأسعار بنجاح");
+        setExtractedRates(null);
+        setAiText("");
+        triggerRefresh();
+      } else {
+        setError(data.message || "فشل تحديث الأسعار");
+      }
+    } catch (err) {
+      setError("خطأ في الاتصال بالسيرفر");
+    }
+    setAiLoading(false);
+  };
+
   const filteredTerms = useMemo(() => {
     if (!config?.terms) return [];
     if (!searchPath) return config.terms;
@@ -316,16 +390,17 @@ export default function Admin() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 bg-white/5 p-1 rounded-2xl border border-white/5">
+          <div className="flex items-center gap-2 bg-white/5 p-1 rounded-2xl border border-white/5 overflow-x-auto w-full md:w-auto scrollbar-hide">
             {[
               { id: 'config', label: 'الإعدادات', icon: Settings },
               { id: 'stats', label: 'الإحصائيات', icon: Activity },
               { id: 'logs', label: 'السجلات', icon: Terminal },
+              { id: 'ai', label: 'المساعد الذكي', icon: Zap },
             ].map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all ${
+                className={`flex items-center gap-2 px-4 md:px-5 py-2.5 rounded-xl text-xs md:text-sm font-bold transition-all whitespace-nowrap shrink-0 ${
                   activeTab === tab.id 
                     ? 'bg-emerald-500 text-black shadow-lg shadow-emerald-500/20' 
                     : 'text-zinc-500 hover:text-white hover:bg-white/5'
@@ -914,6 +989,111 @@ export default function Admin() {
                       ))}
                     </div>
                   )}
+                </div>
+              </section>
+            </motion.div>
+          )}
+
+          {activeTab === 'ai' && (
+            <motion.div 
+              key="ai"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="space-y-6"
+            >
+              <section className="bg-white/[0.02] border border-white/5 rounded-[2rem] p-6 md:p-8 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 blur-[80px] rounded-full pointer-events-none"></div>
+                
+                <div className="flex items-center gap-4 mb-8">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
+                    <Zap className="w-6 h-6 text-emerald-400" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-black text-white">المساعد الذكي</h2>
+                    <p className="text-sm text-zinc-500 mt-1">قم بلصق نص التحديثات وسيقوم الذكاء الاصطناعي باستخراج الأسعار وتحديثها</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  <div className="space-y-4">
+                    <label className="block text-sm font-bold text-zinc-400">نص التحديثات (من قنوات التليجرام أو غيرها)</label>
+                    <textarea
+                      value={aiText}
+                      onChange={(e) => setAiText(e.target.value)}
+                      placeholder="الصق النص هنا..."
+                      className="w-full h-64 bg-black/40 border border-white/10 rounded-2xl p-4 text-sm text-white focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all resize-none"
+                      dir="auto"
+                    />
+                    <button
+                      onClick={handleAIExtract}
+                      disabled={aiLoading || !aiText.trim()}
+                      className="w-full py-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-800 disabled:text-zinc-500 text-white font-black transition-all flex items-center justify-center gap-2"
+                    >
+                      {aiLoading && !extractedRates ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Zap className="w-5 h-5" />}
+                      استخراج الأسعار
+                    </button>
+                  </div>
+
+                  <div className="space-y-4">
+                    <label className="block text-sm font-bold text-zinc-400">الأسعار المستخرجة</label>
+                    <div className="w-full h-64 bg-black/40 border border-white/10 rounded-2xl p-4 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10">
+                      {!extractedRates ? (
+                        <div className="h-full flex flex-col items-center justify-center text-zinc-600 gap-3">
+                          <Search className="w-8 h-8 opacity-50" />
+                          <p className="text-sm">لم يتم استخراج أي أسعار بعد</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {Object.entries(extractedRates).map(([key, value]) => {
+                            const currentVal = currentRates[key] || 0;
+                            const isChanged = value !== currentVal;
+                            const term = config?.terms?.find((t: any) => t.id === key);
+                            
+                            return (
+                              <div key={key} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5 gap-3">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center shrink-0">
+                                    <span className="text-xs font-bold text-white max-w-full overflow-hidden text-ellipsis px-1">{key.substring(0, 4)}</span>
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-sm font-bold text-white truncate">{term?.name || key}</p>
+                                    <div className="flex flex-wrap items-center gap-2 text-xs mt-1">
+                                      <span className="text-zinc-500">الحالي: {currentVal}</span>
+                                      {isChanged && (
+                                        <>
+                                          <ArrowLeftRight className="w-3 h-3 text-zinc-600 shrink-0" />
+                                          <span className="text-emerald-400 font-bold">الجديد: {value}</span>
+                                        </>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    value={value}
+                                    onChange={(e) => setExtractedRates({ ...extractedRates, [key]: parseFloat(e.target.value) || 0 })}
+                                    className="w-24 bg-black/50 border border-white/10 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:border-emerald-500/50"
+                                    dir="ltr"
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      onClick={handleAISave}
+                      disabled={aiLoading || !extractedRates || Object.keys(extractedRates).length === 0}
+                      className="w-full py-4 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-800 disabled:text-zinc-500 text-white font-black transition-all flex items-center justify-center gap-2"
+                    >
+                      {aiLoading && extractedRates ? <RefreshCw className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
+                      اعتماد وتحديث الأسعار
+                    </button>
+                  </div>
                 </div>
               </section>
             </motion.div>

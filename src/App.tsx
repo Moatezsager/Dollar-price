@@ -482,11 +482,23 @@ export default function App() {
       }
     } catch (error) {
       if (error instanceof TypeError && error.message === "Failed to fetch") {
-        console.warn("Server might be restarting...");
+        console.warn("Server might be restarting or network is down...");
+      } else if (error instanceof Error && error.name === 'AbortError') {
+        console.warn("Fetch request timed out");
       } else {
-        console.error("Failed to fetch data:", error);
-        logErrorToServer(error, "App.tsx: fetchData");
-        addToast("خطأ في التحديث", "تعذر الاتصال بالخادم، يرجى المحاولة لاحقاً", "info");
+        const isNetworkError = error instanceof Error && error.message.includes("Network response was not ok");
+        
+        if (!isNetworkError) {
+          console.error("Failed to fetch data:", error);
+          logErrorToServer(error, "App.tsx: fetchData");
+        } else {
+          console.warn("Fetch data failed: Network response was not ok");
+        }
+        
+        // Only show toast if it was a manual refresh
+        if (forceRefresh) {
+          addToast("خطأ في التحديث", "تعذر الاتصال بالخادم، يرجى المحاولة لاحقاً", "info");
+        }
       }
     } finally {
       setLoading(false);
