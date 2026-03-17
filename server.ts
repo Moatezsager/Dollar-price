@@ -1,3 +1,4 @@
+import "dotenv/config";
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
@@ -12,8 +13,10 @@ import { GoogleGenAI } from "@google/genai";
 // Initialize AI lazily
 let aiClient: GoogleGenAI | null = null;
 function getAIClient() {
-  if (!aiClient && process.env.GEMINI_API_KEY) {
-    aiClient = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  // Force using the provided key to ensure it works
+  const apiKey = "AIzaSyC-qVnUYQ8NUu2AQx_Ub3LBbL5w6-Op31U";
+  if (!aiClient && apiKey) {
+    aiClient = new GoogleGenAI({ apiKey });
   }
   return aiClient;
 }
@@ -289,9 +292,9 @@ async function extractRatesWithAI(text: string) {
       }
     }
     return Object.keys(cleanResult).length > 0 ? cleanResult : null;
-  } catch (error) {
+  } catch (error: any) {
     console.error("AI Extraction Error:", error);
-    return null;
+    throw error; // Throw the error so the route can catch it
   }
 }
 
@@ -1211,6 +1214,7 @@ async function startServer() {
 
   // --- Admin API ---
   const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+  console.log("ADMIN_PASSWORD is:", ADMIN_PASSWORD);
   
   const effectiveAdminPassword = ADMIN_PASSWORD;
   
@@ -1323,6 +1327,30 @@ async function startServer() {
     }
   });
 
+  app.get("/api/admin/ai-status", requireAdmin, async (req: express.Request, res: express.Response) => {
+    try {
+      const ai = getAIClient();
+      if (!ai) {
+        return res.json({ success: false, message: "AI Client not initialized" });
+      }
+      
+      // Simple test to verify the key works
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: "Say 'OK' if you are connected.",
+      });
+      
+      if (response.text) {
+        res.json({ success: true, message: "AI is connected and working", response: response.text });
+      } else {
+        res.json({ success: false, message: "AI returned empty response" });
+      }
+    } catch (err: any) {
+      console.error("AI Status Check Error:", err);
+      res.json({ success: false, message: "AI connection failed", error: err.message });
+    }
+  });
+
   app.post("/api/admin/ai-extract", requireAdmin, async (req: express.Request, res: express.Response) => {
     try {
       const { text } = req.body;
@@ -1334,11 +1362,12 @@ async function startServer() {
       if (extractedRates) {
         res.json({ success: true, extractedRates });
       } else {
-        res.json({ success: false, message: "لم يتمكن المساعد من استخراج أي أسعار أو أن مفتاح API غير متوفر" });
+        res.json({ success: false, message: "لم يتمكن المساعد من استخراج أي أسعار من النص المدخل" });
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("AI extraction failed:", err);
-      res.status(500).json({ success: false, message: "فشل استخراج البيانات بواسطة الذكاء الاصطناعي" });
+      // Send the actual error message to the client so the user knows what's wrong
+      res.status(500).json({ success: false, message: `خطأ في المساعد الذكي: ${err.message || 'فشل الاتصال'}` });
     }
   });
 
