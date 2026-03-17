@@ -226,9 +226,9 @@ async function extractRatesWithAI(text: string) {
          - In official tables, the first numerical value after the currency name is the BUY rate (سعر الشراء). Use this value.
          - Example Official: "8  الدولار الأمريكي  6.4324  6.4003" -> OFFICIAL_USD is 6.4324.
          - PARALLEL (الموازي): Default market. Keywords: كاش، في اليد، السوق، خضراء، سوق موازي.
-         - In parallel market tables (like the one below), the first numerical value after the currency name is the SELL rate (سعر البيع). Use this value.
-         - Example Parallel: "USD دولار مدينة مصراته 10.7900 10.7875" -> USD is 10.7900.
-         - Example Parallel: "jbank دولار صكوك الجمهورية 11.6000 11.5975" -> USD_JBANK is 11.6000.
+         - In parallel market tables (like the one below), the SECOND numerical value after the currency name is the SELL rate (سعر البيع). Use this value.
+         - Example Parallel: "USD دولار مدينة مصراته 10.7900 10.7875" -> USD is 10.7875.
+         - Example Parallel: "jbank دولار صكوك الجمهورية 11.6000 11.5975" -> USD_JBANK is 11.5975.
       3. LINGUISTIC FLEXIBILITY: Understand Libyan dialect and shorthand. Typos are signals to be interpreted.
       4. NUMERICAL PRECISION: Extract numbers regardless of format (Arabic ٠-٩ or Western 0-9).
 
@@ -264,7 +264,7 @@ async function extractRatesWithAI(text: string) {
       
       BEHAVIOR RULES:
       1. IGNORE DATES/TIMES in the text. Look only for prices.
-      2. If a value is listed twice (BUY/SELL), take the SELL (higher if selling, lower if buying - usually the first number in parallel market tables).
+      2. If a value is listed twice (BUY/SELL), take the SECOND number (which represents the SELL rate / سعر البيع in these tables).
       3. For "GOLD", extract the gram price (e.g., 1233).
       4. "صكوك" (Cheques) are often unified. If you see "صكوك = 11.45", then set USD_JBANK=11.45 and USD_NCB=11.45.
 
@@ -1214,7 +1214,6 @@ async function startServer() {
 
   // --- Admin API ---
   const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
-  console.log("ADMIN_PASSWORD is:", ADMIN_PASSWORD);
   
   const effectiveAdminPassword = ADMIN_PASSWORD;
   
