@@ -397,8 +397,11 @@ export default function App() {
         fetch("/api/history", { signal: AbortSignal.timeout(10000) }),
       ]);
       
-      if (ratesResult.status === 'rejected' || historyResult.status === 'rejected') {
-        throw new Error("Network response was not ok");
+      if (ratesResult.status === 'rejected') {
+        throw ratesResult.reason;
+      }
+      if (historyResult.status === 'rejected') {
+        throw historyResult.reason;
       }
 
       const ratesRes = ratesResult.value;

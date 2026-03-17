@@ -211,7 +211,7 @@ async function extractRatesWithAI(text: string) {
   
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-latest",
+      model: "gemini-3-flash-preview",
       contents: `You are a High-Intelligence Financial Analyst specialized in the Libyan Foreign Exchange Market. 
       Your goal is to perform a deep semantic analysis of Telegram messages to extract currency rates with 100% accuracy.
 
