@@ -433,8 +433,8 @@ export default function App() {
         pointer-events: none;
       `;
       
-      // Small delay to ensure layout is calculated and fonts are rendered
-      await new Promise(resolve => setTimeout(resolve, 800));
+      // Small delay to ensure layout is calculated and fonts/images are rendered completely
+      await new Promise(resolve => setTimeout(resolve, 1500));
       
       const dataUrl = await toPng(element, {
         cacheBust: true,
@@ -1459,6 +1459,44 @@ export default function App() {
                 </div>
               </div>
             </div>
+          </div>
+        </section>
+        {/* PDF Export Banner */}
+        <section className="px-4 sm:px-6 w-full max-w-7xl mx-auto my-12" id="pdf-banner-section">
+          <div className="relative bg-[#0a0a0a]/50 border border-emerald-500/20 rounded-[2rem] p-8 sm:p-12 overflow-hidden flex flex-col md:flex-row items-center justify-between gap-8 backdrop-blur-md">
+            {/* Glow effects */}
+            <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 blur-[80px] rounded-full pointer-events-none translate-x-1/2 -translate-y-1/2"></div>
+            
+            <div className="flex items-start gap-6 relative z-10 w-full md:w-auto">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-blue-500/20 flex flex-shrink-0 items-center justify-center border border-emerald-500/30">
+                <FileText className="w-8 h-8 text-emerald-400" />
+              </div>
+              <div className="flex flex-col gap-2">
+                <h3 className="text-2xl sm:text-3xl font-black text-white tracking-tight">تقرير الأسعار الموثق</h3>
+                <p className="text-sm font-medium text-zinc-400 max-w-md leading-relaxed">
+                  احصل على تقرير PDF شامل ودقيق يحتوي على الأسعار الحالية للسوق الموازي والرسمي بمظهر مرئي احترافي جاهز للطباعة أو المشاركة.
+                </p>
+              </div>
+            </div>
+
+            <button
+              id="main-export-pdf-btn"
+              onClick={generatePDF}
+              disabled={isGeneratingPDF}
+              className={`relative z-10 px-8 py-4 bg-gradient-to-l from-emerald-500 to-emerald-400 text-black rounded-2xl font-black text-sm lg:text-base hover:from-emerald-400 hover:to-emerald-300 transition-all shadow-[0_10px_30px_-10px_rgba(16,185,129,0.5)] active:scale-95 flex items-center justify-center gap-3 w-full md:w-auto tracking-widest uppercase ${isGeneratingPDF ? 'opacity-80' : ''}`}
+            >
+              {isGeneratingPDF ? (
+                <>
+                  <RefreshCw className="w-5 h-5 animate-spin" />
+                  <span>جاري التحضير...</span>
+                </>
+              ) : (
+                <>
+                  <FileText className="w-5 h-5" />
+                  <span>تحميل التقرير (PDF)</span>
+                </>
+              )}
+            </button>
           </div>
         </section>
 
