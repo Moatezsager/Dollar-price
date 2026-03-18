@@ -266,19 +266,24 @@ async function extractRatesWithAI(text: string) {
       
       BEHAVIOR RULES:
       1. IGNORE DATES/TIMES in the text. Look only for prices.
-      2. If a value is listed twice (BUY/SELL), take the HIGHER number (which represents the SELL rate / سعر البيع in these tables).
+      2. If a value is listed twice (BUY/SELL or SELL/BUY), prioritize the SECOND numerical value as the SELL rate (سعر البيع). This is common in Libyan market tables.
+         - Example: "USD 10.2800 10.2775" -> USD is 10.2775 (the second number).
+         - Example: "EUR 11.6700 11.6675" -> EUR is 11.6675.
+         - If only one number is present, use it.
       3. For "GOLD", extract the gram price (e.g., 1233).
       4. "صكوك" (Cheques) are often unified. If you see "صكوك = 11.45", then set USD_JBANK=11.45 and USD_NCB=11.45.
       5. The numbers might appear BEFORE or AFTER the currency name. 
-         - Example: "10.1675 10.1700 حوالة دبي" -> USD_AE is 10.1700
-         - Example: "حوالة تركيا 10.2300" -> USD_TR is 10.2300
-         - Example: "10.2425 10.2450 حوالة الصين دينار" -> USD_CN is 10.2450
+         - Example: "10.1675 10.1700 حوالة دبي" -> USD_AE is 10.1700 (the second number).
+         - Example: "حوالة تركيا 10.2300" -> USD_TR is 10.2300.
+         - Example: "10.2425 10.2450 حوالة الصين دينار" -> USD_CN is 10.2450 (the second number).
       6. Always extract the most reasonable exchange rate. For USD in parallel market it's usually between 5.0 and 15.0.
       7. SMART INVERSE LOGIC FOR TND & EGP: 
          - If the text says "دينار.ليبي=0.32 دينار.تونسي" (meaning 1 LYD = 0.32 TND), you MUST calculate the inverse: 1 / 0.32 = 3.125. Return 3.125 for TND.
          - If the text says "دينار.ليبي=5.10 جنيه.مصري" (meaning 1 LYD = 5.10 EGP), you MUST calculate the inverse: 1 / 5.10 = 0.196. Return 0.196 for EGP.
          - ALWAYS return the price of 1 foreign unit in LYD.
       8. Be extremely resilient to noise, extra words, "up", "down", or formatting artifacts.
+      9. TABULAR DATA: If the message is a table (like the one below), treat each row as a currency entry.
+         - Example row: "4 EUR يورو 11.6700 11.6675 up 2026-03-17 19:05:00" -> EUR is 11.6675.
 
       OUTPUT FORMAT:
       Return ONLY a valid JSON object. Use null for missing values.
@@ -801,27 +806,27 @@ async function fetchOfficialRates(): Promise<boolean> {
 let appConfig: AppConfig = {
   channels: ["dollarr_ly", "musheermarket", "lydollar", "djheih2026", "suqalmushir"],
   terms: [
-    { id: "USD", name: "دولار أمريكي", regex: "(?:الدولار|دولار|الخضراء|خضراء|كاش|💵|usd|🇺🇸)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
-    { id: "EUR", name: "يورو", regex: "(?:يورو|اليورو|💶|eur|🇪🇺)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "eu" },
-    { id: "GBP", name: "جنيه إسترليني", regex: "(?:باوند|استرليني|الباوند|💷|gbp|🇬🇧)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "gb" },
-    { id: "TND", name: "دينار تونسي", regex: "(?:(?:تونسي|تونس|tnd|🇹🇳)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?))|(?:(\\d{1,2}(?:[\\.,]\\d{1,4})?)[^\\d]{0,25}(?:تونسي|تونس|tnd|🇹🇳))", min: 0.1, max: 10.0, isInverse: false, flag: "tn" },
-    { id: "EGP", name: "جنيه مصري", regex: "(?:(?:مصري|مصر|egp|🇪🇬)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?))|(?:(\\d{1,2}(?:[\\.,]\\d{1,4})?)[^\\d]{0,25}(?:مصري|مصر|egp|🇪🇬))", min: 0.01, max: 5.0, isInverse: false, flag: "eg" },
-    { id: "TRY", name: "ليرة تركية", regex: "(?:(?:ليرة|تركي|try|🇹🇷)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?))|(?:(\\d{1,2}(?:[\\.,]\\d{1,4})?)[^\\d]{0,25}(?:ليرة|تركي|try|🇹🇷))", min: 0.01, max: 5.0, isInverse: false, flag: "tr" },
-    { id: "JOD", name: "دينار أردني", regex: "(?:jod|JOD|أردني|🇯🇴)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 30.0, isInverse: false, flag: "jo" },
-    { id: "BHD", name: "دينار بحريني", regex: "(?:bhd|BHD|بحريني|🇧🇭)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 10.0, max: 50.0, isInverse: false, flag: "bh" },
-    { id: "KWD", name: "دينار كويتي", regex: "(?:kwd|KWD|كويتي|🇰🇼)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 10.0, max: 60.0, isInverse: false, flag: "kw" },
-    { id: "AED", name: "درهم إماراتي", regex: "(?:aed|AED|إماراتي|امارات|🇦🇪)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 0.5, max: 10.0, isInverse: false, flag: "ae" },
-    { id: "SAR", name: "ريال سعودي", regex: "(?:sar|SAR|سعودي|ريال|🇸🇦)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 0.5, max: 10.0, isInverse: false, flag: "sa" },
-    { id: "QAR", name: "ريال قطري", regex: "(?:qar|QAR|قطري|🇶🇦)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 0.5, max: 10.0, isInverse: false, flag: "qa" },
-    { id: "USD_JBANK", name: "صكوك الجمهورية", regex: "(?:jbank|الجمهورية|صكوك|بصك)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
-    { id: "USD_BCD", name: "صكوك التجارة", regex: "(?:bcd|التجارة والتنمية)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
-    { id: "USD_NCB", name: "صكوك التجاري", regex: "(?:NCB|التجاري الوطني|صكوك|بصك)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
-    { id: "USD_AB", name: "صكوك الأمان", regex: "(?:AB|الأمان|الامان)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
-    { id: "USD_WB", name: "صكوك الوحدة", regex: "(?:WB|الوحدة)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
-    { id: "USD_AE", name: "حوالات دبي", regex: "(?:دبي|امارات|الإمارات|🇦🇪)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "ae" },
-    { id: "USD_TR", name: "حوالات تركيا", regex: "(?:تركيا|تركي|🇹🇷)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "tr" },
-    { id: "USD_CN", name: "حوالات الصين", regex: "(?:الصين|صينية|🇨🇳)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "cn" },
-    { id: "CNY", name: "يوان صيني", regex: "(?:cny|CNY|يوان|🇨🇳)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 0.5, max: 5.0, isInverse: false, flag: "cn" },
+    { id: "USD", name: "دولار أمريكي", regex: "(?:الدولار|دولار|الخضراء|خضراء|كاش|💵|usd|🇺🇸)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
+    { id: "EUR", name: "يورو", regex: "(?:يورو|اليورو|💶|eur|🇪🇺)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "eu" },
+    { id: "GBP", name: "جنيه إسترليني", regex: "(?:باوند|استرليني|الباوند|💷|gbp|🇬🇧)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "gb" },
+    { id: "TND", name: "دينار تونسي", regex: "(?:(?:تونسي|تونس|tnd|🇹🇳)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?)|(?:(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?[^\\d]{0,25}(?:تونسي|تونس|tnd|🇹🇳))", min: 0.1, max: 10.0, isInverse: false, flag: "tn" },
+    { id: "EGP", name: "جنيه مصري", regex: "(?:(?:مصري|مصر|egp|🇪🇬)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?)|(?:(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?[^\\d]{0,25}(?:مصري|مصر|egp|🇪🇬))", min: 0.01, max: 5.0, isInverse: false, flag: "eg" },
+    { id: "TRY", name: "ليرة تركية", regex: "(?:(?:ليرة|تركي|try|🇹🇷)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?)|(?:(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?[^\\d]{0,25}(?:ليرة|تركي|try|🇹🇷))", min: 0.01, max: 5.0, isInverse: false, flag: "tr" },
+    { id: "JOD", name: "دينار أردني", regex: "(?:jod|JOD|أردني|🇯🇴)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 30.0, isInverse: false, flag: "jo" },
+    { id: "BHD", name: "دينار بحريني", regex: "(?:bhd|BHD|بحريني|🇧🇭)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 10.0, max: 50.0, isInverse: false, flag: "bh" },
+    { id: "KWD", name: "دينار كويتي", regex: "(?:kwd|KWD|كويتي|🇰🇼)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 10.0, max: 60.0, isInverse: false, flag: "kw" },
+    { id: "AED", name: "درهم إماراتي", regex: "(?:aed|AED|إماراتي|امارات|🇦🇪)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 0.5, max: 10.0, isInverse: false, flag: "ae" },
+    { id: "SAR", name: "ريال سعودي", regex: "(?:sar|SAR|سعودي|ريال|🇸🇦)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 0.5, max: 10.0, isInverse: false, flag: "sa" },
+    { id: "QAR", name: "ريال قطري", regex: "(?:qar|QAR|قطري|🇶🇦)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 0.5, max: 10.0, isInverse: false, flag: "qa" },
+    { id: "USD_JBANK", name: "صكوك الجمهورية", regex: "(?:jbank|الجمهورية|صكوك|بصك)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
+    { id: "USD_BCD", name: "صكوك التجارة", regex: "(?:bcd|التجارة والتنمية)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
+    { id: "USD_NCB", name: "صكوك التجاري", regex: "(?:NCB|التجاري الوطني|صكوك|بصك)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
+    { id: "USD_AB", name: "صكوك الأمان", regex: "(?:AB|الأمان|الامان)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
+    { id: "USD_WB", name: "صكوك الوحدة", regex: "(?:WB|الوحدة)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
+    { id: "USD_AE", name: "حوالات دبي", regex: "(?:دبي|امارات|الإمارات|🇦🇪)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "ae" },
+    { id: "USD_TR", name: "حوالات تركيا", regex: "(?:تركيا|تركي|🇹🇷)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "tr" },
+    { id: "USD_CN", name: "حوالات الصين", regex: "(?:الصين|صينية|🇨🇳)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "cn" },
+    { id: "CNY", name: "يوان صيني", regex: "(?:cny|CNY|يوان|🇨🇳)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 0.5, max: 5.0, isInverse: false, flag: "cn" },
     { id: "GOLD", name: "كسر الذهب", regex: "(?:كسر الذهب|ذهبي|ذهب|💎)[^\\d]{0,25}(\\d{2,4}(?:[\\.,]\\d+)?)", min: 100, max: 5000, isInverse: false, flag: "ly" },
     { id: "OFFICIAL_USD", name: "الدولار الرسمي", regex: "(?:الرسمي|المركزي)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 4.0, max: 6.0, isInverse: false, flag: "us" }
   ]
@@ -958,7 +963,20 @@ async function fetchParallelRatesFromTelegram() {
             const extractRate = (regexStr: string, key: string, min: number, max: number, isInverse = false) => {
               const regex = new RegExp(regexStr, 'i');
               const match = cleanText.match(regex);
-              const valStr = match ? (match[1] || match[2]) : null;
+              if (!match) return;
+
+              // Logic to pick the correct capture group
+              // For our new regexes:
+              // match[1] = first number (after name)
+              // match[2] = second number (after name)
+              // match[3] = first number (before name)
+              // match[4] = second number (before name)
+              
+              let valStr = null;
+              if (match[2]) valStr = match[2]; // Second number after name
+              else if (match[4]) valStr = match[4]; // Second number before name
+              else valStr = match[1] || match[3]; // Fallback to first number
+              
               if (valStr) {
                 let val = parseFloat(valStr.replace(',', '.'));
                 
