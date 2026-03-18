@@ -518,8 +518,8 @@ async function fetchHistoryFromSupabase() {
   try {
     // Fetch parallel and official history in parallel for speed
     const [parallelRes, officialRes] = await Promise.all([
-      supabase.from('parallel_rates').select('*').order('recorded_at', { ascending: false }).limit(2000),
-      supabase.from('official_rates').select('*').order('recorded_at', { ascending: false }).limit(2000)
+      supabase.from('parallel_rates').select('recorded_at, usd, rates').order('recorded_at', { ascending: false }).limit(1000),
+      supabase.from('official_rates').select('recorded_at, usd, rates').order('recorded_at', { ascending: false }).limit(1000)
     ]);
 
     // Check for "table not found" errors - fallback to legacy if tables are missing
@@ -922,7 +922,7 @@ async function fetchParallelRatesFromTelegram() {
     const scrapeResults = await Promise.allSettled(appConfig.channels.map(async (channel) => {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
         const response = await fetch(`https://t.me/s/${channel}`, { signal: controller.signal });
         clearTimeout(timeoutId);
         if (!response.ok) return null;

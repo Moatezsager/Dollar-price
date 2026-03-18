@@ -527,8 +527,8 @@ export default function App() {
         await fetchConfig();
       }
       const [ratesResult, historyResult] = await Promise.allSettled([
-        fetch(forceRefresh ? "/api/rates?refresh=true" : "/api/rates", { signal: AbortSignal.timeout(10000) }),
-        fetch("/api/history", { signal: AbortSignal.timeout(10000) }),
+        fetch(forceRefresh ? "/api/rates?refresh=true" : "/api/rates", { signal: AbortSignal.timeout(30000) }),
+        fetch("/api/history", { signal: AbortSignal.timeout(30000) }),
       ]);
       
       if (ratesResult.status === 'rejected') {
