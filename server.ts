@@ -274,7 +274,11 @@ async function extractRatesWithAI(text: string) {
          - Example: "حوالة تركيا 10.2300" -> USD_TR is 10.2300
          - Example: "10.2425 10.2450 حوالة الصين دينار" -> USD_CN is 10.2450
       6. Always extract the most reasonable exchange rate. For USD in parallel market it's usually between 5.0 and 15.0.
-      7. Be extremely resilient to noise, extra words, "up", "down", or formatting artifacts.
+      7. SMART INVERSE LOGIC FOR TND & EGP: 
+         - If the text says "دينار.ليبي=0.32 دينار.تونسي" (meaning 1 LYD = 0.32 TND), you MUST calculate the inverse: 1 / 0.32 = 3.125. Return 3.125 for TND.
+         - If the text says "دينار.ليبي=5.10 جنيه.مصري" (meaning 1 LYD = 5.10 EGP), you MUST calculate the inverse: 1 / 5.10 = 0.196. Return 0.196 for EGP.
+         - ALWAYS return the price of 1 foreign unit in LYD.
+      8. Be extremely resilient to noise, extra words, "up", "down", or formatting artifacts.
 
       OUTPUT FORMAT:
       Return ONLY a valid JSON object. Use null for missing values.
@@ -800,9 +804,9 @@ let appConfig: AppConfig = {
     { id: "USD", name: "دولار أمريكي", regex: "(?:الدولار|دولار|الخضراء|خضراء|كاش|💵|usd|🇺🇸)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
     { id: "EUR", name: "يورو", regex: "(?:يورو|اليورو|💶|eur|🇪🇺)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "eu" },
     { id: "GBP", name: "جنيه إسترليني", regex: "(?:باوند|استرليني|الباوند|💷|gbp|🇬🇧)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 25.0, isInverse: false, flag: "gb" },
-    { id: "TND", name: "دينار تونسي", regex: "(?:تونسي|تونس|tnd|🇹🇳)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 0.1, max: 10.0, isInverse: false, flag: "tn" },
-    { id: "EGP", name: "جنيه مصري", regex: "(?:مصري|مصر|egp|🇪🇬)[^\\d]{0,25}(\\d{0,1}(?:[\\.,]\\d{1,4})?)", min: 0.01, max: 5.0, isInverse: false, flag: "eg" },
-    { id: "TRY", name: "ليرة تركية", regex: "(?:ليرة|تركي|try|🇹🇷)[^\\d]{0,25}(\\d{0,1}(?:[\\.,]\\d{1,4})?)", min: 0.01, max: 5.0, isInverse: false, flag: "tr" },
+    { id: "TND", name: "دينار تونسي", regex: "(?:(?:تونسي|تونس|tnd|🇹🇳)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?))|(?:(\\d{1,2}(?:[\\.,]\\d{1,4})?)[^\\d]{0,25}(?:تونسي|تونس|tnd|🇹🇳))", min: 0.1, max: 10.0, isInverse: false, flag: "tn" },
+    { id: "EGP", name: "جنيه مصري", regex: "(?:(?:مصري|مصر|egp|🇪🇬)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?))|(?:(\\d{1,2}(?:[\\.,]\\d{1,4})?)[^\\d]{0,25}(?:مصري|مصر|egp|🇪🇬))", min: 0.01, max: 5.0, isInverse: false, flag: "eg" },
+    { id: "TRY", name: "ليرة تركية", regex: "(?:(?:ليرة|تركي|try|🇹🇷)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?))|(?:(\\d{1,2}(?:[\\.,]\\d{1,4})?)[^\\d]{0,25}(?:ليرة|تركي|try|🇹🇷))", min: 0.01, max: 5.0, isInverse: false, flag: "tr" },
     { id: "JOD", name: "دينار أردني", regex: "(?:jod|JOD|أردني|🇯🇴)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 5.0, max: 30.0, isInverse: false, flag: "jo" },
     { id: "BHD", name: "دينار بحريني", regex: "(?:bhd|BHD|بحريني|🇧🇭)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 10.0, max: 50.0, isInverse: false, flag: "bh" },
     { id: "KWD", name: "دينار كويتي", regex: "(?:kwd|KWD|كويتي|🇰🇼)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 10.0, max: 60.0, isInverse: false, flag: "kw" },
@@ -954,8 +958,15 @@ async function fetchParallelRatesFromTelegram() {
             const extractRate = (regexStr: string, key: string, min: number, max: number, isInverse = false) => {
               const regex = new RegExp(regexStr, 'i');
               const match = cleanText.match(regex);
-              if (match && match[1]) {
-                let val = parseFloat(match[1].replace(',', '.'));
+              const valStr = match ? (match[1] || match[2]) : null;
+              if (valStr) {
+                let val = parseFloat(valStr.replace(',', '.'));
+                
+                // Smart inverse logic for TND, EGP, and TRY
+                if (key === 'TND' && val < 1.0 && val > 0) val = 1 / val;
+                if (key === 'EGP' && val > 1.0) val = 1 / val;
+                if (key === 'TRY' && val > 1.0) val = 1 / val;
+                
                 if (isInverse && val > 0) val = 1 / val;
                 if (!isNaN(val) && val > min && val < max) {
                   priceHistory[key].push({ value: val, time, channel });
