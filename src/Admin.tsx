@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { 
   Settings, Save, Plus, Trash2, ArrowRight, ShieldCheck, LogOut, X, 
   Activity, Users, Cpu, History as HistoryIcon, AlertTriangle, Terminal, 
-  ArrowLeftRight, CheckCircle2, RefreshCw, Layers, Globe, Zap, Search,
+  ArrowLeftRight, ArrowUpRight, ArrowDownRight, CheckCircle2, RefreshCw, Layers, Globe, Zap, Search,
   ChevronDown, ChevronUp, Clock, Info, Building2, Coins, Send, Building
 } from "lucide-react";
 import { format } from "date-fns";
@@ -1002,102 +1002,246 @@ export default function Admin() {
               exit={{ opacity: 0, y: -10 }}
               className="space-y-6"
             >
+              {/* Header */}
               <section className="bg-white/[0.02] border border-white/5 rounded-[2rem] p-6 md:p-8 relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 blur-[80px] rounded-full pointer-events-none"></div>
+                <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-500/5 blur-[100px] rounded-full pointer-events-none"></div>
+                <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-500/5 blur-[80px] rounded-full pointer-events-none"></div>
                 
-                <div className="flex items-center gap-4 mb-8">
-                  <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
-                    <Zap className="w-6 h-6 text-emerald-400" />
+                <div className="flex flex-col md:flex-row items-start md:items-center gap-6 mb-8 relative">
+                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-blue-500/20 flex items-center justify-center border border-emerald-500/20 shrink-0">
+                    <Zap className="w-8 h-8 text-emerald-400" />
                   </div>
-                  <div>
-                    <h2 className="text-2xl font-black text-white">المساعد الذكي</h2>
-                    <p className="text-sm text-zinc-500 mt-1">قم بلصق نص التحديثات وسيقوم الذكاء الاصطناعي باستخراج الأسعار وتحديثها</p>
+                  <div className="flex-1">
+                    <h2 className="text-2xl font-black text-white mb-1">المساعد الذكي لاستخراج الأسعار</h2>
+                    <p className="text-sm text-zinc-500 leading-relaxed">
+                      الصق رسالة السوق هنا، وسيقوم الذكاء الاصطناعي بقراءة وتحليل جميع الأسعار تلقائياً واستخراج <span className="text-emerald-400 font-bold">سعر البيع</span> (الرقم الثاني) لكل عملة.
+                    </p>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                  <div className="space-y-4">
-                    <label className="block text-sm font-bold text-zinc-400">نص التحديثات (من قنوات التليجرام أو غيرها)</label>
-                    <textarea
-                      value={aiText}
-                      onChange={(e) => setAiText(e.target.value)}
-                      placeholder="الصق النص هنا..."
-                      className="w-full h-64 bg-black/40 border border-white/10 rounded-2xl p-4 text-sm text-white focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all resize-none"
-                      dir="auto"
-                    />
+                {/* Input Area */}
+                <div className="relative">
+                  <textarea
+                    value={aiText}
+                    onChange={(e) => setAiText(e.target.value)}
+                    placeholder={`الصق رسالة السوق هنا... مثال:\nUSD دولار 10.2800 10.2775 down\njbank صكوك الجمهورية 11.1800 11.1775 fixed\nدينار حوالة دبي 10.1700 10.1675 down`}
+                    className="w-full h-48 bg-black/40 border border-white/10 rounded-2xl p-5 text-sm text-white focus:outline-none focus:border-emerald-500/40 focus:ring-1 focus:ring-emerald-500/20 transition-all resize-none font-mono leading-relaxed placeholder:text-zinc-700 placeholder:font-sans"
+                    dir="auto"
+                  />
+                  {aiText && (
                     <button
-                      onClick={handleAIExtract}
-                      disabled={aiLoading || !aiText.trim()}
-                      className="w-full py-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-800 disabled:text-zinc-500 text-white font-black transition-all flex items-center justify-center gap-2"
+                      onClick={() => { setAiText(''); setExtractedRates(null); }}
+                      className="absolute top-3 left-3 w-7 h-7 rounded-full bg-white/5 hover:bg-white/10 transition-all flex items-center justify-center text-zinc-500 hover:text-white"
                     >
-                      {aiLoading && !extractedRates ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Zap className="w-5 h-5" />}
-                      استخراج الأسعار
+                      <X className="w-3.5 h-3.5" />
                     </button>
-                  </div>
-
-                  <div className="space-y-4">
-                    <label className="block text-sm font-bold text-zinc-400">الأسعار المستخرجة</label>
-                    <div className="w-full h-64 bg-black/40 border border-white/10 rounded-2xl p-4 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10">
-                      {!extractedRates ? (
-                        <div className="h-full flex flex-col items-center justify-center text-zinc-600 gap-3">
-                          <Search className="w-8 h-8 opacity-50" />
-                          <p className="text-sm">لم يتم استخراج أي أسعار بعد</p>
-                        </div>
-                      ) : (
-                        <div className="space-y-3">
-                          {Object.entries(extractedRates).map(([key, value]) => {
-                            const currentVal = currentRates[key] || 0;
-                            const isChanged = value !== currentVal;
-                            const term = config?.terms?.find((t: any) => t.id === key);
-                            
-                            return (
-                              <div key={key} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5 gap-3">
-                                <div className="flex items-center gap-3">
-                                  <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center shrink-0">
-                                    <span className="text-xs font-bold text-white max-w-full overflow-hidden text-ellipsis px-1">{key.substring(0, 4)}</span>
-                                  </div>
-                                  <div className="min-w-0 flex-1">
-                                    <p className="text-sm font-bold text-white truncate">{term?.name || key}</p>
-                                    <div className="flex flex-wrap items-center gap-2 text-xs mt-1">
-                                      <span className="text-zinc-500">الحالي: {currentVal}</span>
-                                      {isChanged && (
-                                        <>
-                                          <ArrowLeftRight className="w-3 h-3 text-zinc-600 shrink-0" />
-                                          <span className="text-emerald-400 font-bold">الجديد: {value}</span>
-                                        </>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-2 shrink-0">
-                                  <input
-                                    type="number"
-                                    step="0.01"
-                                    value={value}
-                                    onChange={(e) => setExtractedRates({ ...extractedRates, [key]: parseFloat(e.target.value) || 0 })}
-                                    className="w-24 bg-black/50 border border-white/10 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:border-emerald-500/50"
-                                    dir="ltr"
-                                  />
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                    <button
-                      onClick={handleAISave}
-                      disabled={aiLoading || !extractedRates || Object.keys(extractedRates).length === 0}
-                      className="w-full py-4 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-800 disabled:text-zinc-500 text-white font-black transition-all flex items-center justify-center gap-2"
-                    >
-                      {aiLoading && extractedRates ? <RefreshCw className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
-                      اعتماد وتحديث الأسعار
-                    </button>
-                  </div>
+                  )}
                 </div>
+
+                {/* Extract Button */}
+                <button
+                  onClick={handleAIExtract}
+                  disabled={aiLoading || !aiText.trim()}
+                  className="w-full mt-4 py-4 rounded-2xl bg-gradient-to-l from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 disabled:from-zinc-800 disabled:to-zinc-800 disabled:text-zinc-600 text-black font-black transition-all flex items-center justify-center gap-3 shadow-lg shadow-emerald-900/30 disabled:shadow-none active:scale-[0.98]"
+                >
+                  {aiLoading && !extractedRates ? (
+                    <>
+                      <RefreshCw className="w-5 h-5 animate-spin" />
+                      <span>جاري التحليل والاستخراج...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="w-5 h-5" />
+                      <span>استخراج الأسعار ذكياً</span>
+                    </>
+                  )}
+                </button>
               </section>
+
+              {/* Results Table */}
+              <AnimatePresence>
+                {extractedRates && Object.keys(extractedRates).length > 0 && (
+                  <motion.section
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    className="bg-white/[0.02] border border-white/5 rounded-[2rem] overflow-hidden"
+                  >
+                    {/* Table Header */}
+                    <div className="p-6 border-b border-white/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                      <div>
+                        <h3 className="text-lg font-black text-white flex items-center gap-3">
+                          <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                          الأسعار المستخرجة
+                          <span className="text-xs font-mono bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                            {Object.keys(extractedRates).length} عملة
+                          </span>
+                        </h3>
+                        <p className="text-xs text-zinc-600 mt-1">راجع الأسعار وقم بتعديل أي قيمة، ثم اضغط موافقة لحفظها</p>
+                      </div>
+                      
+                      {/* Select All */}
+                      <div className="flex items-center gap-3">
+                        <label className="flex items-center gap-2 cursor-pointer text-sm text-zinc-400 hover:text-white transition-colors">
+                          <input
+                            type="checkbox"
+                            className="w-4 h-4 rounded accent-emerald-500"
+                            checked={Object.keys(extractedRates).every(k => !(extractedRates as any)[`_skip_${k}`])}
+                            onChange={(e) => {
+                              const newRates = { ...extractedRates };
+                              Object.keys(extractedRates).forEach(k => {
+                                if (!e.target.checked) (newRates as any)[`_skip_${k}`] = true;
+                                else delete (newRates as any)[`_skip_${k}`];
+                              });
+                              setExtractedRates(newRates);
+                            }}
+                          />
+                          تحديد الكل
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* Comparison Table */}
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b border-white/5 text-[10px] text-zinc-600 font-black uppercase tracking-widest">
+                            <th className="p-4 text-right">✓</th>
+                            <th className="p-4 text-right">العملة</th>
+                            <th className="p-4 text-center">السعر الحالي (ق.البيانات)</th>
+                            <th className="p-4 text-center">سعر البيع الجديد ✏️</th>
+                            <th className="p-4 text-center">التغيير</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/[0.03]">
+                          {Object.entries(extractedRates)
+                            .filter(([k]) => !k.startsWith('_'))
+                            .map(([key, newValue]) => {
+                              const currentVal = currentRates[key] || 0;
+                              const diff = (newValue as number) - currentVal;
+                              const diffPct = currentVal > 0 ? ((diff / currentVal) * 100) : 0;
+                              const isUp = diff > 0.001;
+                              const isDown = diff < -0.001;
+                              const isSkipped = !!(extractedRates as any)[`_skip_${key}`];
+                              const term = config?.terms?.find((t: any) => t.id === key);
+
+                              return (
+                                <tr
+                                  key={key}
+                                  className={`transition-all ${isSkipped ? 'opacity-40' : 'hover:bg-white/[0.02]'}`}
+                                >
+                                  {/* Checkbox */}
+                                  <td className="p-4">
+                                    <input
+                                      type="checkbox"
+                                      className="w-4 h-4 rounded accent-emerald-500 cursor-pointer"
+                                      checked={!isSkipped}
+                                      onChange={(e) => {
+                                        const newRates = { ...extractedRates };
+                                        if (!e.target.checked) (newRates as any)[`_skip_${key}`] = true;
+                                        else delete (newRates as any)[`_skip_${key}`];
+                                        setExtractedRates(newRates);
+                                      }}
+                                    />
+                                  </td>
+
+                                  {/* Currency Info */}
+                                  <td className="p-4">
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-9 h-9 rounded-xl overflow-hidden border border-white/10 shrink-0">
+                                        <FlagIcon flagCode={term?.flag} name={term?.name || key} className="w-9 h-9" fallbackType="coins" />
+                                      </div>
+                                      <div>
+                                        <p className="text-sm font-bold text-white">{term?.name || key}</p>
+                                        <p className="text-[10px] font-mono text-zinc-600 uppercase">{key}</p>
+                                      </div>
+                                    </div>
+                                  </td>
+
+                                  {/* Current Price */}
+                                  <td className="p-4 text-center">
+                                    <span className="font-mono text-zinc-400 text-sm">
+                                      {currentVal > 0 ? currentVal.toFixed(4) : <span className="text-zinc-700">—</span>}
+                                    </span>
+                                  </td>
+
+                                  {/* New Price - Editable */}
+                                  <td className="p-4 text-center">
+                                    <input
+                                      type="number"
+                                      step="0.0001"
+                                      value={newValue as number}
+                                      disabled={isSkipped}
+                                      onChange={(e) => {
+                                        const v = parseFloat(e.target.value);
+                                        if (!isNaN(v)) setExtractedRates({ ...extractedRates, [key]: v });
+                                      }}
+                                      className="w-28 bg-emerald-500/5 border border-emerald-500/20 rounded-xl px-3 py-2 text-sm text-center font-mono text-emerald-400 font-bold focus:outline-none focus:border-emerald-500/50 focus:bg-emerald-500/10 transition-all disabled:opacity-40"
+                                      dir="ltr"
+                                    />
+                                  </td>
+
+                                  {/* Change Indicator */}
+                                  <td className="p-4 text-center">
+                                    {currentVal > 0 ? (
+                                      <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-black ${
+                                        isUp ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                                        isDown ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' :
+                                        'bg-zinc-800 text-zinc-500 border border-white/5'
+                                      }`}>
+                                        {isUp && <ArrowUpRight className="w-3 h-3" />}
+                                        {isDown && <ArrowDownRight className="w-3 h-3" />}
+                                        {!isUp && !isDown && '—'}
+                                        {(isUp || isDown) && `${Math.abs(diffPct).toFixed(2)}%`}
+                                      </span>
+                                    ) : (
+                                      <span className="text-xs text-zinc-700 font-mono">جديد</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Approve & Save Button */}
+                    <div className="p-6 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-4">
+                      <p className="text-xs text-zinc-600">
+                        سيتم حفظ <span className="text-white font-bold">{Object.keys(extractedRates).filter(k => !k.startsWith('_skip_') && !(extractedRates as any)[`_skip_${k}`] && !k.startsWith('_')).length}</span> أسعار في قاعدة البيانات
+                      </p>
+                      <button
+                        onClick={() => {
+                          // Build updates from non-skipped items only
+                          const updates: Record<string, number> = {};
+                          Object.entries(extractedRates).forEach(([k, v]) => {
+                            if (!k.startsWith('_') && !(extractedRates as any)[`_skip_${k}`]) {
+                              updates[k] = v as number;
+                            }
+                          });
+                          // Temporarily override extractedRates for the save function
+                          const savedRates = extractedRates;
+                          setExtractedRates(updates);
+                          setTimeout(() => handleAISave(), 50);
+                          setTimeout(() => { if (Object.keys(updates).length === 0) setExtractedRates(savedRates); }, 100);
+                        }}
+                        disabled={aiLoading || Object.keys(extractedRates).filter(k => !k.startsWith('_') && !(extractedRates as any)[`_skip_${k}`]).length === 0}
+                        className="px-8 py-4 rounded-2xl bg-white text-black font-black flex items-center gap-3 hover:bg-emerald-400 transition-all active:scale-95 disabled:opacity-40 disabled:hover:bg-white shadow-xl"
+                      >
+                        {aiLoading && extractedRates ? (
+                          <RefreshCw className="w-5 h-5 animate-spin" />
+                        ) : (
+                          <CheckCircle2 className="w-5 h-5" />
+                        )}
+                        موافقة وحفظ الأسعار
+                      </button>
+                    </div>
+                  </motion.section>
+                )}
+              </AnimatePresence>
             </motion.div>
           )}
+
         </AnimatePresence>
       </main>
 

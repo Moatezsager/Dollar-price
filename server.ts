@@ -604,7 +604,130 @@ async function fetchHistoryFromSupabase() {
   return history;
 }
 
+// Smart AI extraction function that parses complex Arabic messages
+// Uses Gemini AI to identify currency codes and extract the SELL price (second number)
+async function extractRatesWithAI(text: string): Promise<Record<string, number> | null> {
+  // Build a map of all known terms for context
+  const termsContext = appConfig.terms.map(t => `${t.id}: ${t.name} (${t.flag}), min:${t.min}, max:${t.max}`).join('\n');
+
+  // --- Strategy 1: Regex-based client-side extraction (fast, no API needed) ---
+  // Tries to parse the tabular format: ID/keyword buy_price sell_price [status] [date]
+  const clientExtracted: Record<string, number> = {};
+
+  // Pattern: <keyword or ID> <optional words> <buy_price> <sell_price>
+  const linePattern = /^[\d\s]*(.+?)\s+([\d,\.]+)\s+([\d,\.]+)\s*(up|down|fixed)?/gim;
+  let lineMatch: RegExpExecArray | null;
+
+  while ((lineMatch = linePattern.exec(text)) !== null) {
+    const rawText = lineMatch[1].trim();
+    const buyStr  = lineMatch[2];
+    const sellStr = lineMatch[3];
+
+    const buyVal  = parseFloat(buyStr.replace(',', '.'));
+    const sellVal = parseFloat(sellStr.replace(',', '.'));
+
+    if (isNaN(sellVal) || sellVal <= 0) continue;
+
+    // Try to match this line's text against our known terms
+    for (const term of appConfig.terms) {
+      // Check ID directly (case-insensitive)
+      if (rawText.toLowerCase().includes(term.id.toLowerCase())) {
+        if (!clientExtracted[term.id] && sellVal >= term.min && sellVal <= term.max) {
+          clientExtracted[term.id] = sellVal;
+        }
+        break;
+      }
+      // Check keywords from regex
+      try {
+        const keywordMatch = term.regex.match(/^\(\?:([^)]+)\)/);
+        if (keywordMatch) {
+          const keywords = keywordMatch[1].split('|');
+          const matched = keywords.some(kw => rawText.includes(kw));
+          if (matched && !clientExtracted[term.id] && sellVal >= term.min && sellVal <= term.max) {
+            clientExtracted[term.id] = sellVal;
+            break;
+          }
+        }
+      } catch (e) { /* ignore regex parse errors */ }
+    }
+  }
+
+  if (Object.keys(clientExtracted).length > 0) {
+    console.log(`[AI-Extract] Client-side regex extracted ${Object.keys(clientExtracted).length} prices quickly.`);
+    return clientExtracted;
+  }
+
+  // --- Strategy 2: Gemini AI (for complex/ambiguous messages) ---
+  const ai = getAIClient();
+  if (!ai) {
+    console.warn('[AI-Extract] Gemini client not available, returning client-side results.');
+    return Object.keys(clientExtracted).length > 0 ? clientExtracted : null;
+  }
+
+  try {
+    const prompt = `أنت مساعد ذكي لاستخراج أسعار الصرف من رسائل السوق الليبي.
+القاعدة المهمة: في كل سطر يوجد سعران، السعر الأول هو سعر الشراء والسعر الثاني هو سعر البيع. أنت تريد دائماً سعر البيع (الرقم الثاني).
+
+قائمة العملات المعتمدة ومعرفاتها:
+${termsContext}
+
+النص المراد تحليله:
+"""
+${text}
+"""
+
+قم بإرجاع JSON فقط (بدون أي نص آخر) بالشكل التالي، مستخدماً معرّفات العملات (ID) كمفاتيح:
+{
+  "USD": 10.2775,
+  "USD_JBANK": 11.1775,
+  ...
+}
+قواعد هامة:
+- استخرج سعر البيع فقط (الرقم الثاني في كل سطر)
+- تجاهل أي سعر خارج النطاق المسموح به (min/max)
+- إذا لم تجد عملة معينة في النص، لا تضيفها
+- أعد JSON فقط بدون أي شرح`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-2.0-flash",
+      contents: prompt,
+    });
+
+    const rawText = response.text?.trim() || '';
+    // Clean the response (remove markdown code blocks if any)
+    const clean = rawText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+
+    try {
+      const parsed = JSON.parse(clean);
+      if (typeof parsed === 'object' && parsed !== null) {
+        // Validate against min/max constraints
+        const validated: Record<string, number> = {};
+        for (const [key, val] of Object.entries(parsed)) {
+          const numVal = Number(val);
+          const term = appConfig.terms.find(t => t.id === key);
+          if (term && !isNaN(numVal) && numVal >= term.min && numVal <= term.max) {
+            validated[key] = numVal;
+          }
+        }
+        if (Object.keys(validated).length > 0) {
+          console.log(`[AI-Extract] Gemini extracted ${Object.keys(validated).length} prices.`);
+          return validated;
+        }
+      }
+    } catch (parseErr) {
+      console.error('[AI-Extract] Failed to parse Gemini response as JSON:', rawText);
+      return { _raw: rawText } as any;
+    }
+  } catch (aiErr: any) {
+    console.error('[AI-Extract] Gemini call failed:', aiErr.message);
+    throw aiErr;
+  }
+
+  return null;
+}
+
 // Fetch official rates from Central Bank of Libya website
+
 async function fetchFromCBL(): Promise<RateMap | null> {
   try {
     const controller = new AbortController();
