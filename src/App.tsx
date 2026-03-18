@@ -1,7 +1,5 @@
 import { useEffect, useState, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { toPng, toJpeg } from 'html-to-image';
-import { jsPDF } from 'jspdf';
 import Joyride, { Step, CallBackProps, STATUS, TooltipRenderProps } from 'react-joyride';
 import {
   ArrowLeftRight,
@@ -405,65 +403,22 @@ export default function App() {
   };
 
   const generatePDF = async () => {
-    if (!reportRef.current) {
-      addToast("خطأ", "لم يتم العثور على قالب التقرير", "info");
-      return;
-    }
-    
     setIsGeneratingPDF(true);
-    addToast("جاري التحضير...", "يتم الآن تجهيز التقرير، يرجى الانتظار", "info");
+    addToast("جاري التجهيز للطباعة...", "سيتم فتح نافذة حفظ التقرير كـ PDF", "info");
     
-    try {
-      const element = reportRef.current;
-      
-      // Since the element is rendered off-screen, its dimensions are already calculable
-      const imgWidth = Math.max(800, element.offsetWidth) * 2;
-      const imgHeight = Math.max(600, element.offsetHeight) * 2;
-
-      if (imgWidth === 0 || imgHeight === 0) {
-        throw new Error("أبعاد التقرير غير صالحة");
+    // Give the UI a moment to update state before locking the thread with window.print()
+    setTimeout(() => {
+      try {
+        window.print();
+        addToast("تم الاستخراج", "تم عرض نافذة الطباعة/الحفظ بنجاح", "up");
+      } catch (err: any) {
+        console.error('Error during native print:', err);
+        logErrorToServer(err, "App.tsx: generatePDF");
+        addToast("خطأ فني في التقرير", "حدث خطأ داخلي أثناء فتح نافذة طباعة المتصفح", "info");
+      } finally {
+        setIsGeneratingPDF(false);
       }
-      
-      const dataUrl = await toJpeg(element, {
-        cacheBust: true,
-        pixelRatio: 1.5,
-        quality: 0.9,
-        backgroundColor: '#ffffff',
-        style: {
-          left: '0',
-          top: '0',
-          position: 'relative',
-          opacity: '1',
-          pointerEvents: 'auto',
-          transform: 'none'
-        }
-      });
-
-      // Calculate dimensions
-      const pdfWidth = 210; // A4 width in mm
-      const pdfHeight = (imgHeight * pdfWidth) / imgWidth;
-
-      // Create PDF with dynamic height to fit all content on one continuous page
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: [pdfWidth, Math.max(297, pdfHeight)] // At least A4 height, or longer if needed
-      });
-
-      pdf.addImage(dataUrl, 'JPEG', 0, 0, pdfWidth, pdfHeight);
-      pdf.save(`تقرير-مؤشر-الدينار-${format(new Date(), 'yyyy-MM-dd-HHmm')}.pdf`);
-      
-      addToast("تم بنجاح", "تم تحميل التقرير بنجاح", "up");
-    } catch (err: any) {
-      console.error('Error generating PDF:', err);
-      logErrorToServer(err, "App.tsx: generatePDF");
-      
-      // Attempt to extract useful error message for display
-      const errorMsg = err?.message || err?.toString() || "حدث خطأ داخلي أثناء تحويل الصورة";
-      addToast("خطأ فني في التقرير", errorMsg, "info");
-    } finally {
-      setIsGeneratingPDF(false);
-    }
+    }, 500);
   };
 
   const requestNotificationPermission = async () => {
@@ -1846,22 +1801,21 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Hidden PDF Template */}
+      {/* Hidden PDF Template - Unlocked by @media print */}
       <div 
+        id="pdf-report-container"
         ref={reportRef} 
+        className="hidden" // Tailwind utility for display: none on screens
         style={{ 
-          position: 'absolute', 
-          left: '-9999px',
-          top: '0',
-          opacity: '0.01',
-          pointerEvents: 'none',
-          width: '800px',
+          width: '210mm', // A4 exact width
+          minHeight: '297mm', // A4 exact min-height
           backgroundColor: '#ffffff',
           color: '#0f172a',
           fontFamily: "'Cairo', sans-serif",
           lineHeight: '1.5',
           direction: 'rtl',
-          zIndex: -9999
+          margin: '0 auto',
+          padding: '0'
         }}
         dir="rtl"
       >
