@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { toPng } from 'html-to-image';
+import { toPng, toJpeg } from 'html-to-image';
 import { jsPDF } from 'jspdf';
 import Joyride, { Step, CallBackProps, STATUS, TooltipRenderProps } from 'react-joyride';
 import {
@@ -424,9 +424,10 @@ export default function App() {
         throw new Error("أبعاد التقرير غير صالحة");
       }
       
-      const dataUrl = await toPng(element, {
+      const dataUrl = await toJpeg(element, {
         cacheBust: true,
-        pixelRatio: 2,
+        pixelRatio: 1.5,
+        quality: 0.9,
         backgroundColor: '#ffffff',
         style: {
           left: '0',
@@ -438,7 +439,8 @@ export default function App() {
         }
       });
 
-      // Create PDF with dynamic height to fit all content on one continuous page
+      // Calculate dimensions
+      const pdfWidth = 210; // A4 width in mm
       const pdfHeight = (imgHeight * pdfWidth) / imgWidth;
 
       // Create PDF with dynamic height to fit all content on one continuous page
@@ -448,14 +450,17 @@ export default function App() {
         format: [pdfWidth, Math.max(297, pdfHeight)] // At least A4 height, or longer if needed
       });
 
-      pdf.addImage(dataUrl, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.addImage(dataUrl, 'JPEG', 0, 0, pdfWidth, pdfHeight);
       pdf.save(`تقرير-مؤشر-الدينار-${format(new Date(), 'yyyy-MM-dd-HHmm')}.pdf`);
       
       addToast("تم بنجاح", "تم تحميل التقرير بنجاح", "up");
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error generating PDF:', err);
       logErrorToServer(err, "App.tsx: generatePDF");
-      addToast("خطأ", "حدث خطأ أثناء إنشاء التقرير", "info");
+      
+      // Attempt to extract useful error message for display
+      const errorMsg = err?.message || err?.toString() || "حدث خطأ داخلي أثناء تحويل الصورة";
+      addToast("خطأ فني في التقرير", errorMsg, "info");
     } finally {
       setIsGeneratingPDF(false);
     }
