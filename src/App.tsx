@@ -882,7 +882,7 @@ export default function App() {
           {/* Mini Sparkline Chart */}
           <div className="w-full lg:w-[400px] h-[100px] sm:h-[160px] min-w-0 min-h-0 opacity-80 hover:opacity-100 transition-opacity mt-8 lg:mt-0">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={history}>
+              <AreaChart data={history.filter(h => h.usdParallel > 0)}>
                 <defs>
                   <linearGradient id="colorUsd" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
@@ -1035,17 +1035,20 @@ export default function App() {
                         <FlagIcon flagCode={term.flag} name={term.name} fallbackType="send" />
                         <span className="text-[11px] font-medium text-zinc-400">{term.name}</span>
                       </div>
-                      {trends24h[term.id]?.parallel !== undefined && (
-                        <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-md ${
-                          trends24h[term.id].parallel! > 0 ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'
-                        }`}>
-                          {trends24h[term.id].parallel! > 0 ? '+' : ''}{trends24h[term.id].parallel!.toFixed(1)}%
-                        </span>
-                      )}
                     </div>
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-2xl font-light text-white font-mono tracking-tight group-hover:text-indigo-400 transition-colors">{rate.toFixed(2)}</span>
-                      {isUp ? <ArrowUpRight className="w-3 h-3 text-rose-400" /> : isDown ? <ArrowDownRight className="w-3 h-3 text-emerald-400" /> : null}
+                      {trends24h[term.id]?.parallel !== undefined && (
+                        <span className={`text-[10px] font-mono font-medium px-1.5 py-0.5 rounded-md flex items-center gap-0.5 ${
+                          trends24h[term.id].parallel! > 0 ? 'bg-rose-500/10 text-rose-500' : 
+                          trends24h[term.id].parallel! < 0 ? 'bg-emerald-500/10 text-emerald-500' : 
+                          'bg-zinc-500/10 text-zinc-400'
+                        }`}>
+                          {trends24h[term.id].parallel! > 0 ? <ArrowUpRight className="w-3 h-3" /> : 
+                           trends24h[term.id].parallel! < 0 ? <ArrowDownRight className="w-3 h-3" /> : null}
+                          <span dir="ltr">{Math.abs(trends24h[term.id].parallel!).toFixed(1)}%</span>
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center justify-between gap-2">
                        <span className="text-[9px] text-zinc-700 font-mono" dir="ltr">السابق: {prevRate.toFixed(2)}</span>
@@ -1467,7 +1470,7 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="flex-1 min-h-[350px] w-full relative">
+                <div className="w-full h-[350px] relative mt-4">
                   {chartData.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%" key={selectedRate.code}>
                       <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
@@ -1524,7 +1527,6 @@ export default function App() {
                           fill="url(#modalChartGradient)"
                           dot={{ r: 3, fill: "#10b981", stroke: "#0a0a0a", strokeWidth: 2, fillOpacity: 1 }}
                           activeDot={{ r: 6, fill: "#10b981", stroke: "#0a0a0a", strokeWidth: 3 }}
-                          isAnimationActive={false} // Disable animation for faster rendering in modal
                         />
                       </AreaChart>
                     </ResponsiveContainer>
