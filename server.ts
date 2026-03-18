@@ -13,8 +13,10 @@ import { GoogleGenAI } from "@google/genai";
 // Initialize AI lazily
 let aiClient: GoogleGenAI | null = null;
 function getAIClient() {
-  // Force using the provided key to ensure it works
-  const apiKey = "AIzaSyC-qVnUYQ8NUu2AQx_Ub3LBbL5w6-Op31U";
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    console.error("CRITICAL: GEMINI_API_KEY not set.");
+  }
   if (!aiClient && apiKey) {
     aiClient = new GoogleGenAI({ apiKey });
   }
