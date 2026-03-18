@@ -416,39 +416,29 @@ export default function App() {
     try {
       const element = reportRef.current;
       
-      // Temporarily make it visible for html-to-image
-      const originalStyle = element.getAttribute('style') || '';
-      element.style.cssText = `
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 800px;
-        background-color: #ffffff;
-        color: #0f172a;
-        font-family: 'Cairo', sans-serif;
-        line-height: 1.5;
-        direction: rtl;
-        z-index: -9999;
-        opacity: 1;
-        pointer-events: none;
-      `;
-      
-      // Small delay to ensure layout is calculated and fonts/images are rendered completely
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Since the element is rendered off-screen, its dimensions are already calculable
+      const imgWidth = Math.max(800, element.offsetWidth) * 2;
+      const imgHeight = Math.max(600, element.offsetHeight) * 2;
+
+      if (imgWidth === 0 || imgHeight === 0) {
+        throw new Error("أبعاد التقرير غير صالحة");
+      }
       
       const dataUrl = await toPng(element, {
         cacheBust: true,
         pixelRatio: 2,
         backgroundColor: '#ffffff',
+        style: {
+          left: '0',
+          top: '0',
+          position: 'relative',
+          opacity: '1',
+          pointerEvents: 'auto',
+          transform: 'none'
+        }
       });
-      
-      // Restore original style
-      element.setAttribute('style', originalStyle);
 
-      // Calculate dimensions
-      const imgWidth = element.offsetWidth * 2;
-      const imgHeight = element.offsetHeight * 2;
-      const pdfWidth = 210; // A4 width in mm
+      // Create PDF with dynamic height to fit all content on one continuous page
       const pdfHeight = (imgHeight * pdfWidth) / imgWidth;
 
       // Create PDF with dynamic height to fit all content on one continuous page
@@ -1855,15 +1845,18 @@ export default function App() {
       <div 
         ref={reportRef} 
         style={{ 
-          display: 'none', 
           position: 'absolute', 
-          left: '-9999px', 
+          left: '-9999px',
+          top: '0',
+          opacity: '0.01',
+          pointerEvents: 'none',
           width: '800px',
           backgroundColor: '#ffffff',
           color: '#0f172a',
           fontFamily: "'Cairo', sans-serif",
           lineHeight: '1.5',
-          direction: 'rtl'
+          direction: 'rtl',
+          zIndex: -9999
         }}
         dir="rtl"
       >
