@@ -104,8 +104,8 @@ export default function App() {
   const [tourSteps] = useState<Step[]>([
     {
       target: 'body',
-      title: 'مرحباً بك!',
-      content: 'أهلاً بك في منصة أسعار الصرف. دعنا نأخذك في جولة سريعة ومبسطة للتعرف على أهم الميزات التي ستساعدك في متابعة السوق.',
+      title: 'مرحباً بك في منصة المؤشر!',
+      content: 'أهلاً بك في منصة المؤشر لأسعار الصرف. دعنا نأخذك في جولة سريعة ومبسطة للتعرف على أهم الميزات التي ستساعدك في متابعة السوق. يرجى العلم أنه قد تختلف الأسعار بفارق بسيط بين المدن.',
       placement: 'center',
       disableBeacon: true,
     },
@@ -114,6 +114,24 @@ export default function App() {
       title: 'أسعار السوق الموازي',
       content: 'هنا يمكنك متابعة أحدث أسعار العملات الأجنبية في السوق الموازي لحظة بلحظة، مع مؤشرات التغير (ارتفاع أو انخفاض).',
       placement: 'bottom',
+    },
+    {
+      target: '#checks-grid',
+      title: 'أسعار الصكوك',
+      content: 'في هذا القسم، يمكنك متابعة أسعار الدولار مقابل صكوك المصارف التجارية المختلفة.',
+      placement: 'bottom',
+    },
+    {
+      target: '#transfers-grid',
+      title: 'حوالات العملة',
+      content: 'هنا تجد أسعار حوالات العملة إلى خارج ليبيا (مثل تركيا، دبي، والصين) لتسهيل معاملاتك التجارية.',
+      placement: 'bottom',
+    },
+    {
+      target: '#official-rates-grid',
+      title: 'أسعار السوق الرسمي',
+      content: 'يعرض هذا القسم أسعار الصرف الرسمية المعتمدة من مصرف ليبيا المركزي للعملات الرئيسية.',
+      placement: 'top',
     },
     {
       target: '#historical-chart',
@@ -1134,7 +1152,7 @@ export default function App() {
           </div>
 
           {/* 2. Bank Checks Group */}
-          <div>
+          <div id="checks-grid">
             <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-8">
               <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest">أسعار صكوك المصارف التجارية (USD)</h3>
             </div>
@@ -1179,7 +1197,7 @@ export default function App() {
           </div>
 
           {/* 3. Transfers Group */}
-          <div>
+          <div id="transfers-grid">
             <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-8">
               <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest">حوالات العملة (خارج ليبيا)</h3>
             </div>
@@ -1228,7 +1246,7 @@ export default function App() {
         </section>
 
         {/* Official Market Table */}
-        <section>
+        <section id="official-rates-grid">
           <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-8">
             <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest">السوق الرسمي (مصرف ليبيا المركزي)</h3>
           </div>
