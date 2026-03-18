@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { toPng } from 'html-to-image';
 import { jsPDF } from 'jspdf';
+import Joyride, { Step, CallBackProps, STATUS, TooltipRenderProps } from 'react-joyride';
 import {
   ArrowLeftRight,
   ArrowDownRight,
@@ -99,6 +100,121 @@ export default function App() {
   const [onlineCount, setOnlineCount] = useState<number>(1);
   const [appStatus, setAppStatus] = useState<{ status: string, minutesSinceLastScrape: number } | null>(null);
   const [configTerms, setConfigTerms] = useState<any[]>([]);
+  const [runTour, setRunTour] = useState(false);
+  const [tourSteps] = useState<Step[]>([
+    {
+      target: 'body',
+      title: 'مرحباً بك!',
+      content: 'أهلاً بك في منصة أسعار الصرف. دعنا نأخذك في جولة سريعة ومبسطة للتعرف على أهم الميزات التي ستساعدك في متابعة السوق.',
+      placement: 'center',
+      disableBeacon: true,
+    },
+    {
+      target: '#main-rates-grid',
+      title: 'أسعار السوق الموازي',
+      content: 'هنا يمكنك متابعة أحدث أسعار العملات الأجنبية في السوق الموازي لحظة بلحظة، مع مؤشرات التغير (ارتفاع أو انخفاض).',
+      placement: 'bottom',
+    },
+    {
+      target: '#historical-chart',
+      title: 'الرسم البياني للتغيرات',
+      content: 'يعرض هذا الرسم البياني المصغر مسار تغير سعر الدولار في السوق الموازي خلال الفترة الماضية ليعطيك نظرة عامة سريعة.',
+      placement: 'bottom',
+    },
+    {
+      target: '#currency-converter-section',
+      title: 'محول العملات الذكي',
+      content: 'أداة قوية وسريعة لحساب القيم بين الدينار الليبي والعملات الأخرى بناءً على أحدث الأسعار.',
+      placement: 'top',
+    },
+    {
+      target: '#market-toggle',
+      title: 'تحديد نوع السوق',
+      content: 'يمكنك التبديل بين أسعار السوق الموازي والأسعار الرسمية لحسابات أكثر دقة حسب احتياجك.',
+      placement: 'bottom',
+    },
+    {
+      target: '#converter-input',
+      title: 'إدخال المبلغ',
+      content: 'أدخل المبلغ هنا، واختر العملة، وسيقوم المحول بحساب القيمة فوراً وبشكل تلقائي.',
+      placement: 'top',
+    },
+    {
+      target: '#notification-settings-btn',
+      title: 'التنبيهات الذكية',
+      content: 'من هنا يمكنك تفعيل وتخصيص التنبيهات لتصلك إشعارات فورية عند تغير أسعار العملات التي تهمك.',
+      placement: 'bottom',
+    },
+    {
+      target: '#export-pdf-btn',
+      title: 'تصدير تقرير PDF',
+      content: 'يمكنك بنقرة واحدة تحميل تقرير احترافي بصيغة PDF يحتوي على جميع الأسعار الحالية لمشاركته أو حفظه.',
+      placement: 'bottom',
+    }
+  ]);
+
+  const CustomTooltip = ({
+    continuous,
+    index,
+    step,
+    backProps,
+    closeProps,
+    primaryProps,
+    skipProps,
+    tooltipProps,
+    isLastStep,
+  }: TooltipRenderProps) => {
+    return (
+      <div {...tooltipProps} className="bg-[#121212] border border-white/10 rounded-3xl p-6 w-[340px] max-w-[90vw] shadow-[0_20px_40px_-10px_rgba(0,0,0,0.8)]" dir="rtl">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-emerald-400 font-black text-lg tracking-tight">{step.title}</h3>
+          <button {...closeProps} className="text-zinc-500 hover:text-white transition-colors p-1 rounded-full hover:bg-white/5">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <div className="text-zinc-300 text-[13px] leading-relaxed mb-8 font-medium">
+          {step.content}
+        </div>
+        <div className="flex items-center justify-between mt-2">
+          <div className="flex items-center gap-2">
+            {index > 0 && (
+              <button {...backProps} className="px-4 py-2 text-[11px] font-bold text-zinc-400 hover:text-white transition-colors uppercase tracking-widest">
+                السابق
+              </button>
+            )}
+            {index === 0 && (
+              <button {...skipProps} className="px-4 py-2 text-[11px] font-bold text-zinc-500 hover:text-white transition-colors uppercase tracking-widest">
+                تخطي الجولة
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            <button {...primaryProps} className="px-6 py-2.5 text-[11px] font-black bg-emerald-500 text-[#050505] rounded-xl hover:bg-emerald-400 transition-colors shadow-[0_8px_20px_-4px_rgba(16,185,129,0.4)] uppercase tracking-widest">
+              {isLastStep ? 'إنهاء الجولة' : 'التالي'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const handleJoyrideCallback = (data: CallBackProps) => {
+    const { status } = data;
+    const finishedStatuses: string[] = [STATUS.FINISHED, STATUS.SKIPPED];
+    if (finishedStatuses.includes(status)) {
+      setRunTour(false);
+      localStorage.setItem('tourCompleted', 'true');
+    }
+  };
+
+  useEffect(() => {
+    const tourCompleted = localStorage.getItem('tourCompleted');
+    if (!tourCompleted) {
+      // Small delay to ensure DOM is ready
+      setTimeout(() => setRunTour(true), 1500);
+    }
+  }, []);
+
   const reportRef = useRef<HTMLDivElement>(null);
   const ratesRef = useRef<Rates | null>(null);
   const thresholdRef = useRef<number>(0.001);
@@ -667,6 +783,36 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#050505] text-white font-sans selection:bg-emerald-500/20 relative overflow-hidden" dir="rtl">
+      <Joyride
+        steps={tourSteps}
+        run={runTour}
+        continuous={true}
+        showSkipButton={true}
+        showProgress={true}
+        callback={handleJoyrideCallback}
+        tooltipComponent={CustomTooltip}
+        spotlightPadding={12}
+        scrollOffset={100}
+        floaterProps={{
+          disableAnimation: true,
+          styles: {
+            floater: {
+              filter: 'drop-shadow(0 20px 40px rgba(0,0,0,0.5))',
+            },
+            arrow: {
+              length: 8,
+              spread: 16,
+            }
+          }
+        }}
+        styles={{
+          options: {
+            zIndex: 1000,
+            overlayColor: 'rgba(0, 0, 0, 0.75)',
+            arrowColor: '#121212',
+          }
+        }}
+      />
       {/* Atmospheric Backgrounds */}
       <div className="fixed top-[-10%] left-[-10%] w-[500px] h-[500px] bg-emerald-600/10 blur-[120px] rounded-full pointer-events-none"></div>
       <div className="fixed bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-blue-600/10 blur-[120px] rounded-full pointer-events-none"></div>
@@ -720,47 +866,67 @@ export default function App() {
       {/* Header */}
       <header className="border-b border-white/5 sticky top-0 z-50 bg-[#050505]/80 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 sm:h-20 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-10 h-10 rounded-full border border-white/20 flex items-center justify-center">
-              <Activity className="w-4 h-4 text-white" />
+          <div className="flex items-center gap-3 sm:gap-4">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-emerald-500/20 to-emerald-500/5 border border-emerald-500/20 flex items-center justify-center shadow-[0_0_15px_rgba(16,185,129,0.1)]">
+              <Activity className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400" />
             </div>
-            <div>
-              <h1 className="text-base font-medium tracking-tight text-white">مؤشر الدينار</h1>
-              <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-widest mt-0.5">Dinar Index</p>
+            <div className="flex flex-col">
+              <h1 className="text-sm sm:text-lg font-black tracking-tight text-white">المؤشر</h1>
+              <p className="text-[9px] sm:text-[10px] text-emerald-500/70 font-mono uppercase tracking-[0.2em] mt-0.5">Al-Moasher</p>
             </div>
           </div>
-          <div className="flex items-center gap-4">
-            <button 
-              onClick={() => setShowNotificationSettings(true)}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-zinc-400 hover:text-white transition-colors"
-              title="إعدادات التنبيهات"
-            >
-              <Settings2 className="w-4 h-4" />
-              <span className="text-[10px] font-medium uppercase tracking-wider hidden md:inline">الإعدادات</span>
-            </button>
-            
-            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/10 bg-white/5">
+          
+          <div className="flex items-center gap-1.5 sm:gap-3">
+            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/5 bg-white/[0.02]">
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
               </span>
-              <span className="text-[10px] font-mono text-zinc-300 tracking-wider uppercase" dir="ltr">
+              <span className="text-[10px] font-mono text-zinc-400 tracking-wider uppercase" dir="ltr">
                 {lastFetchTime ? format(lastFetchTime, "HH:mm:ss") : "..."}
               </span>
             </div>
+
+            <div className="h-4 w-[1px] bg-white/10 hidden md:block mx-1"></div>
+
+            <button 
+              onClick={() => {
+                setRunTour(true);
+                localStorage.removeItem('tourCompleted');
+              }}
+              className="flex items-center justify-center w-8 h-8 sm:w-auto sm:h-auto sm:px-3 sm:py-1.5 rounded-full bg-white/5 border border-white/10 text-zinc-400 hover:text-white hover:bg-white/10 transition-all"
+              title="جولة تعريفية"
+            >
+              <Info className="w-4 h-4" />
+              <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline sm:mr-2">مساعدة</span>
+            </button>
+            
+            <button 
+              id="notification-settings-btn"
+              onClick={() => setShowNotificationSettings(true)}
+              className="flex items-center justify-center w-8 h-8 sm:w-auto sm:h-auto sm:px-3 sm:py-1.5 rounded-full bg-white/5 border border-white/10 text-zinc-400 hover:text-white hover:bg-white/10 transition-all"
+              title="إعدادات التنبيهات"
+            >
+              <Settings2 className="w-4 h-4" />
+              <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline sm:mr-2">الإعدادات</span>
+            </button>
+            
+            <div className="h-4 w-[1px] bg-white/10 mx-0.5 sm:mx-1"></div>
             
             <button
+              id="export-pdf-btn"
               onClick={generatePDF}
               disabled={isGeneratingPDF}
-              className={`p-2 rounded-full hover:bg-white/10 transition-colors text-zinc-400 hover:text-white ${isGeneratingPDF ? 'animate-pulse' : ''}`}
+              className={`flex items-center justify-center w-8 h-8 rounded-full hover:bg-white/10 transition-all text-zinc-400 hover:text-white ${isGeneratingPDF ? 'animate-pulse' : ''}`}
               title="تحميل تقرير PDF احترافي"
             >
               <FileText className="w-4 h-4" />
             </button>
+            
             <button
               onClick={() => fetchData(true)}
               disabled={isRefreshing}
-              className={`p-2 rounded-full hover:bg-white/10 transition-colors text-zinc-400 hover:text-white ${isRefreshing ? 'animate-spin text-indigo-400' : ''}`}
+              className={`flex items-center justify-center w-8 h-8 rounded-full hover:bg-white/10 transition-all text-zinc-400 hover:text-white ${isRefreshing ? 'animate-spin text-emerald-400' : ''}`}
               title="تحديث البيانات من قاعدة البيانات"
             >
               <RefreshCw className="w-4 h-4" />
@@ -880,7 +1046,7 @@ export default function App() {
           </div>
 
           {/* Mini Sparkline Chart */}
-          <div className="w-full lg:w-[400px] h-[100px] sm:h-[160px] min-w-0 min-h-0 opacity-80 hover:opacity-100 transition-opacity mt-8 lg:mt-0">
+          <div id="historical-chart" className="w-full lg:w-[400px] h-[100px] sm:h-[160px] min-w-0 min-h-0 opacity-80 hover:opacity-100 transition-opacity mt-8 lg:mt-0">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={history.filter(h => h.usdParallel > 0)}>
                 <defs>
@@ -921,7 +1087,7 @@ export default function App() {
 
 
         {/* Data Grid: Other Parallel Currencies */}
-        <section className="space-y-16">
+        <section id="main-rates-grid" className="space-y-16">
           {/* 1. Foreign Currencies Group */}
           <div>
             <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-8">
@@ -1109,7 +1275,7 @@ export default function App() {
         </section>
 
         {/* Improved Currency Converter - Bottom Section */}
-        <section className="mt-16">
+        <section id="currency-converter-section" className="mt-16">
           <div className="bg-gradient-to-br from-white/[0.05] to-transparent border border-white/10 rounded-[3rem] p-8 sm:p-12 shadow-2xl relative overflow-hidden group text-right" dir="rtl">
             {/* Background elements */}
             <div className="absolute top-0 left-0 p-12 opacity-5 group-hover:opacity-10 transition-opacity duration-1000">
@@ -1128,7 +1294,7 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="flex p-1.5 bg-white/[0.02] border border-white/5 rounded-2xl w-full sm:w-fit">
+                <div id="market-toggle" className="flex p-1.5 bg-white/[0.02] border border-white/5 rounded-2xl w-full sm:w-fit">
                   <button 
                     onClick={() => setConverterMarket('parallel')}
                     className={`flex-1 sm:flex-none py-2.5 px-6 rounded-xl text-[11px] font-black transition-all duration-300 ${converterMarket === 'parallel' ? 'bg-emerald-500 text-[#050505] shadow-[0_8px_20px_-4px_rgba(16,185,129,0.4)]' : 'text-zinc-500 hover:text-white'}`}
@@ -1146,7 +1312,7 @@ export default function App() {
 
               <div className="flex flex-col lg:grid lg:grid-cols-5 gap-6 lg:gap-8 items-stretch">
                 {/* Source Input */}
-                <div className="lg:col-span-2 space-y-4">
+                <div id="converter-input" className="lg:col-span-2 space-y-4">
                   <div className="relative group/input">
                     <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mr-4 mb-2 block">المبلغ المراد تحويله</label>
                     <div className="relative">

@@ -266,9 +266,15 @@ async function extractRatesWithAI(text: string) {
       
       BEHAVIOR RULES:
       1. IGNORE DATES/TIMES in the text. Look only for prices.
-      2. If a value is listed twice (BUY/SELL), take the SECOND number (which represents the SELL rate / سعر البيع in these tables).
+      2. If a value is listed twice (BUY/SELL), take the HIGHER number (which represents the SELL rate / سعر البيع in these tables).
       3. For "GOLD", extract the gram price (e.g., 1233).
       4. "صكوك" (Cheques) are often unified. If you see "صكوك = 11.45", then set USD_JBANK=11.45 and USD_NCB=11.45.
+      5. The numbers might appear BEFORE or AFTER the currency name. 
+         - Example: "10.1675 10.1700 حوالة دبي" -> USD_AE is 10.1700
+         - Example: "حوالة تركيا 10.2300" -> USD_TR is 10.2300
+         - Example: "10.2425 10.2450 حوالة الصين دينار" -> USD_CN is 10.2450
+      6. Always extract the most reasonable exchange rate. For USD in parallel market it's usually between 5.0 and 15.0.
+      7. Be extremely resilient to noise, extra words, "up", "down", or formatting artifacts.
 
       OUTPUT FORMAT:
       Return ONLY a valid JSON object. Use null for missing values.
@@ -285,7 +291,16 @@ async function extractRatesWithAI(text: string) {
       }
     });
     
-    const result = JSON.parse(response.text);
+    let responseText = response.text || "{}";
+    responseText = responseText.replace(/```json/g, "").replace(/```/g, "").trim();
+    let result: any = {};
+    try {
+      result = JSON.parse(responseText);
+    } catch (e) {
+      console.error("Failed to parse AI response:", responseText);
+      return { _raw: responseText };
+    }
+    
     // Filter out nulls
     const cleanResult: Record<string, number> = {};
     for (const key in result) {
@@ -293,7 +308,7 @@ async function extractRatesWithAI(text: string) {
         cleanResult[key] = result[key];
       }
     }
-    return Object.keys(cleanResult).length > 0 ? cleanResult : null;
+    return Object.keys(cleanResult).length > 0 ? cleanResult : { _raw: responseText };
   } catch (error: any) {
     console.error("AI Extraction Error:", error);
     throw error; // Throw the error so the route can catch it
@@ -1360,8 +1375,10 @@ async function startServer() {
       }
       
       const extractedRates = await extractRatesWithAI(text);
-      if (extractedRates) {
+      if (extractedRates && !extractedRates._raw) {
         res.json({ success: true, extractedRates });
+      } else if (extractedRates && extractedRates._raw) {
+        res.json({ success: false, message: "لم يتمكن المساعد من استخراج أي أسعار. استجابة المساعد: " + extractedRates._raw });
       } else {
         res.json({ success: false, message: "لم يتمكن المساعد من استخراج أي أسعار من النص المدخل" });
       }
