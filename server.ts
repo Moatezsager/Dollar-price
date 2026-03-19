@@ -550,27 +550,27 @@ async function extractRatesWithAI(text: string): Promise<Record<string, number> 
 
   try {
     const prompt = `أنت مساعد ذكي لاستخراج أسعار الصرف من رسائل السوق الليبي.
-القاعدة المهمة: في كل سطر يوجد سعران، السعر الأول هو سعر الشراء والسعر الثاني هو سعر البيع. أنت تريد دائماً سعر البيع (الرقم الثاني).
+قواعد ذهبية للاستخراج:
+1. العملات تأتي غالباً بنوعين: "كاش" (نقدي) و "صكوك" (شيكات مصارف).
+2. في كل فئة (كاش أو صكوك)، قد يوجد سعران: السعر الأول هو الشراء، والثاني هو البيع. نحن نريد دائماً "سعر البيع" (الرقم الثاني في الفئة).
+3. انتبه جداً: لا تخلط بين سعر الكاش وسعر الصكوك. إذا طلبت منك "USD" فأنا أريد سعره "كاش". إذا طلبت "USD_JBANK" فأنا أريد سعره بصكوك مصرف الجمهورية وهكذا.
+4. بالنسبة للعملات مثل التونسي (TND) والمصري (EGP)، قد تكتب بصيغة (0.33) أو (3.3). استخرج الرقم كما هو ولا تقم بعمليات حسابية.
 
-قائمة العملات المعتمدة ومعرفاتها:
+قائمة العملات ومعرفاتها (ID):
 ${termsContext}
 
-النص المراد تحليله:
+النص للتحليل:
 """
 ${text}
 """
 
-قم بإرجاع JSON فقط (بدون أي نص آخر) بالشكل التالي، مستخدماً معرّفات العملات (ID) كمفاتيح:
+أرجع JSON فقط بمفاتيح الـ ID وقيم الأسعار المستخرجة (سعر البيع لكل فئة):
 {
   "USD": 10.2775,
   "USD_JBANK": 11.1775,
   ...
 }
-قواعد هامة:
-- استخرج سعر البيع فقط (الرقم الثاني في كل سطر)
-- تجاهل أي سعر خارج النطاق المسموح به (min/max)
-- إذا لم تجد عملة معينة في النص، لا تضيفها
-- أعد JSON فقط بدون أي شرح`;
+تنبيه: أعد JSON فقط بدون أي شرح أو علامات markdown إضافية.`;
 
     const response = await ai.models.generateContent({
       model: "gemini-2.0-flash",
@@ -813,7 +813,7 @@ async function fetchOfficialRates(): Promise<boolean> {
 let appConfig: AppConfig = {
   channels: ["dollarr_ly", "musheermarket", "lydollar", "djheih2026", "suqalmushir"],
   terms: [
-    { id: "USD", name: "دولار أمريكي", regex: "(?:الدولار|دولار|الخضراء|خضراء|كاش|💵|usd|🇺🇸)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
+    { id: "USD", name: "دولار أمريكي", regex: "(?:الدولار|دولار|الخضراء|خضراء|كاش|💵|🇺🇸)(?!\\s*صكوك|\\s*بصك|\\s*شيك)[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
     { id: "EUR", name: "يورو", regex: "(?:يورو|اليورو|💶|eur|🇪🇺)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "eu" },
     { id: "GBP", name: "جنيه إسترليني", regex: "(?:باوند|استرليني|الباوند|💷|gbp|🇬🇧)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "gb" },
     { id: "TND", name: "دينار تونسي", regex: "(?:(?:تونسي|تونس|tnd|🇹🇳)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?)|(?:(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?[^\\d]{0,25}(?:تونسي|تونس|tnd|🇹🇳))", min: 0.1, max: 10.0, isInverse: false, flag: "tn" },
@@ -980,9 +980,17 @@ async function fetchParallelRatesFromTelegram() {
               // match[4] = second number (before name)
               
               let valStr = null;
-              if (match[2]) valStr = match[2]; // Second number after name
-              else if (match[4]) valStr = match[4]; // Second number before name
-              else valStr = match[1] || match[3]; // Fallback to first number
+              
+              const partAfterFirstNum = match[0].split(match[1])[1] || "";
+              const hasCategorySeparator = /صكوك|بصك|شيك|مصرف|مقاصة/i.test(partAfterFirstNum);
+
+              if (match[2] && !hasCategorySeparator) {
+                valStr = match[2]; // Second number is Sell ONLY if no new category keyword is between them
+              } else if (match[4]) {
+                valStr = match[4]; 
+              } else {
+                valStr = match[1] || match[3];
+              }
               
               if (valStr) {
                 let val = parseFloat(valStr.replace(',', '.'));
