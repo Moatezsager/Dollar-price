@@ -393,7 +393,7 @@ export default function App() {
   const dynamicCurrencies = useMemo(() => {
     if (configTerms.length === 0) return CURRENCIES;
     return configTerms
-      .filter(t => t.id !== "OFFICIAL_USD" && !t.id.startsWith("USD_") && t.id !== "GOLD")
+      .filter(t => t.id !== "OFFICIAL_USD" && !t.id.startsWith("USD_") && !METAL_IDS.includes(t.id))
       .map(t => ({ code: t.id, name: t.name, flag: t.flag }));
   }, [configTerms]);
 
@@ -1568,7 +1568,7 @@ export default function App() {
                         onChange={(e) => setConverterFrom(e.target.value)}
                         className="w-full bg-white/[0.03] border border-white/5 rounded-2xl p-4 text-white font-bold focus:outline-none appearance-none cursor-pointer hover:bg-white/[0.05] transition-colors pr-4 text-sm sm:text-base"
                       >
-                        {configTerms.filter(t => !["GOLD", "OFFICIAL_USD"].includes(t.id)).map(t => (
+                        {configTerms.filter(t => !METAL_IDS.includes(t.id) && t.id !== "OFFICIAL_USD").map(t => (
                           <option key={t.id} value={t.id} className="bg-[#121212]">{t.name}</option>
                         ))}
                       </select>
