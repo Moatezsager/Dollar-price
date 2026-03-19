@@ -113,6 +113,7 @@ let rates: Rates = {
     BHD: 12.85,
     KWD: 15.80,
     QAR: 1.33,
+    CNY: 0.68,
   },
   parallel: {
     USD: 10.80,
@@ -152,6 +153,7 @@ let rates: Rates = {
     BHD: 12.85,
     KWD: 15.80,
     QAR: 1.33,
+    CNY: 0.68,
   },
   previousParallel: {
     USD: 10.75,
@@ -172,6 +174,7 @@ let rates: Rates = {
     AED: 2.90,
     SAR: 2.85,
     QAR: 2.90,
+    CNY: 0.90,
     USD_JBANK: 11.55,
     USD_BCD: 11.58,
     USD_NCB: 11.55,
@@ -636,6 +639,7 @@ async function fetchFromCBL(): Promise<RateMap | null> {
       { id: "TRY", names: ["الليرة التركية", "TRY"] },
       { id: "SAR", names: ["الريال السعودي", "SAR"] },
       { id: "AED", names: ["الدرهم الإماراتي", "AED", "الدرهم الاماراتي"] },
+      { id: "CNY", names: ["الايوان الصيني", "اليوان الصيني", "CNY"] },
       { id: "CAD", names: ["الدولار الكندي", "CAD"] },
     ];
 
@@ -649,9 +653,9 @@ async function fetchFromCBL(): Promise<RateMap | null> {
         // Find the specific row containing this currency name
         const targetRow = rows.find(row => row.includes(name));
         if (targetRow) {
-          // Extract the "Average" (المتوسط) rate
-          // Looking for the number after the "المتوسط:" span
-          const rateMatch = targetRow.match(/المتوسط:\s*<\/span>\s*([\d.]+)/i);
+          // Extract the "Selling Price" (بيع) rate as per user request
+          // Looking for the number after the "بيع:" span
+          const rateMatch = targetRow.match(/بيع:\s*<\/span>\s*([\d.]+)/i);
           if (rateMatch && rateMatch[1]) {
             const val = parseFloat(rateMatch[1]);
             if (!isNaN(val) && val > 0) {
@@ -728,6 +732,7 @@ async function fetchOfficialRates(): Promise<boolean> {
           BHD: lyd / (res.BHD || 1),
           KWD: lyd / (res.KWD || 1),
           QAR: lyd / (res.QAR || 1),
+          CNY: lyd / (res.CNY || 1),
         };
 
         Object.entries(newOfficial).forEach(([key, val]) => {
@@ -783,6 +788,7 @@ async function fetchOfficialRates(): Promise<boolean> {
           BHD: lyd / (data.rates.BHD || 1),
           KWD: lyd / (data.rates.KWD || 1),
           QAR: lyd / (data.rates.QAR || 1),
+          CNY: lyd / (data.rates.CNY || 1),
         };
 
         Object.entries(newOfficial).forEach(([key, val]) => {
