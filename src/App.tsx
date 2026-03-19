@@ -79,7 +79,19 @@ const PARALLEL_DETAILS = [
   { code: "USD_TR", name: "حوالات تركيا", flag: "tr", unit: "د.ل" },
   { code: "USD_AE", name: "حوالات دبي", flag: "ae", unit: "د.ل" },
   { code: "USD_CN", name: "حوالات الصين", flag: "cn", unit: "د.ل" },
-  { code: "GOLD", name: "كسر الذهب (18)", icon: Coins, unit: "د.ل/ج" },
+];
+
+const METAL_IDS = [
+  "GOLD", 
+  "GOLD_EXT_18", 
+  "GOLD_EXT_21", 
+  "GOLD_SCRAP_18", 
+  "GOLD_SCRAP_21", 
+  "GOLD_CAST_18", 
+  "GOLD_CAST_24", 
+  "GOLD_LIRA_8G", 
+  "GOLD_MUJARA_14G", 
+  "SILVER_CAST_1000"
 ];
 
 const PostInstallNotification = ({ onClose }: { onClose: () => void }) => {
@@ -1265,7 +1277,7 @@ export default function App() {
               <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest">السوق الموازي (عملات أجنبية)</h3>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-8 gap-y-12">
-              {configTerms.filter(t => t.id !== "USD" && t.id !== "OFFICIAL_USD" && !t.id.startsWith("USD_")).map(term => {
+              {configTerms.filter(t => t.id !== "USD" && t.id !== "OFFICIAL_USD" && !t.id.startsWith("USD_") && !METAL_IDS.includes(t.id)).map(term => {
                 const rate = rates?.parallel[term.id] || 0;
                 const prevRate = rates?.previousParallel?.[term.id] || rate;
                 const isUp = rate > prevRate;
@@ -1349,7 +1361,56 @@ export default function App() {
             </div>
           </div>
 
-          {/* 3. Transfers Group */}
+          {/* 3. Metals Group */}
+          <div id="metals-grid">
+            <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-8">
+              <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest">أسعار الذهب والفضة (المعادن)</h3>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-8 gap-y-12">
+              {configTerms.filter(t => METAL_IDS.includes(t.id)).map(term => {
+                const rate = rates?.parallel[term.id] || 0;
+                const prevRate = rates?.previousParallel?.[term.id] || rate;
+                const isUp = rate > prevRate;
+                const isDown = rate < prevRate;
+
+                return (
+                  <div 
+                    key={`parallel-${term.id}`} 
+                    onClick={() => setSelectedRate({ code: term.id, name: term.name, market: 'parallel' })}
+                    className="flex flex-col group p-2.5 rounded-2xl hover:bg-white/[0.02] transition-colors -m-2.5 cursor-pointer relative"
+                  >
+                    <div className="flex items-center justify-between mb-3 sm:mb-4">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-xl bg-amber-500/10 flex items-center justify-center border border-amber-500/20">
+                          <Coins className="w-4 h-4 text-amber-500" />
+                        </div>
+                        <span className="text-[11px] font-medium text-zinc-400">{term.name}</span>
+                      </div>
+                      {trends24h[term.id]?.parallel !== undefined && (
+                        <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-md ${
+                          trends24h[term.id].parallel! > 0 ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'
+                        }`}>
+                          {trends24h[term.id].parallel! > 0 ? '+' : ''}{trends24h[term.id].parallel!.toFixed(1)}%
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-2xl font-light text-white font-mono tracking-tight group-hover:text-amber-400 transition-colors">
+                        {term.id === "SILVER_CAST_1000" ? rate.toFixed(2) : Math.round(rate)}
+                      </span>
+                      {isUp ? <ArrowUpRight className="w-3 h-3 text-rose-400" /> : isDown ? <ArrowDownRight className="w-3 h-3 text-emerald-400" /> : null}
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                       <span className="text-[9px] text-zinc-700 font-mono" dir="ltr">السابق: {term.id === "SILVER_CAST_1000" ? prevRate.toFixed(2) : Math.round(prevRate)}</span>
+                       <LastChangedBadge date={rates?.lastChanged?.parallel[term.id]} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 4. Transfers Group */}
           <div id="transfers-grid">
             <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-8">
               <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest">حوالات العملة (خارج ليبيا)</h3>

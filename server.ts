@@ -125,6 +125,15 @@ let rates: Rates = {
     USD_TR: 10.85,
     USD_AE: 10.82,
     USD_CN: 10.90,
+    GOLD_EXT_18: 495,
+    GOLD_EXT_21: 580,
+    GOLD_SCRAP_18: 485,
+    GOLD_SCRAP_21: 565,
+    GOLD_CAST_18: 490,
+    GOLD_CAST_24: 575,
+    GOLD_LIRA_8G: 4150,
+    GOLD_MUJARA_14G: 8250,
+    SILVER_CAST_1000: 23.50,
     TND: 3.33,
     TRY: 0.24,
     EGP: 0.20,
@@ -165,6 +174,15 @@ let rates: Rates = {
     USD_TR: 10.80,
     USD_AE: 10.80,
     USD_CN: 10.85,
+    GOLD_EXT_18: 490,
+    GOLD_EXT_21: 575,
+    GOLD_SCRAP_18: 480,
+    GOLD_SCRAP_21: 560,
+    GOLD_CAST_18: 485,
+    GOLD_CAST_24: 570,
+    GOLD_LIRA_8G: 4100,
+    GOLD_MUJARA_14G: 8200,
+    SILVER_CAST_1000: 23.40,
     TND: 3.30,
     TRY: 0.23,
     EGP: 0.19,
@@ -203,6 +221,19 @@ for (let i = 24; i >= 0; i--) {
     usdOfficial: 4.85,
   });
 }
+
+const METAL_IDS = [
+  "GOLD", 
+  "GOLD_EXT_18", 
+  "GOLD_EXT_21", 
+  "GOLD_SCRAP_18", 
+  "GOLD_SCRAP_21", 
+  "GOLD_CAST_18", 
+  "GOLD_CAST_24", 
+  "GOLD_LIRA_8G", 
+  "GOLD_MUJARA_14G", 
+  "SILVER_CAST_1000"
+];
 
 // Helper to detect significant price changes (ignores tiny floating point noise)
 function isSignificantChange(val1: number, val2: number, threshold = 0.0001) {
@@ -344,7 +375,30 @@ async function saveToSupabase(type: 'parallel' | 'official' | 'both' = 'both') {
       }
     }
 
-    // 3. Fallback: Save to legacy table for backward compatibility during transition
+    // 3. Save Metal Rates if needed
+    if (type === 'parallel' || type === 'both') {
+      const metalRates: Record<string, number> = {};
+      const metalChanges: Record<string, string> = {};
+      let hasMetals = false;
+      
+      METAL_IDS.forEach(id => {
+        if (rates.parallel[id]) {
+          metalRates[id] = rates.parallel[id];
+          metalChanges[id] = rates.lastChanged.parallel[id];
+          hasMetals = true;
+        }
+      });
+
+      if (hasMetals) {
+        results.push(supabase.from('metal_rates').insert([{
+          rates: metalRates,
+          last_changed: metalChanges,
+          recorded_at: rates.lastUpdated
+        }]));
+      }
+    }
+
+    // 4. Fallback: Save to legacy table for backward compatibility during transition
     const legacyRecord = { 
       usd_parallel: rates.parallel.USD, 
       usd_official: rates.official.USD,
@@ -403,10 +457,11 @@ async function fetchHistoryFromSupabase() {
   if (!supabase || !supabaseAnonKey || supabaseAnonKey.includes('dummy')) return history;
   
   try {
-    // Fetch parallel and official history in parallel for speed
-    const [parallelRes, officialRes] = await Promise.all([
+    // Fetch parallel, official and metal history in parallel for speed
+    const [parallelRes, officialRes, metalRes] = await Promise.all([
       supabase.from('parallel_rates').select('recorded_at, usd, rates').order('recorded_at', { ascending: false }).limit(1000),
-      supabase.from('official_rates').select('recorded_at, usd, rates').order('recorded_at', { ascending: false }).limit(1000)
+      supabase.from('official_rates').select('recorded_at, usd, rates').order('recorded_at', { ascending: false }).limit(1000),
+      supabase.from('metal_rates').select('recorded_at, rates').order('recorded_at', { ascending: false }).limit(1000)
     ]);
 
     // Check for "table not found" errors - fallback to legacy if tables are missing
@@ -432,9 +487,10 @@ async function fetchHistoryFromSupabase() {
 
     const parallelData = parallelRes.data || [];
     const officialData = officialRes.data || [];
+    const metalData = metalRes.data || [];
 
     // Merge strategy: We want a continuous timeline. 
-    // Since parallel and official points might not align in time, we create a unified map of timestamps
+    // Since parallel, official and metal points might not align in time, we create a unified map of timestamps
     const timelineMap = new Map<string, Partial<HistoryPoint>>();
 
     parallelData.forEach((row: any) => {
@@ -457,6 +513,19 @@ async function fetchHistoryFromSupabase() {
           time,
           usdOfficial: row.usd,
           ratesOfficial: row.rates || { USD: row.usd }
+        });
+      }
+    });
+
+    metalData.forEach((row: any) => {
+      const time = new Date(row.recorded_at).toISOString();
+      if (timelineMap.has(time)) {
+        const existing = timelineMap.get(time)!;
+        existing.ratesParallel = { ...(existing.ratesParallel || {}), ...(row.rates || {}) };
+      } else {
+        timelineMap.set(time, {
+          time,
+          ratesParallel: row.rates || {}
         });
       }
     });
@@ -498,44 +567,51 @@ async function extractRatesWithAI(text: string): Promise<Record<string, number> 
   const termsContext = appConfig.terms.map(t => `${t.id}: ${t.name} (${t.flag}), min:${t.min}, max:${t.max}`).join('\n');
 
   // --- Strategy 1: Regex-based client-side extraction (fast, no API needed) ---
-  // Tries to parse the tabular format: ID/keyword buy_price sell_price [status] [date]
+  // Tries to parse the tabular format: [ID] Name [Buy] Sell [status] [date]
   const clientExtracted: Record<string, number> = {};
 
-  // Pattern: <keyword or ID> <optional words> <buy_price> <sell_price>
-  const linePattern = /^[\d\s]*(.+?)\s+([\d,\.]+)\s+([\d,\.]+)\s*(up|down|fixed)?/gim;
-  let lineMatch: RegExpExecArray | null;
+  // Pattern: <optional ID> <name> <price1> [price2] <status>
+  // This regex is more flexible to handle 1 or 2 prices
+  const lines = text.split('\n');
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
 
-  while ((lineMatch = linePattern.exec(text)) !== null) {
-    const rawText = lineMatch[1].trim();
-    const buyStr  = lineMatch[2];
-    const sellStr = lineMatch[3];
+    // Match numbers in the line
+    const numbers = trimmed.match(/(\d{1,5}(?:[\.,]\d{1,4})?)/g);
+    if (!numbers || numbers.length === 0) continue;
 
-    const buyVal  = parseFloat(buyStr.replace(',', '.'));
-    const sellVal = parseFloat(sellStr.replace(',', '.'));
-
-    if (isNaN(sellVal) || sellVal <= 0) continue;
-
-    // Try to match this line's text against our known terms
+    // We want the "selling price". 
+    // If there are 2 numbers, it's usually Buy Sell -> we take the 2nd.
+    // If there is 1 number, it's the price -> we take it.
+    // If there are more (like ID at start or date at end), we need to be careful.
+    
+    // Let's try to find which term matches this line
     for (const term of appConfig.terms) {
-      // Check ID directly (case-insensitive)
-      if (rawText.toLowerCase().includes(term.id.toLowerCase())) {
-        if (!clientExtracted[term.id] && sellVal >= term.min && sellVal <= term.max) {
-          clientExtracted[term.id] = sellVal;
+      const keywordMatch = term.regex.match(/^\(\?:([^)]+)\)/);
+      if (!keywordMatch) continue;
+      
+      const keywords = keywordMatch[1].split('|');
+      const matched = keywords.some(kw => trimmed.includes(kw));
+      
+      if (matched) {
+        // Found the term. Now find the price.
+        // In the user's format: "10 مجارة ذهب 14 جرام 23000.000 down ..."
+        // The numbers are: [10, 14, 23000.000]
+        // We need to exclude numbers that are part of the name (like 14 in "14 جرام")
+        
+        // Strategy: Find the number that falls within the term's min/max range
+        // and is likely the price (usually the largest one or the one after the name)
+        const validPrices = numbers
+          .map(n => parseFloat(n.replace(',', '.')))
+          .filter(v => v >= term.min && v <= term.max);
+        
+        if (validPrices.length > 0) {
+          // If multiple valid prices, take the last one (usually Sell price)
+          clientExtracted[term.id] = validPrices[validPrices.length - 1];
+          break;
         }
-        break;
       }
-      // Check keywords from regex
-      try {
-        const keywordMatch = term.regex.match(/^\(\?:([^)]+)\)/);
-        if (keywordMatch) {
-          const keywords = keywordMatch[1].split('|');
-          const matched = keywords.some(kw => rawText.includes(kw));
-          if (matched && !clientExtracted[term.id] && sellVal >= term.min && sellVal <= term.max) {
-            clientExtracted[term.id] = sellVal;
-            break;
-          }
-        }
-      } catch (e) { /* ignore regex parse errors */ }
     }
   }
 
@@ -558,6 +634,7 @@ async function extractRatesWithAI(text: string): Promise<Record<string, number> 
 2. في كل فئة (كاش أو صكوك)، قد يوجد سعران: السعر الأول هو الشراء، والثاني هو البيع. نحن نريد دائماً "سعر البيع" (الرقم الثاني في الفئة).
 3. انتبه جداً: لا تخلط بين سعر الكاش وسعر الصكوك. إذا طلبت منك "USD" فأنا أريد سعره "كاش". إذا طلبت "USD_JBANK" فأنا أريد سعره بصكوك مصرف الجمهورية وهكذا.
 4. بالنسبة للعملات مثل التونسي (TND) والمصري (EGP)، قد تكتب بصيغة (0.33) أو (3.3). استخرج الرقم كما هو ولا تقم بعمليات حسابية.
+5. بالنسبة للمعادن (ذهب وفضة)، استخرج السعر النهائي المذكور في السطر. إذا وجد سعران (شراء وبيع)، خذ السعر الثاني (البيع). انتبه للعيارات (18، 21، 24) وتأكد من مطابقتها للمعرف الصحيح.
 
 قائمة العملات ومعرفاتها (ID):
 ${termsContext}
@@ -840,7 +917,16 @@ let appConfig: AppConfig = {
     { id: "USD_TR", name: "حوالات تركيا", regex: "(?:تركيا|تركي|🇹🇷)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "tr" },
     { id: "USD_CN", name: "حوالات الصين", regex: "(?:الصين|صينية|🇨🇳)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "cn" },
     { id: "CNY", name: "يوان صيني", regex: "(?:cny|CNY|يوان|🇨🇳)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 0.5, max: 5.0, isInverse: false, flag: "cn" },
-    { id: "GOLD", name: "كسر الذهب", regex: "(?:كسر الذهب|ذهبي|ذهب|💎)[^\\d]{0,25}(\\d{2,4}(?:[\\.,]\\d+)?)", min: 100, max: 5000, isInverse: false, flag: "ly" },
+    { id: "GOLD", name: "كسر الذهب", regex: "(?:كسر الذهب|ذهبي|ذهب|💎)[^\\d]{0,25}(\\d{2,4}(?:[\\.,]\\d+)?)(?:\\s+(\\d{2,4}(?:[\\.,]\\d+)?))?", min: 100, max: 5000, isInverse: false, flag: "ly" },
+    { id: "GOLD_EXT_18", name: "ذهب خارجي 18", regex: "(?:ذهب خارجي 18|خارجي 18)[^\\d]{0,25}(\\d{2,4}(?:[\\.,]\\d+)?)(?:\\s+(\\d{2,4}(?:[\\.,]\\d+)?))?", min: 100, max: 5000, isInverse: false, flag: "ly" },
+    { id: "GOLD_EXT_21", name: "ذهب خارجي 21", regex: "(?:ذهب خارجي 21|خارجي 21)[^\\d]{0,25}(\\d{2,4}(?:[\\.,]\\d+)?)(?:\\s+(\\d{2,4}(?:[\\.,]\\d+)?))?", min: 100, max: 5000, isInverse: false, flag: "ly" },
+    { id: "GOLD_SCRAP_18", name: "ذهب كسر 18", regex: "(?:ذهب كسر 18|كسر 18)[^\\d]{0,25}(\\d{2,4}(?:[\\.,]\\d+)?)(?:\\s+(\\d{2,4}(?:[\\.,]\\d+)?))?", min: 100, max: 5000, isInverse: false, flag: "ly" },
+    { id: "GOLD_SCRAP_21", name: "ذهب كسر 21", regex: "(?:ذهب كسر 21|كسر 21)[^\\d]{0,25}(\\d{2,4}(?:[\\.,]\\d+)?)(?:\\s+(\\d{2,4}(?:[\\.,]\\d+)?))?", min: 100, max: 5000, isInverse: false, flag: "ly" },
+    { id: "GOLD_CAST_18", name: "ذهب مسبوك 18", regex: "(?:ذهب مسبوك 18|مسبوك 18)[^\\d]{0,25}(\\d{2,4}(?:[\\.,]\\d+)?)(?:\\s+(\\d{2,4}(?:[\\.,]\\d+)?))?", min: 100, max: 5000, isInverse: false, flag: "ly" },
+    { id: "GOLD_CAST_24", name: "ذهب مسبوك 24", regex: "(?:ذهب مسبوك 24|مسبوك 24)[^\\d]{0,25}(\\d{2,4}(?:[\\.,]\\d+)?)(?:\\s+(\\d{2,4}(?:[\\.,]\\d+)?))?", min: 100, max: 5000, isInverse: false, flag: "ly" },
+    { id: "GOLD_LIRA_8G", name: "ليرة ذهب 8 جرام", regex: "(?:ليرة ذهب 8 جرام|ليرة ذهب|ليرة 8 جرام|ليرة 8ج)[^\\d]{0,25}(\\d{2,5}(?:[\\.,]\\d+)?)(?:\\s+(\\d{2,5}(?:[\\.,]\\d+)?))?", min: 1000, max: 20000, isInverse: false, flag: "ly" },
+    { id: "GOLD_MUJARA_14G", name: "مجارة ذهب 14 جرام", regex: "(?:مجارة ذهب 14 جرام|مجارة 14 جرام|مجارة 14)[^\\d]{0,25}(\\d{2,5}(?:[\\.,]\\d+)?)(?:\\s+(\\d{2,5}(?:[\\.,]\\d+)?))?", min: 1000, max: 35000, isInverse: false, flag: "ly" },
+    { id: "SILVER_CAST_1000", name: "مسبوك فضة عيار 1000", regex: "(?:مسبوك فضة عيار 1000|مسبوك فضة 1000|فضة 1000)[^\\d]{0,25}(\\d{1,3}(?:[\\.,]\\d+)?)(?:\\s+(\\d{1,3}(?:[\\.,]\\d+)?))?", min: 1, max: 500, isInverse: false, flag: "ly" },
     { id: "OFFICIAL_USD", name: "الدولار الرسمي", regex: "(?:الرسمي|المركزي)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 4.0, max: 6.0, isInverse: false, flag: "us" }
   ]
 };
