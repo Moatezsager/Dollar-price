@@ -410,7 +410,8 @@ export default function App() {
       // Force a fresh data fetch from server before printing to ensure database values are used
       await fetchData(true);
       
-      // Give the UI a moment to update state before locking the thread with window.print()
+      // Use a longer delay and multiple frames to ensure React has finished rendering the updated data
+      // and the browser has layouted the hidden container
       setTimeout(() => {
         try {
           window.print();
@@ -422,7 +423,7 @@ export default function App() {
         } finally {
           setIsGeneratingPDF(false);
         }
-      }, 800);
+      }, 1200);
     } catch (err) {
       console.error('Error fetching data for PDF:', err);
       setIsGeneratingPDF(false);
@@ -1821,7 +1822,7 @@ export default function App() {
       <div 
         id="pdf-report-container"
         ref={reportRef} 
-        className="hidden" // Tailwind utility for display: none on screens
+        className="opacity-0 pointer-events-none absolute top-[-9999px] left-[-9999px] print:opacity-100 print:pointer-events-auto print:static print:block"
         style={{ 
           width: '210mm', // A4 exact width
           minHeight: '297mm', // A4 exact min-height
@@ -1830,7 +1831,7 @@ export default function App() {
           fontFamily: "'Cairo', sans-serif",
           lineHeight: '1.5',
           direction: 'rtl',
-          margin: '0 auto',
+          margin: '0',
           padding: '0'
         }}
         dir="rtl"
