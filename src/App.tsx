@@ -1,5 +1,5 @@
-import { useEffect, useState, useRef, useMemo } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import React, { useEffect, useState, useRef, useMemo } from "react";
+import { motion, AnimatePresence, useMotionValue, useTransform, animate } from "motion/react";
 import Joyride, { Step, CallBackProps, STATUS, TooltipRenderProps } from 'react-joyride';
 import {
   ArrowLeftRight,
@@ -26,7 +26,9 @@ import {
   Send,
   Share2,
   Download,
-  Smartphone
+  Smartphone,
+  Disc,
+  ArrowUp
 } from "lucide-react";
 import {
   AreaChart,
@@ -94,7 +96,8 @@ const METAL_IDS = [
   "GOLD_CAST_24", 
   "GOLD_LIRA_8G", 
   "GOLD_MUJARA_14G", 
-  "SILVER_CAST_1000"
+  "SILVER_CAST_1000",
+  "SILVER_SCRAP"
 ];
 
 const PostInstallNotification = ({ onClose }: { onClose: () => void }) => {
@@ -174,6 +177,48 @@ const PostInstallNotification = ({ onClose }: { onClose: () => void }) => {
   );
 };
 
+const ScrollToTop = ({ triggerHaptic }: { triggerHaptic: (p?: number) => void }) => {
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    const toggleVisibility = () => {
+      if (window.pageYOffset > 300) {
+        setIsVisible(true);
+      } else {
+        setIsVisible(false);
+      }
+    };
+
+    window.addEventListener("scroll", toggleVisibility);
+    return () => window.removeEventListener("scroll", toggleVisibility);
+  }, []);
+
+  const scrollToTop = () => {
+    triggerHaptic(15);
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+  };
+
+  return (
+    <AnimatePresence>
+      {isVisible && (
+        <motion.button
+          initial={{ opacity: 0, scale: 0.5 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.5 }}
+          onClick={scrollToTop}
+          className="fixed bottom-24 right-6 z-[100] w-12 h-12 rounded-full bg-emerald-500 text-black shadow-lg flex items-center justify-center hover:bg-emerald-400 transition-colors"
+          title="العودة للأعلى"
+        >
+          <ArrowUp className="w-6 h-6" />
+        </motion.button>
+      )}
+    </AnimatePresence>
+  );
+};
+
 export default function App() {
   const [rates, setRates] = useState<Rates | null>(null);
   const [history, setHistory] = useState<HistoryPoint[]>([]);
@@ -190,6 +235,20 @@ export default function App() {
   const [isStandalone, setIsStandalone] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
   const [showIOSPrompt, setShowIOSPrompt] = useState(false);
+
+  // Network Status Listener
+  useEffect(() => {
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   // Haptic Feedback Helper
   const triggerHaptic = (pattern: number | number[] = 10) => {
@@ -269,6 +328,42 @@ export default function App() {
   const [appStatus, setAppStatus] = useState<{ status: string, minutesSinceLastScrape: number } | null>(null);
   const [configTerms, setConfigTerms] = useState<any[]>([]);
   const [runTour, setRunTour] = useState(false);
+
+  // Pull to Refresh Logic
+  const pullY = useMotionValue(0);
+  const pullOpacity = useTransform(pullY, [0, 80], [0, 1]);
+  const pullScale = useTransform(pullY, [0, 80], [0.5, 1]);
+  const pullRotate = useTransform(pullY, [0, 80], [0, 360]);
+
+  const [startY, setStartY] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (window.scrollY === 0) {
+      setStartY(e.touches[0].clientY);
+      setIsDragging(true);
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isDragging) return;
+    const currentY = e.touches[0].clientY;
+    const diff = currentY - startY;
+    if (diff > 0) {
+      pullY.set(Math.min(diff * 0.5, 100)); // Add resistance
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (!isDragging) return;
+    setIsDragging(false);
+    if (pullY.get() > 80) {
+      triggerHaptic(20);
+      fetchData(true);
+    }
+    animate(pullY, 0, { type: "spring", stiffness: 300, damping: 20 });
+  };
+
   const [tourSteps] = useState<Step[]>([
     {
       target: 'body',
@@ -1158,6 +1253,41 @@ export default function App() {
       </AnimatePresence>
 
 
+      {/* Offline Indicator */}
+      <AnimatePresence>
+        {isOffline && (
+          <motion.div
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[100] bg-rose-500 text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-2 text-xs font-bold whitespace-nowrap"
+          >
+            <WifiOff className="w-4 h-4" />
+            أنت الآن غير متصل بالإنترنت
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Scroll to Top Button */}
+      <ScrollToTop triggerHaptic={triggerHaptic} />
+
+      {/* Pull to Refresh Indicator */}
+      <motion.div
+        style={{ y: pullY }}
+        className="fixed top-0 left-0 right-0 z-[100] flex justify-center pointer-events-none"
+      >
+        <motion.div
+          style={{ 
+            opacity: pullOpacity,
+            scale: pullScale,
+            rotate: pullRotate
+          }}
+          className="mt-4 w-10 h-10 rounded-full bg-emerald-500 text-black shadow-lg flex items-center justify-center"
+        >
+          <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
+        </motion.div>
+      </motion.div>
+
       {/* Header */}
       <header className="border-b border-white/5 sticky top-0 z-50 bg-[#050505]/80 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 sm:h-20 flex items-center justify-between">
@@ -1245,6 +1375,18 @@ export default function App() {
             </button>
 
             <button
+              onClick={() => {
+                triggerHaptic(10);
+                handleShare();
+              }}
+              className="flex items-center justify-center w-8 h-8 sm:w-auto sm:h-auto sm:px-3 sm:py-1.5 rounded-full bg-white/5 border border-white/10 text-zinc-400 hover:text-white hover:bg-white/10 transition-all"
+              title="مشاركة التطبيق"
+            >
+              <Share2 className="w-4 h-4" />
+              <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline sm:mr-2">مشاركة</span>
+            </button>
+
+            <button
               id="export-pdf-btn"
               onClick={() => {
                 triggerHaptic(15);
@@ -1262,7 +1404,13 @@ export default function App() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-16 space-y-16 sm:space-y-24 relative z-10">
+      <motion.main 
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        style={{ y: pullY }}
+        className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-16 space-y-16 sm:space-y-24 relative z-10"
+      >
         
         {/* Hero Section: Parallel USD */}
         <section className="flex flex-col lg:flex-row items-start lg:items-end justify-between gap-8 lg:gap-12">
@@ -1516,6 +1664,7 @@ export default function App() {
                 const prevRate = rates?.previousParallel?.[term.id] || rate;
                 const isUp = rate > prevRate;
                 const isDown = rate < prevRate;
+                const isSilver = term.id.includes('SILVER');
 
                 return (
                   <div 
@@ -1525,8 +1674,16 @@ export default function App() {
                   >
                     <div className="flex items-center justify-between mb-3 sm:mb-4">
                       <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-xl bg-amber-500/10 flex items-center justify-center border border-amber-500/20">
-                          <Coins className="w-4 h-4 text-amber-500" />
+                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center border ${
+                          isSilver 
+                            ? 'bg-zinc-500/10 border-zinc-500/20' 
+                            : 'bg-amber-500/10 border-amber-500/20'
+                        }`}>
+                          {isSilver ? (
+                            <Disc className="w-4 h-4 text-zinc-400" />
+                          ) : (
+                            <Coins className="w-4 h-4 text-amber-500" />
+                          )}
                         </div>
                         <span className="text-[11px] font-medium text-zinc-400">{term.name}</span>
                       </div>
@@ -1539,13 +1696,15 @@ export default function App() {
                       )}
                     </div>
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="text-2xl font-light text-white font-mono tracking-tight group-hover:text-amber-400 transition-colors">
-                        {term.id === "SILVER_CAST_1000" ? rate.toFixed(2) : Math.round(rate)}
+                      <span className={`text-2xl font-light text-white font-mono tracking-tight transition-colors ${
+                        isSilver ? 'group-hover:text-zinc-300' : 'group-hover:text-amber-400'
+                      }`}>
+                        {isSilver ? rate.toFixed(2) : Math.round(rate)}
                       </span>
                       {isUp ? <ArrowUpRight className="w-3 h-3 text-rose-400" /> : isDown ? <ArrowDownRight className="w-3 h-3 text-emerald-400" /> : null}
                     </div>
                     <div className="flex items-center justify-between gap-2">
-                       <span className="text-[9px] text-zinc-700 font-mono" dir="ltr">السابق: {term.id === "SILVER_CAST_1000" ? prevRate.toFixed(2) : Math.round(prevRate)}</span>
+                       <span className="text-[9px] text-zinc-700 font-mono" dir="ltr">السابق: {isSilver ? prevRate.toFixed(2) : Math.round(prevRate)}</span>
                        <LastChangedBadge date={rates?.lastChanged?.parallel[term.id]} />
                     </div>
                   </div>
@@ -1803,7 +1962,7 @@ export default function App() {
             </div>
           </div>
         </footer>
-      </main>
+      </motion.main>
 
       {/* In-App Toasts */}
       <div className="fixed bottom-6 left-6 z-[200] flex flex-col gap-3 w-full max-w-sm pointer-events-none">
