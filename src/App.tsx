@@ -404,21 +404,30 @@ export default function App() {
 
   const generatePDF = async () => {
     setIsGeneratingPDF(true);
-    addToast("جاري التجهيز للطباعة...", "سيتم فتح نافذة حفظ التقرير كـ PDF", "info");
+    addToast("جاري التجهيز للطباعة...", "سيتم جلب أحدث الأسعار من قاعدة البيانات", "info");
     
-    // Give the UI a moment to update state before locking the thread with window.print()
-    setTimeout(() => {
-      try {
-        window.print();
-        addToast("تم الاستخراج", "تم عرض نافذة الطباعة/الحفظ بنجاح", "up");
-      } catch (err: any) {
-        console.error('Error during native print:', err);
-        logErrorToServer(err, "App.tsx: generatePDF");
-        addToast("خطأ فني في التقرير", "حدث خطأ داخلي أثناء فتح نافذة طباعة المتصفح", "info");
-      } finally {
-        setIsGeneratingPDF(false);
-      }
-    }, 500);
+    try {
+      // Force a fresh data fetch from server before printing to ensure database values are used
+      await fetchData(true);
+      
+      // Give the UI a moment to update state before locking the thread with window.print()
+      setTimeout(() => {
+        try {
+          window.print();
+          addToast("تم الاستخراج", "تم عرض نافذة الطباعة/الحفظ بنجاح", "up");
+        } catch (err: any) {
+          console.error('Error during native print:', err);
+          logErrorToServer(err, "App.tsx: generatePDF");
+          addToast("خطأ فني في التقرير", "حدث خطأ داخلي أثناء فتح نافذة طباعة المتصفح", "info");
+        } finally {
+          setIsGeneratingPDF(false);
+        }
+      }, 800);
+    } catch (err) {
+      console.error('Error fetching data for PDF:', err);
+      setIsGeneratingPDF(false);
+      addToast("خطأ في جلب البيانات", "تعذر تحديث الأسعار للتقرير", "info");
+    }
   };
 
   const requestNotificationPermission = async () => {
@@ -767,8 +776,8 @@ export default function App() {
     }
   };
 
-  const usdChecksRate = rates?.parallel["USD_CHECKS"] || 0;
-  const prevUsdChecksRate = rates?.previousParallel?.["USD_CHECKS"] || usdChecksRate;
+  const usdChecksRate = rates?.parallel["USD_JBANK"] || rates?.parallel["USD_CHECKS"] || 0;
+  const prevUsdChecksRate = rates?.previousParallel?.["USD_JBANK"] || rates?.previousParallel?.["USD_CHECKS"] || usdChecksRate;
   const usdChecksIsUp = usdChecksRate > prevUsdChecksRate;
   const usdChecksIsDown = usdChecksRate < prevUsdChecksRate;
 
@@ -935,10 +944,11 @@ export default function App() {
               id="export-pdf-btn"
               onClick={generatePDF}
               disabled={isGeneratingPDF}
-              className={`flex items-center justify-center w-8 h-8 rounded-full hover:bg-white/10 transition-all text-zinc-400 hover:text-white ${isGeneratingPDF ? 'animate-pulse' : ''}`}
+              className={`flex items-center justify-center w-8 h-8 sm:w-auto sm:h-auto sm:px-3 sm:py-1.5 rounded-full bg-white/5 border border-white/10 text-zinc-400 hover:text-white hover:bg-white/10 transition-all ${isGeneratingPDF ? 'animate-pulse' : ''}`}
               title="تحميل تقرير PDF احترافي"
             >
               <FileText className="w-4 h-4" />
+              <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline sm:mr-2">تقرير</span>
             </button>
             
             <button
@@ -1411,56 +1421,10 @@ export default function App() {
             </div>
           </div>
         </section>
-        {/* PDF Export Banner */}
-        <section className="px-4 sm:px-6 w-full max-w-7xl mx-auto my-12" id="pdf-banner-section">
-          <div className="relative bg-[#0a0a0a]/50 border border-emerald-500/20 rounded-[2rem] p-8 sm:p-12 overflow-hidden flex flex-col md:flex-row items-center justify-between gap-8 backdrop-blur-md">
-            {/* Glow effects */}
-            <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 blur-[80px] rounded-full pointer-events-none translate-x-1/2 -translate-y-1/2"></div>
-            
-            <div className="flex items-start gap-6 relative z-10 w-full md:w-auto">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-blue-500/20 flex flex-shrink-0 items-center justify-center border border-emerald-500/30">
-                <FileText className="w-8 h-8 text-emerald-400" />
-              </div>
-              <div className="flex flex-col gap-2">
-                <h3 className="text-2xl sm:text-3xl font-black text-white tracking-tight">تقرير الأسعار الموثق</h3>
-                <p className="text-sm font-medium text-zinc-400 max-w-md leading-relaxed">
-                  احصل على تقرير PDF شامل ودقيق يحتوي على الأسعار الحالية للسوق الموازي والرسمي بمظهر مرئي احترافي جاهز للطباعة أو المشاركة.
-                </p>
-              </div>
-            </div>
-
-            <button
-              id="main-export-pdf-btn"
-              onClick={generatePDF}
-              disabled={isGeneratingPDF}
-              className={`relative z-10 px-8 py-4 bg-gradient-to-l from-emerald-500 to-emerald-400 text-black rounded-2xl font-black text-sm lg:text-base hover:from-emerald-400 hover:to-emerald-300 transition-all shadow-[0_10px_30px_-10px_rgba(16,185,129,0.5)] active:scale-95 flex items-center justify-center gap-3 w-full md:w-auto tracking-widest uppercase ${isGeneratingPDF ? 'opacity-80' : ''}`}
-            >
-              {isGeneratingPDF ? (
-                <>
-                  <RefreshCw className="w-5 h-5 animate-spin" />
-                  <span>جاري التحضير...</span>
-                </>
-              ) : (
-                <>
-                  <FileText className="w-5 h-5" />
-                  <span>تحميل التقرير (PDF)</span>
-                </>
-              )}
-            </button>
-          </div>
-        </section>
-
         {/* Footer */}
         <footer className="pt-16 pb-12 border-t border-white/5 flex flex-col items-center gap-8">
           <div className="flex flex-col items-center gap-4">
             <div className="flex items-center gap-4 opacity-40 grayscale hover:opacity-100 hover:grayscale-0 transition-all duration-500">
-              <div 
-                className="w-8 h-8 rounded-full border border-white/20 flex items-center justify-center cursor-pointer"
-                onClick={() => window.location.href = '/admin'}
-                title="Admin Dashboard"
-              >
-                <Activity className="w-3 h-3 text-white" />
-              </div>
               <span className="text-[10px] font-mono tracking-[0.2em] uppercase text-zinc-400">Dinar Index Libya</span>
             </div>
             
