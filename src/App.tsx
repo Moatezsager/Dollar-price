@@ -23,7 +23,10 @@ import {
   Info,
   WifiOff,
   Zap,
-  Send
+  Send,
+  Share2,
+  Download,
+  Smartphone
 } from "lucide-react";
 import {
   AreaChart,
@@ -182,6 +185,81 @@ export default function App() {
     typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted'
   );
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const [isStandalone, setIsStandalone] = useState(false);
+  const [isIOS, setIsIOS] = useState(false);
+  const [showIOSPrompt, setShowIOSPrompt] = useState(false);
+
+  // Haptic Feedback Helper
+  const triggerHaptic = (pattern: number | number[] = 10) => {
+    if (window.navigator.vibrate) {
+      window.navigator.vibrate(pattern);
+    }
+  };
+
+  // PWA Install Logic
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setShowInstallBanner(true);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    if (window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone) {
+      setIsStandalone(true);
+    }
+
+    const userAgent = window.navigator.userAgent.toLowerCase();
+    setIsIOS(/iphone|ipad|ipod/.test(userAgent));
+
+    // Check iOS prompt
+    const iosPromptDismissed = localStorage.getItem('iosPromptDismissed');
+    if (/iphone|ipad|ipod/.test(userAgent) && !iosPromptDismissed && !window.matchMedia('(display-mode: standalone)').matches) {
+      setTimeout(() => setShowIOSPrompt(true), 5000);
+    }
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstall = async () => {
+    triggerHaptic(20);
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setDeferredPrompt(null);
+      setShowInstallBanner(false);
+    }
+  };
+
+  const handleShare = async () => {
+    triggerHaptic(15);
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'مؤشر الدينار | أسعار العملات في ليبيا',
+          text: 'تابع أسعار العملات والذهب في ليبيا لحظة بلحظة عبر منصة مؤشر الدينار.',
+          url: window.location.origin,
+        });
+      } catch (error: any) {
+        // Ignore AbortError (user canceled)
+        if (error.name !== 'AbortError') {
+          console.error('Error sharing', error);
+          // Fallback to clipboard if share fails for other reasons
+          navigator.clipboard.writeText(window.location.origin);
+          addToast('تنبيه', 'تم نسخ الرابط بدلاً من المشاركة', 'info');
+        }
+      }
+    } else {
+      navigator.clipboard.writeText(window.location.origin);
+      addToast('تم النسخ', 'تم نسخ رابط التطبيق لمشاركته', 'info');
+    }
+  };
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showNotificationSettings, setShowNotificationSettings] = useState(false);
   const [showPostInstall, setShowPostInstall] = useState(false);
@@ -1045,6 +1123,41 @@ export default function App() {
       </AnimatePresence>
 
 
+      {/* iOS Install Prompt */}
+      <AnimatePresence>
+        {showIOSPrompt && (
+          <motion.div
+            initial={{ y: 100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 100, opacity: 0 }}
+            className="fixed bottom-24 left-4 right-4 z-[100] bg-zinc-900/95 border border-white/10 p-4 rounded-3xl shadow-2xl backdrop-blur-xl"
+          >
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 flex items-center justify-center border border-emerald-500/20">
+                <Smartphone className="w-6 h-6 text-emerald-400" />
+              </div>
+              <div className="flex-1">
+                <h4 className="text-white font-bold text-sm">تثبيت التطبيق على آيفون</h4>
+                <p className="text-zinc-400 text-[11px] mt-1 leading-relaxed">
+                  اضغط على أيقونة المشاركة <Share2 className="w-3 h-3 inline mx-1 text-blue-400" /> في متصفح سفاري، ثم اختر <span className="text-white font-bold">"إضافة إلى الشاشة الرئيسية"</span>.
+                </p>
+              </div>
+              <button 
+                onClick={() => {
+                  triggerHaptic(5);
+                  setShowIOSPrompt(false);
+                  localStorage.setItem('iosPromptDismissed', 'true');
+                }}
+                className="p-2 text-zinc-500 hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+
       {/* Header */}
       <header className="border-b border-white/5 sticky top-0 z-50 bg-[#050505]/80 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 sm:h-20 flex items-center justify-between">
@@ -1073,6 +1186,7 @@ export default function App() {
 
             <button 
               onClick={() => {
+                triggerHaptic(10);
                 setRunTour(true);
                 localStorage.removeItem('tourCompleted');
               }}
@@ -1085,19 +1199,57 @@ export default function App() {
             
             <button 
               id="notification-settings-btn"
-              onClick={() => setShowNotificationSettings(true)}
+              onClick={() => {
+                triggerHaptic(10);
+                setShowNotificationSettings(true);
+              }}
               className="flex items-center justify-center w-8 h-8 sm:w-auto sm:h-auto sm:px-3 sm:py-1.5 rounded-full bg-white/5 border border-white/10 text-zinc-400 hover:text-white hover:bg-white/10 transition-all"
               title="إعدادات التنبيهات"
             >
               <Settings2 className="w-4 h-4" />
               <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline sm:mr-2">الإعدادات</span>
             </button>
+
+            <button 
+              onClick={handleShare}
+              className="flex items-center justify-center w-8 h-8 sm:w-auto sm:h-auto sm:px-3 sm:py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20 transition-all"
+              title="مشاركة التطبيق"
+            >
+              <Share2 className="w-4 h-4" />
+              <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline sm:mr-2">مشاركة</span>
+            </button>
+
+            {showInstallBanner && !isStandalone && (
+              <button 
+                onClick={handleInstall}
+                className="flex items-center justify-center w-8 h-8 sm:w-auto sm:h-auto sm:px-3 sm:py-1.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 hover:bg-blue-500/20 transition-all"
+                title="تثبيت التطبيق"
+              >
+                <Download className="w-4 h-4" />
+                <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline sm:mr-2">تثبيت</span>
+              </button>
+            )}
             
             <div className="h-4 w-[1px] bg-white/10 mx-0.5 sm:mx-1"></div>
             
+            <button 
+              onClick={() => {
+                triggerHaptic(10);
+                fetchData(true);
+              }}
+              className={`flex items-center justify-center w-8 h-8 sm:w-auto sm:h-auto sm:px-3 sm:py-1.5 rounded-full bg-white/5 border border-white/10 text-zinc-400 hover:text-white hover:bg-white/10 transition-all ${isRefreshing ? 'animate-spin' : ''}`}
+              title="تحديث البيانات"
+            >
+              <RefreshCw className="w-4 h-4" />
+              <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline sm:mr-2">تحديث</span>
+            </button>
+
             <button
               id="export-pdf-btn"
-              onClick={generatePDF}
+              onClick={() => {
+                triggerHaptic(15);
+                generatePDF();
+              }}
               disabled={isGeneratingPDF}
               className={`flex items-center justify-center w-8 h-8 sm:w-auto sm:h-auto sm:px-3 sm:py-1.5 rounded-full bg-white/5 border border-white/10 text-zinc-400 hover:text-white hover:bg-white/10 transition-all ${isGeneratingPDF ? 'animate-pulse' : ''}`}
               title="تحميل تقرير PDF احترافي"
@@ -1106,14 +1258,6 @@ export default function App() {
               <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline sm:mr-2">تقرير</span>
             </button>
             
-            <button
-              onClick={() => fetchData(true)}
-              disabled={isRefreshing}
-              className={`flex items-center justify-center w-8 h-8 rounded-full hover:bg-white/10 transition-all text-zinc-400 hover:text-white ${isRefreshing ? 'animate-spin text-emerald-400' : ''}`}
-              title="تحديث البيانات من قاعدة البيانات"
-            >
-              <RefreshCw className="w-4 h-4" />
-            </button>
           </div>
         </div>
       </header>

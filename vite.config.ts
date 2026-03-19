@@ -13,15 +13,33 @@ export default defineConfig(({mode}) => {
       VitePWA({
         registerType: 'autoUpdate',
         manifest: {
-          name: 'مؤشر الدينار',
+          name: 'مؤشر الدينار | أسعار العملات في ليبيا',
           short_name: 'مؤشر الدينار',
-          description: 'متابعة أسعار العملات والذهب في ليبيا لحظة بلحظة',
+          description: 'متابعة أسعار العملات والذهب في ليبيا لحظة بلحظة من السوق الموازي والمصرف المركزي',
           theme_color: '#050505',
           background_color: '#050505',
           display: 'standalone',
+          display_override: ['window-controls-overlay', 'standalone', 'minimal-ui'],
           orientation: 'portrait',
           dir: 'rtl',
           lang: 'ar',
+          categories: ['finance', 'business', 'utilities'],
+          shortcuts: [
+            {
+              name: 'المحول',
+              short_name: 'المحول',
+              description: 'فتح محول العملات مباشرة',
+              url: '/?section=converter',
+              icons: [{ src: 'https://hatscripts.github.io/circle-flags/flags/ly.svg', sizes: '192x192' }]
+            },
+            {
+              name: 'أسعار الذهب',
+              short_name: 'الذهب',
+              description: 'فتح أسعار الذهب والمعادن',
+              url: '/?section=gold',
+              icons: [{ src: 'https://hatscripts.github.io/circle-flags/flags/ly.svg', sizes: '192x192' }]
+            }
+          ],
           icons: [
             {
               src: 'https://hatscripts.github.io/circle-flags/flags/ly.svg',
@@ -34,6 +52,22 @@ export default defineConfig(({mode}) => {
               sizes: '512x512',
               type: 'image/svg+xml',
               purpose: 'any maskable'
+            }
+          ],
+          screenshots: [
+            {
+              src: 'https://picsum.photos/seed/dinar-mobile/1080/1920',
+              sizes: '1080x1920',
+              type: 'image/png',
+              form_factor: 'narrow',
+              label: 'واجهة التطبيق على الهاتف'
+            },
+            {
+              src: 'https://picsum.photos/seed/dinar-desktop/1920/1080',
+              sizes: '1920x1080',
+              type: 'image/png',
+              form_factor: 'wide',
+              label: 'واجهة التطبيق على الكمبيوتر'
             }
           ]
         },
