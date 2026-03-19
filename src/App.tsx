@@ -576,6 +576,10 @@ export default function App() {
         if (isNewer) {
           // Check all parallel currencies
           const currenciesToCheck = Object.keys(newRates.parallel);
+          const changes: { code: string; name: string; oldPrice: number; newPrice: number; priority: number }[] = [];
+          
+          // Define priority currencies (USD, USD_JBANK, USD_CHECKS, EUR, GOLD)
+          const priorityIds = ["USD", "USD_JBANK", "USD_CHECKS", "EUR", "GOLD"];
           
           currenciesToCheck.forEach(code => {
             const oldPrice = currentRates.parallel[code];
@@ -587,15 +591,63 @@ export default function App() {
               if (lastNotifiedRef.current[code] !== newPrice) {
                 const term = configTermsRef.current.find(t => t.id === code);
                 const name = term ? term.name : code;
+                const priority = priorityIds.indexOf(code);
                 
-                showPriceNotification(code, name, oldPrice, newPrice).catch(err => {
-                  console.error("Error showing notification:", err);
+                changes.push({ 
+                  code, 
+                  name, 
+                  oldPrice, 
+                  newPrice, 
+                  priority: priority === -1 ? 999 : priority 
                 });
                 lastNotifiedRef.current[code] = newPrice;
-                hasChanges = true;
               }
             }
           });
+
+          if (changes.length > 0) {
+            hasChanges = true;
+            // Sort by priority (lower number first)
+            changes.sort((a, b) => a.priority - b.priority);
+            
+            // Show up to 3 individual notifications for the most important changes
+            const maxIndividual = 3;
+            const toNotify = changes.slice(0, maxIndividual);
+            const remainingCount = changes.length - maxIndividual;
+            
+            for (const change of toNotify) {
+              showPriceNotification(change.code, change.name, change.oldPrice, change.newPrice).catch(err => {
+                console.error("Error showing notification:", err);
+              });
+            }
+            
+            // If there are more changes, show a summary notification
+            if (remainingCount > 0) {
+              const summaryTitle = "📊 تحديثات أسعار إضافية";
+              const summaryBody = `بالإضافة للعملات الرئيسية، تم رصد تغيرات في أسعار ${remainingCount} عملات وأصناف أخرى في السوق.`;
+              
+              addToast(summaryTitle, summaryBody, "info");
+              
+              // Also show native notification for summary if possible
+              try {
+                if (Notification.permission === 'granted' && 'serviceWorker' in navigator) {
+                  const registration = await navigator.serviceWorker.ready;
+                  if (registration) {
+                    await registration.showNotification(summaryTitle, {
+                      body: summaryBody,
+                      icon: 'https://flagcdn.com/w80/ly.png',
+                      badge: 'https://flagcdn.com/w80/ly.png',
+                      tag: 'price-change-summary',
+                      renotify: true,
+                      dir: 'rtl'
+                    } as any);
+                  }
+                }
+              } catch (err) {
+                console.error("Failed to show summary notification:", err);
+              }
+            }
+          }
         }
       }
 
