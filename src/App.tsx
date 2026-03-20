@@ -1341,7 +1341,10 @@ export default function App() {
             </button>
 
             <button 
-              onClick={handleShare}
+              onClick={() => {
+                triggerHaptic(10);
+                handleShare();
+              }}
               className="flex items-center justify-center w-8 h-8 sm:w-auto sm:h-auto sm:px-3 sm:py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20 transition-all"
               title="مشاركة التطبيق"
             >
@@ -1372,18 +1375,6 @@ export default function App() {
             >
               <RefreshCw className="w-4 h-4" />
               <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline sm:mr-2">تحديث</span>
-            </button>
-
-            <button
-              onClick={() => {
-                triggerHaptic(10);
-                handleShare();
-              }}
-              className="flex items-center justify-center w-8 h-8 sm:w-auto sm:h-auto sm:px-3 sm:py-1.5 rounded-full bg-white/5 border border-white/10 text-zinc-400 hover:text-white hover:bg-white/10 transition-all"
-              title="مشاركة التطبيق"
-            >
-              <Share2 className="w-4 h-4" />
-              <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline sm:mr-2">مشاركة</span>
             </button>
 
             <button
