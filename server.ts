@@ -8,20 +8,6 @@ import { WebSocketServer } from 'ws';
 import { createServer } from 'http';
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
-import { GoogleGenAI } from "@google/genai";
-
-// Initialize AI lazily
-let aiClient: GoogleGenAI | null = null;
-function getAIClient() {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    console.error("CRITICAL: GEMINI_API_KEY not set.");
-  }
-  if (!aiClient && apiKey) {
-    aiClient = new GoogleGenAI({ apiKey });
-  }
-  return aiClient;
-}
 
 // Initialize Supabase client for server
 const supabaseUrl = process.env.VITE_SUPABASE_URL;
@@ -562,136 +548,6 @@ async function fetchHistoryFromSupabase() {
   return history;
 }
 
-// Smart AI extraction function that parses complex Arabic messages
-// Uses Gemini AI to identify currency codes and extract the SELL price (second number)
-async function extractRatesWithAI(text: string): Promise<Record<string, number> | null> {
-  // Build a map of all known terms for context
-  const termsContext = appConfig.terms.map(t => `${t.id}: ${t.name} (${t.flag}), min:${t.min}, max:${t.max}`).join('\n');
-
-  // --- Strategy 1: Regex-based client-side extraction (fast, no API needed) ---
-  // Tries to parse the tabular format: [ID] Name [Buy] Sell [status] [date]
-  const clientExtracted: Record<string, number> = {};
-
-  // Pattern: <optional ID> <name> <price1> [price2] <status>
-  // This regex is more flexible to handle 1 or 2 prices
-  const lines = text.split('\n');
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-
-    // Match numbers in the line
-    const numbers = trimmed.match(/(\d{1,5}(?:[\.,]\d{1,4})?)/g);
-    if (!numbers || numbers.length === 0) continue;
-
-    // We want the "selling price". 
-    // If there are 2 numbers, it's usually Buy Sell -> we take the 2nd.
-    // If there is 1 number, it's the price -> we take it.
-    // If there are more (like ID at start or date at end), we need to be careful.
-    
-    // Let's try to find which term matches this line
-    for (const term of appConfig.terms) {
-      const keywordMatch = term.regex.match(/^\(\?:([^)]+)\)/);
-      if (!keywordMatch) continue;
-      
-      const keywords = keywordMatch[1].split('|');
-      const matched = keywords.some(kw => trimmed.includes(kw));
-      
-      if (matched) {
-        // Found the term. Now find the price.
-        // In the user's format: "10 مجارة ذهب 14 جرام 23000.000 down ..."
-        // The numbers are: [10, 14, 23000.000]
-        // We need to exclude numbers that are part of the name (like 14 in "14 جرام")
-        
-        // Strategy: Find the number that falls within the term's min/max range
-        // and is likely the price (usually the largest one or the one after the name)
-        const validPrices = numbers
-          .map(n => parseFloat(n.replace(',', '.')))
-          .filter(v => v >= term.min && v <= term.max);
-        
-        if (validPrices.length > 0) {
-          // If multiple valid prices, take the last one (usually Sell price)
-          clientExtracted[term.id] = validPrices[validPrices.length - 1];
-          break;
-        }
-      }
-    }
-  }
-
-  if (Object.keys(clientExtracted).length > 0) {
-    console.log(`[AI-Extract] Client-side regex extracted ${Object.keys(clientExtracted).length} prices quickly.`);
-    return clientExtracted;
-  }
-
-  // --- Strategy 2: Gemini AI (for complex/ambiguous messages) ---
-  const ai = getAIClient();
-  if (!ai) {
-    console.warn('[AI-Extract] Gemini client not available, returning client-side results.');
-    return Object.keys(clientExtracted).length > 0 ? clientExtracted : null;
-  }
-
-  try {
-    const prompt = `أنت مساعد ذكي لاستخراج أسعار الصرف من رسائل السوق الليبي.
-قواعد ذهبية للاستخراج:
-1. العملات تأتي غالباً بنوعين: "كاش" (نقدي) و "صكوك" (شيكات مصارف).
-2. في كل فئة (كاش أو صكوك)، قد يوجد سعران: السعر الأول هو الشراء، والثاني هو البيع. نحن نريد دائماً "سعر البيع" (الرقم الثاني في الفئة).
-3. انتبه جداً: لا تخلط بين سعر الكاش وسعر الصكوك. إذا طلبت منك "USD" فأنا أريد سعره "كاش". إذا طلبت "USD_JBANK" فأنا أريد سعره بصكوك مصرف الجمهورية وهكذا.
-4. بالنسبة للعملات مثل التونسي (TND) والمصري (EGP)، قد تكتب بصيغة (0.33) أو (3.3). استخرج الرقم كما هو ولا تقم بعمليات حسابية.
-5. بالنسبة للمعادن (ذهب وفضة)، استخرج السعر النهائي المذكور في السطر. إذا وجد سعران (شراء وبيع)، خذ السعر الثاني (البيع). انتبه للعيارات (18، 21، 24) وتأكد من مطابقتها للمعرف الصحيح.
-
-قائمة العملات ومعرفاتها (ID):
-${termsContext}
-
-النص للتحليل:
-"""
-${text}
-"""
-
-أرجع JSON فقط بمفاتيح الـ ID وقيم الأسعار المستخرجة (سعر البيع لكل فئة):
-{
-  "USD": 10.2775,
-  "USD_JBANK": 11.1775,
-  ...
-}
-تنبيه: أعد JSON فقط بدون أي شرح أو علامات markdown إضافية.`;
-
-    const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
-      contents: prompt,
-    });
-
-    const rawText = response.text?.trim() || '';
-    // Clean the response (remove markdown code blocks if any)
-    const clean = rawText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-
-    try {
-      const parsed = JSON.parse(clean);
-      if (typeof parsed === 'object' && parsed !== null) {
-        // Validate against min/max constraints
-        const validated: Record<string, number> = {};
-        for (const [key, val] of Object.entries(parsed)) {
-          const numVal = Number(val);
-          const term = appConfig.terms.find(t => t.id === key);
-          if (term && !isNaN(numVal) && numVal >= term.min && numVal <= term.max) {
-            validated[key] = numVal;
-          }
-        }
-        if (Object.keys(validated).length > 0) {
-          console.log(`[AI-Extract] Gemini extracted ${Object.keys(validated).length} prices.`);
-          return validated;
-        }
-      }
-    } catch (parseErr) {
-      console.error('[AI-Extract] Failed to parse Gemini response as JSON:', rawText);
-      return { _raw: rawText } as any;
-    }
-  } catch (aiErr: any) {
-    console.error('[AI-Extract] Gemini call failed:', aiErr.message);
-    throw aiErr;
-  }
-
-  return null;
-}
-
 // Fetch official rates from Central Bank of Libya website
 
 async function fetchFromCBL(): Promise<RateMap | null> {
@@ -1067,24 +923,25 @@ async function fetchParallelRatesFromTelegram() {
               const match = cleanText.match(regex);
               if (!match) return;
 
-              // Logic to pick the correct capture group
-              // For our new regexes:
-              // match[1] = first number (after name)
-              // match[2] = second number (after name)
-              // match[3] = first number (before name)
-              // match[4] = second number (before name)
-              
               let valStr = null;
               
-              const partAfterFirstNum = match[0].split(match[1])[1] || "";
-              const hasCategorySeparator = /صكوك|بصك|شيك|مصرف|مقاصة/i.test(partAfterFirstNum);
+              // match[1] and match[2] are for "Name Number1 Number2" format
+              // match[3] and match[4] are for "Number1 Number2 Name" format (used in TND, EGP, TRY)
+              const firstCapturedNum = match[1] || match[3];
+              const secondCapturedNum = match[2] || match[4];
+              
+              if (firstCapturedNum) {
+                // If there's a second number, it's usually the "Sell" price, which is what we want.
+                // However, we must ensure the second number isn't actually for a different category.
+                // E.g., "USD 7.00 صكوك 7.10" -> 7.10 is for checks, not cash.
+                const partAfterFirstNum = match[0].split(firstCapturedNum)[1] || "";
+                const hasCategorySeparator = /صكوك|بصك|شيك|مصرف|مقاصة|كاش|نقدي/i.test(partAfterFirstNum);
 
-              if (match[2] && !hasCategorySeparator) {
-                valStr = match[2]; // Second number is Sell ONLY if no new category keyword is between them
-              } else if (match[4]) {
-                valStr = match[4]; 
-              } else {
-                valStr = match[1] || match[3];
+                if (secondCapturedNum && !hasCategorySeparator) {
+                  valStr = secondCapturedNum; // Use the second number (Sell price)
+                } else {
+                  valStr = firstCapturedNum; // Use the first number (Buy price or only price)
+                }
               }
               
               if (valStr) {
@@ -1096,7 +953,7 @@ async function fetchParallelRatesFromTelegram() {
                 if (key === 'TRY' && val > 1.0) val = 1 / val;
                 
                 if (isInverse && val > 0) val = 1 / val;
-                if (!isNaN(val) && val > min && val < max) {
+                if (!isNaN(val) && val >= min && val <= max) {
                   priceHistory[key].push({ value: val, time, channel });
                 }
               }
@@ -1104,34 +961,6 @@ async function fetchParallelRatesFromTelegram() {
 
             for (const term of appConfig.terms) {
               extractRate(term.regex, term.id, term.min, term.max, term.isInverse);
-            }
-          }
-        }
-
-        // AI Extraction for the newest message in this channel (Smart Background Processing)
-        // Optimization: Only call AI if regex failed to find rates in this message, or if it's a complex message
-        if (newestMessageInChannel.text && (Date.now() - newestMessageInChannel.time < 12 * 60 * 60 * 1000)) {
-          // Check if regex already found something for this specific message time
-          const regexFoundSomething = Object.values(priceHistory).some(history => 
-            history.some(p => p.time === newestMessageInChannel.time && p.channel === channel)
-          );
-
-          if (!regexFoundSomething) {
-            try {
-              const aiRates = await extractRatesWithAI(newestMessageInChannel.text);
-              if (aiRates) {
-                for (const key in aiRates) {
-                  if (priceHistory[key]) {
-                    // Only add if not already caught by regex or if it's a different value
-                    const exists = priceHistory[key].some(p => p.time === newestMessageInChannel.time && Math.abs(p.value - aiRates[key]) < 0.001);
-                    if (!exists) {
-                      priceHistory[key].push({ value: aiRates[key], time: newestMessageInChannel.time, channel: `${channel} (AI)` });
-                    }
-                  }
-                }
-              }
-            } catch (aiErr) {
-              console.error(`AI extraction failed for ${channel}, falling back to regex results:`, aiErr);
             }
           }
         }
@@ -1482,49 +1311,63 @@ async function startServer() {
     }
   });
 
-  app.get("/api/admin/ai-status", requireAdmin, async (req: express.Request, res: express.Response) => {
-    try {
-      const ai = getAIClient();
-      if (!ai) {
-        return res.json({ success: false, message: "AI Client not initialized" });
-      }
-      
-      // Simple test to verify the key works
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: "Say 'OK' if you are connected.",
-      });
-      
-      if (response.text) {
-        res.json({ success: true, message: "AI is connected and working", response: response.text });
-      } else {
-        res.json({ success: false, message: "AI returned empty response" });
-      }
-    } catch (err: any) {
-      console.error("AI Status Check Error:", err);
-      res.json({ success: false, message: "AI connection failed", error: err.message });
-    }
-  });
-
-  app.post("/api/admin/ai-extract", requireAdmin, async (req: express.Request, res: express.Response) => {
+  app.post("/api/admin/extract", requireAdmin, async (req: express.Request, res: express.Response) => {
     try {
       const { text } = req.body;
       if (!text) {
         return res.status(400).json({ success: false, message: "No text provided" });
       }
       
-      const extractedRates = await extractRatesWithAI(text);
-      if (extractedRates && !extractedRates._raw) {
+      const extractedRates: Record<string, number> = {};
+      const lines = text.split('\n');
+      
+      for (const line of lines) {
+        const cleanText = line.trim().replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ');
+        if (!cleanText) continue;
+
+        for (const term of appConfig.terms) {
+          const regex = new RegExp(term.regex, 'i');
+          const match = cleanText.match(regex);
+          if (!match) continue;
+
+          let valStr = null;
+          const firstCapturedNum = match[1] || match[3];
+          const secondCapturedNum = match[2] || match[4];
+          
+          if (firstCapturedNum) {
+            const partAfterFirstNum = match[0].split(firstCapturedNum)[1] || "";
+            const hasCategorySeparator = /صكوك|بصك|شيك|مصرف|مقاصة|كاش|نقدي/i.test(partAfterFirstNum);
+
+            if (secondCapturedNum && !hasCategorySeparator) {
+              valStr = secondCapturedNum;
+            } else {
+              valStr = firstCapturedNum;
+            }
+          }
+          
+          if (valStr) {
+            let val = parseFloat(valStr.replace(',', '.'));
+            
+            if (term.id === 'TND' && val < 1.0 && val > 0) val = 1 / val;
+            if (term.id === 'EGP' && val > 1.0) val = 1 / val;
+            if (term.id === 'TRY' && val > 1.0) val = 1 / val;
+            
+            if (term.isInverse && val > 0) val = 1 / val;
+            if (!isNaN(val) && val >= term.min && val <= term.max) {
+              extractedRates[term.id] = val;
+            }
+          }
+        }
+      }
+
+      if (Object.keys(extractedRates).length > 0) {
         res.json({ success: true, extractedRates });
-      } else if (extractedRates && extractedRates._raw) {
-        res.json({ success: false, message: "لم يتمكن المساعد من استخراج أي أسعار. استجابة المساعد: " + extractedRates._raw });
       } else {
-        res.json({ success: false, message: "لم يتمكن المساعد من استخراج أي أسعار من النص المدخل" });
+        res.json({ success: false, message: "لم يتمكن النظام من استخراج أي أسعار من النص المدخل" });
       }
     } catch (err: any) {
-      console.error("AI extraction failed:", err);
-      // Send the actual error message to the client so the user knows what's wrong
-      res.status(500).json({ success: false, message: `خطأ في المساعد الذكي: ${err.message || 'فشل الاتصال'}` });
+      console.error("Extraction failed:", err);
+      res.status(500).json({ success: false, message: `خطأ في الاستخراج: ${err.message || 'فشل العملية'}` });
     }
   });
 

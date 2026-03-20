@@ -238,7 +238,7 @@ export default function Admin() {
     setSuccess("");
     try {
       await fetchCurrentRates();
-      const res = await fetch("/api/admin/ai-extract", {
+      const res = await fetch("/api/admin/extract", {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
@@ -254,7 +254,7 @@ export default function Admin() {
         setError(data.message || "فشل استخراج الأسعار");
       }
     } catch (err) {
-      setError("خطأ في الاتصال بالمساعد الذكي");
+      setError("خطأ في الاتصال بخادم الاستخراج");
     }
     setAiLoading(false);
   };
@@ -395,7 +395,7 @@ export default function Admin() {
               { id: 'config', label: 'الإعدادات', icon: Settings },
               { id: 'stats', label: 'الإحصائيات', icon: Activity },
               { id: 'logs', label: 'السجلات', icon: Terminal },
-              { id: 'ai', label: 'المساعد الذكي', icon: Zap },
+              { id: 'ai', label: 'استخراج ذكي', icon: Zap },
             ].map(tab => (
               <button
                 key={tab.id}
@@ -1012,9 +1012,9 @@ export default function Admin() {
                     <Zap className="w-8 h-8 text-emerald-400" />
                   </div>
                   <div className="flex-1">
-                    <h2 className="text-2xl font-black text-white mb-1">المساعد الذكي لاستخراج الأسعار</h2>
+                    <h2 className="text-2xl font-black text-white mb-1">استخراج الأسعار من النصوص</h2>
                     <p className="text-sm text-zinc-500 leading-relaxed">
-                      الصق رسالة السوق هنا، وسيقوم الذكاء الاصطناعي بقراءة وتحليل جميع الأسعار تلقائياً واستخراج <span className="text-emerald-400 font-bold">سعر البيع</span> (الرقم الثاني) لكل عملة.
+                      الصق رسالة السوق هنا، وسيقوم النظام بقراءة وتحليل جميع الأسعار تلقائياً واستخراج <span className="text-emerald-400 font-bold">سعر البيع</span> (الرقم الثاني) لكل عملة.
                     </p>
                   </div>
                 </div>
