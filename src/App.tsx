@@ -28,7 +28,8 @@ import {
   Download,
   Smartphone,
   Disc,
-  ArrowUp
+  ArrowUp,
+  MoreVertical
 } from "lucide-react";
 import {
   AreaChart,
@@ -235,6 +236,19 @@ export default function App() {
   const [isStandalone, setIsStandalone] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
   const [showIOSPrompt, setShowIOSPrompt] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close more menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(event.target as Node)) {
+        setShowMoreMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // Network Status Listener
   useEffect(() => {
@@ -421,15 +435,9 @@ export default function App() {
       placement: 'top',
     },
     {
-      target: '#notification-settings-btn',
-      title: 'التنبيهات الذكية',
-      content: 'من هنا يمكنك تفعيل وتخصيص التنبيهات لتصلك إشعارات فورية عند تغير أسعار العملات التي تهمك.',
-      placement: 'bottom',
-    },
-    {
-      target: '#export-pdf-btn',
-      title: 'تصدير تقرير PDF',
-      content: 'يمكنك بنقرة واحدة تحميل تقرير احترافي بصيغة PDF يحتوي على جميع الأسعار الحالية لمشاركته أو حفظه.',
+      target: '#more-menu-btn',
+      title: 'خيارات إضافية',
+      content: 'من هنا يمكنك مشاركة التطبيق، تحميل تقرير PDF احترافي للأسعار، أو تخصيص إعدادات التنبيهات الذكية.',
       placement: 'bottom',
     }
   ]);
@@ -1355,31 +1363,6 @@ export default function App() {
               <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline sm:mr-2">مساعدة</span>
             </button>
             
-            <button 
-              id="notification-settings-btn"
-              onClick={() => {
-                triggerHaptic(10);
-                setShowNotificationSettings(true);
-              }}
-              className="flex items-center justify-center w-8 h-8 sm:w-auto sm:h-auto sm:px-3 sm:py-1.5 rounded-full bg-white/5 border border-white/10 text-zinc-400 hover:text-white hover:bg-white/10 transition-all"
-              title="إعدادات التنبيهات"
-            >
-              <Settings2 className="w-4 h-4" />
-              <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline sm:mr-2">الإعدادات</span>
-            </button>
-
-            <button 
-              onClick={() => {
-                triggerHaptic(10);
-                handleShare();
-              }}
-              className="flex items-center justify-center w-8 h-8 sm:w-auto sm:h-auto sm:px-3 sm:py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20 transition-all"
-              title="مشاركة التطبيق"
-            >
-              <Share2 className="w-4 h-4" />
-              <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline sm:mr-2">مشاركة</span>
-            </button>
-
             {showInstallBanner && !isStandalone && (
               <button 
                 onClick={handleInstall}
@@ -1405,19 +1388,75 @@ export default function App() {
               <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline sm:mr-2">تحديث</span>
             </button>
 
-            <button
-              id="export-pdf-btn"
-              onClick={() => {
-                triggerHaptic(15);
-                generatePDF();
-              }}
-              disabled={isGeneratingPDF}
-              className={`flex items-center justify-center w-8 h-8 sm:w-auto sm:h-auto sm:px-3 sm:py-1.5 rounded-full bg-white/5 border border-white/10 text-zinc-400 hover:text-white hover:bg-white/10 transition-all ${isGeneratingPDF ? 'animate-pulse' : ''}`}
-              title="تحميل تقرير PDF احترافي"
-            >
-              <FileText className="w-4 h-4" />
-              <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline sm:mr-2">تقرير</span>
-            </button>
+            <div className="relative" ref={moreMenuRef}>
+              <button
+                id="more-menu-btn"
+                onClick={() => {
+                  triggerHaptic(10);
+                  setShowMoreMenu(!showMoreMenu);
+                }}
+                className="flex items-center justify-center w-8 h-8 sm:w-auto sm:h-auto sm:px-3 sm:py-1.5 rounded-full bg-white/5 border border-white/10 text-zinc-400 hover:text-white hover:bg-white/10 transition-all"
+                title="المزيد"
+              >
+                <MoreVertical className="w-4 h-4" />
+                <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline sm:mr-2">المزيد</span>
+              </button>
+
+              <AnimatePresence>
+                {showMoreMenu && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute left-0 top-full mt-2 w-48 rounded-2xl bg-[#1a1a1a] border border-white/10 shadow-xl overflow-hidden z-50"
+                  >
+                    <div className="py-1 flex flex-col">
+                      <button
+                        onClick={() => {
+                          triggerHaptic(10);
+                          setShowMoreMenu(false);
+                          handleShare();
+                        }}
+                        className="flex items-center gap-3 px-4 py-3 text-sm text-zinc-300 hover:text-white hover:bg-white/5 transition-colors w-full text-right"
+                      >
+                        <Share2 className="w-4 h-4 text-emerald-400" />
+                        <span className="font-medium">مشاركة التطبيق</span>
+                      </button>
+                      
+                      <button
+                        id="export-pdf-btn"
+                        onClick={() => {
+                          triggerHaptic(15);
+                          setShowMoreMenu(false);
+                          generatePDF();
+                        }}
+                        disabled={isGeneratingPDF}
+                        className={`flex items-center gap-3 px-4 py-3 text-sm text-zinc-300 hover:text-white hover:bg-white/5 transition-colors w-full text-right ${isGeneratingPDF ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      >
+                        <FileText className="w-4 h-4 text-blue-400" />
+                        <span className="font-medium">{isGeneratingPDF ? 'جاري التحميل...' : 'طباعة PDF'}</span>
+                      </button>
+
+                      <div className="h-[1px] bg-white/10 my-1"></div>
+
+                      <button
+                        id="notification-settings-btn"
+                        onClick={() => {
+                          triggerHaptic(10);
+                          setShowMoreMenu(false);
+                          setShowNotificationSettings(true);
+                        }}
+                        className="flex items-center gap-3 px-4 py-3 text-sm text-zinc-300 hover:text-white hover:bg-white/5 transition-colors w-full text-right"
+                      >
+                        <Settings2 className="w-4 h-4 text-zinc-400" />
+                        <span className="font-medium">الإعدادات</span>
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
             
           </div>
         </div>
