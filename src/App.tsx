@@ -266,7 +266,7 @@ export default function App() {
 
   // Haptic Feedback Helper
   const triggerHaptic = (pattern: number | number[] = 10) => {
-    if (window.navigator.vibrate) {
+    if (hapticEnabled && window.navigator.vibrate) {
       window.navigator.vibrate(pattern);
     }
   };
@@ -334,7 +334,24 @@ export default function App() {
     }
   };
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [showNotificationSettings, setShowNotificationSettings] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<'general' | 'notifications'>('general');
+  const [hapticEnabled, setHapticEnabled] = useState(() => {
+    const saved = localStorage.getItem('hapticEnabled');
+    return saved !== null ? saved === 'true' : true;
+  });
+  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(() => {
+    const saved = localStorage.getItem('autoRefreshEnabled');
+    return saved !== null ? saved === 'true' : true;
+  });
+  const [showChart, setShowChart] = useState(() => {
+    const saved = localStorage.getItem('showChart');
+    return saved !== null ? saved === 'true' : true;
+  });
+  const [defaultMarket, setDefaultMarket] = useState<'parallel' | 'official'>(() => {
+    const saved = localStorage.getItem('defaultMarket');
+    return (saved as 'parallel' | 'official') || 'parallel';
+  });
   const [showPostInstall, setShowPostInstall] = useState(false);
   const [notificationThreshold, setNotificationThreshold] = useState(0.001);
   const [toasts, setToasts] = useState<{ id: string, title: string, body: string, type: 'up' | 'down' | 'info' }[]>([]);
@@ -990,9 +1007,10 @@ export default function App() {
 
   useEffect(() => {
     fetchData();
+    if (!autoRefreshEnabled) return;
     const interval = setInterval(fetchData, 10000); // Poll every 10 seconds
     return () => clearInterval(interval);
-  }, []);
+  }, [autoRefreshEnabled]);
 
   const chartData = useMemo(() => {
     if (!selectedRate || !history.length) return [];
@@ -1445,7 +1463,7 @@ export default function App() {
                         onClick={() => {
                           triggerHaptic(10);
                           setShowMoreMenu(false);
-                          setShowNotificationSettings(true);
+                          setShowSettingsModal(true);
                         }}
                         className="flex items-center gap-3 px-4 py-3 text-sm text-zinc-300 hover:text-white hover:bg-white/5 transition-colors w-full text-right"
                       >
@@ -1579,43 +1597,45 @@ export default function App() {
           </div>
 
           {/* Mini Sparkline Chart */}
-          <div id="historical-chart" className="w-full lg:w-[400px] h-[100px] sm:h-[160px] min-w-0 min-h-0 opacity-80 hover:opacity-100 transition-opacity mt-8 lg:mt-0">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={history.filter(h => h.usdParallel > 0)}>
-                <defs>
-                  <linearGradient id="colorUsd" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <XAxis dataKey="time" hide />
-                <YAxis domain={[(dataMin: number) => dataMin - 0.02, (dataMax: number) => dataMax + 0.02]} hide />
-                <Tooltip
-                  contentStyle={{ backgroundColor: "#050505", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px", color: "#fff", boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.5)" }}
-                  itemStyle={{ color: "#10b981", fontFamily: "monospace", fontSize: "16px" }}
-                  labelStyle={{ color: "#71717a", fontSize: "12px", marginBottom: "4px" }}
-                  labelFormatter={(label) => {
-                    try {
-                      return format(new Date(label), "dd MMM - HH:mm", { locale: ar });
-                    } catch (e) {
-                      return label;
-                    }
-                  }}
-                  formatter={(value: number) => [value.toFixed(2) + ' د.ل', 'السعر']}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="usdParallel"
-                  stroke="#10b981"
-                  strokeWidth={2}
-                  fillOpacity={1}
-                  fill="url(#colorUsd)"
-                  isAnimationActive={history.length < 200}
-                  activeDot={{ r: 4, fill: "#050505", stroke: "#10b981", strokeWidth: 2 }}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
+          {showChart && (
+            <div id="historical-chart" className="w-full lg:w-[400px] h-[100px] sm:h-[160px] min-w-0 min-h-0 opacity-80 hover:opacity-100 transition-opacity mt-8 lg:mt-0">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={history.filter(h => h.usdParallel > 0)}>
+                  <defs>
+                    <linearGradient id="colorUsd" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <XAxis dataKey="time" hide />
+                  <YAxis domain={[(dataMin: number) => dataMin - 0.02, (dataMax: number) => dataMax + 0.02]} hide />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: "#050505", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px", color: "#fff", boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.5)" }}
+                    itemStyle={{ color: "#10b981", fontFamily: "monospace", fontSize: "16px" }}
+                    labelStyle={{ color: "#71717a", fontSize: "12px", marginBottom: "4px" }}
+                    labelFormatter={(label) => {
+                      try {
+                        return format(new Date(label), "dd MMM - HH:mm", { locale: ar });
+                      } catch (e) {
+                        return label;
+                      }
+                    }}
+                    formatter={(value: number) => [value.toFixed(2) + ' د.ل', 'السعر']}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="usdParallel"
+                    stroke="#10b981"
+                    strokeWidth={2}
+                    fillOpacity={1}
+                    fill="url(#colorUsd)"
+                    isAnimationActive={history.length < 200}
+                    activeDot={{ r: 4, fill: "#050505", stroke: "#10b981", strokeWidth: 2 }}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </section>
 
 
@@ -2064,15 +2084,15 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Notification Settings Modal */}
+      {/* Settings Modal */}
       <AnimatePresence>
-        {showNotificationSettings && (
+        {showSettingsModal && (
           <div className="fixed inset-0 z-[150] flex items-center justify-center p-4">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={() => setShowNotificationSettings(false)}
+              onClick={() => setShowSettingsModal(false)}
               className="absolute inset-0 bg-black/60 backdrop-blur-md"
             />
             <motion.div
@@ -2086,79 +2106,160 @@ export default function App() {
                   <div className="w-8 h-8 rounded-full bg-indigo-500/10 flex items-center justify-center text-indigo-400">
                     <Settings2 className="w-4 h-4" />
                   </div>
-                  <h3 className="text-lg font-medium">إعدادات التنبيهات الذكية</h3>
+                  <h3 className="text-lg font-medium">الإعدادات</h3>
                 </div>
-                <button onClick={() => setShowNotificationSettings(false)} className="text-zinc-500 hover:text-white">
+                <button onClick={() => setShowSettingsModal(false)} className="text-zinc-500 hover:text-white">
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              <div className="p-6 space-y-8">
-                {/* Permission Status */}
-                <div className="flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-white/5">
-                  <div className="flex items-center gap-3">
-                    {notificationsEnabled ? (
-                      <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                    ) : (
-                      <AlertCircle className="w-5 h-5 text-amber-500" />
-                    )}
-                    <div>
-                      <p className="text-sm font-medium">حالة التنبيهات</p>
-                      <p className="text-[10px] text-zinc-500">{notificationsEnabled ? 'مفعلة على هذا الجهاز' : 'غير مفعلة حالياً'}</p>
+              {/* Tabs */}
+              <div className="flex border-b border-white/5">
+                <button
+                  onClick={() => setSettingsTab('general')}
+                  className={`flex-1 py-3 text-sm font-medium transition-colors border-b-2 ${settingsTab === 'general' ? 'border-indigo-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
+                >
+                  عام
+                </button>
+                <button
+                  onClick={() => setSettingsTab('notifications')}
+                  className={`flex-1 py-3 text-sm font-medium transition-colors border-b-2 ${settingsTab === 'notifications' ? 'border-indigo-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
+                >
+                  التنبيهات
+                </button>
+              </div>
+
+              <div className="p-6 space-y-8 min-h-[300px]">
+                {settingsTab === 'general' && (
+                  <div className="space-y-6">
+                    {/* Haptic Toggle */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-zinc-200">الاهتزاز (Haptic Feedback)</p>
+                        <p className="text-[10px] text-zinc-500 mt-1">تفعيل أو تعطيل الاهتزاز عند التفاعل مع التطبيق</p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          const newVal = !hapticEnabled;
+                          setHapticEnabled(newVal);
+                          localStorage.setItem('hapticEnabled', String(newVal));
+                          if (newVal && window.navigator.vibrate) window.navigator.vibrate(10);
+                        }}
+                        className={`w-11 h-6 rounded-full transition-colors flex items-center px-1 ${hapticEnabled ? 'bg-indigo-500 justify-end' : 'bg-zinc-700 justify-start'}`}
+                      >
+                        <motion.div layout className="w-4 h-4 rounded-full bg-white shadow-sm" />
+                      </button>
+                    </div>
+
+                    {/* Auto Refresh Toggle */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-zinc-200">التحديث التلقائي</p>
+                        <p className="text-[10px] text-zinc-500 mt-1">تحديث الأسعار تلقائياً كل 10 ثوانٍ</p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          const newVal = !autoRefreshEnabled;
+                          setAutoRefreshEnabled(newVal);
+                          localStorage.setItem('autoRefreshEnabled', String(newVal));
+                          triggerHaptic(10);
+                        }}
+                        className={`w-11 h-6 rounded-full transition-colors flex items-center px-1 ${autoRefreshEnabled ? 'bg-indigo-500 justify-end' : 'bg-zinc-700 justify-start'}`}
+                      >
+                        <motion.div layout className="w-4 h-4 rounded-full bg-white shadow-sm" />
+                      </button>
+                    </div>
+
+                    {/* Show Chart Toggle */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-zinc-200">المخطط البياني</p>
+                        <p className="text-[10px] text-zinc-500 mt-1">إظهار المخطط البياني المصغر في الشاشة الرئيسية</p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          const newVal = !showChart;
+                          setShowChart(newVal);
+                          localStorage.setItem('showChart', String(newVal));
+                          triggerHaptic(10);
+                        }}
+                        className={`w-11 h-6 rounded-full transition-colors flex items-center px-1 ${showChart ? 'bg-indigo-500 justify-end' : 'bg-zinc-700 justify-start'}`}
+                      >
+                        <motion.div layout className="w-4 h-4 rounded-full bg-white shadow-sm" />
+                      </button>
+                    </div>
+
+                    {/* Clear Cache */}
+                    <div className="pt-4 border-t border-white/5">
+                      <button
+                        onClick={() => {
+                          triggerHaptic(10);
+                          localStorage.removeItem('lyd_rates');
+                          localStorage.removeItem('lyd_history');
+                          fetchData(true);
+                          addToast('تم بنجاح', 'تم مسح الذاكرة المؤقتة وتحديث البيانات', 'info');
+                        }}
+                        className="w-full py-3 text-sm font-medium text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-xl transition-colors"
+                      >
+                        مسح الذاكرة المؤقتة وتحديث البيانات
+                      </button>
                     </div>
                   </div>
-                  {!notificationsEnabled && (
-                    <button 
-                      onClick={requestNotificationPermission}
-                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-xl transition-colors"
-                    >
-                      تفعيل الآن
-                    </button>
-                  )}
-                </div>
+                )}
 
-                {/* Threshold Slider */}
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium text-zinc-300">حساسية التنبيه (Threshold)</label>
-                    <span className="text-xs font-mono text-indigo-400 bg-indigo-500/10 px-2 py-1 rounded-lg">
-                      {notificationThreshold.toFixed(2)} د.ل
-                    </span>
-                  </div>
-                  <input 
-                    type="range" 
-                    min="0.001" 
-                    max="0.1" 
-                    step="0.001" 
-                    value={notificationThreshold}
-                    onChange={(e) => setNotificationThreshold(parseFloat(e.target.value))}
-                    className="w-full h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                  />
-                  <p className="text-[10px] text-zinc-500 leading-relaxed">
-                    سيقوم التطبيق بإرسال تنبيه فقط إذا تغير السعر بمقدار أكبر من القيمة المحددة أعلاه. القيمة الحالية ({notificationThreshold.toFixed(3)}) تجعل التنبيهات حساسة جداً لأي تغيير.
-                  </p>
-                </div>
+                {settingsTab === 'notifications' && (
+                  <>
+                    {/* Permission Status */}
+                    <div className="flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-white/5">
+                      <div className="flex items-center gap-3">
+                        {notificationsEnabled ? (
+                          <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                        ) : (
+                          <AlertCircle className="w-5 h-5 text-amber-500" />
+                        )}
+                        <div>
+                          <p className="text-sm font-medium">حالة التنبيهات</p>
+                          <p className="text-[10px] text-zinc-500">{notificationsEnabled ? 'مفعلة على هذا الجهاز' : 'غير مفعلة حالياً'}</p>
+                        </div>
+                      </div>
+                      {!notificationsEnabled && (
+                        <button 
+                          onClick={requestNotificationPermission}
+                          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-xl transition-colors"
+                        >
+                          تفعيل الآن
+                        </button>
+                      )}
+                    </div>
 
-                {/* Features List */}
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3 text-xs text-zinc-400">
-                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
-                    <span>تنبيهات فورية عند تغير سعر الدولار (كاش)</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-xs text-zinc-400">
-                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
-                    <span>متابعة لحظية لأسعار الذهب (كسر 18)</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-xs text-zinc-400">
-                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
-                    <span>نظام اهتزاز مخصص للهواتف عند الارتفاع الحاد</span>
-                  </div>
-                </div>
+                    {/* Threshold Slider */}
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <label className="text-sm font-medium text-zinc-300">حساسية التنبيه (Threshold)</label>
+                        <span className="text-xs font-mono text-indigo-400 bg-indigo-500/10 px-2 py-1 rounded-lg">
+                          {notificationThreshold.toFixed(2)} د.ل
+                        </span>
+                      </div>
+                      <input 
+                        type="range" 
+                        min="0.001" 
+                        max="0.1" 
+                        step="0.001" 
+                        value={notificationThreshold}
+                        onChange={(e) => setNotificationThreshold(parseFloat(e.target.value))}
+                        className="w-full h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                      />
+                      <p className="text-[10px] text-zinc-500 leading-relaxed">
+                        سيقوم التطبيق بإرسال تنبيه فقط إذا تغير السعر بمقدار أكبر من القيمة المحددة أعلاه. القيمة الحالية ({notificationThreshold.toFixed(3)}) تجعل التنبيهات حساسة جداً لأي تغيير.
+                      </p>
+                    </div>
+                  </>
+                )}
               </div>
 
               <div className="p-6 bg-white/[0.02] border-t border-white/5">
                 <button 
-                  onClick={() => setShowNotificationSettings(false)}
+                  onClick={() => setShowSettingsModal(false)}
                   className="w-full py-3 bg-white text-black text-sm font-bold rounded-2xl hover:bg-zinc-200 transition-colors"
                 >
                   حفظ الإعدادات
