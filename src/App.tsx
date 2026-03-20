@@ -1073,17 +1073,6 @@ export default function App() {
       : converterAmount / rate;
   }, [converterAmount, converterFrom, converterMarket, converterMode, rates]);
 
-  if (loading && !rates) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <RefreshCw className="w-6 h-6 text-white animate-spin" />
-          <p className="text-zinc-500 font-mono text-xs tracking-widest uppercase">Initializing...</p>
-        </div>
-      </div>
-    );
-  }
-
   const usdRate = rates?.parallel["USD"] || 0;
   const prevUsdRate = rates?.previousParallel?.["USD"] || usdRate;
   const usdIsUp = usdRate > prevUsdRate;
@@ -1138,6 +1127,45 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#050505] text-white font-sans selection:bg-emerald-500/20 relative overflow-hidden" dir="rtl">
+      <AnimatePresence>
+        {loading && !rates && (
+          <motion.div 
+            key="splash-screen"
+            initial={{ opacity: 1 }}
+            exit={{ opacity: 0, scale: 1.05, filter: "blur(10px)" }}
+            transition={{ duration: 0.8, ease: [0.4, 0, 0.2, 1] }}
+            className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-[#050505]"
+          >
+            <div className="relative w-24 h-24 mb-8">
+              <motion.div 
+                animate={{ 
+                  scale: [1, 1.1, 1],
+                  opacity: [0.3, 0.6, 0.3]
+                }}
+                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                className="absolute inset-0 bg-emerald-500 rounded-full blur-xl"
+              />
+              <img 
+                src="https://hatscripts.github.io/circle-flags/flags/ly.svg" 
+                alt="Logo" 
+                className="relative w-full h-full rounded-full shadow-[0_0_20px_rgba(16,185,129,0.2)] z-10"
+              />
+            </div>
+            <h1 className="text-3xl font-extrabold tracking-wide bg-gradient-to-r from-emerald-400 to-emerald-500 bg-clip-text text-transparent m-0">
+              مؤشر الدينار
+            </h1>
+            <p className="text-sm text-zinc-400 mt-3 font-medium">جاري التحديث...</p>
+            <div className="mt-12 w-16 h-1 bg-white/10 rounded-full overflow-hidden relative">
+              <motion.div 
+                animate={{ left: ["-50%", "100%"] }}
+                transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                className="absolute top-0 bottom-0 w-1/2 bg-emerald-500 rounded-full"
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <Joyride
         steps={tourSteps}
         run={runTour}
