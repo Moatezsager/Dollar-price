@@ -228,6 +228,23 @@ function isSignificantChange(val1: number, val2: number, threshold = 0.0001) {
   return Math.abs((val1 || 0) - (val2 || 0)) > threshold;
 }
 
+// Helper to detect if a number is likely part of a date (e.g. 2024, 21-03, 12/05)
+function isProbablyDate(text: string, matchIndex: number, matchValue: string): boolean {
+  // Look at context around the match
+  const contextBefore = text.substring(Math.max(0, matchIndex - 10), matchIndex);
+  const contextAfter = text.substring(matchIndex + matchValue.length, Math.min(text.length, matchIndex + matchValue.length + 10));
+  
+  // Date patterns: YYYY (starting with 20), DD/MM, DD-MM
+  if (/^20\d{2}$/.test(matchValue)) return true; // Year 20XX
+  if (/[/-]\d{1,2}$/.test(contextBefore)) return true; // Matches -MM or /MM before
+  if (/^\d{1,2}[/-]/.test(contextAfter)) return true; // Matches MM- or MM/ after
+  
+  // Also check if preceded by keywords like "بتاريخ" or "يوم"
+  if (/بتاريخ|يوم|سنة|عام/i.test(contextBefore)) return true;
+
+  return false;
+}
+
 
 
 let lastRatesFetchTime = 0;
@@ -754,38 +771,38 @@ async function fetchOfficialRates(): Promise<boolean> {
 let appConfig: AppConfig = {
   channels: ["dollarr_ly", "musheermarket", "lydollar", "djheih2026", "suqalmushir"],
   terms: [
-    { id: "USD", name: "دولار أمريكي", regex: "(?:الدولار|دولار|الخضراء|خضراء|كاش|💵|🇺🇸)(?!\\s*صكوك|\\s*بصك|\\s*شيك)[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
-    { id: "EUR", name: "يورو", regex: "(?:يورو|اليورو|💶|eur|🇪🇺)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "eu" },
-    { id: "GBP", name: "جنيه إسترليني", regex: "(?:باوند|استرليني|الباوند|💷|gbp|🇬🇧)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "gb" },
-    { id: "TND", name: "دينار تونسي", regex: "(?:(?:تونسي|تونس|tnd|🇹🇳)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?)|(?:(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?[^\\d]{0,25}(?:تونسي|تونس|tnd|🇹🇳))", min: 0.1, max: 10.0, isInverse: false, flag: "tn" },
-    { id: "EGP", name: "جنيه مصري", regex: "(?:(?:مصري|مصر|egp|🇪🇬)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?)|(?:(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?[^\\d]{0,25}(?:مصري|مصر|egp|🇪🇬))", min: 0.01, max: 5.0, isInverse: false, flag: "eg" },
-    { id: "TRY", name: "ليرة تركية", regex: "(?:(?:ليرة|تركي|try|🇹🇷)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?)|(?:(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?[^\\d]{0,25}(?:ليرة|تركي|try|🇹🇷))", min: 0.01, max: 5.0, isInverse: false, flag: "tr" },
-    { id: "JOD", name: "دينار أردني", regex: "(?:jod|JOD|أردني|🇯🇴)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 30.0, isInverse: false, flag: "jo" },
-    { id: "BHD", name: "دينار بحريني", regex: "(?:bhd|BHD|بحريني|🇧🇭)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 10.0, max: 50.0, isInverse: false, flag: "bh" },
-    { id: "KWD", name: "دينار كويتي", regex: "(?:kwd|KWD|كويتي|🇰🇼)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 10.0, max: 60.0, isInverse: false, flag: "kw" },
-    { id: "AED", name: "درهم إماراتي", regex: "(?:aed|AED|إماراتي|امارات|🇦🇪)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 0.5, max: 10.0, isInverse: false, flag: "ae" },
-    { id: "SAR", name: "ريال سعودي", regex: "(?:sar|SAR|سعودي|ريال|🇸🇦)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 0.5, max: 10.0, isInverse: false, flag: "sa" },
-    { id: "QAR", name: "ريال قطري", regex: "(?:qar|QAR|قطري|🇶🇦)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 0.5, max: 10.0, isInverse: false, flag: "qa" },
-    { id: "USD_JBANK", name: "صكوك الجمهورية", regex: "(?:jbank|الجمهورية|صكوك|بصك)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
-    { id: "USD_BCD", name: "صكوك التجارة", regex: "(?:bcd|التجارة والتنمية)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
-    { id: "USD_NCB", name: "صكوك التجاري", regex: "(?:NCB|التجاري الوطني|صكوك|بصك)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
-    { id: "USD_AB", name: "صكوك الأمان", regex: "(?:AB|الأمان|الامان)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
-    { id: "USD_WB", name: "صكوك الوحدة", regex: "(?:WB|الوحدة)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
-    { id: "USD_AE", name: "حوالات دبي", regex: "(?:دبي|امارات|الإمارات|🇦🇪)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "ae" },
-    { id: "USD_TR", name: "حوالات تركيا", regex: "(?:تركيا|تركي|🇹🇷)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "tr" },
-    { id: "USD_CN", name: "حوالات الصين", regex: "(?:الصين|صينية|🇨🇳)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "cn" },
-    { id: "CNY", name: "يوان صيني", regex: "(?:cny|CNY|يوان|🇨🇳)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 0.5, max: 5.0, isInverse: false, flag: "cn" },
-    { id: "GOLD_EXT_18", name: "ذهب خارجي 18", regex: "(?:ذهب خارجي 18|خارجي 18|عيار 18 خارجي|18 خارجي)[^\\d]{0,25}(\\d{2,4}(?:[\\.,]\\d+)?)(?:\\s+(\\d{2,4}(?:[\\.,]\\d+)?))?", min: 100, max: 5000, isInverse: false, flag: "ly" },
-    { id: "GOLD_EXT_21", name: "ذهب خارجي 21", regex: "(?:ذهب خارجي 21|خارجي 21|عيار 21 خارجي|21 خارجي)[^\\d]{0,25}(\\d{2,4}(?:[\\.,]\\d+)?)(?:\\s+(\\d{2,4}(?:[\\.,]\\d+)?))?", min: 100, max: 5000, isInverse: false, flag: "ly" },
-    { id: "GOLD_SCRAP_18", name: "ذهب كسر 18", regex: "(?:ذهب كسر 18|كسر 18|عيار 18 كسر|18 كسر)[^\\d]{0,25}(\\d{2,4}(?:[\\.,]\\d+)?)(?:\\s+(\\d{2,4}(?:[\\.,]\\d+)?))?", min: 100, max: 5000, isInverse: false, flag: "ly" },
-    { id: "GOLD_SCRAP_21", name: "ذهب كسر 21", regex: "(?:ذهب كسر 21|كسر 21|عيار 21 كسر|21 كسر)[^\\d]{0,25}(\\d{2,4}(?:[\\.,]\\d+)?)(?:\\s+(\\d{2,4}(?:[\\.,]\\d+)?))?", min: 100, max: 5000, isInverse: false, flag: "ly" },
-    { id: "GOLD_CAST_18", name: "ذهب مسبوك 18", regex: "(?:ذهب مسبوك 18|مسبوك 18|عيار 18 مسبوك|18 مسبوك)[^\\d]{0,25}(\\d{2,4}(?:[\\.,]\\d+)?)(?:\\s+(\\d{2,4}(?:[\\.,]\\d+)?))?", min: 100, max: 5000, isInverse: false, flag: "ly" },
-    { id: "GOLD_CAST_24", name: "ذهب مسبوك 24", regex: "(?:ذهب مسبوك 24|مسبوك 24|عيار 24 مسبوك|24 مسبوك)[^\\d]{0,25}(\\d{2,4}(?:[\\.,]\\d+)?)(?:\\s+(\\d{2,4}(?:[\\.,]\\d+)?))?", min: 100, max: 5000, isInverse: false, flag: "ly" },
-    { id: "GOLD_LIRA_8G", name: "ليرة ذهب 8 جرام", regex: "(?:ليرة ذهب 8 جرام|ليرة ذهب|ليرة 8 جرام|ليرة 8ج)[^\\d]{0,25}(\\d{2,5}(?:[\\.,]\\d+)?)(?:\\s+(\\d{2,5}(?:[\\.,]\\d+)?))?", min: 1000, max: 20000, isInverse: false, flag: "ly" },
-    { id: "GOLD_MUJARA_14G", name: "مجارة ذهب 14 جرام", regex: "(?:مجارة ذهب 14 جرام|مجارة 14 جرام|مجارة 14)[^\\d]{0,25}(\\d{2,5}(?:[\\.,]\\d+)?)(?:\\s+(\\d{2,5}(?:[\\.,]\\d+)?))?", min: 1000, max: 35000, isInverse: false, flag: "ly" },
-    { id: "GOLD", name: "كسر الذهب", regex: "(?:كسر الذهب|ذهبي|ذهب|💎)[^\\d]{0,25}(\\d{2,4}(?:[\\.,]\\d+)?)(?:\\s+(\\d{2,4}(?:[\\.,]\\d+)?))?", min: 100, max: 5000, isInverse: false, flag: "ly" },
-    { id: "SILVER_CAST_1000", name: "مسبوك فضة عيار 1000", regex: "(?:مسبوك فضة عيار 1000|مسبوك فضة 1000|فضة 1000)[^\\d]{0,25}(\\d{1,3}(?:[\\.,]\\d+)?)(?:\\s+(\\d{1,3}(?:[\\.,]\\d+)?))?", min: 1, max: 500, isInverse: false, flag: "ly" },
-    { id: "SILVER_SCRAP", name: "كسر فضة", regex: "(?:كسر فضة|كسر الفضة|فضة كسر)[^\\d]{0,25}(\\d{1,3}(?:[\\.,]\\d+)?)(?:\\s+(\\d{1,3}(?:[\\.,]\\d+)?))?", min: 1, max: 500, isInverse: false, flag: "ly" },
+    { id: "USD", name: "دولار أمريكي", regex: "(?:الدولار|دولار|الخضراء|خضراء|كاش|💵|🇺🇸)(?!\\s*صكوك|\\s*بصك|\\s*شيك)[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,5}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
+    { id: "EUR", name: "يورو", regex: "(?:يورو|اليورو|💶|eur|🇪🇺)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,5}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "eu" },
+    { id: "GBP", name: "جنيه إسترليني", regex: "(?:باوند|استرليني|الباوند|💷|gbp|🇬🇧)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,5}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "gb" },
+    { id: "TND", name: "دينار تونسي", regex: "(?:(?:تونسي|تونس|tnd|🇹🇳)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,5}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?)|(?:(?:بيع|شراء)?[^\\d]{0,5}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,5}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?[^\\d]{0,25}(?:تونسي|تونس|tnd|🇹🇳))", min: 0.1, max: 10.0, isInverse: false, flag: "tn" },
+    { id: "EGP", name: "جنيه مصري", regex: "(?:(?:مصري|مصر|egp|🇪🇬)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,5}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?)|(?:(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,5}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?[^\\d]{0,25}(?:مصري|مصر|egp|🇪🇬))", min: 0.01, max: 5.0, isInverse: false, flag: "eg" },
+    { id: "TRY", name: "ليرة تركية", regex: "(?:(?:ليرة|تركي|try|🇹🇷)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,5}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?)|(?:(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,5}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?[^\\d]{0,25}(?:ليرة|تركي|try|🇹🇷))", min: 0.01, max: 5.0, isInverse: false, flag: "tr" },
+    { id: "JOD", name: "دينار أردني", regex: "(?:jod|JOD|أردني|🇯🇴)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,5}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 30.0, isInverse: false, flag: "jo" },
+    { id: "BHD", name: "دينار بحريني", regex: "(?:bhd|BHD|بحريني|🇧🇭)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,5}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 10.0, max: 50.0, isInverse: false, flag: "bh" },
+    { id: "KWD", name: "دينار كويتي", regex: "(?:kwd|KWD|كويتي|🇰🇼)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,5}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 10.0, max: 60.0, isInverse: false, flag: "kw" },
+    { id: "AED", name: "درهم إماراتي", regex: "(?:aed|AED|إماراتي|امارات|🇦🇪)[^\\d]{0,25}(\\d{0,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,5}(\\d{0,2}(?:[\\.,]\\d{1,4})?))?", min: 0.5, max: 10.0, isInverse: false, flag: "ae" },
+    { id: "SAR", name: "ريال سعودي", regex: "(?:sar|SAR|سعودي|ريال|🇸🇦)[^\\d]{0,25}(\\d{0,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,5}(\\d{0,2}(?:[\\.,]\\d{1,4})?))?", min: 0.5, max: 10.0, isInverse: false, flag: "sa" },
+    { id: "QAR", name: "ريال قطري", regex: "(?:qar|QAR|قطري|🇶🇦)[^\\d]{0,25}(\\d{0,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,5}(\\d{0,2}(?:[\\.,]\\d{1,4})?))?", min: 0.5, max: 10.0, isInverse: false, flag: "qa" },
+    { id: "USD_JBANK", name: "صكوك الجمهورية", regex: "(?:jbank|الجمهورية|صكوك|بصك)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,5}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
+    { id: "USD_BCD", name: "صكوك التجارة", regex: "(?:bcd|التجارة والتنمية)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,5}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
+    { id: "USD_NCB", name: "صكوك التجاري", regex: "(?:NCB|التجاري الوطني|صكوك|بصك)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,5}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
+    { id: "USD_AB", name: "صكوك الأمان", regex: "(?:AB|الأمان|الامان)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,5}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
+    { id: "USD_WB", name: "صكوك الوحدة", regex: "(?:WB|الوحدة)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,5}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
+    { id: "USD_AE", name: "حوالات دبي", regex: "(?:دبي|امارات|الإمارات|🇦🇪)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,5}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "ae" },
+    { id: "USD_TR", name: "حوالات تركيا", regex: "(?:تركيا|تركي|🇹🇷)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,5}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "tr" },
+    { id: "USD_CN", name: "حوالات الصين", regex: "(?:الصين|صينية|🇨🇳)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,5}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "cn" },
+    { id: "CNY", name: "يوان صيني", regex: "(?:cny|CNY|يوان|🇨🇳)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,5}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 0.5, max: 5.0, isInverse: false, flag: "cn" },
+    { id: "GOLD_EXT_18", name: "ذهب خارجي 18", regex: "(?:ذهب خارجي 18|خارجي 18|عيار 18 خارجي|18 خارجي)[^\\d]{0,25}(\\d{2,4}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,5}(\\d{2,4}(?:[\\.,]\\d+)?))?", min: 100, max: 5000, isInverse: false, flag: "ly" },
+    { id: "GOLD_EXT_21", name: "ذهب خارجي 21", regex: "(?:ذهب خارجي 21|خارجي 21|عيار 21 خارجي|21 خارجي)[^\\d]{0,25}(\\d{2,4}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,5}(\\d{2,4}(?:[\\.,]\\d+)?))?", min: 100, max: 5000, isInverse: false, flag: "ly" },
+    { id: "GOLD_SCRAP_18", name: "ذهب كسر 18", regex: "(?:ذهب كسر 18|كسر 18|عيار 18 كسر|18 كسر)[^\\d]{0,25}(\\d{2,4}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,5}(\\d{2,4}(?:[\\.,]\\d+)?))?", min: 100, max: 5000, isInverse: false, flag: "ly" },
+    { id: "GOLD_SCRAP_21", name: "ذهب كسر 21", regex: "(?:ذهب كسر 21|كسر 21|عيار 21 كسر|21 كسر)[^\\d]{0,25}(\\d{2,4}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,5}(\\d{2,4}(?:[\\.,]\\d+)?))?", min: 100, max: 5000, isInverse: false, flag: "ly" },
+    { id: "GOLD_CAST_18", name: "ذهب مسبوك 18", regex: "(?:ذهب مسبوك 18|مسبوك 18|عيار 18 مسبوك|18 مسبوك)[^\\d]{0,25}(\\d{2,4}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,5}(\\d{2,4}(?:[\\.,]\\d+)?))?", min: 100, max: 5000, isInverse: false, flag: "ly" },
+    { id: "GOLD_CAST_24", name: "ذهب مسبوك 24", regex: "(?:ذهب مسبوك 24|مسبوك 24|عيار 24 مسبوك|24 مسبوك)[^\\d]{0,25}(\\d{2,4}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,5}(\\d{2,4}(?:[\\.,]\\d+)?))?", min: 100, max: 5000, isInverse: false, flag: "ly" },
+    { id: "GOLD_LIRA_8G", name: "ليرة ذهب 8 جرام", regex: "(?:ليرة ذهب 8 جرام|ليرة ذهب|ليرة 8 جرام|ليرة 8ج)[^\\d]{0,25}(\\d{2,5}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,5}(\\d{2,5}(?:[\\.,]\\d+)?))?", min: 1000, max: 20000, isInverse: false, flag: "ly" },
+    { id: "GOLD_MUJARA_14G", name: "مجارة ذهب 14 جرام", regex: "(?:مجارة ذهب 14 جرام|مجارة 14 جرام|مجارة 14)[^\\d]{0,25}(\\d{2,5}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,5}(\\d{2,5}(?:[\\.,]\\d+)?))?", min: 1000, max: 35000, isInverse: false, flag: "ly" },
+    { id: "GOLD", name: "كسر الذهب", regex: "(?:كسر الذهب|ذهبي|ذهب|💎)[^\\d]{0,25}(\\d{2,4}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,5}(\\d{2,4}(?:[\\.,]\\d+)?))?", min: 100, max: 5000, isInverse: false, flag: "ly" },
+    { id: "SILVER_CAST_1000", name: "مسبوك فضة عيار 1000", regex: "(?:مسبوك فضة عيار 1000|مسبوك فضة 1000|فضة 1000)[^\\d]{0,25}(\\d{1,3}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,5}(\\d{1,3}(?:[\\.,]\\d+)?))?", min: 1, max: 500, isInverse: false, flag: "ly" },
+    { id: "SILVER_SCRAP", name: "كسر فضة", regex: "(?:كسر فضة|كسر الفضة|فضة كسر)[^\\d]{0,25}(\\d{1,3}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,5}(\\d{1,3}(?:[\\.,]\\d+)?))?", min: 1, max: 500, isInverse: false, flag: "ly" },
     { id: "OFFICIAL_USD", name: "الدولار الرسمي", regex: "(?:الرسمي|المركزي)[^\\d]{0,25}(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 4.0, max: 6.0, isInverse: false, flag: "us" }
   ]
 };
@@ -925,22 +942,46 @@ async function fetchParallelRatesFromTelegram() {
 
               let valStr = null;
               
-              // match[1] and match[2] are for "Name Number1 Number2" format
-              // match[3] and match[4] are for "Number1 Number2 Name" format (used in TND, EGP, TRY)
+              // Groups: match[1] = first number, match[2] = second number
+              // But if it's the alternative format (TND/EGP/TRY), match[1/3] and match[2/4]
               const firstCapturedNum = match[1] || match[3];
               const secondCapturedNum = match[2] || match[4];
               
               if (firstCapturedNum) {
-                // If there's a second number, it's usually the "Sell" price, which is what we want.
-                // However, we must ensure the second number isn't actually for a different category.
-                // E.g., "USD 7.00 صكوك 7.10" -> 7.10 is for checks, not cash.
-                const partAfterFirstNum = match[0].split(firstCapturedNum)[1] || "";
-                const hasCategorySeparator = /صكوك|بصك|شيك|مصرف|مقاصة|كاش|نقدي/i.test(partAfterFirstNum);
-
-                if (secondCapturedNum && !hasCategorySeparator) {
-                  valStr = secondCapturedNum; // Use the second number (Sell price)
+                // Check if first number is probably a date
+                const firstIndex = cleanText.indexOf(firstCapturedNum);
+                if (isProbablyDate(cleanText, firstIndex, firstCapturedNum)) {
+                  // If first is date, check if there's a second one that isn't a date
+                  if (secondCapturedNum) {
+                    const secondIndex = cleanText.indexOf(secondCapturedNum, firstIndex + firstCapturedNum.length);
+                    if (!isProbablyDate(cleanText, secondIndex, secondCapturedNum)) {
+                       valStr = secondCapturedNum;
+                    }
+                  }
+                  if (!valStr) return; // Both are dates or only first was date
                 } else {
-                  valStr = firstCapturedNum; // Use the first number (Buy price or only price)
+                  // First is NOT a date. Now check for "Buy/Sell" context.
+                  const matchContent = match[0];
+                  
+                  // Check if "بيع" (Sell) precedes the second number or follows the first
+                  const hasSellKeyword = /بيع/i.test(matchContent);
+                  const hasBuyKeyword = /شراء/i.test(matchContent);
+
+                  if (secondCapturedNum && hasSellKeyword && !hasBuyKeyword) {
+                    valStr = secondCapturedNum; // Explicitly Sell
+                  } else if (secondCapturedNum) {
+                    // Fallback to existing logic: second is usually sell
+                    const partAfterFirstNum = matchContent.split(firstCapturedNum)[1] || "";
+                    const hasCategorySeparator = /صكوك|بصك|شيك|مصرف|مقاصة|كاش|نقدي/i.test(partAfterFirstNum);
+                    
+                    if (!hasCategorySeparator) {
+                      valStr = secondCapturedNum;
+                    } else {
+                      valStr = firstCapturedNum;
+                    }
+                  } else {
+                    valStr = firstCapturedNum;
+                  }
                 }
               }
               
@@ -948,13 +989,17 @@ async function fetchParallelRatesFromTelegram() {
                 let val = parseFloat(valStr.replace(',', '.'));
                 
                 // Smart inverse logic for TND, EGP, and TRY
-                if (key === 'TND' && val < 1.0 && val > 0) val = 1 / val;
-                if (key === 'EGP' && val > 1.0) val = 1 / val;
-                if (key === 'TRY' && val > 1.0) val = 1 / val;
+                // Refined: Only inverse if the value is clearly in the "wrong" unit
+                if (key === 'TND' && val < 0.6 && val > 0) val = 1 / val;
+                if (key === 'EGP' && val > 10.0) val = 1 / val;
+                if (key === 'TRY' && val > 10.0) val = 1 / val;
                 
                 if (isInverse && val > 0) val = 1 / val;
                 if (!isNaN(val) && val >= min && val <= max) {
-                  priceHistory[key].push({ value: val, time, channel });
+                   // Ensure it's not a year (extra safety)
+                   if (val > 1900 && val < 2100 && key !== 'GOLD' && !key.startsWith('GOLD_')) return;
+                   
+                   priceHistory[key].push({ value: val, time, channel });
                 }
               }
             };
@@ -979,8 +1024,30 @@ async function fetchParallelRatesFromTelegram() {
     let newestMessageTime = 0;
 
     for (const key in priceHistory) {
+      if (priceHistory[key].length === 0) continue;
+
+      // Consensus Filter: If we have multiple points, find the mode or median to ignore outliers
+      let filteredHistory = priceHistory[key];
+      if (priceHistory[key].length >= 3) {
+        // Simple consensus: Group by price (rounded to 2 decimals)
+        const counts: Record<string, number> = {};
+        priceHistory[key].forEach(p => {
+          const rounded = p.value.toFixed(2);
+          counts[rounded] = (counts[rounded] || 0) + 1;
+        });
+        
+        const sortedCounts = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+        const topPrice = parseFloat(sortedCounts[0][0]);
+        const topCount = sortedCounts[0][1];
+        
+        // If more than 50% agree on a price (or close to it), filter to that neighborhood
+        if (topCount >= 2) {
+          filteredHistory = priceHistory[key].filter(p => Math.abs(p.value - topPrice) < (topPrice * 0.05));
+        }
+      }
+
       // Sort: Newest first, but if times are equal, prefer our owner channel 'djheih2026'
-      const historyArr = priceHistory[key].sort((a, b) => {
+      const historyArr = filteredHistory.sort((a, b) => {
         if (b.time !== a.time) return b.time - a.time;
         if (b.channel === "djheih2026") return 1;
         if (a.channel === "djheih2026") return -1;
@@ -994,7 +1061,7 @@ async function fetchParallelRatesFromTelegram() {
           newestMessageTime = msgTime;
         }
         
-        // Find the true previous price
+        // Find the true previous price (from the same filtered history)
         for (let i = 1; i < historyArr.length; i++) {
           if (historyArr[i].value !== latestRates[key]) {
             previousRates[key] = historyArr[i].value;
