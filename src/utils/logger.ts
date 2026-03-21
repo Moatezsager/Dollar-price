@@ -3,10 +3,21 @@ export const logErrorToServer = async (error: Error | string | unknown, context?
     let message = "Unknown error";
     let stack = "";
 
+    if (error && typeof error === 'object') {
+      const errName = (error as any).name;
+      const errMsg = (error as any).message;
+      if (errName === 'AbortError' || errName === 'TimeoutError' || (typeof errMsg === 'string' && errMsg.includes('signal timed out'))) {
+        return; // Ignore network timeout errors to prevent log spam
+      }
+    }
+
     if (error instanceof Error) {
       message = error.message;
       stack = error.stack || "";
     } else if (typeof error === "string") {
+      if (error.includes('AbortError') || error.includes('TimeoutError') || error.includes('signal timed out')) {
+        return;
+      }
       message = error;
     } else {
       try {

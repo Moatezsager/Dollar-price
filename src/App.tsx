@@ -980,12 +980,15 @@ export default function App() {
         addToast("تم تحديث الأسعار", "تم رصد تغييرات جديدة في السوق وتحديث البيانات", "info");
       }
     } catch (error) {
-      if (error instanceof TypeError && error.message === "Failed to fetch") {
+      const errName = error && typeof error === 'object' ? (error as any).name : '';
+      const errMsg = error && typeof error === 'object' ? (error as any).message : '';
+      
+      if (error instanceof TypeError && errMsg === "Failed to fetch") {
         console.warn("Server might be restarting or network is down...");
-      } else if (error instanceof Error && error.name === 'AbortError') {
+      } else if (errName === 'AbortError' || errName === 'TimeoutError' || (typeof errMsg === 'string' && errMsg.includes('signal timed out'))) {
         console.warn("Fetch request timed out");
       } else {
-        const isNetworkError = error instanceof Error && error.message.includes("Network response was not ok");
+        const isNetworkError = typeof errMsg === 'string' && errMsg.includes("Network response was not ok");
         
         if (!isNetworkError) {
           console.error("Failed to fetch data:", error);
