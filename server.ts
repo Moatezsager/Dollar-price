@@ -259,6 +259,27 @@ interface PriceChangeLog {
 
 const recentChangesLog: PriceChangeLog[] = [];
 
+async function logPriceChange(change: PriceChangeLog) {
+  recentChangesLog.unshift(change);
+  if (recentChangesLog.length > 200) recentChangesLog.pop();
+
+  if (supabase && supabaseAnonKey && !supabaseAnonKey.includes('dummy')) {
+    try {
+      await supabase.from('price_changes_log').insert([{
+        id: change.id,
+        currency_code: change.currencyCode,
+        currency_name: change.currencyName,
+        old_price: change.oldPrice,
+        new_price: change.newPrice,
+        source: change.source,
+        created_at: change.timestamp
+      }]);
+    } catch (e) {
+      console.error("Failed to insert price change log to Supabase", e);
+    }
+  }
+}
+
 let lastRatesFetchTime = 0;
 const RATES_CACHE_TTL = 30 * 1000; // 30 seconds
 
@@ -1106,7 +1127,7 @@ async function fetchParallelRatesFromTelegram() {
             rates.lastChanged.parallel[term.id] = new Date().toISOString();
             anyChanged = true;
             
-            recentChangesLog.unshift({
+            const changeLog = {
               id: Math.random().toString(36).substring(2, 9),
               currencyCode: term.id,
               currencyName: term.name,
@@ -1114,8 +1135,8 @@ async function fetchParallelRatesFromTelegram() {
               newPrice: newVal,
               source: latestSources[term.id] || "غير معروف",
               timestamp: new Date().toISOString()
-            });
-            if (recentChangesLog.length > 200) recentChangesLog.pop();
+            };
+            logPriceChange(changeLog);
           }
         } else if (!currentVal) {
           // Initialize with some fallback if it doesn't exist at all (initial setup)
@@ -1193,18 +1214,20 @@ const cleanupOldData = async () => {
     const cutoff = sevenDaysAgo.toISOString();
 
     // Perform all deletions in parallel for better performance
-    const [legacyRes, parallelRes, officialRes, logsRes] = await Promise.all([
+    const [legacyRes, parallelRes, officialRes, logsRes, changesRes] = await Promise.all([
       supabase.from('exchange_rates').delete({ count: 'exact' }).lt('recorded_at', cutoff),
       supabase.from('parallel_rates').delete({ count: 'exact' }).lt('recorded_at', cutoff),
       supabase.from('official_rates').delete({ count: 'exact' }).lt('recorded_at', cutoff),
-      supabase.from('error_logs').delete({ count: 'exact' }).lt('created_at', cutoff)
+      supabase.from('error_logs').delete({ count: 'exact' }).lt('created_at', cutoff),
+      supabase.from('price_changes_log').delete({ count: 'exact' }).lt('created_at', cutoff)
     ]);
 
     const removedRates = (legacyRes.count || 0) + (parallelRes.count || 0) + (officialRes.count || 0);
     const removedLogs = logsRes.count || 0;
+    const removedChanges = changesRes.count || 0;
 
     // Log any errors that occurred during parallel deletion, ignoring missing tables
-    const errors = [legacyRes.error, parallelRes.error, officialRes.error, logsRes.error]
+    const errors = [legacyRes.error, parallelRes.error, officialRes.error, logsRes.error, changesRes.error]
       .filter(err => err && err.code !== '42P01');
 
     if (errors.length > 0) {
@@ -1212,11 +1235,12 @@ const cleanupOldData = async () => {
         legacy: legacyRes.error?.message, 
         parallel: parallelRes.error?.message, 
         official: officialRes.error?.message, 
-        logs: logsRes.error?.message 
+        logs: logsRes.error?.message,
+        changes: changesRes.error?.message
       });
     }
 
-    console.log(`Database cleanup completed. Removed ${removedRates} rates and ${removedLogs} logs older than 7 days.`);
+    console.log(`Database cleanup completed. Removed ${removedRates} rates, ${removedLogs} logs, and ${removedChanges} price changes older than 7 days.`);
   } catch (error) {
     console.error("Failed to run database cleanup:", error);
   }
@@ -1488,7 +1512,7 @@ async function startServer() {
             changed = true;
             
             const term = appConfig.terms.find(t => t.id === key);
-            recentChangesLog.unshift({
+            const changeLog = {
               id: Math.random().toString(36).substring(2, 9),
               currencyCode: key,
               currencyName: term ? term.name : key,
@@ -1496,8 +1520,8 @@ async function startServer() {
               newPrice: numValue,
               source: "تعديل يدوي (المدير)",
               timestamp: new Date().toISOString()
-            });
-            if (recentChangesLog.length > 200) recentChangesLog.pop();
+            };
+            logPriceChange(changeLog);
           }
         }
       }
@@ -1742,8 +1766,44 @@ async function startServer() {
     }
   });
 
-  app.get("/api/recent-changes", (req: express.Request, res: express.Response) => {
+  app.get("/api/recent-changes", async (req: express.Request, res: express.Response) => {
+    if (supabase && supabaseAnonKey && !supabaseAnonKey.includes('dummy')) {
+      try {
+        const { data, error } = await supabase
+          .from('price_changes_log')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(200);
+          
+        if (!error && data) {
+          return res.json(data.map(d => ({
+            id: d.id,
+            currencyCode: d.currency_code,
+            currencyName: d.currency_name,
+            oldPrice: d.old_price,
+            newPrice: d.new_price,
+            source: d.source,
+            timestamp: d.created_at
+          })));
+        }
+      } catch (e) {
+        console.error("Failed to fetch price changes from Supabase", e);
+      }
+    }
     res.json(recentChangesLog);
+  });
+
+  app.delete("/api/admin/recent-changes", requireAdmin, async (req: express.Request, res: express.Response) => {
+    recentChangesLog.length = 0; // Clear memory cache
+    if (supabase && supabaseAnonKey && !supabaseAnonKey.includes('dummy')) {
+      try {
+        // Delete all records
+        await supabase.from('price_changes_log').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      } catch (e) {
+        console.error("Failed to clear price changes in Supabase", e);
+      }
+    }
+    res.json({ success: true });
   });
 
   app.get("/api/history", async (req: express.Request, res: express.Response) => {
