@@ -19,6 +19,12 @@ interface Stats {
   termsCount: number;
   serverUptime: number;
   memoryUsage: { rss: number; heapUsed: number; heapTotal: number };
+  dbStats?: {
+    parallelRatesCount: number;
+    officialRatesCount: number;
+    errorLogsCount: number;
+    priceChangesCount: number;
+  };
 }
 
 const extractKeywordsAndSuffix = (regex: string) => {
@@ -57,6 +63,23 @@ export default function Admin() {
   const [newKeywords, setNewKeywords] = useState<Record<number, string>>({});
   const [searchPath, setSearchPath] = useState("");
   const [recentChanges, setRecentChanges] = useState<any[]>([]);
+  const [connectionStatus, setConnectionStatus] = useState<'online' | 'offline' | 'checking'>('checking');
+
+  const fetchWithTimeout = async (resource: string, options: any = {}, timeout = 8000) => {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeout);
+    try {
+      const response = await fetch(resource, {
+        ...options,
+        signal: controller.signal
+      });
+      clearTimeout(id);
+      return response;
+    } catch (error) {
+      clearTimeout(id);
+      throw error;
+    }
+  };
 
   const [aiText, setAiText] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
@@ -92,7 +115,7 @@ export default function Admin() {
 
   const fetchConfig = async () => {
     try {
-      const res = await fetch("/api/admin/config", {
+      const res = await fetchWithTimeout("/api/admin/config", {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -111,22 +134,35 @@ export default function Admin() {
 
   const fetchStats = async () => {
     try {
-      const res = await fetch("/api/admin/stats", {
+      const res = await fetchWithTimeout("/api/admin/stats", {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
         const data = await res.json();
         setStats(data);
+        setConnectionStatus('online');
+      } else {
+        if (res.status === 401 || res.status === 403) {
+          setToken("");
+          try { localStorage.removeItem("adminToken"); } catch (e) {}
+        }
+        setConnectionStatus('offline');
       }
     } catch (err) {
-      console.warn("Stats fetch failed");
-      logErrorToServer(err, "Admin.tsx: fetchStats");
+      // Don't spam server logs for network failures
+      if (err instanceof TypeError && err.message === 'Failed to fetch') {
+        console.warn("Stats fetch failed: Network error");
+      } else {
+        console.warn("Stats fetch failed:", err);
+        logErrorToServer(err, "Admin.tsx: fetchStats");
+      }
+      setConnectionStatus('offline');
     }
   };
 
   const fetchLogs = async () => {
     try {
-      const res = await fetch("/api/admin/error-logs", {
+      const res = await fetchWithTimeout("/api/admin/error-logs", {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -143,7 +179,7 @@ export default function Admin() {
 
   const fetchRecentChanges = async () => {
     try {
-      const res = await fetch("/api/recent-changes");
+      const res = await fetchWithTimeout("/api/recent-changes");
       if (res.ok) {
         const data = await res.json();
         setRecentChanges(Array.isArray(data) ? data : []);
@@ -248,6 +284,34 @@ export default function Admin() {
       setError("فشل تحديث البيانات");
     }
     setRefreshing(false);
+  };
+
+  const [confirmCleanup, setConfirmCleanup] = useState(false);
+  const handleCleanup = async () => {
+    if (!confirmCleanup) {
+      setConfirmCleanup(true);
+      setTimeout(() => setConfirmCleanup(false), 3000);
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch("/api/admin/cleanup", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSuccess("تم تنظيف البيانات القديمة بنجاح!");
+        fetchStats();
+        setConfirmCleanup(false);
+        setTimeout(() => setSuccess(""), 3000);
+      } else {
+        setError(data.message);
+      }
+    } catch (err) {
+      setError("فشل تنظيف البيانات");
+    }
+    setLoading(false);
   };
 
   const handleLogout = () => {
@@ -451,6 +515,12 @@ export default function Admin() {
           </div>
 
           <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 rounded-xl border border-white/5">
+              <div className={`w-2 h-2 rounded-full ${connectionStatus === 'online' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]' : connectionStatus === 'offline' ? 'bg-rose-500 animate-pulse' : 'bg-amber-500 animate-pulse'}`} />
+              <span className="text-[10px] font-black uppercase tracking-wider text-white/40">
+                {connectionStatus === 'online' ? 'Connected' : connectionStatus === 'offline' ? 'Offline' : 'Syncing'}
+              </span>
+            </div>
             <button
                onClick={triggerRefresh}
                disabled={refreshing}
@@ -939,6 +1009,56 @@ export default function Admin() {
                   </div>
                 </section>
 
+                {/* Database Stats */}
+                {stats?.dbStats && (
+                  <section className="bg-[#0a0a0a] border border-white/10 rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 blur-[80px] rounded-full pointer-events-none"></div>
+                    <div className="relative">
+                      <h2 className="text-xl font-black flex items-center gap-3 text-white mb-8">
+                        <Layers className="w-6 h-6 text-emerald-400" />
+                        إحصائيات قاعدة البيانات
+                      </h2>
+                      
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                        <div className="bg-white/[0.02] border border-white/5 p-6 rounded-3xl">
+                          <p className="text-xs text-zinc-500 uppercase tracking-widest font-black mb-2">سجلات الأسعار</p>
+                          <p className="text-2xl font-black text-white font-mono">{stats.dbStats.parallelRatesCount.toLocaleString()}</p>
+                        </div>
+                        <div className="bg-white/[0.02] border border-white/5 p-6 rounded-3xl">
+                          <p className="text-xs text-zinc-500 uppercase tracking-widest font-black mb-2">السعر الرسمي</p>
+                          <p className="text-2xl font-black text-white font-mono">{stats.dbStats.officialRatesCount.toLocaleString()}</p>
+                        </div>
+                        <div className="bg-white/[0.02] border border-white/5 p-6 rounded-3xl">
+                          <p className="text-xs text-zinc-500 uppercase tracking-widest font-black mb-2">سجل التغيرات</p>
+                          <p className="text-2xl font-black text-blue-400 font-mono">{stats.dbStats.priceChangesCount.toLocaleString()}</p>
+                        </div>
+                        <div className="bg-white/[0.02] border border-white/5 p-6 rounded-3xl">
+                          <p className="text-xs text-zinc-500 uppercase tracking-widest font-black mb-2">سجلات الأخطاء</p>
+                          <p className="text-2xl font-black text-rose-400 font-mono">{stats.dbStats.errorLogsCount.toLocaleString()}</p>
+                        </div>
+                      </div>
+
+                      <div className="mt-8 pt-8 border-t border-white/5">
+                        <button 
+                          onClick={handleCleanup}
+                          disabled={loading}
+                          className={`w-full py-4 rounded-2xl font-black flex items-center justify-center gap-2 transition-all ${
+                            confirmCleanup 
+                              ? 'bg-rose-500 text-black shadow-lg shadow-rose-500/20' 
+                              : 'bg-white/5 text-zinc-400 hover:text-white border border-white/5'
+                          }`}
+                        >
+                          <Trash2 className="w-5 h-5" />
+                          {confirmCleanup ? 'تأكيد تنظيف البيانات (أقدم من 7 أيام)؟' : 'تنظيف البيانات القديمة يدوياً'}
+                        </button>
+                        <p className="text-[10px] text-zinc-600 text-center mt-3 font-medium">
+                          * يتم تنظيف البيانات تلقائياً كل أسبوع للحفاظ على سرعة النظام.
+                        </p>
+                      </div>
+                    </div>
+                  </section>
+                )}
+
                 <section className="bg-white/[0.02] border border-white/5 rounded-[2rem] p-8">
                   <h2 className="text-xl font-black mb-8 flex items-center gap-3">
                     <CheckCircle2 className="w-6 h-6 text-blue-400" />
@@ -954,6 +1074,39 @@ export default function Admin() {
                         <span className="text-[10px] text-zinc-600 font-mono group-hover:text-zinc-400 transition-colors">Monitoring...</span>
                       </div>
                     ))}
+                  </div>
+                </section>
+
+                <section className="bg-white/[0.02] border border-white/5 rounded-[2rem] p-8">
+                  <h2 className="text-xl font-black mb-8 flex items-center gap-3">
+                    <Zap className="w-6 h-6 text-purple-400" />
+                    حالة الكاشط (Scraper)
+                  </h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <div className="p-6 rounded-2xl bg-white/[0.03] border border-white/5">
+                      <span className="text-zinc-500 text-sm block mb-2">آخر تحديث ناجح</span>
+                      <p className="text-xl font-bold text-green-400">
+                        {stats?.lastSuccessfulScrape ? format(new Date(stats.lastSuccessfulScrape), 'HH:mm:ss', { locale: ar }) : 'غير متوفر'}
+                      </p>
+                    </div>
+                    <div className="p-6 rounded-2xl bg-white/[0.03] border border-white/5">
+                      <span className="text-zinc-500 text-sm block mb-2">الوقت المنقضي</span>
+                      <p className={`text-xl font-bold ${stats?.minutesSinceLastScrape && stats.minutesSinceLastScrape > 30 ? 'text-rose-400' : 'text-white'}`}>
+                        {stats?.minutesSinceLastScrape ?? '?'} دقيقة
+                      </p>
+                    </div>
+                    <div className="p-6 rounded-2xl bg-white/[0.03] border border-white/5">
+                      <span className="text-zinc-500 text-sm block mb-2">استهلاك الذاكرة (RSS)</span>
+                      <p className="text-xl font-bold text-white">
+                        {stats?.memoryUsage ? `${Math.round(stats.memoryUsage.rss / 1024 / 1024)} MB` : '---'}
+                      </p>
+                    </div>
+                    <div className="p-6 rounded-2xl bg-white/[0.03] border border-white/5">
+                      <span className="text-zinc-500 text-sm block mb-2">وقت تشغيل السيرفر</span>
+                      <p className="text-xl font-bold text-white">
+                        {stats?.serverUptime ? `${Math.floor(stats.serverUptime / 3600)}h ${Math.floor((stats.serverUptime % 3600) / 60)}m` : '---'}
+                      </p>
+                    </div>
                   </div>
                 </section>
               </div>

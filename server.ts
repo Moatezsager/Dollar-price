@@ -916,7 +916,13 @@ async function saveConfigToSupabase(newConfig: AppConfig) {
 // Telegram channels for parallel market rates
 let lastSuccessfulScrape = new Date();
 
+let isScraping = false;
 async function fetchParallelRatesFromTelegram() {
+  if (isScraping) {
+    console.log("[Scraper] Scrape already in progress, skipping...");
+    return null;
+  }
+  isScraping = true;
   try {
     const priceHistory: Record<string, { value: number, time: number, channel: string }[]> = {};
     for (const term of appConfig.terms) {
@@ -928,19 +934,59 @@ async function fetchParallelRatesFromTelegram() {
     let totalMessagesProcessed = 0;
 
     const scrapeResults = await Promise.allSettled(appConfig.channels.map(async (channel) => {
+      const startTime = Date.now();
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000);
-        const response = await fetch(`https://t.me/s/${channel}`, { signal: controller.signal });
+        const timeoutId = setTimeout(() => controller.abort(), 12000); // Reduced timeout
+        const response = await fetch(`https://t.me/s/${channel}`, { 
+          signal: controller.signal,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9,ar;q=0.8',
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
+          }
+        });
         clearTimeout(timeoutId);
-        if (!response.ok) return null;
-        const html = await response.text();
-        return { channel, html };
-        } catch (e) {
-          console.error(`Failed to fetch ${channel}:`, e);
-          await logErrorArabic(`فشل الاتصال بقناة تيليجرام: ${channel}`, "الكاشط", String(e));
+        const duration = Date.now() - startTime;
+
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => "No error body");
+          console.warn(`[Scraper] Channel ${channel} returned status ${response.status} after ${duration}ms: ${errorText.substring(0, 50)}`);
           return null;
         }
+        const html = await response.text();
+        console.log(`[Scraper] Successfully fetched ${channel} in ${duration}ms. HTML size: ${Math.round(html.length / 1024)}KB`);
+        
+        // Check if we got a redirect or a non-Telegram page
+        if (!html.includes('tgme_page_wrap') && !html.includes('tgme_widget_message_wrap')) {
+          console.warn(`[Scraper] Channel ${channel} returned unexpected HTML content (length: ${html.length})`);
+          return null;
+        }
+
+        // Check for Telegram anti-bot protection
+        if (html.includes("verify you are a human") || html.includes("robot") || html.includes("captcha")) {
+          console.warn(`[Scraper] Channel ${channel} is blocked by Telegram anti-bot protection.`);
+          logErrorArabic(`قناة ${channel} محجوبة حالياً بواسطة حماية تيليجرام (Anti-bot)`, "الكاشط");
+          return null;
+        }
+
+        return { channel, html };
+      } catch (e) {
+        const duration = Date.now() - startTime;
+        const errorMsg = e instanceof Error ? e.message : String(e);
+        console.error(`[Scraper] Failed to fetch ${channel} after ${duration}ms:`, errorMsg);
+        // Don't await here to avoid blocking the whole scraper if Supabase is slow
+        logErrorArabic(`فشل الاتصال بقناة تيليجرام: ${channel}`, "الكاشط", errorMsg);
+        return null;
+      }
+    }));
+
+    // Pre-compile regexes for performance
+    const compiledTerms = appConfig.terms.map(t => ({
+      ...t,
+      compiledRegex: new RegExp(t.regex, 'i')
     }));
 
     for (const result of scrapeResults) {
@@ -948,10 +994,13 @@ async function fetchParallelRatesFromTelegram() {
         const { channel, html } = result.value;
         const messageBlocks = html.split('tgme_widget_message_wrap');
         
-        if (messageBlocks.length > 1) {
-          successfulChannels++;
-          totalMessagesProcessed += (messageBlocks.length - 1);
+        if (messageBlocks.length <= 1) {
+          console.warn(`[Scraper] No message blocks found for channel ${channel}. HTML length: ${html.length}`);
+          continue;
         }
+
+        successfulChannels++;
+        totalMessagesProcessed += (messageBlocks.length - 1);
 
         let newestMessageInChannel = { text: '', time: 0 };
 
@@ -968,42 +1017,33 @@ async function fetchParallelRatesFromTelegram() {
               newestMessageInChannel = { text: cleanText, time };
             }
 
-            const extractRate = (regexStr: string, key: string, min: number, max: number, isInverse = false) => {
-              const regex = new RegExp(regexStr, 'i');
-              const match = cleanText.match(regex);
+            const extractRate = (compiledRegex: RegExp, key: string, min: number, max: number, isInverse = false) => {
+              const match = cleanText.match(compiledRegex);
               if (!match) return;
 
               let valStr = null;
               
-              // Groups: match[1] = first number, match[2] = second number
-              // But if it's the alternative format (TND/EGP/TRY), match[1/3] and match[2/4]
               const firstCapturedNum = match[1] || match[3];
               const secondCapturedNum = match[2] || match[4];
               
               if (firstCapturedNum) {
-                // Check if first number is probably a date
-                const firstIndex = cleanText.indexOf(firstCapturedNum);
+                const firstIndex = match.index! + match[0].indexOf(firstCapturedNum);
                 if (isProbablyDate(cleanText, firstIndex, firstCapturedNum)) {
-                  // If first is date, check if there's a second one that isn't a date
                   if (secondCapturedNum) {
-                    const secondIndex = cleanText.indexOf(secondCapturedNum, firstIndex + firstCapturedNum.length);
+                    const secondIndex = match.index! + match[0].indexOf(secondCapturedNum);
                     if (!isProbablyDate(cleanText, secondIndex, secondCapturedNum)) {
                        valStr = secondCapturedNum;
                     }
                   }
-                  if (!valStr) return; // Both are dates or only first was date
+                  if (!valStr) return;
                 } else {
-                  // First is NOT a date. Now check for "Buy/Sell" context.
                   const matchContent = match[0];
-                  
-                  // Check if "بيع" (Sell) precedes the second number or follows the first
                   const hasSellKeyword = /بيع/i.test(matchContent);
                   const hasBuyKeyword = /شراء/i.test(matchContent);
 
                   if (secondCapturedNum && hasSellKeyword && !hasBuyKeyword) {
-                    valStr = secondCapturedNum; // Explicitly Sell
+                    valStr = secondCapturedNum;
                   } else if (secondCapturedNum) {
-                    // Fallback to existing logic: second is usually sell
                     const partAfterFirstNum = matchContent.split(firstCapturedNum)[1] || "";
                     const hasCategorySeparator = /صكوك|بصك|شيك|مصرف|مقاصة|كاش|نقدي/i.test(partAfterFirstNum);
                     
@@ -1021,24 +1061,20 @@ async function fetchParallelRatesFromTelegram() {
               if (valStr) {
                 let val = parseFloat(valStr.replace(',', '.'));
                 
-                // Smart inverse logic for TND, EGP, and TRY
-                // Refined: Only inverse if the value is clearly in the "wrong" unit
                 if (key === 'TND' && val < 0.6 && val > 0) val = 1 / val;
                 if (key === 'EGP' && val > 10.0) val = 1 / val;
                 if (key === 'TRY' && val > 10.0) val = 1 / val;
                 
                 if (isInverse && val > 0) val = 1 / val;
                 if (!isNaN(val) && val >= min && val <= max) {
-                   // Ensure it's not a year (extra safety)
-                   if (val > 1900 && val < 2100 && key !== 'GOLD' && !key.startsWith('GOLD_')) return;
-                   
-                   priceHistory[key].push({ value: val, time, channel });
+                  if (val > 1900 && val < 2100 && key !== 'GOLD' && !key.startsWith('GOLD_')) return;
+                  priceHistory[key].push({ value: val, time, channel });
                 }
               }
             };
 
-            for (const term of appConfig.terms) {
-              extractRate(term.regex, term.id, term.min, term.max, term.isInverse);
+            for (const term of compiledTerms) {
+              extractRate(term.compiledRegex, term.id, term.min, term.max, term.isInverse);
             }
           }
         }
@@ -1050,7 +1086,12 @@ async function fetchParallelRatesFromTelegram() {
       console.log(`[Scraper] Successfully processed ${totalMessagesProcessed} messages from ${successfulChannels} channels.`);
     } else {
       console.warn("[Scraper] Failed to fetch any messages from any channels.");
+      logErrorArabic("فشل الكاشط في جلب أي بيانات من جميع القنوات", "الكاشط", `القنوات: ${appConfig.channels.join(', ')}`);
     }
+
+    // Memory monitoring
+    const mem = process.memoryUsage();
+    console.log(`[Scraper] Starting processing. Memory: RSS=${Math.round(mem.rss/1024/1024)}MB, Heap=${Math.round(mem.heapUsed/1024/1024)}MB`);
 
     const latestRates: Record<string, number> = {};
     const latestSources: Record<string, string> = {};
@@ -1192,6 +1233,9 @@ async function fetchParallelRatesFromTelegram() {
     return false;
   } catch (error) {
     console.error("Error fetching from Telegram:", error);
+    return false;
+  } finally {
+    isScraping = false;
   }
 }
 
@@ -1277,6 +1321,19 @@ async function startServer() {
       }
     });
   }
+
+  // Global Error Handlers
+  process.on('unhandledRejection', (reason, promise) => {
+    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+    logErrorArabic(`خطأ غير معالج في السيرفر: ${reason}`, "النظام", String(reason));
+  });
+
+  process.on('uncaughtException', (error) => {
+    console.error('Uncaught Exception:', error);
+    logErrorArabic(`خطأ فادح في السيرفر: ${error.message}`, "النظام", error.stack || "");
+    // Give some time for logging before exiting
+    setTimeout(() => process.exit(1), 1000);
+  });
 
   app.use(express.json());
   app.set('trust proxy', 1);
@@ -1401,17 +1458,62 @@ async function startServer() {
     }
   });
 
+  app.post("/api/admin/cleanup", requireAdmin, async (req: express.Request, res: express.Response) => {
+    try {
+      console.log(`[Admin] Manual cleanup triggered by ${req.user?.email || 'admin'}`);
+      await cleanupOldData();
+      res.json({ success: true, message: "تم تنظيف البيانات القديمة بنجاح" });
+    } catch (err) {
+      console.error("Manual cleanup failed:", err);
+      res.status(500).json({ success: false, message: "فشل تنظيف البيانات" });
+    }
+  });
+
   app.get("/api/admin/stats", requireAdmin, async (req: express.Request, res: express.Response) => {
-    const minutesSinceLastScrape = Math.floor((Date.now() - lastSuccessfulScrape.getTime()) / 60000);
-    res.json({
-      onlineUsers,
-      lastSuccessfulScrape: lastSuccessfulScrape.toISOString(),
-      minutesSinceLastScrape,
-      channelsCount: appConfig.channels.length,
-      termsCount: appConfig.terms.length,
-      serverUptime: process.uptime(),
-      memoryUsage: process.memoryUsage()
-    });
+    try {
+      const minutesSinceLastScrape = Math.floor((Date.now() - lastSuccessfulScrape.getTime()) / 60000);
+      
+      let dbStats = {
+        parallelRatesCount: 0,
+        officialRatesCount: 0,
+        errorLogsCount: 0,
+        priceChangesCount: 0
+      };
+
+      if (supabase && supabaseAnonKey && !supabaseAnonKey.includes('dummy')) {
+        try {
+          const [parallel, official, logs, changes] = await Promise.all([
+            supabase.from('parallel_rates').select('*', { count: 'exact', head: true }),
+            supabase.from('official_rates').select('*', { count: 'exact', head: true }),
+            supabase.from('error_logs').select('*', { count: 'exact', head: true }),
+            supabase.from('price_changes_log').select('*', { count: 'exact', head: true })
+          ]);
+
+          dbStats = {
+            parallelRatesCount: parallel.count || 0,
+            officialRatesCount: official.count || 0,
+            errorLogsCount: logs.count || 0,
+            priceChangesCount: changes.count || 0
+          };
+        } catch (e) {
+          console.error("Failed to fetch DB stats:", e);
+        }
+      }
+
+      res.json({
+        onlineUsers,
+        lastSuccessfulScrape: lastSuccessfulScrape.toISOString(),
+        minutesSinceLastScrape,
+        channelsCount: appConfig.channels.length,
+        termsCount: appConfig.terms.length,
+        serverUptime: process.uptime(),
+        memoryUsage: process.memoryUsage(),
+        dbStats
+      });
+    } catch (err) {
+      console.error("Stats fetch failed:", err);
+      res.status(500).json({ success: false, message: "فشل جلب الإحصائيات" });
+    }
   });
 
   app.get("/api/admin/error-logs", requireAdmin, async (req: express.Request, res: express.Response) => {
