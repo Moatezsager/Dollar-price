@@ -247,6 +247,18 @@ function isProbablyDate(text: string, matchIndex: number, matchValue: string): b
 
 
 
+interface PriceChangeLog {
+  id: string;
+  currencyCode: string;
+  currencyName: string;
+  oldPrice: number;
+  newPrice: number;
+  source: string;
+  timestamp: string;
+}
+
+const recentChangesLog: PriceChangeLog[] = [];
+
 let lastRatesFetchTime = 0;
 const RATES_CACHE_TTL = 30 * 1000; // 30 seconds
 
@@ -1020,6 +1032,7 @@ async function fetchParallelRatesFromTelegram() {
     }
 
     const latestRates: Record<string, number> = {};
+    const latestSources: Record<string, string> = {};
     const previousRates: Record<string, number> = {};
     let newestMessageTime = 0;
 
@@ -1056,6 +1069,7 @@ async function fetchParallelRatesFromTelegram() {
       
       if (historyArr.length > 0) {
         latestRates[key] = historyArr[0].value; // Newest price (with owner preference)
+        latestSources[key] = historyArr[0].channel; // Source of the newest price
         const msgTime = historyArr[0].time;
         if (msgTime > newestMessageTime) {
           newestMessageTime = msgTime;
@@ -1091,6 +1105,17 @@ async function fetchParallelRatesFromTelegram() {
             rates.parallel[term.id] = newVal;
             rates.lastChanged.parallel[term.id] = new Date().toISOString();
             anyChanged = true;
+            
+            recentChangesLog.unshift({
+              id: Math.random().toString(36).substring(2, 9),
+              currencyCode: term.id,
+              currencyName: term.name,
+              oldPrice: currentVal || 0,
+              newPrice: newVal,
+              source: latestSources[term.id] || "غير معروف",
+              timestamp: new Date().toISOString()
+            });
+            if (recentChangesLog.length > 200) recentChangesLog.pop();
           }
         } else if (!currentVal) {
           // Initialize with some fallback if it doesn't exist at all (initial setup)
@@ -1163,29 +1188,35 @@ const cleanupOldData = async () => {
   try {
     console.log("Running scheduled database cleanup...");
     
-    // 1. Clean up error_logs older than 7 days
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-    const { error: errLogsError } = await supabase
-      .from('error_logs')
-      .delete()
-      .lt('created_at', sevenDaysAgo);
-      
-    if (errLogsError && errLogsError.code !== '42P01') {
-      console.error("Error cleaning up error_logs:", errLogsError);
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const cutoff = sevenDaysAgo.toISOString();
+
+    // Perform all deletions in parallel for better performance
+    const [legacyRes, parallelRes, officialRes, logsRes] = await Promise.all([
+      supabase.from('exchange_rates').delete({ count: 'exact' }).lt('recorded_at', cutoff),
+      supabase.from('parallel_rates').delete({ count: 'exact' }).lt('recorded_at', cutoff),
+      supabase.from('official_rates').delete({ count: 'exact' }).lt('recorded_at', cutoff),
+      supabase.from('error_logs').delete({ count: 'exact' }).lt('created_at', cutoff)
+    ]);
+
+    const removedRates = (legacyRes.count || 0) + (parallelRes.count || 0) + (officialRes.count || 0);
+    const removedLogs = logsRes.count || 0;
+
+    // Log any errors that occurred during parallel deletion, ignoring missing tables
+    const errors = [legacyRes.error, parallelRes.error, officialRes.error, logsRes.error]
+      .filter(err => err && err.code !== '42P01');
+
+    if (errors.length > 0) {
+      console.error("Cleanup partial error:", { 
+        legacy: legacyRes.error?.message, 
+        parallel: parallelRes.error?.message, 
+        official: officialRes.error?.message, 
+        logs: logsRes.error?.message 
+      });
     }
 
-    // 2. Clean up exchange_rates older than 30 days
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-    const { error: ratesError } = await supabase
-      .from('exchange_rates')
-      .delete()
-      .lt('recorded_at', thirtyDaysAgo);
-
-    if (ratesError && ratesError.code !== '42P01') {
-      console.error("Error cleaning up exchange_rates:", ratesError);
-    }
-
-    console.log("Database cleanup completed.");
+    console.log(`Database cleanup completed. Removed ${removedRates} rates and ${removedLogs} logs older than 7 days.`);
   } catch (error) {
     console.error("Failed to run database cleanup:", error);
   }
@@ -1450,10 +1481,23 @@ async function startServer() {
         const numValue = Number(value);
         if (!isNaN(numValue) && numValue > 0) {
           if (rates.parallel[key] !== numValue) {
-            rates.previousParallel[key] = rates.parallel[key] || numValue;
+            const oldVal = rates.parallel[key] || numValue;
+            rates.previousParallel[key] = oldVal;
             rates.parallel[key] = numValue;
             rates.lastChanged.parallel[key] = new Date().toISOString();
             changed = true;
+            
+            const term = appConfig.terms.find(t => t.id === key);
+            recentChangesLog.unshift({
+              id: Math.random().toString(36).substring(2, 9),
+              currencyCode: key,
+              currencyName: term ? term.name : key,
+              oldPrice: oldVal,
+              newPrice: numValue,
+              source: "تعديل يدوي (المدير)",
+              timestamp: new Date().toISOString()
+            });
+            if (recentChangesLog.length > 200) recentChangesLog.pop();
           }
         }
       }
@@ -1654,9 +1698,9 @@ async function startServer() {
     }
 
     try {
-      const twoDaysAgo = new Date();
-      twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
-      const cutoff = twoDaysAgo.toISOString();
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const cutoff = sevenDaysAgo.toISOString();
 
       console.log(`[Maintenance] Manual cleanup triggered. Removing records older than ${cutoff}`);
 
@@ -1682,7 +1726,7 @@ async function startServer() {
 
       res.json({
         success: true,
-        message: "تم تنظيف كافة جداول قاعدة البيانات بنجاح (سجلات أقدم من يومين)",
+        message: "تم تنظيف كافة جداول قاعدة البيانات بنجاح (سجلات أقدم من أسبوع)",
         details: {
           removed_exchange_rates: legacyRes.count || 0,
           removed_parallel_rates: parallelRes.count || 0,
@@ -1696,6 +1740,10 @@ async function startServer() {
       console.error("[Maintenance] Cleanup failed:", err);
       res.status(500).json({ success: false, error: "Internal server error during cleanup" });
     }
+  });
+
+  app.get("/api/recent-changes", (req: express.Request, res: express.Response) => {
+    res.json(recentChangesLog);
   });
 
   app.get("/api/history", async (req: express.Request, res: express.Response) => {

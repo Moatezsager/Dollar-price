@@ -4,7 +4,7 @@ import {
   Settings, Save, Plus, Trash2, ArrowRight, ShieldCheck, LogOut, X, 
   Activity, Users, Cpu, History as HistoryIcon, AlertTriangle, Terminal, 
   ArrowLeftRight, ArrowUpRight, ArrowDownRight, CheckCircle2, RefreshCw, Layers, Globe, Zap, Search,
-  ChevronDown, ChevronUp, Clock, Info, Building2, Coins, Send, Building
+  ChevronDown, ChevronUp, Clock, Info, Building2, Coins, Send, Building, TrendingUp
 } from "lucide-react";
 import { format } from "date-fns";
 import { ar } from "date-fns/locale";
@@ -49,13 +49,14 @@ export default function Admin() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [activeTab, setActiveTab] = useState<'config' | 'stats' | 'logs' | 'ai'>('config');
+  const [activeTab, setActiveTab] = useState<'config' | 'stats' | 'logs' | 'ai' | 'changes'>('config');
   const [isAuthorizedDevice, setIsAuthorizedDevice] = useState(true);
 
   const [expandedTermIdx, setExpandedTermIdx] = useState<number | null>(null);
   const [testTexts, setTestTexts] = useState<Record<number, string>>({});
   const [newKeywords, setNewKeywords] = useState<Record<number, string>>({});
   const [searchPath, setSearchPath] = useState("");
+  const [recentChanges, setRecentChanges] = useState<any[]>([]);
 
   const [aiText, setAiText] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
@@ -85,7 +86,7 @@ export default function Admin() {
 
   const fetchData = async () => {
     setLoading(true);
-    await Promise.all([fetchConfig(), fetchStats(), fetchLogs()]);
+    await Promise.all([fetchConfig(), fetchStats(), fetchLogs(), fetchRecentChanges()]);
     setLoading(false);
   };
 
@@ -135,6 +136,18 @@ export default function Admin() {
     } catch (err) {
       console.warn("Logs fetch failed");
       logErrorToServer(err, "Admin.tsx: fetchLogs");
+    }
+  };
+
+  const fetchRecentChanges = async () => {
+    try {
+      const res = await fetch("/api/recent-changes");
+      if (res.ok) {
+        const data = await res.json();
+        setRecentChanges(Array.isArray(data) ? data : []);
+      }
+    } catch (err) {
+      console.warn("Recent changes fetch failed");
     }
   };
 
@@ -395,6 +408,7 @@ export default function Admin() {
               { id: 'config', label: 'الإعدادات', icon: Settings },
               { id: 'stats', label: 'الإحصائيات', icon: Activity },
               { id: 'logs', label: 'السجلات', icon: Terminal },
+              { id: 'changes', label: 'تغيرات الأسعار', icon: HistoryIcon },
               { id: 'ai', label: 'استخراج ذكي', icon: Zap },
             ].map(tab => (
               <button
@@ -919,6 +933,79 @@ export default function Admin() {
                   </div>
                 </section>
               </div>
+            </motion.div>
+          )}
+
+          {activeTab === 'changes' && (
+            <motion.div 
+              key="changes"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="space-y-6"
+            >
+              <section className="bg-[#0a0a0a] border border-white/10 rounded-[2.5rem] overflow-hidden shadow-2xl">
+                <div className="p-8 border-b border-white/5 flex items-center justify-between">
+                  <div>
+                    <h2 className="text-xl font-black flex items-center gap-3 text-blue-400">
+                      <HistoryIcon className="w-6 h-6" />
+                      سجل التغيرات
+                    </h2>
+                    <p className="text-sm text-zinc-500 mt-1">يعرض أحدث التغيرات في الأسعار مع ذكر المصادر</p>
+                  </div>
+                  <button 
+                    onClick={fetchRecentChanges}
+                    className="p-3 rounded-xl bg-white/5 text-zinc-400 hover:text-white transition-all border border-white/5"
+                  >
+                    <RefreshCw className="w-5 h-5" />
+                  </button>
+                </div>
+                
+                <div className="bg-black/40 p-6 max-h-[600px] overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-800">
+                  {recentChanges.length === 0 ? (
+                    <div className="py-20 text-center flex flex-col items-center gap-4">
+                       <HistoryIcon className="w-10 h-10 text-zinc-800" />
+                       <p className="text-zinc-600">لا توجد تغيرات مسجلة حالياً.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {recentChanges.map((change, i) => (
+                        <div key={change.id || i} className="border border-white/5 bg-white/[0.02] p-5 rounded-2xl hover:bg-white/[0.04] transition-all flex flex-col md:flex-row md:items-center justify-between gap-4">
+                          <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center border border-blue-500/20 shrink-0">
+                              <TrendingUp className="w-6 h-6 text-blue-400" />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-white font-bold text-lg">{change.currencyName}</span>
+                                <span className="text-xs font-mono px-2 py-0.5 bg-white/10 rounded-md text-zinc-400">{change.currencyCode}</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-sm">
+                                <span className="text-zinc-500 line-through">{change.oldPrice}</span>
+                                <ArrowLeftRight className="w-3 h-3 text-zinc-600" />
+                                <span className={`font-black ${change.newPrice > change.oldPrice ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                  {change.newPrice}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className="flex flex-col md:items-end gap-2 border-t md:border-t-0 md:border-r border-white/5 pt-4 md:pt-0 md:pr-6">
+                            <div className="flex items-center gap-2 text-xs text-zinc-400 bg-black/40 px-3 py-1.5 rounded-lg border border-white/5">
+                              <Globe className="w-3 h-3 text-blue-400" />
+                              <span className="truncate max-w-[150px] md:max-w-[200px]" dir="ltr">{change.source}</span>
+                            </div>
+                            <div className="flex items-center gap-1 text-[11px] text-zinc-500 font-mono">
+                              <Clock className="w-3 h-3" />
+                              {format(new Date(change.timestamp), "yyyy-MM-dd HH:mm:ss")}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </section>
             </motion.div>
           )}
 
