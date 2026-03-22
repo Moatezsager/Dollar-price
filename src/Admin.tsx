@@ -448,7 +448,12 @@ export default function Admin() {
       const data = await res.json();
       if (data.success) {
         // Save the session string to config
-        const newConfig = { ...config, telegramApiId: tgApiId, telegramApiHash: tgApiHash, telegramSessionString: data.sessionString };
+        const newConfig = { 
+          ...config, 
+          telegramApiId: parseInt(tgApiId, 10), 
+          telegramApiHash: tgApiHash, 
+          telegramSessionString: data.sessionString 
+        };
         setConfig(newConfig);
         
         // Save to backend

@@ -893,6 +893,12 @@ async function loadConfigFromSupabase() {
         }
       }
 
+      // 3. Ensure channels is a valid array
+      if (!Array.isArray(dbConfig.channels) || dbConfig.channels.length === 0) {
+        dbConfig.channels = ["dollarr_ly", "musheermarket", "lydollar", "djheih2026", "suqalmushir"];
+        console.warn("[Migration] Channels list was empty or invalid, restored defaults.");
+      }
+
       appConfig = dbConfig;
       console.log("Loaded, merged and repaired config from Supabase successfully");
     }
@@ -1007,39 +1013,63 @@ async function fetchParallelRatesFromTelegram() {
       }
     };
 
+    console.log(`[Scraper] Starting fetch from ${appConfig.channels?.length || 0} channels.`);
+    
+    // Validate and clean channels
+    const channels = (appConfig.channels || [])
+      .filter(c => c && typeof c === 'string' && c.trim() !== '')
+      .map(c => c.replace('@', '').trim());
+
+    if (channels.length === 0) {
+      console.warn("[Scraper] No channels configured.");
+      await logErrorArabic("لا توجد قنوات تيليجرام مهيأة في الإعدادات", "الكاشط");
+      return false;
+    }
+
+    console.log(`[Scraper] Validated channels: ${channels.join(', ')}`);
+    
     // Try GramJS first if configured
     let usedGramJs = false;
     if (appConfig.telegramApiId && appConfig.telegramApiHash && appConfig.telegramSessionString) {
       console.log("[Scraper] Attempting to fetch via GramJS (MTProto)...");
-      const client = await getTelegramClient(appConfig.telegramApiId, appConfig.telegramApiHash, appConfig.telegramSessionString);
+      const client = await getTelegramClient(Number(appConfig.telegramApiId), appConfig.telegramApiHash, appConfig.telegramSessionString);
       if (client) {
         usedGramJs = true;
-        for (const channel of appConfig.channels) {
+        console.log("[Scraper] GramJS client connected successfully.");
+        for (const channel of channels) {
           try {
             const messages = await fetchChannelMessages(client, channel, 15);
             if (messages.length > 0) {
+              console.log(`[Scraper-GramJS] Fetched ${messages.length} messages from ${channel}`);
               successfulChannels++;
               totalMessagesProcessed += messages.length;
               for (const msg of messages) {
                 extractRateFromText(msg.text, msg.date, channel);
               }
+            } else {
+              console.warn(`[Scraper-GramJS] No messages returned for ${channel}`);
             }
           } catch (err) {
-            console.error(`[Scraper-GramJS] Error fetching ${channel}:`, err);
+            console.error(`[Scraper-GramJS] Error fetching ${channel}:`, err instanceof Error ? err.message : String(err));
           }
         }
       } else {
         console.warn("[Scraper] GramJS client failed to connect. Falling back to HTTP Scraper.");
       }
+    } else {
+      console.log("[Scraper] GramJS not configured (missing API ID, Hash, or Session). Using HTTP Scraper.");
     }
 
-    if (!usedGramJs) {
+    if (!usedGramJs || successfulChannels === 0) {
+      if (usedGramJs && successfulChannels === 0) {
+        console.warn("[Scraper] GramJS returned 0 messages for all channels. Falling back to HTTP Scraper.");
+      }
       // Fallback to HTTP Scraper
-      const scrapeResults = await Promise.allSettled(appConfig.channels.map(async (channel) => {
+      const scrapeResults = await Promise.allSettled(channels.map(async (channel) => {
         const startTime = Date.now();
         try {
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 12000); // Reduced timeout
+          const timeoutId = setTimeout(() => controller.abort(), 15000); // Slightly longer timeout
           const response = await fetch(`https://t.me/s/${channel}`, { 
             signal: controller.signal,
             headers: {
@@ -1061,44 +1091,43 @@ async function fetchParallelRatesFromTelegram() {
           const html = await response.text();
           console.log(`[Scraper] Successfully fetched ${channel} in ${duration}ms. HTML size: ${Math.round(html.length / 1024)}KB`);
           
-          // Check if we got a redirect or a non-Telegram page
-          if (!html.includes('tgme_page_wrap') && !html.includes('tgme_widget_message_wrap')) {
-            console.warn(`[Scraper] Channel ${channel} returned unexpected HTML content (length: ${html.length})`);
-            return null;
-          }
-
           // Check for Telegram anti-bot protection
           if (html.includes("verify you are a human") || html.includes("robot") || html.includes("captcha")) {
             console.warn(`[Scraper] Channel ${channel} is blocked by Telegram anti-bot protection.`);
-            logErrorArabic(`قناة ${channel} محجوبة حالياً بواسطة حماية تيليجرام (Anti-bot)`, "الكاشط");
+            await logErrorArabic(`قناة ${channel} محجوبة حالياً بواسطة حماية تيليجرام (Anti-bot)`, "الكاشط");
             return null;
           }
 
-          return { channel, html };
+          // More robust message block detection
+          const messageBlocks = html.split('tgme_widget_message_wrap');
+          if (messageBlocks.length <= 1) {
+            // Try another common class if the wrap is missing
+            const altBlocks = html.split('tgme_widget_message ');
+            if (altBlocks.length <= 1) {
+              console.warn(`[Scraper] No message blocks found for channel ${channel}. HTML length: ${html.length}`);
+              return null;
+            }
+            return { channel, html, blocks: altBlocks };
+          }
+
+          return { channel, html, blocks: messageBlocks };
         } catch (e) {
           const duration = Date.now() - startTime;
           const errorMsg = e instanceof Error ? e.message : String(e);
           console.error(`[Scraper] Failed to fetch ${channel} after ${duration}ms:`, errorMsg);
-          // Don't await here to avoid blocking the whole scraper if Supabase is slow
-          logErrorArabic(`فشل الاتصال بقناة تيليجرام: ${channel}`, "الكاشط", errorMsg);
+          await logErrorArabic(`فشل الاتصال بقناة تيليجرام: ${channel}`, "الكاشط", errorMsg);
           return null;
         }
       }));
 
       for (const result of scrapeResults) {
         if (result.status === 'fulfilled' && result.value) {
-          const { channel, html } = result.value;
-          const messageBlocks = html.split('tgme_widget_message_wrap');
+          const { channel, blocks } = result.value;
           
-          if (messageBlocks.length <= 1) {
-            console.warn(`[Scraper] No message blocks found for channel ${channel}. HTML length: ${html.length}`);
-            continue;
-          }
-
           successfulChannels++;
-          totalMessagesProcessed += (messageBlocks.length - 1);
+          totalMessagesProcessed += (blocks.length - 1);
 
-          for (const block of messageBlocks) {
+          for (const block of blocks) {
             const textMatch = block.match(/<div class="tgme_widget_message_text[^>]*>(.*?)<\/div>/);
             const timeMatch = block.match(/<time datetime="([^"]+)"/);
             
@@ -1119,7 +1148,7 @@ async function fetchParallelRatesFromTelegram() {
       console.log(`[Scraper] Successfully processed ${totalMessagesProcessed} messages from ${successfulChannels} channels.`);
     } else {
       console.warn("[Scraper] Failed to fetch any messages from any channels.");
-      logErrorArabic("فشل الكاشط في جلب أي بيانات من جميع القنوات", "الكاشط", `القنوات: ${appConfig.channels.join(', ')}`);
+      await logErrorArabic("فشل الكاشط في جلب أي بيانات من جميع القنوات", "الكاشط", `القنوات: ${appConfig.channels.join(', ')}`);
     }
 
     // Memory monitoring
@@ -1210,7 +1239,7 @@ async function fetchParallelRatesFromTelegram() {
               source: latestSources[term.id] || "غير معروف",
               timestamp: new Date().toISOString()
             };
-            logPriceChange(changeLog);
+            await logPriceChange(changeLog);
           }
         } else if (!currentVal) {
           // Initialize with some fallback if it doesn't exist at all (initial setup)
@@ -1356,14 +1385,14 @@ async function startServer() {
   }
 
   // Global Error Handlers
-  process.on('unhandledRejection', (reason, promise) => {
+  process.on('unhandledRejection', async (reason, promise) => {
     console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-    logErrorArabic(`خطأ غير معالج في السيرفر: ${reason}`, "النظام", String(reason));
+    await logErrorArabic(`خطأ غير معالج في السيرفر: ${reason}`, "النظام", String(reason));
   });
 
-  process.on('uncaughtException', (error) => {
+  process.on('uncaughtException', async (error) => {
     console.error('Uncaught Exception:', error);
-    logErrorArabic(`خطأ فادح في السيرفر: ${error.message}`, "النظام", error.stack || "");
+    await logErrorArabic(`خطأ فادح في السيرفر: ${error.message}`, "النظام", error.stack || "");
     // Give some time for logging before exiting
     setTimeout(() => process.exit(1), 1000);
   });
@@ -1756,7 +1785,7 @@ async function startServer() {
               source: "تعديل يدوي (المدير)",
               timestamp: new Date().toISOString()
             };
-            logPriceChange(changeLog);
+            await logPriceChange(changeLog);
           }
         }
       }
@@ -1795,7 +1824,7 @@ async function startServer() {
     res.json({ terms: appConfig.terms });
   });
 
-  app.post("/api/logs/error", (req: express.Request, res: express.Response) => {
+  app.post("/api/logs/error", async (req: express.Request, res: express.Response) => {
     const { message, stack, context, url, userAgent } = req.body;
     
     // Translation map for common client errors
@@ -1814,7 +1843,7 @@ async function startServer() {
     console.error("-------------------\n");
 
     // Save to Supabase
-    logErrorArabic(arabicMessage || message, context || "تطبيق العميل", stack, url);
+    await logErrorArabic(arabicMessage || message, context || "تطبيق العميل", stack, url);
 
     res.status(200).json({ success: true });
   });
