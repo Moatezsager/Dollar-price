@@ -25,6 +25,8 @@ const supabase = supabaseAnonKey
   ? createClient(supabaseUrl, supabaseAnonKey)
   : null;
 
+const serverStartTime = new Date();
+
 interface RateMap {
   [key: string]: number;
 }
@@ -1495,7 +1497,7 @@ async function startServer() {
   });
 
   app.get("/api/admin/config", requireAdmin, (req: express.Request, res: express.Response) => {
-    res.json(appConfig);
+    res.json({ ...appConfig, serverStartTime: serverStartTime.toISOString() });
   });
 
   app.post("/api/admin/config", requireAdmin, async (req: express.Request, res: express.Response) => {
@@ -1688,6 +1690,7 @@ async function startServer() {
         channelsCount: appConfig.channels.length,
         termsCount: appConfig.terms.length,
         serverUptime: process.uptime(),
+        serverStartTime: serverStartTime.toISOString(),
         memoryUsage: process.memoryUsage(),
         dbStats
       });

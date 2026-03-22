@@ -18,6 +18,7 @@ interface Stats {
   channelsCount: number;
   termsCount: number;
   serverUptime: number;
+  serverStartTime: string;
   memoryUsage: { rss: number; heapUsed: number; heapTotal: number };
   dbStats?: {
     parallelRatesCount: number;
@@ -298,6 +299,32 @@ export default function Admin() {
   };
 
   const [confirmCleanup, setConfirmCleanup] = useState(false);
+  const [uptimeDisplay, setUptimeDisplay] = useState("");
+
+  useEffect(() => {
+    if (!stats?.serverStartTime) return;
+    
+    const updateUptime = () => {
+      const start = new Date(stats.serverStartTime).getTime();
+      const now = new Date().getTime();
+      const diff = Math.floor((now - start) / 1000);
+      
+      const days = Math.floor(diff / (24 * 3600));
+      const hours = Math.floor((diff % (24 * 3600)) / 3600);
+      const minutes = Math.floor((diff % 3600) / 60);
+      const seconds = diff % 60;
+      
+      let display = "";
+      if (days > 0) display += `${days} يوم `;
+      if (hours > 0 || days > 0) display += `${hours} ساعة `;
+      display += `${minutes} دقيقة ${seconds} ثانية`;
+      setUptimeDisplay(display);
+    };
+    
+    updateUptime();
+    const interval = setInterval(updateUptime, 1000);
+    return () => clearInterval(interval);
+  }, [stats?.serverStartTime]);
   const handleCleanup = async () => {
     if (!confirmCleanup) {
       setConfirmCleanup(true);
@@ -500,19 +527,21 @@ export default function Admin() {
 
   if (!isLoggedIn) {
     return (
-      <div className="min-h-screen bg-[#050505] flex items-center justify-center p-4" dir="rtl">
-        <div className="absolute inset-0 bg-emerald-500/5 blur-[120px] rounded-full"></div>
+      <div className="min-h-screen bg-[#050505] flex items-center justify-center p-4 font-sans selection:bg-emerald-500/30" dir="rtl">
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-500/10 blur-[120px] rounded-full"></div>
+          <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-600/10 blur-[120px] rounded-full"></div>
+        </div>
+
         <motion.div 
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="bg-[#0a0a0a] border border-white/10 p-8 rounded-[2.5rem] w-full max-w-md shadow-[0_32px_64px_-16px_rgba(0,0,0,0.5)] relative overflow-hidden backdrop-blur-xl"
+          className="w-full max-w-md bg-white/[0.03] backdrop-blur-3xl border border-white/10 rounded-[2.5rem] p-8 md:p-10 shadow-2xl relative z-10"
         >
-          <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-emerald-500 via-blue-500 to-emerald-500 bg-[length:200%_100%] animate-pulse"></div>
-          
-          <div className="flex justify-center mb-10">
+          <div className="flex justify-center mb-8">
             <div className="relative">
-              <div className="w-20 h-20 rounded-3xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20 rotate-3">
-                <ShieldCheck className="w-10 h-10 text-emerald-400 -rotate-3" />
+              <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-emerald-500 to-blue-600 flex items-center justify-center shadow-2xl shadow-emerald-500/20 rotate-3 hover:rotate-0 transition-transform duration-500">
+                <Lock className="w-10 h-10 text-white" />
               </div>
               <div className="absolute -top-2 -right-2 w-6 h-6 bg-emerald-500 rounded-full border-4 border-[#0a0a0a] animate-ping opacity-20"></div>
             </div>
@@ -520,7 +549,7 @@ export default function Admin() {
 
           <div className="text-center mb-10">
             <h1 className="text-3xl font-black text-white mb-3 tracking-tight">الدخول الآمن</h1>
-            <p className="text-zinc-500 text-sm leading-relaxed">يرجى تسجيل الدخول للوصول إلى لوحة التحكم المتطورة</p>
+            <p className="text-zinc-500 text-sm leading-relaxed">يرجى إدخال مفتاح الوصول الإداري للمتابعة</p>
           </div>
           
           <form onSubmit={handleLogin} className="space-y-6">
@@ -529,8 +558,8 @@ export default function Admin() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="كلمة المرور الإدارية"
-                className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-emerald-500/50 focus:bg-white/[0.08] transition-all text-center text-lg tracking-[0.5em] font-mono placeholder:tracking-normal placeholder:font-sans"
+                placeholder="••••••••"
+                className="w-full bg-black/40 border border-white/10 rounded-2xl px-6 py-5 text-white focus:outline-none focus:border-emerald-500/50 focus:bg-black/60 transition-all text-center text-2xl tracking-[0.3em] font-mono placeholder:tracking-normal placeholder:font-sans placeholder:text-zinc-700"
                 dir="ltr"
                 required
               />
@@ -551,14 +580,15 @@ export default function Admin() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:bg-zinc-800 text-black font-black py-4 rounded-2xl transition-all shadow-lg shadow-emerald-500/20 active:scale-[0.98] flex items-center justify-center gap-3 group"
+              className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:bg-zinc-800 text-black font-black py-5 rounded-2xl transition-all shadow-xl shadow-emerald-500/20 active:scale-[0.98] flex items-center justify-center gap-3 group overflow-hidden relative"
             >
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
               {loading ? (
-                <RefreshCw className="w-5 h-5 animate-spin" />
+                <RefreshCw className="w-6 h-6 animate-spin" />
               ) : (
                 <>
-                  <span>تأكيد الملحقية</span>
-                  <Zap className="w-4 h-4 group-hover:fill-current transition-all" />
+                  <span className="text-lg">فتح لوحة التحكم</span>
+                  <Zap className="w-5 h-5 group-hover:fill-current transition-all" />
                 </>
               )}
             </button>
@@ -571,82 +601,80 @@ export default function Admin() {
   if (!config) return null;
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white flex flex-col font-sans" dir="rtl">
+    <div className="min-h-screen bg-[#050505] text-white flex flex-col font-sans selection:bg-emerald-500/30" dir="rtl">
       {/* Dynamic Header */}
-      <header className="sticky top-0 z-50 bg-[#050505]/80 backdrop-blur-xl border-b border-white/5 px-6 py-4">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-blue-600 flex items-center justify-center shadow-lg shadow-emerald-900/20">
-              <Settings className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <h1 className="text-xl font-black tracking-tight flex items-center gap-2">
-                لوحة التحكم <span className="text-emerald-500 text-xs font-mono px-2 py-0.5 bg-emerald-500/10 rounded-full">v2.0</span>
-              </h1>
-              <div className="flex items-center gap-3 text-xs text-zinc-500 mt-0.5">
-                <span className="flex items-center gap-1"><Activity className="w-3 h-3 text-emerald-500" /> المتصلون الآن: {stats?.onlineUsers || 0}</span>
-                <span className="w-1 h-1 bg-zinc-700 rounded-full"></span>
-                <span className="flex items-center gap-1"><RefreshCw className={`w-3 h-3 ${stats && stats.minutesSinceLastScrape > 30 ? 'text-rose-500' : 'text-emerald-500'}`} /> {stats?.minutesSinceLastScrape || 0} دقيقة</span>
+      <header className="sticky top-0 z-50 bg-[#050505]/80 backdrop-blur-2xl border-b border-white/5 px-4 py-2 md:px-6 md:py-3">
+        <div className="max-w-7xl mx-auto flex flex-col gap-3">
+          <div className="flex items-center justify-between w-full">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 md:w-11 md:h-11 rounded-xl bg-gradient-to-br from-emerald-500 to-blue-600 flex items-center justify-center shadow-lg shadow-emerald-900/20 shrink-0">
+                <Settings className="w-4 h-4 md:w-5 md:h-5 text-white" />
               </div>
+              <div className="min-w-0">
+                <h1 className="text-base md:text-lg font-black tracking-tight flex items-center gap-2 truncate">
+                  لوحة التحكم <span className="text-emerald-500 text-[9px] font-mono px-1.5 py-0.5 bg-emerald-500/10 rounded-full border border-emerald-500/20">v3.1</span>
+                </h1>
+                <div className="flex items-center gap-2 text-[9px] md:text-[10px] text-zinc-500 mt-0.5">
+                  <span className="flex items-center gap-1 text-emerald-400/80 truncate">
+                    <Clock className="w-2.5 h-2.5" /> 
+                    <span className="hidden sm:inline">وقت التشغيل:</span> {uptimeDisplay || "..."}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5 md:gap-2">
+               <button
+                  onClick={triggerRefresh}
+                  disabled={refreshing}
+                  className={`p-2 md:p-2.5 rounded-xl border border-white/5 hover:bg-white/5 transition-all relative group ${refreshing ? 'animate-pulse' : ''}`}
+                  title="تحديث البيانات يدويًا"
+               >
+                 <RefreshCw className={`w-3.5 h-3.5 md:w-4 md:h-4 text-emerald-400 ${refreshing ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-700'}`} />
+               </button>
+               <button
+                 onClick={handleLogout}
+                 className="p-2 md:p-2.5 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/10 hover:bg-rose-500/20 transition-all"
+                 title="خروج"
+               >
+                 <LogOut className="w-3.5 h-3.5 md:w-4 md:h-4" />
+               </button>
+               <button
+                 onClick={handleSave}
+                 disabled={loading}
+                 className="px-3 md:px-5 py-2 md:py-2.5 rounded-xl bg-white text-black font-black flex items-center gap-2 hover:bg-emerald-400 transition-all active:scale-95 disabled:opacity-50 text-[11px] md:text-sm shadow-lg shadow-white/5"
+               >
+                 <Save className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                 <span className="hidden sm:inline">حفظ النظام</span>
+                 <span className="sm:hidden">حفظ</span>
+               </button>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 bg-white/5 p-1 rounded-2xl border border-white/5 overflow-x-auto w-full md:w-auto scrollbar-hide">
+          {/* Mobile-friendly Tab Navigation */}
+          <nav className="flex items-center gap-1 bg-white/[0.03] p-1 rounded-xl border border-white/5 overflow-x-auto scrollbar-hide">
             {[
               { id: 'config', label: 'الإعدادات', icon: Settings },
               { id: 'stats', label: 'الإحصائيات', icon: Activity },
               { id: 'logs', label: 'السجلات', icon: Terminal },
-              { id: 'changes', label: 'تغيرات الأسعار', icon: HistoryIcon },
-              { id: 'ai', label: 'استخراج ذكي', icon: Zap },
-              { id: 'telegram', label: 'ربط تليجرام', icon: Globe },
+              { id: 'changes', label: 'التغيرات', icon: HistoryIcon },
+              { id: 'telegram', label: 'تليجرام', icon: Globe },
+              { id: 'ai', label: 'الذكاء', icon: Zap },
             ].map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`flex items-center gap-2 px-4 md:px-5 py-2.5 rounded-xl text-xs md:text-sm font-bold transition-all whitespace-nowrap shrink-0 ${
+                className={`flex items-center gap-2 px-3 md:px-4 py-1.5 md:py-2 rounded-lg text-[10px] md:text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
                   activeTab === tab.id 
                     ? 'bg-emerald-500 text-black shadow-lg shadow-emerald-500/20' 
                     : 'text-zinc-500 hover:text-white hover:bg-white/5'
                 }`}
               >
-                <tab.icon className="w-4 h-4" />
+                <tab.icon className="w-3 h-3 md:w-3.5 md:h-3.5" />
                 {tab.label}
               </button>
             ))}
-          </div>
-
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 rounded-xl border border-white/5">
-              <div className={`w-2 h-2 rounded-full ${connectionStatus === 'online' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]' : connectionStatus === 'offline' ? 'bg-rose-500 animate-pulse' : 'bg-amber-500 animate-pulse'}`} />
-              <span className="text-[10px] font-black uppercase tracking-wider text-white/40">
-                {connectionStatus === 'online' ? 'Connected' : connectionStatus === 'offline' ? 'Offline' : 'Syncing'}
-              </span>
-            </div>
-            <button
-               onClick={triggerRefresh}
-               disabled={refreshing}
-               className={`p-3 rounded-xl border border-white/5 hover:bg-white/5 transition-all relative group ${refreshing ? 'animate-pulse' : ''}`}
-               title="تحديث البيانات يدويًا"
-            >
-              <RefreshCw className={`w-5 h-5 text-emerald-400 ${refreshing ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-700'}`} />
-            </button>
-            <div className="w-px h-8 bg-white/10 mx-1"></div>
-            <button
-              onClick={handleLogout}
-              className="p-3 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/10 hover:bg-rose-500/20 transition-all"
-              title="خروج"
-            >
-              <LogOut className="w-5 h-5" />
-            </button>
-            <button
-              onClick={handleSave}
-              disabled={loading}
-              className="px-6 py-3 rounded-xl bg-white text-black font-black flex items-center gap-2 hover:bg-emerald-400 transition-all active:scale-95 disabled:opacity-50"
-            >
-              <Save className="w-4 h-4" />
-              <span>حفظ النظام</span>
-            </button>
-          </div>
+          </nav>
         </div>
       </header>
 
@@ -658,386 +686,304 @@ export default function Admin() {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-8"
+              className="space-y-6 md:space-y-8 pb-24"
             >
-              {/* Sidebar Config */}
-              <div className="lg:col-span-4 space-y-4 md:space-y-6">
-                <section className="bg-white/[0.02] border border-white/5 rounded-2xl md:rounded-[2rem] p-4 md:p-8">
-                  <div className="flex items-center justify-between mb-6 md:mb-8">
-                    <h2 className="text-lg md:text-xl font-black flex items-center gap-2 md:gap-3 text-emerald-400">
-                      <Globe className="w-5 h-5 md:w-6 md:h-6" />
-                      مصادر البيانات
-                    </h2>
-                    <button
-                      onClick={() => setConfig({ ...config, channels: [...config.channels, ""] })}
-                      className="w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center hover:bg-emerald-500/20 transition-all"
-                    >
-                      <Plus className="w-4 h-4 md:w-5 md:h-5" />
-                    </button>
-                  </div>
-                  <p className="text-xs md:text-sm text-zinc-500 mb-4 md:mb-6 font-medium">نظام قنوات تليجرام التي يتم مراقبتها آلياً</p>
-                  <div className="space-y-3 md:space-y-4">
-                    {config.channels.map((channel: string, idx: number) => (
-                      <div key={idx} className="group relative flex items-center gap-2 md:gap-3">
-                        <div className="absolute -right-2 md:-right-3 top-1/2 -translate-y-1/2 w-1 h-0 group-focus-within:h-6 bg-emerald-500 transition-all rounded-full"></div>
-                        <span className="text-[9px] md:text-[10px] text-zinc-600 font-mono uppercase tracking-tighter shrink-0 pt-0.5">TG</span>
-                        <input
-                          type="text"
-                          value={channel}
-                          onChange={(e) => {
-                            const newChannels = [...config.channels];
-                            newChannels[idx] = e.target.value;
-                            setConfig({ ...config, channels: newChannels });
-                          }}
-                          className="flex-1 bg-white/[0.03] border border-white/5 rounded-lg md:rounded-xl px-3 md:px-4 py-2 md:py-3 text-xs md:text-sm focus:outline-none focus:border-emerald-500/50 focus:bg-white/5 transition-all font-mono"
-                          dir="ltr"
-                          placeholder="channel_name"
-                        />
-                        <button
-                          onClick={() => {
-                            const newChannels = config.channels.filter((_: any, i: number) => i !== idx);
-                            setConfig({ ...config, channels: newChannels });
-                          }}
-                          className="w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl text-zinc-600 hover:text-rose-400 hover:bg-rose-500/5 transition-all opacity-0 group-hover:opacity-100"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              </div>
-
-              {/* Main Terms Area */}
-              <div className="lg:col-span-8 space-y-4 md:space-y-6">
-                <section className="bg-white/[0.02] border border-white/5 rounded-2xl md:rounded-[2rem] p-4 md:p-8">
-                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4 md:gap-6 mb-6 md:mb-10">
-                    <div>
-                      <h2 className="text-xl md:text-2xl font-black text-blue-400 flex items-center gap-2 md:gap-3">
-                        <Layers className="w-6 h-6 md:w-7 md:h-7" />
-                        نظام التعرف الذكي
-                      </h2>
-                      <p className="text-xs md:text-sm text-zinc-500 mt-1 md:mt-2 font-medium">تحكم في الكلمات الدلالية وقواعد البحث البرمجية</p>
-                    </div>
-                    <button
-                      onClick={() => setConfig({
-                        ...config,
-                        terms: [...config.terms, { id: "NEW", name: "عملة جديدة", regex: "(?:كلمة|أخرى)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d+)?)", min: 0.1, max: 100, isInverse: false, flag: "" }]
-                      })}
-                      className="w-full sm:w-auto px-4 md:px-6 py-3 rounded-xl md:rounded-2xl bg-blue-600 text-white font-black hover:bg-blue-500 transition-all active:scale-95 shadow-lg shadow-blue-900/40 flex items-center justify-center gap-2 shrink-0"
-                    >
-                      <Plus className="w-4 h-4 md:w-5 md:h-5 font-black" />
-                      إضافة عملة
-                    </button>
-                  </div>
-
-                  {/* Search bar */}
-                  <div className="relative mb-8 group">
-                    <Search className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-600 group-focus-within:text-blue-400 transition-colors" />
-                    <input 
-                      type="text" 
-                      placeholder="ابحث عن عملة أو معرف..."
-                      value={searchPath}
-                      onChange={(e) => setSearchPath(e.target.value)}
-                      className="w-full bg-white/[0.03] border border-white/10 rounded-2xl pr-12 pl-4 py-4 text-sm focus:outline-none focus:border-blue-500/50 transition-all focus:bg-white/5"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-4">
-                    {filteredTerms.map((term: any, originalIdx: number) => {
-                      const idx = config.terms.findIndex((t: any) => t === term);
-                      const isExpanded = expandedTermIdx === idx;
-                      const testText = testTexts[idx] || "";
-                      let testResult: string | null = null;
-                      
-                      if (testText && term.regex) {
-                        try {
-                          const regex = new RegExp(term.regex, 'i');
-                          const match = testText.match(regex);
-                          if (match && match[1]) {
-                            let val = parseFloat(match[1].replace(',', '.'));
-                            if (term.isInverse && val > 0) val = 1 / val;
-                            if (!isNaN(val) && val >= term.min && val <= term.max) {
-                              testResult = `✅ تم الاستخراج: ${val.toFixed(4)}`;
-                            } else {
-                              testResult = `⚠️ الرقم (${val}) خارج النطاق (${term.min}-${term.max})`;
-                            }
-                          } else { testResult = "❌ لم يتم العثور على تطابق"; }
-                        } catch (e) { testResult = "❌ خطأ في صيغة Regex"; }
-                      }
-
-                      return (
-                        <div 
-                          key={`term-${idx}`} 
-                          className={`rounded-3xl border transition-all duration-300 ${
-                            isExpanded ? 'border-blue-500/40 bg-blue-500/5' : 'border-white/5 bg-white/[0.01] hover:bg-white/[0.03]'
-                          }`}
-                        >
-                          <div 
-                            className="flex items-center justify-between p-5 cursor-pointer select-none"
-                            onClick={() => setExpandedTermIdx(isExpanded ? null : idx)}
-                          >
-                            <div className="flex items-center gap-4">
-                              <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center border border-white/10 group-hover:scale-105 transition-transform overflow-hidden">
-                                <FlagIcon flagCode={term.flag} name="flag" className="w-8 h-8" fallbackType="coins" />
-                              </div>
-                              <div>
-                                <h3 className="text-lg font-black text-white">{term.name}</h3>
-                                <div className="flex items-center gap-2 mt-0.5">
-                                  <span className="text-[10px] font-mono text-zinc-600 uppercase tracking-widest">{term.id}</span>
-                                  <span className="w-1 h-1 bg-zinc-800 rounded-full"></span>
-                                  <span className="text-[10px] text-zinc-500 font-mono" dir="ltr">{term.min}-{term.max}</span>
-                                </div>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-3">
-                              <div className="hidden sm:flex items-center gap-2 text-[10px] font-mono text-zinc-600 bg-white/5 px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity">
-                                REGEX
-                              </div>
-                              {isExpanded ? <ChevronUp className="w-5 h-5 text-zinc-400" /> : <ChevronDown className="w-5 h-5 text-zinc-600" />}
-                            </div>
-                          </div>
-
-                          <AnimatePresence>
-                            {isExpanded && (
-                              <motion.div 
-                                initial={{ height: 0, opacity: 0 }}
-                                animate={{ height: 'auto', opacity: 1 }}
-                                exit={{ height: 0, opacity: 0 }}
-                                className="overflow-hidden"
-                              >
-                                <div className="p-6 pt-0 border-t border-white/5 mt-2">
-                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-6">
-                                    <div className="space-y-6">
-                                      <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                          <label className="block text-[10px] text-zinc-500 font-bold uppercase mb-2 tracking-widest px-1">المعرف البرمجي (ID)</label>
-                                          <input
-                                            type="text"
-                                            value={term.id}
-                                            onChange={(e) => {
-                                              const newTerms = [...config.terms];
-                                              newTerms[idx].id = e.target.value;
-                                              setConfig({ ...config, terms: newTerms });
-                                            }}
-                                            className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm font-mono focus:border-blue-500/50 outline-none"
-                                            dir="ltr"
-                                          />
-                                        </div>
-                                        <div>
-                                          <label className="block text-[10px] text-zinc-500 font-bold uppercase mb-2 tracking-widest px-1">الاسم التجاري</label>
-                                          <input
-                                            type="text"
-                                            value={term.name}
-                                            onChange={(e) => {
-                                              const newTerms = [...config.terms];
-                                              newTerms[idx].name = e.target.value;
-                                              setConfig({ ...config, terms: newTerms });
-                                            }}
-                                            className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm font-bold outline-none focus:border-blue-500/50"
-                                          />
-                                        </div>
-                                      </div>
-
-                                      <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                          <label className="block text-[10px] text-zinc-500 font-bold uppercase mb-2 tracking-widest px-1">الحد الأدنى (د.ل)</label>
-                                          <input
-                                            type="number"
-                                            step="0.01"
-                                            value={term.min}
-                                            onChange={(e) => {
-                                              const newTerms = [...config.terms];
-                                              newTerms[idx].min = parseFloat(e.target.value);
-                                              setConfig({ ...config, terms: newTerms });
-                                            }}
-                                            className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-center font-mono outline-none"
-                                            dir="ltr"
-                                          />
-                                        </div>
-                                        <div>
-                                          <label className="block text-[10px] text-zinc-500 font-bold uppercase mb-2 tracking-widest px-1">الحد الأقصى (د.ل)</label>
-                                          <input
-                                            type="number"
-                                            step="0.01"
-                                            value={term.max}
-                                            onChange={(e) => {
-                                              const newTerms = [...config.terms];
-                                              newTerms[idx].max = parseFloat(e.target.value);
-                                              setConfig({ ...config, terms: newTerms });
-                                            }}
-                                            className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-center font-mono outline-none"
-                                            dir="ltr"
-                                          />
-                                        </div>
-                                      </div>
-
-                                      <div>
-                                        <label className="block text-[10px] text-zinc-500 font-bold uppercase mb-2 tracking-widest px-1">كود العلم (Flags)</label>
-                                        <div className="flex items-center gap-3">
-                                          <input
-                                            type="text"
-                                            value={term.flag || ""}
-                                            onChange={(e) => {
-                                              const newTerms = [...config.terms];
-                                              newTerms[idx].flag = e.target.value;
-                                              setConfig({ ...config, terms: newTerms });
-                                            }}
-                                            placeholder="eg, us, eu, tr, ae, cn"
-                                            className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm font-mono outline-none"
-                                            dir="ltr"
-                                          />
-                                          <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center overflow-hidden">
-                                            <FlagIcon flagCode={term.flag} name="flag" className="w-6 h-6" fallbackType="coins" />
-                                          </div>
-                                        </div>
-                                      </div>
-                                    </div>
-
-                                    <div className="space-y-6 flex flex-col">
-                                      {/* Keywords Editor (Improved) */}
-                                      <div className="bg-black/40 border border-white/5 rounded-2xl p-4 flex-1">
-                                        <div className="flex items-center justify-between mb-4">
-                                          <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">الكلمات الدلالية للبحث</label>
-                                          <Info className="w-4 h-4 text-zinc-700 hover:text-blue-400 cursor-help" title="الكلمات التي يبحث عنها النظام للتعرف على العملة" />
-                                        </div>
-                                        
-                                        {/* Visual Keyword Editor */}
-                                        <div className="mb-4">
-                                          <div className="flex flex-wrap gap-2 mb-3">
-                                            {extractKeywordsAndSuffix(term.regex).keywords.map((kw, kIdx) => (
-                                              <span key={kIdx} className="flex items-center gap-1 bg-blue-500/10 text-blue-400 px-2.5 py-1 rounded-lg text-xs font-medium border border-blue-500/20">
-                                                {kw}
-                                                <button 
-                                                  onClick={() => {
-                                                    const { keywords, suffix } = extractKeywordsAndSuffix(term.regex);
-                                                    const updated = keywords.filter((_, i) => i !== kIdx);
-                                                    const newTerms = [...config.terms];
-                                                    newTerms[idx].regex = updated.length > 0 ? `(?:${updated.join('|')})${suffix}` : suffix;
-                                                    setConfig({ ...config, terms: newTerms });
-                                                  }}
-                                                  className="hover:text-rose-400 hover:bg-rose-500/10 rounded-full p-0.5 transition-colors"
-                                                >
-                                                  <X className="w-3 h-3" />
-                                                </button>
-                                              </span>
-                                            ))}
-                                          </div>
-                                          <div className="flex gap-2">
-                                            <input
-                                              type="text"
-                                              placeholder="إضافة كلمة جديدة..."
-                                              value={newKeywords[idx] || ""}
-                                              onChange={(e) => setNewKeywords({ ...newKeywords, [idx]: e.target.value })}
-                                              onKeyDown={(e) => {
-                                                if (e.key === 'Enter') {
-                                                  e.preventDefault();
-                                                  const kw = newKeywords[idx]?.trim();
-                                                  if (kw) {
-                                                    const { keywords, suffix } = extractKeywordsAndSuffix(term.regex);
-                                                    if (!keywords.includes(kw)) {
-                                                      const updated = [...keywords, kw];
-                                                      const newTerms = [...config.terms];
-                                                      newTerms[idx].regex = `(?:${updated.join('|')})${suffix}`;
-                                                      setConfig({ ...config, terms: newTerms });
-                                                    }
-                                                    setNewKeywords({ ...newKeywords, [idx]: "" });
-                                                  }
-                                                }
-                                              }}
-                                              className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-blue-500/50"
-                                            />
-                                            <button
-                                              onClick={() => {
-                                                const kw = newKeywords[idx]?.trim();
-                                                if (kw) {
-                                                  const { keywords, suffix } = extractKeywordsAndSuffix(term.regex);
-                                                  if (!keywords.includes(kw)) {
-                                                    const updated = [...keywords, kw];
-                                                    const newTerms = [...config.terms];
-                                                    newTerms[idx].regex = `(?:${updated.join('|')})${suffix}`;
-                                                    setConfig({ ...config, terms: newTerms });
-                                                  }
-                                                  setNewKeywords({ ...newKeywords, [idx]: "" });
-                                                }
-                                              }}
-                                              className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded-xl text-xs font-bold transition-colors"
-                                            >
-                                              إضافة
-                                            </button>
-                                          </div>
-                                        </div>
-
-                                        {/* Advanced Regex Editor (Collapsible) */}
-                                        <details className="group mt-4">
-                                          <summary className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest cursor-pointer hover:text-zinc-300 transition-colors flex items-center gap-2 select-none mb-2">
-                                            <span>محرر REGEX المتقدم</span>
-                                            <ChevronDown className="w-3 h-3 group-open:rotate-180 transition-transform" />
-                                          </summary>
-                                          <textarea
-                                            value={term.regex}
-                                            onChange={(e) => {
-                                              const newTerms = [...config.terms];
-                                              newTerms[idx].regex = e.target.value;
-                                              setConfig({ ...config, terms: newTerms });
-                                            }}
-                                            className="w-full h-20 bg-transparent border border-white/10 rounded-xl px-4 py-3 text-xs font-mono text-emerald-400 focus:border-blue-500/50 outline-none resize-none leading-relaxed"
-                                            dir="ltr"
-                                          />
-                                        </details>
-                                        
-                                        <div className="mt-6 flex flex-col gap-3">
-                                          <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">تجربة فورية</label>
-                                          <input
-                                            type="text"
-                                            placeholder="أدخل نصًا للتجربة..."
-                                            value={testText}
-                                            onChange={(e) => setTestTexts({ ...testTexts, [idx]: e.target.value })}
-                                            className="w-full bg-white/5 border border-white/5 rounded-xl px-4 py-3 text-xs outline-none focus:border-blue-500/30"
-                                          />
-                                          {testText && (
-                                            <div className={`px-4 py-2 rounded-xl text-xs font-bold font-mono text-right transition-colors ${
-                                              testResult?.startsWith('✅') ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'
-                                            }`}>
-                                              {testResult}
-                                            </div>
-                                          )}
-                                        </div>
-                                      </div>
-
-                                      <button
-                                        onClick={() => {
-                                          const newTerms = config.terms.filter((_: any, i: number) => i !== idx);
-                                          setConfig({ ...config, terms: newTerms });
-                                          setExpandedTermIdx(null);
-                                        }}
-                                        className="w-full py-3 rounded-2xl bg-rose-500/10 text-rose-500 hover:bg-rose-500 text-sm font-bold transition-all hover:text-black mt-2"
-                                      >
-                                        حذف هذه العملة نهائياً
-                                      </button>
-                                    </div>
-                                  </div>
-                                </div>
-                              </motion.div>
-                            )}
-                          </AnimatePresence>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </section>
-                
-                {/* Mobile Save Button */}
-                <div className="block lg:hidden sticky bottom-4 z-40">
-                  <button
-                    onClick={handleSave}
-                    disabled={loading}
-                    className="w-full py-4 rounded-2xl bg-emerald-500 text-black font-black flex items-center justify-center gap-2 hover:bg-emerald-400 transition-all active:scale-95 shadow-xl shadow-emerald-500/20 disabled:opacity-50"
+              {/* Data Sources Section */}
+              <section className="bg-white/[0.02] border border-white/5 rounded-[2rem] p-6 md:p-8">
+                <div className="flex items-center justify-between mb-8">
+                  <h2 className="text-lg md:text-xl font-black flex items-center gap-3 text-blue-400">
+                    <Globe className="w-5 h-5 md:w-6 md:h-6" />
+                    مصادر البيانات (Data Sources)
+                  </h2>
+                  <button 
+                    onClick={() => setConfig({...config, channels: [...config.channels, '']})}
+                    className="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-all flex items-center justify-center"
                   >
-                    <Save className="w-5 h-5" />
-                    <span>حفظ التغييرات</span>
+                    <Plus className="w-5 h-5" />
                   </button>
                 </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {config.channels.map((ch: string, i: number) => (
+                    <div key={i} className="flex items-center gap-3 p-3 rounded-2xl bg-white/[0.03] border border-white/5 group hover:bg-white/[0.05] transition-all">
+                      <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-400 shrink-0">
+                        <Send className="w-5 h-5" />
+                      </div>
+                      <input 
+                        value={ch}
+                        onChange={(e) => {
+                          const newChannels = [...config.channels];
+                          newChannels[i] = e.target.value;
+                          setConfig({...config, channels: newChannels});
+                        }}
+                        placeholder="اسم القناة (بدون @)"
+                        className="flex-1 bg-transparent border-none focus:ring-0 text-white font-bold text-sm"
+                        dir="ltr"
+                      />
+                      <button 
+                        onClick={() => {
+                          const newChannels = config.channels.filter((_: any, idx: number) => idx !== i);
+                          setConfig({...config, channels: newChannels});
+                        }}
+                        className="p-2 text-zinc-600 hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              {/* Intelligent Recognition System */}
+              <section className="bg-white/[0.02] border border-white/5 rounded-[2rem] p-6 md:p-8">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                  <div>
+                    <h2 className="text-lg md:text-xl font-black flex items-center gap-3 text-emerald-400">
+                      <Zap className="w-5 h-5 md:w-6 md:h-6" />
+                      نظام التعرف الذكي (Smart Extraction)
+                    </h2>
+                    <p className="text-zinc-500 text-xs mt-1 font-medium">تحديد القواعد والكلمات المفتاحية لاستخراج الأسعار آلياً</p>
+                  </div>
+                  <button 
+                    onClick={() => setConfig({
+                      ...config,
+                      terms: [...config.terms, { id: "NEW", name: "عملة جديدة", regex: "(?:كلمة|أخرى)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d+)?)", min: 0.1, max: 100, isInverse: false, flag: "" }]
+                    })}
+                    className="flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-emerald-500 text-black hover:bg-emerald-400 transition-all font-black text-sm shadow-lg shadow-emerald-500/20"
+                  >
+                    <Plus className="w-4 h-4" />
+                    إضافة عملة جديدة
+                  </button>
+                </div>
+
+                {/* Search bar */}
+                <div className="relative mb-8 group">
+                  <Search className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-600 group-focus-within:text-emerald-400 transition-colors" />
+                  <input 
+                    type="text" 
+                    placeholder="ابحث عن عملة أو معرف..."
+                    value={searchPath}
+                    onChange={(e) => setSearchPath(e.target.value)}
+                    className="w-full bg-white/[0.03] border border-white/10 rounded-2xl pr-12 pl-4 py-4 text-sm focus:outline-none focus:border-emerald-500/50 transition-all focus:bg-white/5"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 gap-4">
+                  {filteredTerms.map((term: any, originalIdx: number) => {
+                    const idx = config.terms.findIndex((t: any) => t === term);
+                    const isExpanded = expandedTermIdx === idx;
+                    const testText = testTexts[idx] || "";
+                    let testResult: string | null = null;
+                    
+                    if (testText && term.regex) {
+                      try {
+                        const regex = new RegExp(term.regex, 'i');
+                        const match = testText.match(regex);
+                        if (match && match[1]) {
+                          let val = parseFloat(match[1].replace(',', '.'));
+                          if (term.isInverse && val > 0) val = 1 / val;
+                          if (!isNaN(val) && val >= term.min && val <= term.max) {
+                            testResult = `✅ تم الاستخراج: ${val.toFixed(4)}`;
+                          } else {
+                            testResult = `⚠️ الرقم (${val}) خارج النطاق (${term.min}-${term.max})`;
+                          }
+                        } else { testResult = "❌ لم يتم العثور على تطابق"; }
+                      } catch (e) { testResult = "❌ خطأ في صيغة Regex"; }
+                    }
+
+                    return (
+                      <div 
+                        key={`term-${idx}`} 
+                        className={`rounded-3xl border transition-all duration-300 ${
+                          isExpanded ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-white/5 bg-white/[0.01] hover:bg-white/[0.03]'
+                        }`}
+                      >
+                        <div 
+                          className="flex items-center justify-between p-5 cursor-pointer select-none"
+                          onClick={() => setExpandedTermIdx(isExpanded ? null : idx)}
+                        >
+                          <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center border border-white/10 overflow-hidden">
+                              <FlagIcon flagCode={term.flag} name="flag" className="w-8 h-8" fallbackType="coins" />
+                            </div>
+                            <div>
+                              <h3 className="text-lg font-black text-white">{term.name}</h3>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <span className="text-[10px] font-mono text-zinc-600 uppercase tracking-widest">{term.id}</span>
+                                <span className="w-1 h-1 bg-zinc-800 rounded-full"></span>
+                                <span className="text-[10px] text-zinc-500 font-mono" dir="ltr">{term.min}-{term.max}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            {isExpanded ? <ChevronUp className="w-5 h-5 text-zinc-400" /> : <ChevronDown className="w-5 h-5 text-zinc-600" />}
+                          </div>
+                        </div>
+
+                        <AnimatePresence>
+                          {isExpanded && (
+                            <motion.div 
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              className="overflow-hidden"
+                            >
+                              <div className="p-6 pt-0 border-t border-white/5 mt-2">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-6">
+                                  <div className="space-y-6">
+                                    <div className="grid grid-cols-2 gap-4">
+                                      <div>
+                                        <label className="block text-[10px] text-zinc-500 font-bold uppercase mb-2 tracking-widest px-1">المعرف البرمجي (ID)</label>
+                                        <input
+                                          type="text"
+                                          value={term.id}
+                                          onChange={(e) => {
+                                            const newTerms = [...config.terms];
+                                            newTerms[idx].id = e.target.value;
+                                            setConfig({ ...config, terms: newTerms });
+                                          }}
+                                          className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm font-mono focus:border-emerald-500/50 outline-none text-white"
+                                          dir="ltr"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="block text-[10px] text-zinc-500 font-bold uppercase mb-2 tracking-widest px-1">الاسم التجاري</label>
+                                        <input
+                                          type="text"
+                                          value={term.name}
+                                          onChange={(e) => {
+                                            const newTerms = [...config.terms];
+                                            newTerms[idx].name = e.target.value;
+                                            setConfig({ ...config, terms: newTerms });
+                                          }}
+                                          className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm font-bold outline-none focus:border-emerald-500/50 text-white"
+                                        />
+                                      </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-4">
+                                      <div>
+                                        <label className="block text-[10px] text-zinc-500 font-bold uppercase mb-2 tracking-widest px-1">الحد الأدنى (د.ل)</label>
+                                        <input
+                                          type="number"
+                                          step="0.01"
+                                          value={term.min}
+                                          onChange={(e) => {
+                                            const newTerms = [...config.terms];
+                                            newTerms[idx].min = parseFloat(e.target.value);
+                                            setConfig({ ...config, terms: newTerms });
+                                          }}
+                                          className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-center font-mono outline-none text-white"
+                                          dir="ltr"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="block text-[10px] text-zinc-500 font-bold uppercase mb-2 tracking-widest px-1">الحد الأقصى (د.ل)</label>
+                                        <input
+                                          type="number"
+                                          step="0.01"
+                                          value={term.max}
+                                          onChange={(e) => {
+                                            const newTerms = [...config.terms];
+                                            newTerms[idx].max = parseFloat(e.target.value);
+                                            setConfig({ ...config, terms: newTerms });
+                                          }}
+                                          className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-center font-mono outline-none text-white"
+                                          dir="ltr"
+                                        />
+                                      </div>
+                                    </div>
+
+                                    <div>
+                                      <label className="block text-[10px] text-zinc-500 font-bold uppercase mb-2 tracking-widest px-1">كود العلم (Flags)</label>
+                                      <div className="flex items-center gap-3">
+                                        <input
+                                          type="text"
+                                          value={term.flag || ""}
+                                          onChange={(e) => {
+                                            const newTerms = [...config.terms];
+                                            newTerms[idx].flag = e.target.value;
+                                            setConfig({ ...config, terms: newTerms });
+                                          }}
+                                          placeholder="eg, us, eu, tr, ae, cn"
+                                          className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm font-mono outline-none text-white"
+                                          dir="ltr"
+                                        />
+                                        <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center overflow-hidden">
+                                          <FlagIcon flagCode={term.flag} name="flag" className="w-6 h-6" fallbackType="coins" />
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div className="space-y-6 flex flex-col">
+                                    <div className="bg-black/40 border border-white/5 rounded-2xl p-4 flex-1">
+                                      <div className="flex items-center justify-between mb-4">
+                                        <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">محرر REGEX المتقدم</label>
+                                        <Info className="w-4 h-4 text-zinc-700 hover:text-emerald-400 cursor-help" />
+                                      </div>
+                                      <textarea
+                                        value={term.regex}
+                                        onChange={(e) => {
+                                          const newTerms = [...config.terms];
+                                          newTerms[idx].regex = e.target.value;
+                                          setConfig({ ...config, terms: newTerms });
+                                        }}
+                                        className="w-full h-24 bg-transparent border border-white/10 rounded-xl px-4 py-3 text-xs font-mono text-emerald-400 focus:border-emerald-500/50 outline-none resize-none leading-relaxed"
+                                        dir="ltr"
+                                      />
+                                      
+                                      <div className="mt-6 flex flex-col gap-3">
+                                        <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">تجربة فورية</label>
+                                        <input
+                                          type="text"
+                                          placeholder="أدخل نصًا للتجربة..."
+                                          value={testText}
+                                          onChange={(e) => setTestTexts({ ...testTexts, [idx]: e.target.value })}
+                                          className="w-full bg-white/5 border border-white/5 rounded-xl px-4 py-3 text-xs outline-none focus:border-emerald-500/30 text-white"
+                                        />
+                                        {testText && (
+                                          <div className={`px-4 py-2 rounded-xl text-xs font-bold font-mono text-right transition-colors ${
+                                            testResult?.startsWith('✅') ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'
+                                          }`}>
+                                            {testResult}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    <button
+                                      onClick={() => {
+                                        const newTerms = config.terms.filter((_: any, i: number) => i !== idx);
+                                        setConfig({ ...config, terms: newTerms });
+                                        setExpandedTermIdx(null);
+                                      }}
+                                      className="w-full py-3 rounded-2xl bg-rose-500/10 text-rose-500 hover:bg-rose-500 text-sm font-bold transition-all hover:text-black mt-2"
+                                    >
+                                      حذف هذه العملة نهائياً
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+              
+              {/* Mobile Save Button */}
+              <div className="sticky bottom-4 z-40">
+                <button
+                  onClick={handleSave}
+                  disabled={loading}
+                  className="w-full py-4 rounded-2xl bg-emerald-500 text-black font-black flex items-center justify-center gap-2 hover:bg-emerald-400 transition-all active:scale-95 shadow-xl shadow-emerald-500/20 disabled:opacity-50"
+                >
+                  <Save className="w-5 h-5" />
+                  <span>حفظ جميع التغييرات</span>
+                </button>
               </div>
             </motion.div>
           )}
@@ -1048,39 +994,60 @@ export default function Admin() {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
-              className="space-y-8"
+              className="space-y-6 md:space-y-8"
             >
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {/* Server Status Hero Card */}
+              <div className="bg-gradient-to-br from-emerald-500/10 to-blue-600/10 border border-white/10 rounded-[2rem] p-6 md:p-8 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 blur-[100px] rounded-full -mr-32 -mt-32"></div>
+                <div className="relative flex flex-col md:flex-row items-center justify-between gap-6">
+                  <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 rounded-2xl bg-emerald-500/20 flex items-center justify-center text-emerald-400 border border-emerald-500/20 shadow-xl shadow-emerald-900/20">
+                      <Cpu className="w-8 h-8" />
+                    </div>
+                    <div>
+                      <h2 className="text-xl md:text-2xl font-black text-white mb-1">حالة السيرفر (System Status)</h2>
+                      <p className="text-zinc-400 text-sm flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                        السيرفر يعمل بشكل مستمر دون انقطاع
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-center md:items-end gap-1">
+                    <span className="text-zinc-500 text-[10px] uppercase tracking-widest font-black">وقت التشغيل المستمر</span>
+                    <span className="text-2xl md:text-3xl font-black text-emerald-400 font-mono tracking-tighter">{uptimeDisplay || "..."}</span>
+                    <span className="text-zinc-600 text-[10px] font-mono">بدأ في: {stats?.serverStartTime ? format(new Date(stats.serverStartTime), "yyyy/MM/dd - HH:mm:ss") : "---"}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
                 {[
-                  { label: "المستخدمون الآن", value: stats?.onlineUsers || 0, icon: Users, color: "emerald" },
-                  { label: "قنوات المراقبة", value: stats?.channelsCount || 0, icon: Globe, color: "blue" },
-                  { label: "إجمالي العملات", value: stats?.termsCount || 0, icon: Layers, color: "purple" },
-                  { label: "نشاط السيرفر (Uptime)", value: stats?.serverUptime ? (stats.serverUptime / 3600).toFixed(1) + " ساعة" : "---", icon: Cpu, color: "amber" }
+                  { label: "المتصلون", value: stats?.onlineUsers || 0, icon: Users, color: "emerald" },
+                  { label: "القنوات", value: stats?.channelsCount || 0, icon: Globe, color: "blue" },
+                  { label: "العملات", value: stats?.termsCount || 0, icon: Layers, color: "purple" },
+                  { label: "الذاكرة", value: stats?.memoryUsage ? (stats.memoryUsage.heapUsed / 1024 / 1024).toFixed(1) + "MB" : "---", icon: Zap, color: "amber" }
                 ].map((stat, i) => (
-                  <div key={i} className="bg-white/[0.02] border border-white/5 rounded-3xl p-8 relative overflow-hidden group">
-                    <div className={`absolute top-0 right-0 p-8 text-${stat.color}-500/5 group-hover:scale-110 transition-transform duration-700`}>
-                      <stat.icon className="w-24 h-24" />
+                  <div key={i} className="bg-white/[0.02] border border-white/5 rounded-3xl p-5 md:p-8 relative overflow-hidden group">
+                    <div className={`w-10 h-10 md:w-12 md:h-12 rounded-2xl bg-${stat.color}-500/10 flex items-center justify-center text-${stat.color}-400 mb-4 md:mb-6 border border-${stat.color}-500/10 shadow-lg`}>
+                      <stat.icon className="w-5 h-5 md:w-6 md:h-6" />
                     </div>
-                    <div className={`w-12 h-12 rounded-2xl bg-${stat.color}-500/10 flex items-center justify-center text-${stat.color}-400 mb-6 border border-${stat.color}-500/10 shadow-lg`}>
-                      <stat.icon className="w-6 h-6" />
-                    </div>
-                    <p className="text-zinc-500 text-sm font-medium mb-1">{stat.label}</p>
-                    <h3 className="text-3xl font-black text-white">{stat.value}</h3>
+                    <p className="text-zinc-500 text-[10px] md:text-sm font-medium mb-1">{stat.label}</p>
+                    <h3 className="text-xl md:text-3xl font-black text-white">{stat.value}</h3>
                   </div>
                 ))}
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <section className="bg-white/[0.02] border border-white/5 rounded-[2rem] p-8">
-                  <h2 className="text-xl font-black mb-8 flex items-center gap-3">
-                    <Zap className="w-6 h-6 text-emerald-400" />
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
+                <section className="bg-white/[0.02] border border-white/5 rounded-[2rem] p-6 md:p-8">
+                  <h2 className="text-lg md:text-xl font-black mb-6 md:mb-8 flex items-center gap-3">
+                    <Zap className="w-5 h-5 md:w-6 md:h-6 text-emerald-400" />
                     كفاءة النظام (Performance)
                   </h2>
                   <div className="space-y-6">
-                    <div className="p-6 rounded-2xl bg-white/[0.03] border border-white/5">
+                    <div className="p-5 rounded-2xl bg-white/[0.03] border border-white/5">
                       <div className="flex justify-between items-center mb-4">
-                        <span className="text-zinc-500 text-sm">استهلاك الذاكرة (Memory)</span>
-                        <span className="text-white font-mono font-bold">
+                        <span className="text-zinc-500 text-xs md:text-sm">استهلاك الذاكرة (Memory)</span>
+                        <span className="text-white text-xs md:text-sm font-mono font-bold">
                           {stats?.memoryUsage ? (stats.memoryUsage.heapUsed / 1024 / 1024).toFixed(1) : 0} MB
                         </span>
                       </div>
@@ -1093,17 +1060,17 @@ export default function Admin() {
                       </div>
                     </div>
 
-                    <div className="p-6 rounded-2xl bg-white/[0.03] border border-white/5">
+                    <div className="p-5 rounded-2xl bg-white/[0.03] border border-white/5">
                       <div className="flex justify-between items-center mb-2">
-                        <span className="text-zinc-500 text-sm">حالة آخر تحديث تلقائي</span>
-                        <span className={`text-xs font-black uppercase px-2 py-0.5 rounded-md ${stats && stats.minutesSinceLastScrape > 30 ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'}`}>
+                        <span className="text-zinc-500 text-xs md:text-sm">حالة آخر تحديث تلقائي</span>
+                        <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md ${stats && stats.minutesSinceLastScrape > 30 ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'}`}>
                            {stats && stats.minutesSinceLastScrape > 30 ? 'Stale' : 'Active'}
                         </span>
                       </div>
-                      <p className="text-xl font-bold text-white mb-2">
+                      <p className="text-lg md:text-xl font-bold text-white mb-2">
                          منذ {stats?.minutesSinceLastScrape || 0} دقيقة
                       </p>
-                      <p className="text-xs text-zinc-600 font-mono">
+                      <p className="text-[10px] md:text-xs text-zinc-600 font-mono">
                         {stats?.lastSuccessfulScrape ? format(new Date(stats.lastSuccessfulScrape), "eeee dd MMMM - HH:mm", { locale: ar }) : "---"}
                       </p>
                     </div>
@@ -1112,104 +1079,50 @@ export default function Admin() {
 
                 {/* Database Stats */}
                 {stats?.dbStats && (
-                  <section className="bg-[#0a0a0a] border border-white/10 rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden">
+                  <section className="bg-[#0a0a0a] border border-white/10 rounded-[2.5rem] p-6 md:p-8 shadow-2xl relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 blur-[80px] rounded-full pointer-events-none"></div>
                     <div className="relative">
-                      <h2 className="text-xl font-black flex items-center gap-3 text-white mb-8">
-                        <Layers className="w-6 h-6 text-emerald-400" />
+                      <h2 className="text-lg md:text-xl font-black flex items-center gap-3 text-white mb-6 md:mb-8">
+                        <Layers className="w-5 h-5 md:w-6 md:h-6 text-emerald-400" />
                         إحصائيات قاعدة البيانات
                       </h2>
                       
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                        <div className="bg-white/[0.02] border border-white/5 p-6 rounded-3xl">
-                          <p className="text-xs text-zinc-500 uppercase tracking-widest font-black mb-2">سجلات الأسعار</p>
-                          <p className="text-2xl font-black text-white font-mono">{stats.dbStats.parallelRatesCount.toLocaleString()}</p>
+                      <div className="grid grid-cols-2 gap-4 md:gap-6">
+                        <div className="bg-white/[0.02] border border-white/5 p-4 md:p-6 rounded-3xl">
+                          <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-black mb-2">سجلات الأسعار</p>
+                          <p className="text-xl md:text-2xl font-black text-white font-mono">{stats.dbStats.parallelRatesCount.toLocaleString()}</p>
                         </div>
-                        <div className="bg-white/[0.02] border border-white/5 p-6 rounded-3xl">
-                          <p className="text-xs text-zinc-500 uppercase tracking-widest font-black mb-2">السعر الرسمي</p>
-                          <p className="text-2xl font-black text-white font-mono">{stats.dbStats.officialRatesCount.toLocaleString()}</p>
+                        <div className="bg-white/[0.02] border border-white/5 p-4 md:p-6 rounded-3xl">
+                          <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-black mb-2">السعر الرسمي</p>
+                          <p className="text-xl md:text-2xl font-black text-white font-mono">{stats.dbStats.officialRatesCount.toLocaleString()}</p>
                         </div>
-                        <div className="bg-white/[0.02] border border-white/5 p-6 rounded-3xl">
-                          <p className="text-xs text-zinc-500 uppercase tracking-widest font-black mb-2">سجل التغيرات</p>
-                          <p className="text-2xl font-black text-blue-400 font-mono">{stats.dbStats.priceChangesCount.toLocaleString()}</p>
+                        <div className="bg-white/[0.02] border border-white/5 p-4 md:p-6 rounded-3xl">
+                          <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-black mb-2">سجل التغيرات</p>
+                          <p className="text-xl md:text-2xl font-black text-blue-400 font-mono">{stats.dbStats.priceChangesCount.toLocaleString()}</p>
                         </div>
-                        <div className="bg-white/[0.02] border border-white/5 p-6 rounded-3xl">
-                          <p className="text-xs text-zinc-500 uppercase tracking-widest font-black mb-2">سجلات الأخطاء</p>
-                          <p className="text-2xl font-black text-rose-400 font-mono">{stats.dbStats.errorLogsCount.toLocaleString()}</p>
+                        <div className="bg-white/[0.02] border border-white/5 p-4 md:p-6 rounded-3xl">
+                          <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-black mb-2">سجلات الأخطاء</p>
+                          <p className="text-xl md:text-2xl font-black text-rose-400 font-mono">{stats.dbStats.errorLogsCount.toLocaleString()}</p>
                         </div>
                       </div>
 
-                      <div className="mt-8 pt-8 border-t border-white/5">
+                      <div className="mt-6 md:mt-8 pt-6 md:pt-8 border-t border-white/5">
                         <button 
                           onClick={handleCleanup}
                           disabled={loading}
-                          className={`w-full py-4 rounded-2xl font-black flex items-center justify-center gap-2 transition-all ${
+                          className={`w-full py-3 md:py-4 rounded-2xl font-black flex items-center justify-center gap-2 transition-all text-xs md:text-sm ${
                             confirmCleanup 
                               ? 'bg-rose-500 text-black shadow-lg shadow-rose-500/20' 
                               : 'bg-white/5 text-zinc-400 hover:text-white border border-white/5'
                           }`}
                         >
-                          <Trash2 className="w-5 h-5" />
-                          {confirmCleanup ? 'تأكيد تنظيف البيانات (أقدم من 7 أيام)؟' : 'تنظيف البيانات القديمة يدوياً'}
+                          <Trash2 className="w-4 h-4 md:w-5 h-5" />
+                          {confirmCleanup ? 'تأكيد تنظيف البيانات؟' : 'تنظيف البيانات القديمة'}
                         </button>
-                        <p className="text-[10px] text-zinc-600 text-center mt-3 font-medium">
-                          * يتم تنظيف البيانات تلقائياً كل أسبوع للحفاظ على سرعة النظام.
-                        </p>
                       </div>
                     </div>
                   </section>
                 )}
-
-                <section className="bg-white/[0.02] border border-white/5 rounded-[2rem] p-8">
-                  <h2 className="text-xl font-black mb-8 flex items-center gap-3">
-                    <CheckCircle2 className="w-6 h-6 text-blue-400" />
-                    بيان حالة القنوات (Scrapers)
-                  </h2>
-                  <div className="space-y-3">
-                    {config.channels.map((ch: any, i: number) => (
-                      <div key={i} className="flex items-center justify-between p-4 rounded-xl bg-white/[0.01] border border-white/5 group hover:bg-white/[0.03] transition-all">
-                        <div className="flex items-center gap-3">
-                          <div className="w-2 h-2 bg-emerald-500 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
-                          <span className="text-sm font-bold text-zinc-300">t.me/s/{ch}</span>
-                        </div>
-                        <span className="text-[10px] text-zinc-600 font-mono group-hover:text-zinc-400 transition-colors">Monitoring...</span>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-
-                <section className="bg-white/[0.02] border border-white/5 rounded-[2rem] p-8">
-                  <h2 className="text-xl font-black mb-8 flex items-center gap-3">
-                    <Zap className="w-6 h-6 text-purple-400" />
-                    حالة الكاشط (Scraper)
-                  </h2>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                    <div className="p-6 rounded-2xl bg-white/[0.03] border border-white/5">
-                      <span className="text-zinc-500 text-sm block mb-2">آخر تحديث ناجح</span>
-                      <p className="text-xl font-bold text-green-400">
-                        {stats?.lastSuccessfulScrape ? format(new Date(stats.lastSuccessfulScrape), 'HH:mm:ss', { locale: ar }) : 'غير متوفر'}
-                      </p>
-                    </div>
-                    <div className="p-6 rounded-2xl bg-white/[0.03] border border-white/5">
-                      <span className="text-zinc-500 text-sm block mb-2">الوقت المنقضي</span>
-                      <p className={`text-xl font-bold ${stats?.minutesSinceLastScrape && stats.minutesSinceLastScrape > 30 ? 'text-rose-400' : 'text-white'}`}>
-                        {stats?.minutesSinceLastScrape ?? '?'} دقيقة
-                      </p>
-                    </div>
-                    <div className="p-6 rounded-2xl bg-white/[0.03] border border-white/5">
-                      <span className="text-zinc-500 text-sm block mb-2">استهلاك الذاكرة (RSS)</span>
-                      <p className="text-xl font-bold text-white">
-                        {stats?.memoryUsage ? `${Math.round(stats.memoryUsage.rss / 1024 / 1024)} MB` : '---'}
-                      </p>
-                    </div>
-                    <div className="p-6 rounded-2xl bg-white/[0.03] border border-white/5">
-                      <span className="text-zinc-500 text-sm block mb-2">وقت تشغيل السيرفر</span>
-                      <p className="text-xl font-bold text-white">
-                        {stats?.serverUptime ? `${Math.floor(stats.serverUptime / 3600)}h ${Math.floor((stats.serverUptime % 3600) / 60)}m` : '---'}
-                      </p>
-                    </div>
-                  </div>
-                </section>
               </div>
             </motion.div>
           )}
