@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { 
-  Settings, Save, Plus, Trash2, ArrowRight, ShieldCheck, LogOut, X, 
+  Settings, Save, Plus, Trash2, ArrowRight, ShieldCheck, LogOut, X, Lock,
   Activity, Users, Cpu, History as HistoryIcon, AlertTriangle, Terminal, 
   ArrowLeftRight, ArrowUpRight, ArrowDownRight, CheckCircle2, RefreshCw, Layers, Globe, Zap, Search,
   ChevronDown, ChevronUp, Clock, Info, Building2, Coins, Send, Building, TrendingUp
@@ -598,7 +598,16 @@ export default function Admin() {
     );
   }
 
-  if (!config) return null;
+  if (!config) {
+    return (
+      <div className="min-h-screen bg-[#050505] flex items-center justify-center p-4 font-sans" dir="rtl">
+        <div className="text-center">
+          <RefreshCw className="w-12 h-12 text-emerald-500 animate-spin mx-auto mb-4" />
+          <p className="text-zinc-500 text-sm">جاري تحميل الإعدادات...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#050505] text-white flex flex-col font-sans selection:bg-emerald-500/30" dir="rtl">
