@@ -220,6 +220,33 @@ const ScrollToTop = ({ triggerHaptic }: { triggerHaptic: (p?: number) => void })
   );
 };
 
+const RateSkeleton = () => (
+  <div className="flex flex-col p-2.5 rounded-2xl skeleton-pulse -m-2.5">
+    <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center gap-2">
+        <div className="w-8 h-8 rounded-full bg-white/5" />
+        <div className="w-16 h-3 bg-white/5 rounded-full" />
+      </div>
+      <div className="w-10 h-3 bg-white/5 rounded-full" />
+    </div>
+    <div className="flex items-center gap-2 mb-3">
+      <div className="w-24 h-8 bg-white/5 rounded-xl" />
+    </div>
+    <div className="flex items-center justify-between gap-2">
+      <div className="w-12 h-2 bg-white/5 rounded-full" />
+      <div className="w-16 h-2 bg-white/5 rounded-full" />
+    </div>
+  </div>
+);
+
+const SkeletonRates = () => (
+  <div className="space-y-16">
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-8 gap-y-12">
+      {[...Array(10)].map((_, i) => <RateSkeleton key={i} />)}
+    </div>
+  </div>
+);
+
 export default function App() {
   const [rates, setRates] = useState<Rates | null>(null);
   const [history, setHistory] = useState<HistoryPoint[]>([]);
@@ -1162,44 +1189,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#050505] text-white font-sans selection:bg-emerald-500/20 relative overflow-hidden" dir="rtl">
-      <AnimatePresence>
-        {loading && !rates && (
-          <motion.div 
-            key="splash-screen"
-            initial={{ opacity: 1 }}
-            exit={{ opacity: 0, scale: 1.05, filter: "blur(10px)" }}
-            transition={{ duration: 0.8, ease: [0.4, 0, 0.2, 1] }}
-            className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-[#050505]"
-          >
-            <div className="relative w-24 h-24 mb-8">
-              <motion.div 
-                animate={{ 
-                  scale: [1, 1.1, 1],
-                  opacity: [0.3, 0.6, 0.3]
-                }}
-                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                className="absolute inset-0 bg-emerald-500 rounded-full blur-xl"
-              />
-              <img 
-                src="https://hatscripts.github.io/circle-flags/flags/ly.svg" 
-                alt="Logo" 
-                className="relative w-full h-full rounded-full shadow-[0_0_20px_rgba(16,185,129,0.2)] z-10"
-              />
-            </div>
-            <h1 className="text-3xl font-extrabold tracking-wide bg-gradient-to-r from-emerald-400 to-emerald-500 bg-clip-text text-transparent m-0">
-              مؤشر الدينار
-            </h1>
-            <p className="text-sm text-zinc-400 mt-3 font-medium">جاري التحديث...</p>
-            <div className="mt-12 w-16 h-1 bg-white/10 rounded-full overflow-hidden relative">
-              <motion.div 
-                animate={{ left: ["-50%", "100%"] }}
-                transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-                className="absolute top-0 bottom-0 w-1/2 bg-emerald-500 rounded-full"
-              />
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* No more Splash Screen - Skeletons show the structure immediately */}
 
       <Joyride
         steps={tourSteps}
@@ -1520,20 +1510,24 @@ export default function App() {
               className="flex items-baseline gap-3 sm:gap-4 cursor-pointer group relative"
               onClick={() => setSelectedRate({ code: 'USD', name: 'دولار أمريكي (كاش)', market: 'parallel' })}
             >
-              <AnimatePresence mode="popLayout">
-                <motion.span
-                  key={usdRate}
-                  initial={{ opacity: 0, y: -20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 20 }}
-                  className="text-6xl sm:text-8xl lg:text-[140px] font-light text-white tracking-tighter font-mono leading-none group-hover:text-emerald-400 transition-colors relative z-10"
-                >
-                  {usdRate.toFixed(2)}
-                </motion.span>
-              </AnimatePresence>
+              {!rates ? (
+                <div className="w-64 h-24 sm:h-32 lg:h-[140px] skeleton-pulse mb-2" />
+              ) : (
+                <AnimatePresence mode="popLayout">
+                  <motion.span
+                    key={usdRate}
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 20 }}
+                    className="text-6xl sm:text-8xl lg:text-[140px] font-light text-white tracking-tighter font-mono leading-none group-hover:text-emerald-400 transition-colors relative z-10"
+                  >
+                    {usdRate.toFixed(2)}
+                  </motion.span>
+                </AnimatePresence>
+              )}
               <span className="text-xl sm:text-3xl lg:text-4xl text-zinc-500 font-light">د.ل</span>
               
-              <LastChangedBadge date={rates?.lastChanged?.parallel["USD"]} className="absolute -bottom-6 right-0" />
+              {rates && <LastChangedBadge date={rates?.lastChanged?.parallel["USD"]} className="absolute -bottom-6 right-0" />}
 
               {/* Subtle pulsing glow behind the price */}
               <motion.div 
@@ -1656,42 +1650,46 @@ export default function App() {
               <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest">السوق الموازي (عملات أجنبية)</h3>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-8 gap-y-12">
-              {configTerms.filter(t => t.id !== "USD" && t.id !== "OFFICIAL_USD" && !t.id.startsWith("USD_") && !METAL_IDS.includes(t.id)).map(term => {
-                const rate = rates?.parallel[term.id] || 0;
-                const prevRate = rates?.previousParallel?.[term.id] || rate;
-                const isUp = rate > prevRate;
-                const isDown = rate < prevRate;
+              {(!rates || configTerms.length === 0) ? (
+                Array(5).fill(0).map((_, i) => <RateSkeleton key={i} />)
+              ) : (
+                configTerms.filter(t => t.id !== "USD" && t.id !== "OFFICIAL_USD" && !t.id.startsWith("USD_") && !METAL_IDS.includes(t.id)).map(term => {
+                  const rate = rates?.parallel[term.id] || 0;
+                  const prevRate = rates?.previousParallel?.[term.id] || rate;
+                  const isUp = rate > prevRate;
+                  const isDown = rate < prevRate;
 
-                return (
-                  <div 
-                    key={`parallel-${term.id}`} 
-                    onClick={() => setSelectedRate({ code: term.id, name: term.name, market: 'parallel' })}
-                    className="flex flex-col group p-2.5 rounded-2xl hover:bg-white/[0.02] transition-colors -m-2.5 cursor-pointer relative"
-                  >
-                    <div className="flex items-center justify-between mb-3 sm:mb-4">
-                      <div className="flex items-center gap-2">
-                        <FlagIcon flagCode={term.flag} name={term.name} fallbackType="coins" />
-                        <span className="text-[11px] font-medium text-zinc-400">{term.name}</span>
+                  return (
+                    <div 
+                      key={`parallel-${term.id}`} 
+                      onClick={() => setSelectedRate({ code: term.id, name: term.name, market: 'parallel' })}
+                      className="flex flex-col group p-2.5 rounded-2xl hover:bg-white/[0.02] transition-colors -m-2.5 cursor-pointer relative"
+                    >
+                      <div className="flex items-center justify-between mb-3 sm:mb-4">
+                        <div className="flex items-center gap-2">
+                          <FlagIcon flagCode={term.flag} name={term.name} fallbackType="coins" />
+                          <span className="text-[11px] font-medium text-zinc-400">{term.name}</span>
+                        </div>
+                        {trends24h[term.id]?.parallel !== undefined && (
+                          <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-md ${
+                            trends24h[term.id].parallel! > 0 ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'
+                          }`}>
+                            {trends24h[term.id].parallel! > 0 ? '+' : ''}{trends24h[term.id].parallel!.toFixed(1)}%
+                          </span>
+                        )}
                       </div>
-                      {trends24h[term.id]?.parallel !== undefined && (
-                        <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-md ${
-                          trends24h[term.id].parallel! > 0 ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'
-                        }`}>
-                          {trends24h[term.id].parallel! > 0 ? '+' : ''}{trends24h[term.id].parallel!.toFixed(1)}%
-                        </span>
-                      )}
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-2xl font-light text-white font-mono tracking-tight group-hover:text-emerald-400 transition-colors">{rate.toFixed(2)}</span>
+                        {isUp ? <ArrowUpRight className="w-3 h-3 text-rose-400" /> : isDown ? <ArrowDownRight className="w-3 h-3 text-emerald-400" /> : null}
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[9px] text-zinc-700 font-mono" dir="ltr">السابق: {prevRate.toFixed(2)}</span>
+                        <LastChangedBadge date={rates?.lastChanged?.parallel[term.id]} />
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-2xl font-light text-white font-mono tracking-tight group-hover:text-emerald-400 transition-colors">{rate.toFixed(2)}</span>
-                      {isUp ? <ArrowUpRight className="w-3 h-3 text-rose-400" /> : isDown ? <ArrowDownRight className="w-3 h-3 text-emerald-400" /> : null}
-                    </div>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[9px] text-zinc-700 font-mono" dir="ltr">السابق: {prevRate.toFixed(2)}</span>
-                      <LastChangedBadge date={rates?.lastChanged?.parallel[term.id]} />
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
           </div>
 
@@ -1701,42 +1699,46 @@ export default function App() {
               <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest">أسعار صكوك المصارف التجارية (USD)</h3>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-8 gap-y-12">
-              {configTerms.filter(t => t.id.startsWith("USD_") && !["USD_AE", "USD_TR", "USD_CN"].includes(t.id)).map(term => {
-                const rate = rates?.parallel[term.id] || 0;
-                const prevRate = rates?.previousParallel?.[term.id] || rate;
-                const isUp = rate > prevRate;
-                const isDown = rate < prevRate;
+              {(!rates || configTerms.length === 0) ? (
+                Array(5).fill(0).map((_, i) => <RateSkeleton key={i} />)
+              ) : (
+                configTerms.filter(t => t.id.startsWith("USD_") && !["USD_AE", "USD_TR", "USD_CN"].includes(t.id)).map(term => {
+                  const rate = rates?.parallel[term.id] || 0;
+                  const prevRate = rates?.previousParallel?.[term.id] || rate;
+                  const isUp = rate > prevRate;
+                  const isDown = rate < prevRate;
 
-                return (
-                  <div 
-                    key={`parallel-${term.id}`} 
-                    onClick={() => setSelectedRate({ code: term.id, name: term.name, market: 'parallel' })}
-                    className="flex flex-col group p-2.5 rounded-2xl hover:bg-white/[0.02] transition-colors -m-2.5 cursor-pointer relative"
-                  >
-                    <div className="flex items-center justify-between mb-3 sm:mb-4">
-                      <div className="flex items-center gap-2">
-                        <FlagIcon flagCode={term.flag} name={term.name} fallbackType="building" />
-                        <span className="text-[11px] font-medium text-zinc-400">{term.name}</span>
+                  return (
+                    <div 
+                      key={`parallel-${term.id}`} 
+                      onClick={() => setSelectedRate({ code: term.id, name: term.name, market: 'parallel' })}
+                      className="flex flex-col group p-2.5 rounded-2xl hover:bg-white/[0.02] transition-colors -m-2.5 cursor-pointer relative"
+                    >
+                      <div className="flex items-center justify-between mb-3 sm:mb-4">
+                        <div className="flex items-center gap-2">
+                          <FlagIcon flagCode={term.flag} name={term.name} fallbackType="building" />
+                          <span className="text-[11px] font-medium text-zinc-400">{term.name}</span>
+                        </div>
+                        {trends24h[term.id]?.parallel !== undefined && (
+                          <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-md ${
+                            trends24h[term.id].parallel! > 0 ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'
+                          }`}>
+                            {trends24h[term.id].parallel! > 0 ? '+' : ''}{trends24h[term.id].parallel!.toFixed(1)}%
+                          </span>
+                        )}
                       </div>
-                      {trends24h[term.id]?.parallel !== undefined && (
-                        <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-md ${
-                          trends24h[term.id].parallel! > 0 ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'
-                        }`}>
-                          {trends24h[term.id].parallel! > 0 ? '+' : ''}{trends24h[term.id].parallel!.toFixed(1)}%
-                        </span>
-                      )}
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-2xl font-light text-white font-mono tracking-tight group-hover:text-blue-400 transition-colors">{rate.toFixed(2)}</span>
+                        {isUp ? <ArrowUpRight className="w-3 h-3 text-rose-400" /> : isDown ? <ArrowDownRight className="w-3 h-3 text-emerald-400" /> : null}
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[9px] text-zinc-700 font-mono" dir="ltr">السابق: {prevRate.toFixed(2)}</span>
+                        <LastChangedBadge date={rates?.lastChanged?.parallel[term.id]} />
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-2xl font-light text-white font-mono tracking-tight group-hover:text-blue-400 transition-colors">{rate.toFixed(2)}</span>
-                      {isUp ? <ArrowUpRight className="w-3 h-3 text-rose-400" /> : isDown ? <ArrowDownRight className="w-3 h-3 text-emerald-400" /> : null}
-                    </div>
-                    <div className="flex items-center justify-between gap-2">
-                       <span className="text-[9px] text-zinc-700 font-mono" dir="ltr">السابق: {prevRate.toFixed(2)}</span>
-                       <LastChangedBadge date={rates?.lastChanged?.parallel[term.id]} />
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
           </div>
 
@@ -1746,57 +1748,61 @@ export default function App() {
               <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest">أسعار الذهب والفضة (المعادن)</h3>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-8 gap-y-12">
-              {configTerms.filter(t => METAL_IDS.includes(t.id)).map(term => {
-                const rate = rates?.parallel[term.id] || 0;
-                const prevRate = rates?.previousParallel?.[term.id] || rate;
-                const isUp = rate > prevRate;
-                const isDown = rate < prevRate;
-                const isSilver = term.id.includes('SILVER');
+              {(!rates || configTerms.length === 0) ? (
+                Array(5).fill(0).map((_, i) => <RateSkeleton key={i} />)
+              ) : (
+                configTerms.filter(t => METAL_IDS.includes(t.id)).map(term => {
+                  const rate = rates?.parallel[term.id] || 0;
+                  const prevRate = rates?.previousParallel?.[term.id] || rate;
+                  const isUp = rate > prevRate;
+                  const isDown = rate < prevRate;
+                  const isSilver = term.id.includes('SILVER');
 
-                return (
-                  <div 
-                    key={`parallel-${term.id}`} 
-                    onClick={() => setSelectedRate({ code: term.id, name: term.name, market: 'parallel' })}
-                    className="flex flex-col group p-2.5 rounded-2xl hover:bg-white/[0.02] transition-colors -m-2.5 cursor-pointer relative"
-                  >
-                    <div className="flex items-center justify-between mb-3 sm:mb-4">
-                      <div className="flex items-center gap-2">
-                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center border ${
-                          isSilver 
-                            ? 'bg-zinc-500/10 border-zinc-500/20' 
-                            : 'bg-amber-500/10 border-amber-500/20'
-                        }`}>
-                          {isSilver ? (
-                            <Disc className="w-4 h-4 text-zinc-400" />
-                          ) : (
-                            <Coins className="w-4 h-4 text-amber-500" />
-                          )}
+                  return (
+                    <div 
+                      key={`parallel-${term.id}`} 
+                      onClick={() => setSelectedRate({ code: term.id, name: term.name, market: 'parallel' })}
+                      className="flex flex-col group p-2.5 rounded-2xl hover:bg-white/[0.02] transition-colors -m-2.5 cursor-pointer relative"
+                    >
+                      <div className="flex items-center justify-between mb-3 sm:mb-4">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-8 h-8 rounded-xl flex items-center justify-center border ${
+                            isSilver 
+                              ? 'bg-zinc-500/10 border-zinc-500/20' 
+                              : 'bg-amber-500/10 border-amber-500/20'
+                          }`}>
+                            {isSilver ? (
+                              <Disc className="w-4 h-4 text-zinc-400" />
+                            ) : (
+                              <Coins className="w-4 h-4 text-amber-500" />
+                            )}
+                          </div>
+                          <span className="text-[11px] font-medium text-zinc-400">{term.name}</span>
                         </div>
-                        <span className="text-[11px] font-medium text-zinc-400">{term.name}</span>
+                        {trends24h[term.id]?.parallel !== undefined && (
+                          <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-md ${
+                            trends24h[term.id].parallel! > 0 ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'
+                          }`}>
+                            {trends24h[term.id].parallel! > 0 ? '+' : ''}{trends24h[term.id].parallel!.toFixed(1)}%
+                          </span>
+                        )}
                       </div>
-                      {trends24h[term.id]?.parallel !== undefined && (
-                        <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-md ${
-                          trends24h[term.id].parallel! > 0 ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={`text-2xl font-light text-white font-mono tracking-tight transition-colors ${
+                          isSilver ? 'group-hover:text-zinc-300' : 'group-hover:text-amber-400'
                         }`}>
-                          {trends24h[term.id].parallel! > 0 ? '+' : ''}{trends24h[term.id].parallel!.toFixed(1)}%
+                          {isSilver ? rate.toFixed(2) : Math.round(rate)}
                         </span>
-                      )}
+                        {isUp ? <ArrowUpRight className="w-3 h-3 text-rose-400" /> : isDown ? <ArrowDownRight className="w-3 h-3 text-emerald-400" /> : null}
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[9px] text-zinc-700 font-mono" dir="ltr">السابق: {isSilver ? prevRate.toFixed(2) : Math.round(prevRate)}</span>
+                        <LastChangedBadge date={rates?.lastChanged?.parallel[term.id]} />
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className={`text-2xl font-light text-white font-mono tracking-tight transition-colors ${
-                        isSilver ? 'group-hover:text-zinc-300' : 'group-hover:text-amber-400'
-                      }`}>
-                        {isSilver ? rate.toFixed(2) : Math.round(rate)}
-                      </span>
-                      {isUp ? <ArrowUpRight className="w-3 h-3 text-rose-400" /> : isDown ? <ArrowDownRight className="w-3 h-3 text-emerald-400" /> : null}
-                    </div>
-                    <div className="flex items-center justify-between gap-2">
-                       <span className="text-[9px] text-zinc-700 font-mono" dir="ltr">السابق: {isSilver ? prevRate.toFixed(2) : Math.round(prevRate)}</span>
-                       <LastChangedBadge date={rates?.lastChanged?.parallel[term.id]} />
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
           </div>
 
@@ -1806,45 +1812,49 @@ export default function App() {
               <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest">حوالات العملة (خارج ليبيا)</h3>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-8 gap-y-12">
-              {configTerms.filter(t => ["USD_AE", "USD_TR", "USD_CN"].includes(t.id)).map(term => {
-                const rate = rates?.parallel[term.id] || 0;
-                const prevRate = rates?.previousParallel?.[term.id] || rate;
-                const isUp = rate > prevRate;
-                const isDown = rate < prevRate;
+              {(!rates || configTerms.length === 0) ? (
+                Array(5).fill(0).map((_, i) => <RateSkeleton key={i} />)
+              ) : (
+                configTerms.filter(t => ["USD_AE", "USD_TR", "USD_CN"].includes(t.id)).map(term => {
+                  const rate = rates?.parallel[term.id] || 0;
+                  const prevRate = rates?.previousParallel?.[term.id] || rate;
+                  const isUp = rate > prevRate;
+                  const isDown = rate < prevRate;
 
-                return (
-                  <div 
-                    key={`parallel-${term.id}`} 
-                    onClick={() => setSelectedRate({ code: term.id, name: term.name, market: 'parallel' })}
-                    className="flex flex-col group p-2.5 rounded-2xl hover:bg-white/[0.02] transition-colors -m-2.5 cursor-pointer relative"
-                  >
-                    <div className="flex items-center justify-between mb-3 sm:mb-4">
-                      <div className="flex items-center gap-2">
-                        <FlagIcon flagCode={term.flag} name={term.name} fallbackType="send" />
-                        <span className="text-[11px] font-medium text-zinc-400">{term.name}</span>
+                  return (
+                    <div 
+                      key={`parallel-${term.id}`} 
+                      onClick={() => setSelectedRate({ code: term.id, name: term.name, market: 'parallel' })}
+                      className="flex flex-col group p-2.5 rounded-2xl hover:bg-white/[0.02] transition-colors -m-2.5 cursor-pointer relative"
+                    >
+                      <div className="flex items-center justify-between mb-3 sm:mb-4">
+                        <div className="flex items-center gap-2">
+                          <FlagIcon flagCode={term.flag} name={term.name} fallbackType="send" />
+                          <span className="text-[11px] font-medium text-zinc-400">{term.name}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-2xl font-light text-white font-mono tracking-tight group-hover:text-indigo-400 transition-colors">{rate.toFixed(2)}</span>
+                        {trends24h[term.id]?.parallel !== undefined && (
+                          <span className={`text-[10px] font-mono font-medium px-1.5 py-0.5 rounded-md flex items-center gap-0.5 ${
+                            trends24h[term.id].parallel! > 0 ? 'bg-rose-500/10 text-rose-500' : 
+                            trends24h[term.id].parallel! < 0 ? 'bg-emerald-500/10 text-emerald-500' : 
+                            'bg-zinc-500/10 text-zinc-400'
+                          }`}>
+                            {trends24h[term.id].parallel! > 0 ? <ArrowUpRight className="w-3 h-3" /> : 
+                             trends24h[term.id].parallel! < 0 ? <ArrowDownRight className="w-3 h-3" /> : null}
+                            <span dir="ltr">{Math.abs(trends24h[term.id].parallel!).toFixed(1)}%</span>
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[9px] text-zinc-700 font-mono" dir="ltr">السابق: {prevRate.toFixed(2)}</span>
+                        <LastChangedBadge date={rates?.lastChanged?.parallel[term.id]} />
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-2xl font-light text-white font-mono tracking-tight group-hover:text-indigo-400 transition-colors">{rate.toFixed(2)}</span>
-                      {trends24h[term.id]?.parallel !== undefined && (
-                        <span className={`text-[10px] font-mono font-medium px-1.5 py-0.5 rounded-md flex items-center gap-0.5 ${
-                          trends24h[term.id].parallel! > 0 ? 'bg-rose-500/10 text-rose-500' : 
-                          trends24h[term.id].parallel! < 0 ? 'bg-emerald-500/10 text-emerald-500' : 
-                          'bg-zinc-500/10 text-zinc-400'
-                        }`}>
-                          {trends24h[term.id].parallel! > 0 ? <ArrowUpRight className="w-3 h-3" /> : 
-                           trends24h[term.id].parallel! < 0 ? <ArrowDownRight className="w-3 h-3" /> : null}
-                          <span dir="ltr">{Math.abs(trends24h[term.id].parallel!).toFixed(1)}%</span>
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center justify-between gap-2">
-                       <span className="text-[9px] text-zinc-700 font-mono" dir="ltr">السابق: {prevRate.toFixed(2)}</span>
-                       <LastChangedBadge date={rates?.lastChanged?.parallel[term.id]} />
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
           </div>
         </section>
@@ -1855,44 +1865,48 @@ export default function App() {
             <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest">السوق الرسمي (مصرف ليبيا المركزي)</h3>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-x-8 gap-y-12">
-            {dynamicCurrencies.map(currency => {
-              const rate = rates?.official[currency.code] || 0;
-              const prevRate = rates?.previousOfficial?.[currency.code] || rate;
-              const isUp = rate > prevRate;
-              const isDown = rate < prevRate;
+            {(!rates || dynamicCurrencies.length === 0) ? (
+              Array(6).fill(0).map((_, i) => <RateSkeleton key={i} />)
+            ) : (
+              dynamicCurrencies.map(currency => {
+                const rate = rates?.official[currency.code] || 0;
+                const prevRate = rates?.previousOfficial?.[currency.code] || rate;
+                const isUp = rate > prevRate;
+                const isDown = rate < prevRate;
 
-              return (
-                <div 
-                  key={`official-${currency.code}`} 
-                  onClick={() => setSelectedRate({ code: currency.code, name: currency.name, market: 'official' })}
-                  className="flex flex-col group p-3 rounded-2xl hover:bg-white/[0.02] transition-colors -m-3 cursor-pointer"
-                >
-                  <div className="flex items-center justify-between mb-3 sm:mb-4">
-                    <div className="flex items-center gap-2 sm:gap-3">
-                      <FlagIcon flagCode={currency.flag} name={currency.name} className="w-4 h-4 sm:w-5 sm:h-5" fallbackType="coins" />
-                      <span className="text-[11px] sm:text-xs font-medium text-zinc-400">{currency.code}</span>
+                return (
+                  <div 
+                    key={`official-${currency.code}`} 
+                    onClick={() => setSelectedRate({ code: currency.code, name: currency.name, market: 'official' })}
+                    className="flex flex-col group p-3 rounded-2xl hover:bg-white/[0.02] transition-colors -m-3 cursor-pointer"
+                  >
+                    <div className="flex items-center justify-between mb-3 sm:mb-4">
+                      <div className="flex items-center gap-2 sm:gap-3">
+                        <FlagIcon flagCode={currency.flag} name={currency.name} className="w-4 h-4 sm:w-5 sm:h-5" fallbackType="coins" />
+                        <span className="text-[11px] sm:text-xs font-medium text-zinc-400">{currency.code}</span>
+                      </div>
+
+                      {/* 24h Trend Badge */}
+                      {trends24h[currency.code]?.official !== undefined && (
+                        <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-md ${
+                          trends24h[currency.code].official! > 0 ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'
+                        }`}>
+                          {trends24h[currency.code].official! > 0 ? '+' : ''}{trends24h[currency.code].official!.toFixed(1)}%
+                        </span>
+                      )}
                     </div>
-
-                    {/* 24h Trend Badge */}
-                    {trends24h[currency.code]?.official !== undefined && (
-                      <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-md ${
-                        trends24h[currency.code].official! > 0 ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'
-                      }`}>
-                        {trends24h[currency.code].official! > 0 ? '+' : ''}{trends24h[currency.code].official!.toFixed(1)}%
-                      </span>
-                    )}
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xl font-light text-zinc-300 font-mono tracking-tight group-hover:text-emerald-400 transition-colors">{rate.toFixed(2)}</span>
+                      {isUp ? <ArrowUpRight className="w-3 h-3 text-rose-400 opacity-70" /> : isDown ? <ArrowDownRight className="w-3 h-3 text-emerald-400 opacity-70" /> : null}
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[9px] text-zinc-800 font-mono" dir="ltr">Prev: {prevRate.toFixed(2)}</span>
+                      <LastChangedBadge date={rates?.lastChanged?.official[currency.code]} />
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-xl font-light text-zinc-300 font-mono tracking-tight group-hover:text-emerald-400 transition-colors">{rate.toFixed(2)}</span>
-                    {isUp ? <ArrowUpRight className="w-3 h-3 text-rose-400 opacity-70" /> : isDown ? <ArrowDownRight className="w-3 h-3 text-emerald-400 opacity-70" /> : null}
-                  </div>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[9px] text-zinc-800 font-mono" dir="ltr">Prev: {prevRate.toFixed(2)}</span>
-                    <LastChangedBadge date={rates?.lastChanged?.official[currency.code]} />
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
         </section>
 

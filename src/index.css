@@ -12,6 +12,38 @@ body {
   color: #ffffff;
 }
 
+/* Skeleton Pulse Animation */
+.skeleton-pulse {
+  position: relative;
+  overflow: hidden;
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  border-radius: 12px;
+}
+
+.skeleton-pulse::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  transform: translateX(-100%);
+  background-image: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0,
+    rgba(255, 255, 255, 0.03) 20%,
+    rgba(255, 255, 255, 0.08) 60%,
+    rgba(255, 255, 255, 0)
+  );
+  animation: shimmer 1.8s infinite;
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
 /* Native Print (PDF) Styles */
 @media print {
   @page {
@@ -29,12 +61,10 @@ body {
     overflow: visible !important;
   }
   
-  /* Hide everything by default */
   body * {
     visibility: hidden !important;
   }
 
-  /* Show ONLY the high-fidelity PDF report template and its children */
   #pdf-report-container, 
   #pdf-report-container * {
     visibility: visible !important;
@@ -45,7 +75,7 @@ body {
     position: absolute !important;
     top: 0 !important;
     left: 0 !important;
-    width: 210mm !important; /* Fixed A4 width */
+    width: 210mm !important; 
     min-height: 297mm !important;
     margin: 0 !important;
     padding: 0 !important;
