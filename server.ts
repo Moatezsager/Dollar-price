@@ -1991,7 +1991,7 @@ async function startServer() {
     }
   });
 
-  app.get("/api/refresh", async (req: express.Request, res: express.Response) => {
+  app.get("/api/refresh-parallel", async (req: express.Request, res: express.Response) => {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
