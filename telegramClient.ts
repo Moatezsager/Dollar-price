@@ -3,6 +3,7 @@ import { StringSession } from "telegram/sessions";
 
 // We will store the active client here to reuse it
 let activeClient: TelegramClient | null = null;
+let connectingPromise: Promise<TelegramClient | null> | null = null;
 
 export const getTelegramClient = async (
   apiId: number,
@@ -13,38 +14,49 @@ export const getTelegramClient = async (
     return activeClient;
   }
 
+  // If we are already connecting, wait for that to finish
+  if (connectingPromise) {
+    console.log("[GramJS] Already connecting, waiting for existing promise...");
+    return connectingPromise;
+  }
+
   if (!apiId || !apiHash || !sessionString) {
     return null;
   }
 
-  let client: TelegramClient | null = null;
-  try {
-    const stringSession = new StringSession(sessionString);
-    client = new TelegramClient(stringSession, apiId, apiHash, {
-      connectionRetries: 5,
-      useWSS: false,
-    });
+  connectingPromise = (async () => {
+    let client: TelegramClient | null = null;
+    try {
+      console.log("[GramJS] Creating new Telegram client...");
+      const stringSession = new StringSession(sessionString);
+      client = new TelegramClient(stringSession, apiId, apiHash, {
+        connectionRetries: 5,
+        useWSS: false,
+      });
 
-    await client.connect();
-    
-    const isAuthorized = await client.checkAuthorization();
-    if (!isAuthorized) {
-      console.warn("[GramJS] Client connected but not authorized. Session might be invalid.");
-      try { await client.disconnect(); } catch (e) {}
-      // We can't use logErrorArabic here easily, but we can throw an error to be caught by the caller
-      throw new Error("Client connected but not authorized. Session might be invalid.");
+      await client.connect();
+      
+      const isAuthorized = await client.checkAuthorization();
+      if (!isAuthorized) {
+        console.warn("[GramJS] Client connected but not authorized. Session might be invalid.");
+        try { await client.disconnect(); } catch (e) {}
+        throw new Error("Client connected but not authorized. Session might be invalid.");
+      }
+      
+      activeClient = client;
+      return client;
+    } catch (error) {
+      console.error("Failed to connect Telegram client:", error);
+      if (client) {
+        try { await client.disconnect(); } catch (e) {}
+      }
+      throw error;
+    } finally {
+      connectingPromise = null;
     }
-    
-    activeClient = client;
-    return client;
-  } catch (error) {
-    console.error("Failed to connect Telegram client:", error);
-    // If we have a client object, try to disconnect it
-    if (client) {
-      try { await client.disconnect(); } catch (e) {}
-    }
-    throw error; // Throw the error so the caller can log it
-  }
+  })();
+
+  return connectingPromise;
 };
 
 export const fetchChannelMessages = async (

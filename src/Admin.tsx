@@ -113,8 +113,10 @@ export default function Admin() {
     }
 
     if (token) {
-      fetchData();
-      const interval = setInterval(fetchStats, 10000);
+      fetchData().catch(() => {});
+      const interval = setInterval(() => {
+        fetchStats().catch(() => {});
+      }, 10000);
       return () => clearInterval(interval);
     }
   }, [token]);
@@ -287,7 +289,7 @@ export default function Admin() {
       const data = await res.json();
       if (data.success) {
         setSuccess("تم تحديث البيانات بنجاح!");
-        fetchStats();
+        fetchStats().catch(() => {});
         setTimeout(() => setSuccess(""), 3000);
       } else {
         setError(data.message);
@@ -340,7 +342,7 @@ export default function Admin() {
       const data = await res.json();
       if (data.success) {
         setSuccess("تم تنظيف البيانات القديمة بنجاح!");
-        fetchStats();
+        fetchStats().catch(() => {});
         setConfirmCleanup(false);
         setTimeout(() => setSuccess(""), 3000);
       } else {
@@ -1588,14 +1590,19 @@ export default function Admin() {
                     <button
                       onClick={async () => {
                         if (window.confirm("هل أنت متأكد من إلغاء ربط الحساب؟")) {
-                          const newConfig = { ...config, telegramSessionString: "" };
-                          setConfig(newConfig);
-                          await fetch("/api/admin/config", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-                            body: JSON.stringify(newConfig)
-                          });
-                          setSuccess("تم إلغاء ربط الحساب");
+                          try {
+                            const newConfig = { ...config, telegramSessionString: "" };
+                            setConfig(newConfig);
+                            await fetch("/api/admin/config", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                              body: JSON.stringify(newConfig)
+                            });
+                            setSuccess("تم إلغاء ربط الحساب");
+                          } catch (err) {
+                            console.error("Failed to unbind account:", err);
+                            setError("فشل إلغاء ربط الحساب");
+                          }
                         }
                       }}
                       className="px-4 py-2 rounded-xl bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 transition-colors font-bold text-sm"

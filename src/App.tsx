@@ -302,11 +302,15 @@ export default function App() {
   const handleInstall = async () => {
     triggerHaptic(20);
     if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') {
-      setDeferredPrompt(null);
-      setShowInstallBanner(false);
+    try {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        setDeferredPrompt(null);
+        setShowInstallBanner(false);
+      }
+    } catch (err) {
+      console.error("Install prompt failed:", err);
     }
   };
 
@@ -618,7 +622,7 @@ export default function App() {
   };
 
   useEffect(() => {
-    fetchConfig();
+    fetchConfig().catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -1009,9 +1013,11 @@ export default function App() {
   };
 
   useEffect(() => {
-    fetchData();
+    fetchData().catch(() => {});
     if (!autoRefreshEnabled) return;
-    const interval = setInterval(fetchData, 10000); // Poll every 10 seconds
+    const interval = setInterval(() => {
+      fetchData().catch(() => {});
+    }, 10000); // Poll every 10 seconds
     return () => clearInterval(interval);
   }, [autoRefreshEnabled]);
 

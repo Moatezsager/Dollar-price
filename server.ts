@@ -931,6 +931,7 @@ async function saveConfigToSupabase(newConfig: AppConfig) {
 // Telegram channels for parallel market rates
 
 let lastSuccessfulScrape = new Date();
+let lastAttemptTime = 0;
 
 let isScraping = false;
 async function fetchParallelRatesFromTelegram() {
@@ -938,6 +939,15 @@ async function fetchParallelRatesFromTelegram() {
     console.log("[Scraper] Scrape already in progress, skipping...");
     return null;
   }
+  
+  const now = Date.now();
+  // Prevent retrying more than once every 2 minutes if it failed
+  if (now - lastAttemptTime < 2 * 60 * 1000) {
+    console.log("[Scraper] Too soon since last attempt, skipping...");
+    return null;
+  }
+  
+  lastAttemptTime = now;
   isScraping = true;
   try {
     const priceHistory: Record<string, { value: number, time: number, channel: string }[]> = {};
