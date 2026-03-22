@@ -8,7 +8,7 @@ import { WebSocketServer } from 'ws';
 import { createServer } from 'http';
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
-import { TelegramClient } from "telegram";
+import { TelegramClient, Api } from "telegram";
 import { StringSession } from "telegram/sessions";
 import { getTelegramClient, fetchChannelMessages } from "./telegramClient";
 
@@ -1526,7 +1526,7 @@ async function startServer() {
         return res.status(400).json({ success: false, message: "جلسة التحقق غير صالحة أو منتهية" });
       }
 
-      await client.invoke(new (require("telegram/tl/api").Api.auth.SignIn)({
+      await client.invoke(new Api.auth.SignIn({
         phoneNumber,
         phoneCodeHash,
         phoneCode: code
