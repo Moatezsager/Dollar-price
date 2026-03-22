@@ -812,6 +812,7 @@ async function fetchOfficialRates(): Promise<boolean> {
 // Dynamic Configuration
 let appConfig: AppConfig = {
   channels: ["dollarr_ly", "musheermarket", "lydollar", "djheih2026", "suqalmushir"],
+  enableHttpScraper: true,
   terms: [
     { id: "USD", name: "دولار أمريكي", regex: "(?:الدولار|دولار|الخضراء|خضراء|كاش|💵|🇺🇸)(?!\\s*صكوك|\\s*بصك|\\s*شيك)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
     { id: "EUR", name: "يورو", regex: "(?:يورو|اليورو|💶|eur|🇪🇺)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "eu" },
@@ -900,6 +901,12 @@ async function loadConfigFromSupabase() {
       if (!Array.isArray(dbConfig.channels) || dbConfig.channels.length === 0) {
         dbConfig.channels = ["dollarr_ly", "musheermarket", "lydollar", "djheih2026", "suqalmushir"];
         console.warn("[Migration] Channels list was empty or invalid, restored defaults.");
+      }
+
+      // 4. Ensure enableHttpScraper is explicitly set (defaults to true for existing users)
+      if (dbConfig.enableHttpScraper === undefined) {
+        dbConfig.enableHttpScraper = true;
+        console.log("[Migration] Initialized enableHttpScraper to true");
       }
 
       appConfig = dbConfig;
@@ -1045,6 +1052,8 @@ async function fetchParallelRatesFromTelegram() {
     
     // Try GramJS first if configured
     let usedGramJs = false;
+    const canUseHttpScraper = appConfig.enableHttpScraper === true;
+
     if (appConfig.telegramApiId && appConfig.telegramApiHash && appConfig.telegramSessionString) {
       console.log("[Scraper] Attempting to fetch via GramJS (MTProto)...");
       let client = null;
@@ -1080,11 +1089,21 @@ async function fetchParallelRatesFromTelegram() {
           }
         }
       } else {
-        console.warn("[Scraper] GramJS client failed to connect or authorize. Falling back to HTTP Scraper.");
-        await logErrorArabic("فشل الاتصال بحساب تيليجرام أو الجلسة غير صالحة. جاري استخدام الكاشط الاحتياطي.", "الكاشط");
+        if (canUseHttpScraper) {
+          console.warn("[Scraper] GramJS client failed to connect or authorize. Falling back to HTTP Scraper.");
+          await logErrorArabic("فشل الاتصال بحساب تيليجرام أو الجلسة غير صالحة. جاري استخدام الكاشط الاحتياطي.", "الكاشط");
+        } else {
+          console.error("[Scraper] GramJS client failed and HTTP Scraper is disabled.");
+          await logErrorArabic("فشل الاتصال بحساب تيليجرام والكاشط التقليدي معطل.", "الكاشط");
+        }
       }
     } else {
-      console.log("[Scraper] GramJS not configured (missing API ID, Hash, or Session). Using HTTP Scraper.");
+      if (canUseHttpScraper) {
+        console.log("[Scraper] GramJS not configured. Using HTTP Scraper.");
+      } else {
+        console.warn("[Scraper] GramJS not configured and HTTP Scraper is disabled. No data will be fetched.");
+        await logErrorArabic("لم يتم تهيئة حساب تيليجرام والكاشط التقليدي معطل. لن يتم جلب أي بيانات.", "الكاشط");
+      }
     }
 
     if (!usedGramJs || successfulChannels === 0) {
@@ -1092,7 +1111,7 @@ async function fetchParallelRatesFromTelegram() {
         console.warn("[Scraper] GramJS returned 0 messages for all channels.");
       }
       
-      if (appConfig.enableHttpScraper !== false) {
+      if (canUseHttpScraper) {
         console.log("[Scraper] HTTP Scraper is enabled, falling back to HTTP Scraper...");
         // Fallback to HTTP Scraper
         const scrapeResults = await Promise.allSettled(channels.map(async (channel) => {
