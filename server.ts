@@ -1147,9 +1147,12 @@ async function fetchParallelRatesFromTelegram() {
           }
         }
       }
+    } else {
+      console.log("[Scraper] HTTP Scraper is disabled, skipping fallback.");
     }
+  }
 
-    if (successfulChannels > 0) {
+  if (successfulChannels > 0) {
       lastSuccessfulScrape = new Date();
       console.log(`[Scraper] Successfully processed ${totalMessagesProcessed} messages from ${successfulChannels} channels.`);
     } else {
@@ -1299,6 +1302,12 @@ async function fetchParallelRatesFromTelegram() {
       return anyChanged;
     }
     return false;
+  } catch (error) {
+    console.error("Error fetching from Telegram:", error);
+    return false;
+  } finally {
+    isScraping = false;
+  }
 }
 
 // Initial fetch and setup
