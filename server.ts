@@ -1101,8 +1101,17 @@ async function fetchParallelRatesFromTelegram() {
             successfulChannels++;
             totalMessagesProcessed += messages.length;
             for (const msg of messages) {
-              const cleanText = msg.text.replace(/\n/g, ' ');
-              extractRateFromText(cleanText, msg.date, channel);
+              const msgDate = new Date(msg.date);
+              const now = new Date();
+              
+              // Only process messages from today (local time) or the last 24 hours
+              const isToday = msgDate.toDateString() === now.toDateString();
+              const isWithin24h = (now.getTime() - msgDate.getTime()) < 24 * 60 * 60 * 1000;
+              
+              if (isToday || isWithin24h) {
+                const cleanText = msg.text.replace(/\n/g, ' ');
+                extractRateFromText(cleanText, msg.date, channel);
+              }
             }
           } else {
             console.warn(`[Scraper-GramJS] No messages returned for ${channel}`);
@@ -1199,7 +1208,11 @@ async function fetchParallelRatesFromTelegram() {
             if (textMatch && timeMatch) {
               const cleanText = textMatch[1].replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ');
               const time = new Date(timeMatch[1]).getTime();
-              if (Date.now() - time > 48 * 60 * 60 * 1000) continue;
+              const now = new Date();
+              
+              // Strict today filter for HTTP Scraper to ensure freshness
+              const isToday = new Date(time).toDateString() === now.toDateString();
+              if (!isToday) continue; 
 
               extractRateFromText(cleanText, time, channel);
             }
@@ -1290,9 +1303,10 @@ async function fetchParallelRatesFromTelegram() {
         const newVal = latestRates[term.id];
 
         if (newVal) {
-          // Update lastChanged only if the price actually changed
+          // Only update and change the date if the price changed significantly
           if (isSignificantChange(currentVal, newVal)) {
-            console.log(`[Scraper] Price change detected for ${term.id}: ${currentVal} -> ${newVal}`);
+            console.log(`[Scraper] Price update: ${term.id} (${currentVal} -> ${newVal}) Source: ${latestSources[term.id]}`);
+            
             rates.previousParallel[term.id] = currentVal;
             rates.parallel[term.id] = newVal;
             rates.lastChanged.parallel[term.id] = new Date().toISOString();
@@ -1304,27 +1318,27 @@ async function fetchParallelRatesFromTelegram() {
               currencyName: term.name,
               oldPrice: currentVal || 0,
               newPrice: newVal,
-              source: latestSources[term.id] || "غير معروف",
+              source: latestSources[term.id] || "Telegram",
               timestamp: new Date().toISOString()
             };
             await logPriceChange(changeLog);
+          } else {
+            // Price is effectively the same, just sync the memory value
+            rates.parallel[term.id] = newVal;
           }
         } else if (!currentVal) {
-          // Initialize with some fallback if it doesn't exist at all (initial setup)
+          // Initial setup fallback only if current value is completely missing
           const fallbackValue = 
             term.id === "USD_CHECKS" ? primaryUsd + 0.8 :
             term.id === "EUR" ? primaryUsd * 1.08 :
             term.id === "GBP" ? primaryUsd * 1.26 :
-            term.id === "GOLD" ? 1280 :
-            (term.id === "USD_TR" || term.id === "USD_AE") ? primaryUsd :
-            term.id === "TND" ? primaryUsd * 0.32 :
-            term.id === "TRY" ? primaryUsd * 0.03 :
-            term.id === "EGP" ? primaryUsd * 0.02 :
-            term.id === "OFFICIAL_USD" ? rates.official.USD : 0;
+            term.id === "GOLD" ? 1280 : 0;
           
-          rates.parallel[term.id] = fallbackValue;
-          rates.lastChanged.parallel[term.id] = new Date().toISOString();
-          anyChanged = true;
+          if (fallbackValue > 0) {
+            rates.parallel[term.id] = fallbackValue;
+            rates.lastChanged.parallel[term.id] = new Date().toISOString();
+            anyChanged = true;
+          }
         }
       }
 
