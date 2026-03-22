@@ -3,12 +3,13 @@ import { StringSession } from "telegram/sessions";
 
 // We will store the active client here to reuse it
 export let activeClient: TelegramClient | null = null;
-let connectingPromise: Promise<TelegramClient | null> | null = null;
+let isInitializing = false;
 
 export const getTelegramClient = async (
   apiId: number,
   apiHash: string,
-  sessionString: string
+  sessionString: string,
+  retryCount = 0
 ): Promise<TelegramClient | null> => {
   if (activeClient && activeClient.connected) {
     return activeClient;
@@ -27,10 +28,10 @@ export const getTelegramClient = async (
   connectingPromise = (async () => {
     let client: TelegramClient | null = null;
     try {
-      console.log("[GramJS] Creating new Telegram client...");
+      console.log(`[GramJS] Creating new Telegram client (Attempt ${retryCount + 1})...`);
       const stringSession = new StringSession(sessionString);
       client = new TelegramClient(stringSession, apiId, apiHash, {
-        connectionRetries: 10,
+        connectionRetries: 5,
         useWSS: false,
         autoReconnect: true,
       });
@@ -45,15 +46,31 @@ export const getTelegramClient = async (
       }
       
       activeClient = client;
+      console.log("[GramJS] Successfully connected and authorized.");
       return client;
     } catch (error) {
-      console.error("Failed to connect Telegram client:", error);
+      const errorStr = String(error);
+      console.error(`[GramJS] Connection failed (Attempt ${retryCount + 1}):`, errorStr);
+      
       if (client) {
         try { await client.disconnect(); } catch (e) {}
       }
+
+      // Handle AUTH_KEY_DUPLICATED (406) or other fatal but temporary errors
+      if ((errorStr.includes("406") || errorStr.includes("AUTH_KEY_DUPLICATED")) && retryCount < 3) {
+        const delay = 35000 + (Math.random() * 10000); // 35-45 seconds delay
+        console.warn(`[GramJS] AUTH_KEY_DUPLICATED detected. The session is likely active in another instance. Waiting ${Math.round(delay/1000)}s before retry...`);
+        
+        connectingPromise = null; // Reset promise so next attempt works
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return getTelegramClient(apiId, apiHash, sessionString, retryCount + 1);
+      }
+      
       throw error;
     } finally {
-      connectingPromise = null;
+      if (retryCount === 0 || !errorStr?.includes("406")) {
+         connectingPromise = null;
+      }
     }
   })();
 

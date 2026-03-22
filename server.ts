@@ -1135,25 +1135,47 @@ async function fetchParallelRatesFromTelegram() {
       
       const canUseHttpScraper = appConfig.enableHttpScraper === true || forceHttpScraper;
       if (canUseHttpScraper) {
-        console.log("[Scraper] HTTP Scraper is enabled, falling back to HTTP Scraper...");
+        const USER_AGENTS = [
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+          'Mozilla/5.0 (iPhone; CPU iPhone OS 17_2_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1',
+          'Mozilla/5.0 (iPad; CPU OS 17_2_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1',
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0'
+        ];
+
         // Fallback to HTTP Scraper
-        const scrapeResults = await Promise.allSettled(channels.map(async (channel) => {
-        const startTime = Date.now();
-        try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 15000); // Slightly longer timeout
-          const response = await fetch(`https://t.me/s/${channel}`, { 
-            signal: controller.signal,
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-              'Accept-Language': 'en-US,en;q=0.9,ar;q=0.8',
-              'Cache-Control': 'no-cache',
-              'Pragma': 'no-cache'
-            }
-          });
-          clearTimeout(timeoutId);
-          const duration = Date.now() - startTime;
+        const scrapeResults = await Promise.allSettled(channels.map(async (channel, index) => {
+          // Staggered delay to avoid hitting rate limits simultaneously
+          await new Promise(resolve => setTimeout(resolve, index * 800 + Math.random() * 500));
+          
+          const startTime = Date.now();
+          try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 20000); 
+            
+            const randomUA = USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
+            
+            // Try different access patterns if blocked
+            const response = await fetch(`https://t.me/s/${channel}`, { 
+              signal: controller.signal,
+              headers: {
+                'User-Agent': randomUA,
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9,ar;q=0.8',
+                'Cache-Control': 'max-age=0',
+                'Sec-Ch-Ua': '"Not A(Brand";v="99", "Google Chrome";v="121", "Chromium";v="121"',
+                'Sec-Ch-Ua-Mobile': '?0',
+                'Sec-Ch-Ua-Platform': '"Windows"',
+                'Sec-Fetch-Dest': 'document',
+                'Sec-Fetch-Mode': 'navigate',
+                'Sec-Fetch-Site': 'none',
+                'Sec-Fetch-User': '?1',
+                'Upgrade-Insecure-Requests': '1'
+              }
+            });
+            clearTimeout(timeoutId);
+            const duration = Date.now() - startTime;
 
           if (!response.ok) {
             const errorText = await response.text().catch(() => "No error body");
@@ -2234,9 +2256,12 @@ async function startServer() {
   server.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
     
-    // Initial scrape on startup
+    // Initial scrape on startup (with delay to avoid AUTH_KEY_DUPLICATED when Render restarts)
     (async () => {
       try {
+        console.log("[Startup] Waiting 15s for system to settle before GramJS connect...");
+        await new Promise(resolve => setTimeout(resolve, 15000));
+        
         console.log("[Startup] Triggering initial rates update...");
         await fetchOfficialRates();
         await fetchParallelRatesFromTelegram();
@@ -2270,15 +2295,17 @@ let isMonitoring = false;
 async function startMonitoring() {
   if (isMonitoring) return;
   isMonitoring = true;
+  // Reduced frequency to avoid connection conflicts
   setInterval(async () => {
      try {
-       const client = await initializeTelegram();
-       if (client && !client.connected) {
+       if (activeClient && !activeClient.connected) {
          console.log("[Reconnector] Telegram disconnected, attempting reconnect...");
-         await client.connect();
+         await activeClient.connect();
        }
-     } catch (e) {}
-  }, 5 * 60 * 1000);
+     } catch (e) {
+       console.warn("[Reconnector] Stealth reconnection failed, will retry next cycle.");
+     }
+  }, 15 * 60 * 1000); // 15 mins
 }
 startMonitoring();
 
