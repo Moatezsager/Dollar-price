@@ -3,7 +3,7 @@ import { StringSession } from "telegram/sessions";
 
 // We will store the active client here to reuse it
 export let activeClient: TelegramClient | null = null;
-let isInitializing = false;
+let connectingPromise: Promise<TelegramClient | null> | null = null;
 
 export const getTelegramClient = async (
   apiId: number,
@@ -68,7 +68,8 @@ export const getTelegramClient = async (
       
       throw error;
     } finally {
-      if (retryCount === 0 || !errorStr?.includes("406")) {
+      // Only clear the global lock if we are at the top level call and not in a retry sequence
+      if (retryCount === 0) {
          connectingPromise = null;
       }
     }
