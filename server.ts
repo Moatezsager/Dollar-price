@@ -69,6 +69,7 @@ interface AppConfig {
   telegramApiId?: number;
   telegramApiHash?: string;
   telegramSessionString?: string;
+  enableHttpScraper?: boolean;
 }
 
 // Arabic Logging Utility
@@ -1064,10 +1065,13 @@ async function fetchParallelRatesFromTelegram() {
 
     if (!usedGramJs || successfulChannels === 0) {
       if (usedGramJs && successfulChannels === 0) {
-        console.warn("[Scraper] GramJS returned 0 messages for all channels. Falling back to HTTP Scraper.");
+        console.warn("[Scraper] GramJS returned 0 messages for all channels.");
       }
-      // Fallback to HTTP Scraper
-      const scrapeResults = await Promise.allSettled(channels.map(async (channel) => {
+      
+      if (appConfig.enableHttpScraper) {
+        console.log("[Scraper] HTTP Scraper is enabled, falling back to HTTP Scraper...");
+        // Fallback to HTTP Scraper
+        const scrapeResults = await Promise.allSettled(channels.map(async (channel) => {
         const startTime = Date.now();
         try {
           const controller = new AbortController();

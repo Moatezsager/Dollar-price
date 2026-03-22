@@ -741,6 +741,15 @@ export default function Admin() {
                     </div>
                   ))}
                 </div>
+                <div className="mt-6 flex items-center justify-between p-4 rounded-2xl bg-white/[0.03] border border-white/5">
+                  <span className="text-sm font-bold text-zinc-400">تفعيل الكاشط التقليدي (احتياطي)</span>
+                  <button 
+                    onClick={() => setConfig({...config, enableHttpScraper: !config.enableHttpScraper})}
+                    className={`w-14 h-8 rounded-full transition-colors ${config.enableHttpScraper ? 'bg-emerald-500' : 'bg-zinc-700'}`}
+                  >
+                    <div className={`w-6 h-6 rounded-full bg-white transition-transform ${config.enableHttpScraper ? 'translate-x-7' : 'translate-x-1'}`} />
+                  </button>
+                </div>
               </section>
 
               {/* Intelligent Recognition System */}
