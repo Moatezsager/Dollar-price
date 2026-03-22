@@ -1566,9 +1566,6 @@ async function startServer() {
     }
   };
 
-  app.get("/api/health", (req, res) => {
-    res.json({ status: "ok", timestamp: new Date().toISOString() });
-  });
 
   app.get("/api/ping", (req, res) => {
     const minutesSinceLastScrape = Math.floor((Date.now() - lastSuccessfulScrape.getTime()) / 60000);
