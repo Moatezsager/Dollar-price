@@ -20,8 +20,8 @@ if (!supabaseUrl || !supabaseAnonKey) {
   console.warn("WARNING: Supabase credentials missing from environment variables.");
 }
 
-// Only create client if key is provided to avoid crashing on startup
-const supabase = supabaseAnonKey 
+// Only create client if credentials are provided
+const supabase = (supabaseUrl && supabaseAnonKey) 
   ? createClient(supabaseUrl, supabaseAnonKey)
   : null;
 
@@ -1244,23 +1244,24 @@ async function fetchParallelRatesFromTelegram() {
     for (const key in priceHistory) {
       if (priceHistory[key].length === 0) continue;
 
-      // Consensus Filter: If we have multiple points, find the mode or median to ignore outliers
+      // Consensus Filter: Find the mode (most common price) to ignore outliers
       let filteredHistory = priceHistory[key];
       if (priceHistory[key].length >= 3) {
-        // Simple consensus: Group by price (rounded to 2 decimals)
         const counts: Record<string, number> = {};
         priceHistory[key].forEach(p => {
-          const rounded = p.value.toFixed(2);
-          counts[rounded] = (counts[rounded] || 0) + 1;
+          // Round to 1 decimal place for wider grouping (e.g. 10.32 and 10.34 group together as 10.3)
+          const bucket = Math.round(p.value * 10).toString(); 
+          counts[bucket] = (counts[bucket] || 0) + 1;
         });
         
-        const sortedCounts = Object.entries(counts).sort((a, b) => b[1] - a[1]);
-        const topPrice = parseFloat(sortedCounts[0][0]);
-        const topCount = sortedCounts[0][1];
+        const sortedBuckets = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+        const topBucketCount = sortedBuckets[0][1];
         
-        // If more than 50% agree on a price (or close to it), filter to that neighborhood
-        if (topCount >= 2) {
-          filteredHistory = priceHistory[key].filter(p => Math.abs(p.value - topPrice) < (topPrice * 0.05));
+        // If we have a clear majority agreement (at least 2 entries in same bucket)
+        if (topBucketCount >= 2) {
+          const topBucketVal = parseFloat(sortedBuckets[0][0]) / 10;
+          // Filter to only those prices within 5% of the most common price
+          filteredHistory = priceHistory[key].filter(p => Math.abs(p.value - topBucketVal) < (topBucketVal * 0.05));
         }
       }
 
@@ -1433,6 +1434,31 @@ const cleanupOldData = async () => {
     console.error("Failed to run database cleanup:", error);
   }
 };
+
+// --- Memory Watchdog & Self-Healing ---
+const monitorMemory = () => {
+  const mem = process.memoryUsage();
+  const heapUsedMB = Math.round(mem.heapUsed / 1024 / 1024);
+  const rssMB = Math.round(mem.rss / 1024 / 1024);
+
+  console.log(`[Watchdog] Memory Check: Heap=${heapUsedMB}MB, RSS=${rssMB}MB`);
+
+  // If memory is getting high (Render free tier is 512MB), clear internal caches
+  if (heapUsedMB > 400 || rssMB > 450) {
+    console.warn(`[Watchdog] HIGH MEMORY DETECTED (${heapUsedMB}MB). Triggering emergency cache cleanup...`);
+    cachedHistory = null;
+    lastHistoryFetchTime = 0;
+    lastRatesFetchTime = 0;
+    
+    // Suggest GC to V8 if exposed
+    if (global && typeof (global as any).gc === 'function') {
+      try { (global as any).gc(); } catch (e) {}
+    }
+  }
+};
+
+// Run memory watchdog every 30 minutes
+setInterval(monitorMemory, 30 * 60 * 1000);
 
 // Run cleanup once on startup, then every 24 hours
 cleanupOldData();
@@ -1730,7 +1756,7 @@ async function startServer() {
 
   app.post("/api/admin/cleanup", requireAdmin, async (req: express.Request, res: express.Response) => {
     try {
-      console.log(`[Admin] Manual cleanup triggered by ${req.user?.email || 'admin'}`);
+      console.log(`[Admin] Manual cleanup triggered by admin session`);
       await cleanupOldData();
       res.json({ success: true, message: "تم تنظيف البيانات القديمة بنجاح" });
     } catch (err) {
