@@ -10,7 +10,7 @@ import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import { TelegramClient, Api } from "telegram";
 import { StringSession } from "telegram/sessions";
-import { getTelegramClient, fetchChannelMessages, initializeTelegram } from "./telegramClient";
+import { getTelegramClient, fetchChannelMessages, initializeTelegram, activeClient } from "./telegramClient";
 
 // Initialize Supabase client for server
 const supabaseUrl = process.env.VITE_SUPABASE_URL;
@@ -2188,6 +2188,16 @@ async function startServer() {
     res.json({ success: true });
   });
 
+
+  app.get("/api/health", async (req: express.Request, res: express.Response) => {
+    res.json({
+      status: "online",
+      uptime: Math.round((new Date().getTime() - serverStartTime.getTime()) / 1000),
+      telegram: activeClient?.connected || false,
+      timestamp: new Date().toISOString()
+    });
+  });
+
   app.get("/api/history", async (req: express.Request, res: express.Response) => {
     try {
       const dbHistory = await fetchHistoryFromSupabase();
@@ -2236,8 +2246,32 @@ async function startServer() {
         console.error("[Auto-Refresh] Error during automatic update:", err);
       }
     }, 10 * 60 * 1000);
+
+    // Keep-alive ping for Render Free Tier (pings itself every 14 minutes)
+    // This combined with external cron-job.org ensures 24/7 uptime
+    setInterval(() => {
+      const url = `http://localhost:${PORT}/api/health`;
+      fetch(url).catch(() => {});
+    }, 14 * 60 * 1000);
   });
 }
+
+// Global Reconnection Monitoring
+let isMonitoring = false;
+async function startMonitoring() {
+  if (isMonitoring) return;
+  isMonitoring = true;
+  setInterval(async () => {
+     try {
+       const client = await initializeTelegram();
+       if (client && !client.connected) {
+         console.log("[Reconnector] Telegram disconnected, attempting reconnect...");
+         await client.connect();
+       }
+     } catch (e) {}
+  }, 5 * 60 * 1000);
+}
+startMonitoring();
 
 startServer().catch((err) => {
   console.error("Failed to start server:", err);

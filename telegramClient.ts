@@ -2,7 +2,7 @@ import { TelegramClient, Api } from "telegram";
 import { StringSession } from "telegram/sessions";
 
 // We will store the active client here to reuse it
-let activeClient: TelegramClient | null = null;
+export let activeClient: TelegramClient | null = null;
 let connectingPromise: Promise<TelegramClient | null> | null = null;
 
 export const getTelegramClient = async (
