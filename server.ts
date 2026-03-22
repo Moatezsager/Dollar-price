@@ -10,7 +10,7 @@ import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import { TelegramClient, Api } from "telegram";
 import { StringSession } from "telegram/sessions";
-import { getTelegramClient, fetchChannelMessages } from "./telegramClient";
+import { getTelegramClient, fetchChannelMessages, initializeTelegram } from "./telegramClient";
 
 // Initialize Supabase client for server
 const supabaseUrl = process.env.VITE_SUPABASE_URL;
@@ -1052,65 +1052,79 @@ async function fetchParallelRatesFromTelegram() {
     
     // Try GramJS first if configured
     let usedGramJs = false;
-    const canUseHttpScraper = appConfig.enableHttpScraper === true;
+    let forceHttpScraper = false;
 
-    if (appConfig.telegramApiId && appConfig.telegramApiHash && appConfig.telegramSessionString) {
-      console.log("[Scraper] Attempting to fetch via GramJS (MTProto)...");
-      let client = null;
+    // 1. Try environment variables first (Render priority)
+    console.log("[Scraper] Attempting to initialize Telegram via environment variables...");
+    let client = null;
+    try {
+      client = await initializeTelegram();
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      console.error("[Scraper] GramJS initialization via environment variables failed:", errorMsg);
+      await logErrorArabic(`فشل تهيئة تيليجرام عبر متغيرات البيئة: ${errorMsg}`, "الكاشط");
+    }
+
+    // 2. Fallback to appConfig if environment variables are missing or failed
+    if (!client && appConfig.telegramApiId && appConfig.telegramApiHash && appConfig.telegramSessionString) {
+      console.log("[Scraper] Environment variables missing or failed. Attempting via appConfig...");
       try {
         client = await getTelegramClient(Number(appConfig.telegramApiId), appConfig.telegramApiHash, appConfig.telegramSessionString);
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : String(err);
-        console.error("[Scraper] GramJS client failed to connect:", errorMsg);
-        await logErrorArabic(`فشل الاتصال بحساب تيليجرام: ${errorMsg}`, "الكاشط");
-      }
-      
-      if (client) {
-        usedGramJs = true;
-        console.log("[Scraper] GramJS client connected successfully.");
-        for (const channel of channels) {
-          try {
-            const messages = await fetchChannelMessages(client, channel, 15);
-            if (messages.length > 0) {
-              console.log(`[Scraper-GramJS] Fetched ${messages.length} messages from ${channel}`);
-              successfulChannels++;
-              totalMessagesProcessed += messages.length;
-              for (const msg of messages) {
-                const cleanText = msg.text.replace(/\n/g, ' ');
-                extractRateFromText(cleanText, msg.date, channel);
-              }
-            } else {
-              console.warn(`[Scraper-GramJS] No messages returned for ${channel}`);
-            }
-          } catch (err) {
-            const errorMsg = err instanceof Error ? err.message : String(err);
-            console.error(`[Scraper-GramJS] Error fetching ${channel}:`, errorMsg);
-            await logErrorArabic(`خطأ في جلب رسائل القناة ${channel} عبر GramJS`, "الكاشط", errorMsg);
-          }
-        }
-      } else {
-        if (canUseHttpScraper) {
-          console.warn("[Scraper] GramJS client failed to connect or authorize. Falling back to HTTP Scraper.");
-          await logErrorArabic("فشل الاتصال بحساب تيليجرام أو الجلسة غير صالحة. جاري استخدام الكاشط الاحتياطي.", "الكاشط");
-        } else {
-          console.error("[Scraper] GramJS client failed and HTTP Scraper is disabled.");
-          await logErrorArabic("فشل الاتصال بحساب تيليجرام والكاشط التقليدي معطل.", "الكاشط");
-        }
-      }
-    } else {
-      if (canUseHttpScraper) {
-        console.log("[Scraper] GramJS not configured. Using HTTP Scraper.");
-      } else {
-        console.warn("[Scraper] GramJS not configured and HTTP Scraper is disabled. No data will be fetched.");
-        await logErrorArabic("لم يتم تهيئة حساب تيليجرام والكاشط التقليدي معطل. لن يتم جلب أي بيانات.", "الكاشط");
+        console.error("[Scraper] GramJS client failed via appConfig:", errorMsg);
+        await logErrorArabic(`فشل الاتصال بحساب تيليجرام (appConfig): ${errorMsg}`, "الكاشط");
       }
     }
 
-    if (!usedGramJs || successfulChannels === 0) {
-      if (usedGramJs && successfulChannels === 0) {
+    // 3. Ensure client is connected before use
+    if (client && !client.connected) {
+      try {
+        console.log("[Scraper] Client exists but not connected, attempting to connect...");
+        await client.connect();
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        console.error("[Scraper] Failed to reconnect GramJS client:", errorMsg);
+        await logErrorArabic(`فشل إعادة الاتصال بـ GramJS: ${errorMsg}`, "الكاشط");
+        client = null;
+      }
+    }
+
+    if (client) {
+      usedGramJs = true;
+      console.log("[Scraper] GramJS client connected successfully.");
+      for (const channel of channels) {
+        try {
+          const messages = await fetchChannelMessages(client, channel, 15);
+          if (messages.length > 0) {
+            console.log(`[Scraper-GramJS] Fetched ${messages.length} messages from ${channel}`);
+            successfulChannels++;
+            totalMessagesProcessed += messages.length;
+            for (const msg of messages) {
+              const cleanText = msg.text.replace(/\n/g, ' ');
+              extractRateFromText(cleanText, msg.date, channel);
+            }
+          } else {
+            console.warn(`[Scraper-GramJS] No messages returned for ${channel}`);
+          }
+        } catch (err) {
+          const errorMsg = err instanceof Error ? err.message : String(err);
+          console.error(`[Scraper-GramJS] Error fetching ${channel}:`, errorMsg);
+          await logErrorArabic(`خطأ في جلب رسائل القناة ${channel} عبر GramJS`, "الكاشط", errorMsg);
+        }
+      }
+    } else {
+      console.warn("[Scraper] GramJS failed. Forcing HTTP Scraper fallback.");
+      await logErrorArabic("فشل الاتصال بـ GramJS. جاري استخدام الكاشط التقليدي كبديل إجباري.", "الكاشط");
+      forceHttpScraper = true;
+    }
+
+    if (!usedGramJs || successfulChannels === 0 || forceHttpScraper) {
+      if (usedGramJs && successfulChannels === 0 && !forceHttpScraper) {
         console.warn("[Scraper] GramJS returned 0 messages for all channels.");
       }
       
+      const canUseHttpScraper = appConfig.enableHttpScraper === true || forceHttpScraper;
       if (canUseHttpScraper) {
         console.log("[Scraper] HTTP Scraper is enabled, falling back to HTTP Scraper...");
         // Fallback to HTTP Scraper

@@ -30,8 +30,9 @@ export const getTelegramClient = async (
       console.log("[GramJS] Creating new Telegram client...");
       const stringSession = new StringSession(sessionString);
       client = new TelegramClient(stringSession, apiId, apiHash, {
-        connectionRetries: 5,
+        connectionRetries: 10,
         useWSS: false,
+        autoReconnect: true,
       });
 
       await client.connect();
@@ -57,6 +58,19 @@ export const getTelegramClient = async (
   })();
 
   return connectingPromise;
+};
+
+export const initializeTelegram = async (): Promise<TelegramClient | null> => {
+  const apiId = Number(process.env.TELEGRAM_API_ID);
+  const apiHash = process.env.TELEGRAM_API_HASH || "";
+  const sessionString = process.env.TELEGRAM_SESSION || "";
+
+  if (!apiId || !apiHash || !sessionString) {
+    console.warn("[GramJS] Telegram environment variables missing (TELEGRAM_API_ID, TELEGRAM_API_HASH, TELEGRAM_SESSION).");
+    return null;
+  }
+
+  return getTelegramClient(apiId, apiHash, sessionString);
 };
 
 export const fetchChannelMessages = async (
