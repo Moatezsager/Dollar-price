@@ -1477,7 +1477,7 @@ async function startServer() {
   // --- Telegram MTProto Auth Endpoints ---
   
   // Store temporary clients during auth flow
-  const tempClients: Record<string, TelegramClient> = {};
+  const tempClients: Record<string, { client: TelegramClient, apiId: number, apiHash: string }> = {};
 
   app.post("/api/admin/telegram/send-code", requireAdmin, async (req: express.Request, res: express.Response) => {
     try {
@@ -1504,7 +1504,7 @@ async function startServer() {
 
       // Store client temporarily to complete auth later
       const authId = Math.random().toString(36).substring(7);
-      tempClients[authId] = client;
+      tempClients[authId] = { client, apiId: Number(apiId), apiHash };
 
       res.json({ 
         success: true, 
@@ -1521,10 +1521,12 @@ async function startServer() {
     try {
       const { phoneNumber, phoneCodeHash, code, password, authId } = req.body;
       
-      const client = tempClients[authId];
-      if (!client) {
+      const sessionData = tempClients[authId];
+      if (!sessionData) {
         return res.status(400).json({ success: false, message: "جلسة التحقق غير صالحة أو منتهية" });
       }
+
+      const { client, apiId, apiHash } = sessionData;
 
       await client.invoke(new Api.auth.SignIn({
         phoneNumber,
@@ -1535,7 +1537,14 @@ async function startServer() {
           if (!password) {
              throw new Error("كلمة مرور التحقق بخطوتين (2FA) مطلوبة");
           }
-          await client.signInWithPassword({ apiId: client.apiId, apiHash: client.apiHash }, { password: password, onError: (e) => { throw e; } });
+          // Use password as a function to avoid "password is not a function" error
+          await client.signInWithPassword(
+            { apiId, apiHash }, 
+            { 
+              password: async () => password, 
+              onError: (e) => { throw e; } 
+            }
+          );
         } else {
           throw err;
         }
