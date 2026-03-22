@@ -1244,49 +1244,30 @@ async function fetchParallelRatesFromTelegram() {
     for (const key in priceHistory) {
       if (priceHistory[key].length === 0) continue;
 
-      // Consensus Filter: Find the mode (most common price) to ignore outliers
-      let filteredHistory = priceHistory[key];
-      if (priceHistory[key].length >= 3) {
-        const counts: Record<string, number> = {};
-        priceHistory[key].forEach(p => {
-          // Round to 1 decimal place for wider grouping (e.g. 10.32 and 10.34 group together as 10.3)
-          const bucket = Math.round(p.value * 10).toString(); 
-          counts[bucket] = (counts[bucket] || 0) + 1;
-        });
-        
-        const sortedBuckets = Object.entries(counts).sort((a, b) => b[1] - a[1]);
-        const topBucketCount = sortedBuckets[0][1];
-        
-        // If we have a clear majority agreement (at least 2 entries in same bucket)
-        if (topBucketCount >= 2) {
-          const topBucketVal = parseFloat(sortedBuckets[0][0]) / 10;
-          // Filter to only those prices within 5% of the most common price
-          filteredHistory = priceHistory[key].filter(p => Math.abs(p.value - topBucketVal) < (topBucketVal * 0.05));
-        }
-      }
-
-      // Sort: Newest first, but if times are equal, prefer our owner channel 'djheih2026'
-      const historyArr = filteredHistory.sort((a, b) => {
+      // New Logic: 1. Sort by time (Newest First)
+      // This ensures that the most recent message always wins for this specific currency
+      const historyArr = priceHistory[key].sort((a, b) => {
         if (b.time !== a.time) return b.time - a.time;
+        // If times are exactly equal (rare), prefer our owner channel
         if (b.channel === "djheih2026") return 1;
         if (a.channel === "djheih2026") return -1;
         return 0;
       });
       
-      if (historyArr.length > 0) {
-        latestRates[key] = historyArr[0].value; // Newest price (with owner preference)
-        latestSources[key] = historyArr[0].channel; // Source of the newest price
-        const msgTime = historyArr[0].time;
-        if (msgTime > newestMessageTime) {
-          newestMessageTime = msgTime;
-        }
-        
-        // Find the true previous price (from the same filtered history)
-        for (let i = 1; i < historyArr.length; i++) {
-          if (historyArr[i].value !== latestRates[key]) {
-            previousRates[key] = historyArr[i].value;
-            break;
-          }
+      // The newest price is now at index 0
+      const newestEntry = historyArr[0];
+      latestRates[key] = newestEntry.value; 
+      latestSources[key] = newestEntry.channel;
+      
+      if (newestEntry.time > newestMessageTime) {
+        newestMessageTime = newestEntry.time;
+      }
+      
+      // Find a TRUE previous price for trend detection (find the first price that differs from the newest)
+      for (let i = 1; i < historyArr.length; i++) {
+        if (isSignificantChange(historyArr[i].value, newestEntry.value)) {
+          previousRates[key] = historyArr[i].value;
+          break;
         }
       }
     }
@@ -1296,20 +1277,19 @@ async function fetchParallelRatesFromTelegram() {
       console.log(`[Scraper] Scrape check completed. Found rates for: ${foundKeys.join(', ')}`);
       
       let anyChanged = false;
-      const primaryUsd = latestRates.USD || rates.parallel.USD;
 
       // Dynamically assign all extracted rates
       for (const term of appConfig.terms) {
         const currentVal = rates.parallel[term.id];
-        const newVal = latestRates[term.id];
+        const newValFromTelegram = latestRates[term.id];
 
-        if (newVal) {
-          // Only update and change the date if the price changed significantly
-          if (isSignificantChange(currentVal, newVal)) {
-            console.log(`[Scraper] Price update: ${term.id} (${currentVal} -> ${newVal}) Source: ${latestSources[term.id]}`);
+        if (newValFromTelegram !== undefined) {
+          // If we found a price in Telegram, and it's DIFFERENT from what we have in Memory
+          if (isSignificantChange(currentVal, newValFromTelegram)) {
+            console.log(`[Scraper] Price update: ${term.id} (${currentVal} -> ${newValFromTelegram}) Source: ${latestSources[term.id]}`);
             
-            rates.previousParallel[term.id] = currentVal;
-            rates.parallel[term.id] = newVal;
+            rates.previousParallel[term.id] = currentVal || newValFromTelegram;
+            rates.parallel[term.id] = newValFromTelegram;
             rates.lastChanged.parallel[term.id] = new Date().toISOString();
             anyChanged = true;
             
@@ -1318,29 +1298,18 @@ async function fetchParallelRatesFromTelegram() {
               currencyCode: term.id,
               currencyName: term.name,
               oldPrice: currentVal || 0,
-              newPrice: newVal,
+              newPrice: newValFromTelegram,
               source: latestSources[term.id] || "Telegram",
               timestamp: new Date().toISOString()
             };
             await logPriceChange(changeLog);
           } else {
-            // Price is effectively the same, just sync the memory value
-            rates.parallel[term.id] = newVal;
-          }
-        } else if (!currentVal) {
-          // Initial setup fallback only if current value is completely missing
-          const fallbackValue = 
-            term.id === "USD_CHECKS" ? primaryUsd + 0.8 :
-            term.id === "EUR" ? primaryUsd * 1.08 :
-            term.id === "GBP" ? primaryUsd * 1.26 :
-            term.id === "GOLD" ? 1280 : 0;
-          
-          if (fallbackValue > 0) {
-            rates.parallel[term.id] = fallbackValue;
-            rates.lastChanged.parallel[term.id] = new Date().toISOString();
-            anyChanged = true;
+            // Price is effectively the same, just sync memory but keep original lastChanged date
+            rates.parallel[term.id] = newValFromTelegram;
           }
         }
+        // If this term (e.g. EURO) was NOT in today's newest messages, we leave it AS IS.
+        // It will keep its old price and its old lastChanged date until it appears again.
       }
 
       // Refine previous rates with actual Telegram history if available and realistic
