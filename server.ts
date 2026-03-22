@@ -8,6 +8,9 @@ import { WebSocketServer } from 'ws';
 import { createServer } from 'http';
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
+import { TelegramClient } from "telegram";
+import { StringSession } from "telegram/sessions";
+import { getTelegramClient, fetchChannelMessages } from "./telegramClient";
 
 // Initialize Supabase client for server
 const supabaseUrl = process.env.VITE_SUPABASE_URL;
@@ -917,7 +920,6 @@ async function saveConfigToSupabase(newConfig: AppConfig) {
 }
 
 // Telegram channels for parallel market rates
-import { getTelegramClient, fetchChannelMessages } from "./telegramClient";
 
 let lastSuccessfulScrape = new Date();
 
@@ -1436,6 +1438,10 @@ async function startServer() {
     }
   };
 
+  app.get("/api/health", (req, res) => {
+    res.json({ status: "ok", timestamp: new Date().toISOString() });
+  });
+
   app.get("/api/ping", (req, res) => {
     res.send("pong");
   });
@@ -1469,8 +1475,6 @@ async function startServer() {
   });
 
   // --- Telegram MTProto Auth Endpoints ---
-  import { TelegramClient } from "telegram";
-  import { StringSession } from "telegram/sessions";
   
   // Store temporary clients during auth flow
   const tempClients: Record<string, TelegramClient> = {};
