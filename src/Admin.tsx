@@ -55,7 +55,7 @@ export default function Admin() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [activeTab, setActiveTab] = useState<'config' | 'stats' | 'logs' | 'ai' | 'changes'>('config');
+  const [activeTab, setActiveTab] = useState<'config' | 'stats' | 'logs' | 'ai' | 'changes' | 'telegram'>('config');
   const [isAuthorizedDevice, setIsAuthorizedDevice] = useState(true);
 
   const [expandedTermIdx, setExpandedTermIdx] = useState<number | null>(null);
@@ -64,6 +64,17 @@ export default function Admin() {
   const [searchPath, setSearchPath] = useState("");
   const [recentChanges, setRecentChanges] = useState<any[]>([]);
   const [connectionStatus, setConnectionStatus] = useState<'online' | 'offline' | 'checking'>('checking');
+
+  // Telegram Auth State
+  const [tgPhoneNumber, setTgPhoneNumber] = useState("");
+  const [tgApiId, setTgApiId] = useState("");
+  const [tgApiHash, setTgApiHash] = useState("");
+  const [tgCode, setTgCode] = useState("");
+  const [tgPassword, setTgPassword] = useState("");
+  const [tgAuthId, setTgAuthId] = useState("");
+  const [tgPhoneCodeHash, setTgPhoneCodeHash] = useState("");
+  const [tgStep, setTgStep] = useState<'init' | 'code' | 'password'>('init');
+  const [tgLoading, setTgLoading] = useState(false);
 
   const fetchWithTimeout = async (resource: string, options: any = {}, timeout = 8000) => {
     const controller = new AbortController();
@@ -389,6 +400,90 @@ export default function Admin() {
     setAiLoading(false);
   };
 
+  const handleTgSendCode = async () => {
+    setTgLoading(true);
+    setError("");
+    try {
+      const res = await fetch("/api/admin/telegram/send-code", {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ phoneNumber: tgPhoneNumber, apiId: tgApiId, apiHash: tgApiHash })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setTgPhoneCodeHash(data.phoneCodeHash);
+        setTgAuthId(data.authId);
+        setTgStep('code');
+        setSuccess("تم إرسال الكود بنجاح");
+      } else {
+        setError(data.message || "فشل إرسال الكود");
+      }
+    } catch (err) {
+      setError("خطأ في الاتصال بالسيرفر");
+    }
+    setTgLoading(false);
+  };
+
+  const handleTgVerifyCode = async () => {
+    setTgLoading(true);
+    setError("");
+    try {
+      const res = await fetch("/api/admin/telegram/verify-code", {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ 
+          phoneNumber: tgPhoneNumber, 
+          phoneCodeHash: tgPhoneCodeHash, 
+          code: tgCode, 
+          password: tgPassword,
+          authId: tgAuthId
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        // Save the session string to config
+        const newConfig = { ...config, telegramApiId: tgApiId, telegramApiHash: tgApiHash, telegramSessionString: data.sessionString };
+        setConfig(newConfig);
+        
+        // Save to backend
+        const saveRes = await fetch("/api/admin/config", {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify(newConfig)
+        });
+        
+        if (saveRes.ok) {
+          setSuccess("تم ربط حساب تليجرام بنجاح وحفظ الإعدادات");
+          setTgStep('init');
+          setTgPhoneNumber("");
+          setTgCode("");
+          setTgPassword("");
+        } else {
+          setError("تم الربط ولكن فشل حفظ الإعدادات");
+        }
+      } else {
+        if (data.message.includes('2FA')) {
+          setTgStep('password');
+          setError("مطلوب كلمة مرور التحقق بخطوتين");
+        } else {
+          setError(data.message || "فشل التحقق من الكود");
+        }
+      }
+    } catch (err) {
+      setError("خطأ في الاتصال بالسيرفر");
+    }
+    setTgLoading(false);
+  };
+
   const filteredTerms = useMemo(() => {
     if (!config?.terms) return [];
     if (!searchPath) return config.terms;
@@ -498,6 +593,7 @@ export default function Admin() {
               { id: 'logs', label: 'السجلات', icon: Terminal },
               { id: 'changes', label: 'تغيرات الأسعار', icon: HistoryIcon },
               { id: 'ai', label: 'استخراج ذكي', icon: Zap },
+              { id: 'telegram', label: 'ربط تليجرام', icon: Globe },
             ].map(tab => (
               <button
                 key={tab.id}
@@ -1516,6 +1612,181 @@ export default function Admin() {
                   </motion.section>
                 )}
               </AnimatePresence>
+            </motion.div>
+          )}
+
+          {activeTab === 'telegram' && (
+            <motion.div 
+              key="telegram"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="space-y-6"
+            >
+              <section className="bg-white/[0.02] border border-white/5 rounded-[2rem] p-6 md:p-8 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/5 blur-[100px] rounded-full pointer-events-none"></div>
+                
+                <div className="flex flex-col md:flex-row items-start md:items-center gap-6 mb-8 relative">
+                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center border border-blue-500/20 shrink-0">
+                    <Globe className="w-8 h-8 text-blue-400" />
+                  </div>
+                  <div className="flex-1">
+                    <h2 className="text-2xl font-black text-white mb-1">ربط حساب تليجرام (MTProto)</h2>
+                    <p className="text-sm text-zinc-500 leading-relaxed">
+                      قم بربط حساب تليجرام الخاص بك لتجاوز حظر الكاشط (Anti-bot) وجلب الأسعار بسرعة وموثوقية عالية.
+                    </p>
+                  </div>
+                </div>
+
+                {config?.telegramSessionString ? (
+                  <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-6 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                        <CheckCircle2 className="w-6 h-6 text-emerald-400" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-bold text-emerald-400">الحساب متصل بنجاح</h3>
+                        <p className="text-sm text-emerald-500/70">يتم الآن جلب البيانات عبر MTProto</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        if (window.confirm("هل أنت متأكد من إلغاء ربط الحساب؟")) {
+                          const newConfig = { ...config, telegramSessionString: "" };
+                          setConfig(newConfig);
+                          await fetch("/api/admin/config", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                            body: JSON.stringify(newConfig)
+                          });
+                          setSuccess("تم إلغاء ربط الحساب");
+                        }
+                      }}
+                      className="px-4 py-2 rounded-xl bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 transition-colors font-bold text-sm"
+                    >
+                      إلغاء الربط
+                    </button>
+                  </div>
+                ) : (
+                  <div className="max-w-xl mx-auto space-y-6">
+                    {tgStep === 'init' && (
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-bold text-zinc-400 mb-2">API ID</label>
+                          <input
+                            type="text"
+                            value={tgApiId}
+                            onChange={(e) => setTgApiId(e.target.value)}
+                            placeholder="مثال: 1234567"
+                            className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500/50"
+                            dir="ltr"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-bold text-zinc-400 mb-2">API Hash</label>
+                          <input
+                            type="text"
+                            value={tgApiHash}
+                            onChange={(e) => setTgApiHash(e.target.value)}
+                            placeholder="مثال: 0123456789abcdef0123456789abcdef"
+                            className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500/50"
+                            dir="ltr"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-bold text-zinc-400 mb-2">رقم الهاتف (مع رمز الدولة)</label>
+                          <input
+                            type="text"
+                            value={tgPhoneNumber}
+                            onChange={(e) => setTgPhoneNumber(e.target.value)}
+                            placeholder="مثال: +218912345678"
+                            className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500/50"
+                            dir="ltr"
+                          />
+                        </div>
+                        <button
+                          onClick={handleTgSendCode}
+                          disabled={tgLoading || !tgPhoneNumber || !tgApiId || !tgApiHash}
+                          className="w-full py-4 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-800 text-white font-bold transition-all flex items-center justify-center gap-2 mt-4"
+                        >
+                          {tgLoading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+                          إرسال كود التحقق
+                        </button>
+                      </div>
+                    )}
+
+                    {tgStep === 'code' && (
+                      <div className="space-y-4">
+                        <div className="bg-blue-500/10 border border-blue-500/20 p-4 rounded-xl mb-4 text-sm text-blue-400">
+                          تم إرسال كود التحقق إلى تطبيق تليجرام الخاص بك ({tgPhoneNumber}).
+                        </div>
+                        <div>
+                          <label className="block text-sm font-bold text-zinc-400 mb-2">كود التحقق</label>
+                          <input
+                            type="text"
+                            value={tgCode}
+                            onChange={(e) => setTgCode(e.target.value)}
+                            placeholder="أدخل الكود المكون من 5 أرقام"
+                            className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500/50 text-center tracking-[0.5em] font-mono text-lg"
+                            dir="ltr"
+                          />
+                        </div>
+                        <div className="flex gap-3 mt-4">
+                          <button
+                            onClick={() => setTgStep('init')}
+                            className="px-6 py-4 rounded-xl bg-white/5 hover:bg-white/10 text-white font-bold transition-all"
+                          >
+                            رجوع
+                          </button>
+                          <button
+                            onClick={handleTgVerifyCode}
+                            disabled={tgLoading || !tgCode}
+                            className="flex-1 py-4 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-800 text-white font-bold transition-all flex items-center justify-center gap-2"
+                          >
+                            {tgLoading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
+                            تأكيد الكود
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {tgStep === 'password' && (
+                      <div className="space-y-4">
+                        <div className="bg-amber-500/10 border border-amber-500/20 p-4 rounded-xl mb-4 text-sm text-amber-400">
+                          هذا الحساب محمي بكلمة مرور التحقق بخطوتين (2FA). يرجى إدخالها للمتابعة.
+                        </div>
+                        <div>
+                          <label className="block text-sm font-bold text-zinc-400 mb-2">كلمة المرور (2FA)</label>
+                          <input
+                            type="password"
+                            value={tgPassword}
+                            onChange={(e) => setTgPassword(e.target.value)}
+                            placeholder="أدخل كلمة المرور"
+                            className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500/50"
+                            dir="ltr"
+                          />
+                        </div>
+                        <div className="flex gap-3 mt-4">
+                          <button
+                            onClick={() => setTgStep('init')}
+                            className="px-6 py-4 rounded-xl bg-white/5 hover:bg-white/10 text-white font-bold transition-all"
+                          >
+                            إلغاء
+                          </button>
+                          <button
+                            onClick={handleTgVerifyCode}
+                            disabled={tgLoading || !tgPassword}
+                            className="flex-1 py-4 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-800 text-white font-bold transition-all flex items-center justify-center gap-2"
+                          >
+                            {tgLoading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
+                            تسجيل الدخول
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </section>
             </motion.div>
           )}
 

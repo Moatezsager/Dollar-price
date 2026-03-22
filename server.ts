@@ -61,6 +61,9 @@ interface AppConfig {
     isInverse: boolean;
     flag: string;
   }[];
+  telegramApiId?: number;
+  telegramApiHash?: string;
+  telegramSessionString?: string;
 }
 
 // Arabic Logging Utility
@@ -914,6 +917,8 @@ async function saveConfigToSupabase(newConfig: AppConfig) {
 }
 
 // Telegram channels for parallel market rates
+import { getTelegramClient, fetchChannelMessages } from "./telegramClient";
+
 let lastSuccessfulScrape = new Date();
 
 let isScraping = false;
@@ -929,59 +934,8 @@ async function fetchParallelRatesFromTelegram() {
       priceHistory[term.id] = [];
     }
 
-    // Parallel Fetching for speed (Scraper Optimization)
     let successfulChannels = 0;
     let totalMessagesProcessed = 0;
-
-    const scrapeResults = await Promise.allSettled(appConfig.channels.map(async (channel) => {
-      const startTime = Date.now();
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 12000); // Reduced timeout
-        const response = await fetch(`https://t.me/s/${channel}`, { 
-          signal: controller.signal,
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.9,ar;q=0.8',
-            'Cache-Control': 'no-cache',
-            'Pragma': 'no-cache'
-          }
-        });
-        clearTimeout(timeoutId);
-        const duration = Date.now() - startTime;
-
-        if (!response.ok) {
-          const errorText = await response.text().catch(() => "No error body");
-          console.warn(`[Scraper] Channel ${channel} returned status ${response.status} after ${duration}ms: ${errorText.substring(0, 50)}`);
-          return null;
-        }
-        const html = await response.text();
-        console.log(`[Scraper] Successfully fetched ${channel} in ${duration}ms. HTML size: ${Math.round(html.length / 1024)}KB`);
-        
-        // Check if we got a redirect or a non-Telegram page
-        if (!html.includes('tgme_page_wrap') && !html.includes('tgme_widget_message_wrap')) {
-          console.warn(`[Scraper] Channel ${channel} returned unexpected HTML content (length: ${html.length})`);
-          return null;
-        }
-
-        // Check for Telegram anti-bot protection
-        if (html.includes("verify you are a human") || html.includes("robot") || html.includes("captcha")) {
-          console.warn(`[Scraper] Channel ${channel} is blocked by Telegram anti-bot protection.`);
-          logErrorArabic(`قناة ${channel} محجوبة حالياً بواسطة حماية تيليجرام (Anti-bot)`, "الكاشط");
-          return null;
-        }
-
-        return { channel, html };
-      } catch (e) {
-        const duration = Date.now() - startTime;
-        const errorMsg = e instanceof Error ? e.message : String(e);
-        console.error(`[Scraper] Failed to fetch ${channel} after ${duration}ms:`, errorMsg);
-        // Don't await here to avoid blocking the whole scraper if Supabase is slow
-        logErrorArabic(`فشل الاتصال بقناة تيليجرام: ${channel}`, "الكاشط", errorMsg);
-        return null;
-      }
-    }));
 
     // Pre-compile regexes for performance
     const compiledTerms = appConfig.terms.map(t => ({
@@ -989,92 +943,169 @@ async function fetchParallelRatesFromTelegram() {
       compiledRegex: new RegExp(t.regex, 'i')
     }));
 
-    for (const result of scrapeResults) {
-      if (result.status === 'fulfilled' && result.value) {
-        const { channel, html } = result.value;
-        const messageBlocks = html.split('tgme_widget_message_wrap');
+    const extractRateFromText = (cleanText: string, time: number, channel: string) => {
+      const extractRate = (compiledRegex: RegExp, key: string, min: number, max: number, isInverse = false) => {
+        const match = cleanText.match(compiledRegex);
+        if (!match) return;
+
+        let valStr = null;
         
-        if (messageBlocks.length <= 1) {
-          console.warn(`[Scraper] No message blocks found for channel ${channel}. HTML length: ${html.length}`);
-          continue;
-        }
-
-        successfulChannels++;
-        totalMessagesProcessed += (messageBlocks.length - 1);
-
-        let newestMessageInChannel = { text: '', time: 0 };
-
-        for (const block of messageBlocks) {
-          const textMatch = block.match(/<div class="tgme_widget_message_text[^>]*>(.*?)<\/div>/);
-          const timeMatch = block.match(/<time datetime="([^"]+)"/);
-          
-          if (textMatch && timeMatch) {
-            const cleanText = textMatch[1].replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ');
-            const time = new Date(timeMatch[1]).getTime();
-            if (Date.now() - time > 48 * 60 * 60 * 1000) continue;
-
-            if (time > newestMessageInChannel.time) {
-              newestMessageInChannel = { text: cleanText, time };
+        const firstCapturedNum = match[1] || match[3];
+        const secondCapturedNum = match[2] || match[4];
+        
+        if (firstCapturedNum) {
+          const firstIndex = match.index! + match[0].indexOf(firstCapturedNum);
+          if (isProbablyDate(cleanText, firstIndex, firstCapturedNum)) {
+            if (secondCapturedNum) {
+              const secondIndex = match.index! + match[0].indexOf(secondCapturedNum);
+              if (!isProbablyDate(cleanText, secondIndex, secondCapturedNum)) {
+                 valStr = secondCapturedNum;
+              }
             }
+            if (!valStr) return;
+          } else {
+            const matchContent = match[0];
+            const hasSellKeyword = /بيع/i.test(matchContent);
+            const hasBuyKeyword = /شراء/i.test(matchContent);
 
-            const extractRate = (compiledRegex: RegExp, key: string, min: number, max: number, isInverse = false) => {
-              const match = cleanText.match(compiledRegex);
-              if (!match) return;
-
-              let valStr = null;
+            if (secondCapturedNum && hasSellKeyword && !hasBuyKeyword) {
+              valStr = secondCapturedNum;
+            } else if (secondCapturedNum) {
+              const partAfterFirstNum = matchContent.split(firstCapturedNum)[1] || "";
+              const hasCategorySeparator = /صكوك|بصك|شيك|مصرف|مقاصة|كاش|نقدي/i.test(partAfterFirstNum);
               
-              const firstCapturedNum = match[1] || match[3];
-              const secondCapturedNum = match[2] || match[4];
-              
-              if (firstCapturedNum) {
-                const firstIndex = match.index! + match[0].indexOf(firstCapturedNum);
-                if (isProbablyDate(cleanText, firstIndex, firstCapturedNum)) {
-                  if (secondCapturedNum) {
-                    const secondIndex = match.index! + match[0].indexOf(secondCapturedNum);
-                    if (!isProbablyDate(cleanText, secondIndex, secondCapturedNum)) {
-                       valStr = secondCapturedNum;
-                    }
-                  }
-                  if (!valStr) return;
-                } else {
-                  const matchContent = match[0];
-                  const hasSellKeyword = /بيع/i.test(matchContent);
-                  const hasBuyKeyword = /شراء/i.test(matchContent);
-
-                  if (secondCapturedNum && hasSellKeyword && !hasBuyKeyword) {
-                    valStr = secondCapturedNum;
-                  } else if (secondCapturedNum) {
-                    const partAfterFirstNum = matchContent.split(firstCapturedNum)[1] || "";
-                    const hasCategorySeparator = /صكوك|بصك|شيك|مصرف|مقاصة|كاش|نقدي/i.test(partAfterFirstNum);
-                    
-                    if (!hasCategorySeparator) {
-                      valStr = secondCapturedNum;
-                    } else {
-                      valStr = firstCapturedNum;
-                    }
-                  } else {
-                    valStr = firstCapturedNum;
-                  }
-                }
+              if (!hasCategorySeparator) {
+                valStr = secondCapturedNum;
+              } else {
+                valStr = firstCapturedNum;
               }
-              
-              if (valStr) {
-                let val = parseFloat(valStr.replace(',', '.'));
-                
-                if (key === 'TND' && val < 0.6 && val > 0) val = 1 / val;
-                if (key === 'EGP' && val > 10.0) val = 1 / val;
-                if (key === 'TRY' && val > 10.0) val = 1 / val;
-                
-                if (isInverse && val > 0) val = 1 / val;
-                if (!isNaN(val) && val >= min && val <= max) {
-                  if (val > 1900 && val < 2100 && key !== 'GOLD' && !key.startsWith('GOLD_')) return;
-                  priceHistory[key].push({ value: val, time, channel });
-                }
-              }
-            };
+            } else {
+              valStr = firstCapturedNum;
+            }
+          }
+        }
+        
+        if (valStr) {
+          let val = parseFloat(valStr.replace(',', '.'));
+          
+          if (key === 'TND' && val < 0.6 && val > 0) val = 1 / val;
+          if (key === 'EGP' && val > 10.0) val = 1 / val;
+          if (key === 'TRY' && val > 10.0) val = 1 / val;
+          
+          if (isInverse && val > 0) val = 1 / val;
+          if (!isNaN(val) && val >= min && val <= max) {
+            if (val > 1900 && val < 2100 && key !== 'GOLD' && !key.startsWith('GOLD_')) return;
+            priceHistory[key].push({ value: val, time, channel });
+          }
+        }
+      };
 
-            for (const term of compiledTerms) {
-              extractRate(term.compiledRegex, term.id, term.min, term.max, term.isInverse);
+      for (const term of compiledTerms) {
+        extractRate(term.compiledRegex, term.id, term.min, term.max, term.isInverse);
+      }
+    };
+
+    // Try GramJS first if configured
+    let usedGramJs = false;
+    if (appConfig.telegramApiId && appConfig.telegramApiHash && appConfig.telegramSessionString) {
+      console.log("[Scraper] Attempting to fetch via GramJS (MTProto)...");
+      const client = await getTelegramClient(appConfig.telegramApiId, appConfig.telegramApiHash, appConfig.telegramSessionString);
+      if (client) {
+        usedGramJs = true;
+        for (const channel of appConfig.channels) {
+          try {
+            const messages = await fetchChannelMessages(client, channel, 15);
+            if (messages.length > 0) {
+              successfulChannels++;
+              totalMessagesProcessed += messages.length;
+              for (const msg of messages) {
+                extractRateFromText(msg.text, msg.date, channel);
+              }
+            }
+          } catch (err) {
+            console.error(`[Scraper-GramJS] Error fetching ${channel}:`, err);
+          }
+        }
+      } else {
+        console.warn("[Scraper] GramJS client failed to connect. Falling back to HTTP Scraper.");
+      }
+    }
+
+    if (!usedGramJs) {
+      // Fallback to HTTP Scraper
+      const scrapeResults = await Promise.allSettled(appConfig.channels.map(async (channel) => {
+        const startTime = Date.now();
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 12000); // Reduced timeout
+          const response = await fetch(`https://t.me/s/${channel}`, { 
+            signal: controller.signal,
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+              'Accept-Language': 'en-US,en;q=0.9,ar;q=0.8',
+              'Cache-Control': 'no-cache',
+              'Pragma': 'no-cache'
+            }
+          });
+          clearTimeout(timeoutId);
+          const duration = Date.now() - startTime;
+
+          if (!response.ok) {
+            const errorText = await response.text().catch(() => "No error body");
+            console.warn(`[Scraper] Channel ${channel} returned status ${response.status} after ${duration}ms: ${errorText.substring(0, 50)}`);
+            return null;
+          }
+          const html = await response.text();
+          console.log(`[Scraper] Successfully fetched ${channel} in ${duration}ms. HTML size: ${Math.round(html.length / 1024)}KB`);
+          
+          // Check if we got a redirect or a non-Telegram page
+          if (!html.includes('tgme_page_wrap') && !html.includes('tgme_widget_message_wrap')) {
+            console.warn(`[Scraper] Channel ${channel} returned unexpected HTML content (length: ${html.length})`);
+            return null;
+          }
+
+          // Check for Telegram anti-bot protection
+          if (html.includes("verify you are a human") || html.includes("robot") || html.includes("captcha")) {
+            console.warn(`[Scraper] Channel ${channel} is blocked by Telegram anti-bot protection.`);
+            logErrorArabic(`قناة ${channel} محجوبة حالياً بواسطة حماية تيليجرام (Anti-bot)`, "الكاشط");
+            return null;
+          }
+
+          return { channel, html };
+        } catch (e) {
+          const duration = Date.now() - startTime;
+          const errorMsg = e instanceof Error ? e.message : String(e);
+          console.error(`[Scraper] Failed to fetch ${channel} after ${duration}ms:`, errorMsg);
+          // Don't await here to avoid blocking the whole scraper if Supabase is slow
+          logErrorArabic(`فشل الاتصال بقناة تيليجرام: ${channel}`, "الكاشط", errorMsg);
+          return null;
+        }
+      }));
+
+      for (const result of scrapeResults) {
+        if (result.status === 'fulfilled' && result.value) {
+          const { channel, html } = result.value;
+          const messageBlocks = html.split('tgme_widget_message_wrap');
+          
+          if (messageBlocks.length <= 1) {
+            console.warn(`[Scraper] No message blocks found for channel ${channel}. HTML length: ${html.length}`);
+            continue;
+          }
+
+          successfulChannels++;
+          totalMessagesProcessed += (messageBlocks.length - 1);
+
+          for (const block of messageBlocks) {
+            const textMatch = block.match(/<div class="tgme_widget_message_text[^>]*>(.*?)<\/div>/);
+            const timeMatch = block.match(/<time datetime="([^"]+)"/);
+            
+            if (textMatch && timeMatch) {
+              const cleanText = textMatch[1].replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ');
+              const time = new Date(timeMatch[1]).getTime();
+              if (Date.now() - time > 48 * 60 * 60 * 1000) continue;
+
+              extractRateFromText(cleanText, time, channel);
             }
           }
         }
@@ -1405,6 +1436,10 @@ async function startServer() {
     }
   };
 
+  app.get("/api/ping", (req, res) => {
+    res.send("pong");
+  });
+
   app.get("/api/admin/config", requireAdmin, (req: express.Request, res: express.Response) => {
     res.json(appConfig);
   });
@@ -1432,6 +1467,91 @@ async function startServer() {
       res.status(500).json({ success: false, message: "حدث خطأ أثناء الحفظ" });
     }
   });
+
+  // --- Telegram MTProto Auth Endpoints ---
+  import { TelegramClient } from "telegram";
+  import { StringSession } from "telegram/sessions";
+  
+  // Store temporary clients during auth flow
+  const tempClients: Record<string, TelegramClient> = {};
+
+  app.post("/api/admin/telegram/send-code", requireAdmin, async (req: express.Request, res: express.Response) => {
+    try {
+      const { phoneNumber, apiId, apiHash } = req.body;
+      if (!phoneNumber || !apiId || !apiHash) {
+        return res.status(400).json({ success: false, message: "بيانات غير مكتملة" });
+      }
+
+      const stringSession = new StringSession("");
+      const client = new TelegramClient(stringSession, Number(apiId), apiHash, {
+        connectionRetries: 5,
+        useWSS: false,
+      });
+
+      await client.connect();
+      
+      const sendCodeResult = await client.sendCode(
+        {
+          apiId: Number(apiId),
+          apiHash: apiHash,
+        },
+        phoneNumber
+      );
+
+      // Store client temporarily to complete auth later
+      const authId = Math.random().toString(36).substring(7);
+      tempClients[authId] = client;
+
+      res.json({ 
+        success: true, 
+        phoneCodeHash: sendCodeResult.phoneCodeHash,
+        authId: authId
+      });
+    } catch (err: any) {
+      console.error("Telegram send code error:", err);
+      res.status(500).json({ success: false, message: err.message || "فشل إرسال الكود" });
+    }
+  });
+
+  app.post("/api/admin/telegram/verify-code", requireAdmin, async (req: express.Request, res: express.Response) => {
+    try {
+      const { phoneNumber, phoneCodeHash, code, password, authId } = req.body;
+      
+      const client = tempClients[authId];
+      if (!client) {
+        return res.status(400).json({ success: false, message: "جلسة التحقق غير صالحة أو منتهية" });
+      }
+
+      await client.invoke(new (require("telegram/tl/api").Api.auth.SignIn)({
+        phoneNumber,
+        phoneCodeHash,
+        phoneCode: code
+      })).catch(async (err: any) => {
+        if (err.message.includes('SESSION_PASSWORD_NEEDED')) {
+          if (!password) {
+             throw new Error("كلمة مرور التحقق بخطوتين (2FA) مطلوبة");
+          }
+          await client.signInWithPassword({ apiId: client.apiId, apiHash: client.apiHash }, { password: password, onError: (e) => { throw e; } });
+        } else {
+          throw err;
+        }
+      });
+
+      const sessionString = (client.session as StringSession).save();
+      
+      // Clean up temp client
+      delete tempClients[authId];
+
+      res.json({ 
+        success: true, 
+        sessionString: sessionString 
+      });
+    } catch (err: any) {
+      console.error("Telegram verify code error:", err);
+      res.status(500).json({ success: false, message: err.message || "فشل التحقق من الكود" });
+    }
+  });
+
   app.post("/api/admin/refresh", requireAdmin, async (req: express.Request, res: express.Response) => {
     try {
       console.log(`[Admin] Manual refresh triggered`);
@@ -1934,6 +2054,17 @@ async function startServer() {
 
   server.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
+    
+    // Auto-refresh rates every 10 minutes as long as server is awake
+    setInterval(async () => {
+      try {
+        console.log("[Auto-Refresh] Triggering automatic rates update...");
+        await fetchOfficialRates();
+        await fetchParallelRatesFromTelegram();
+      } catch (err) {
+        console.error("[Auto-Refresh] Error during automatic update:", err);
+      }
+    }, 10 * 60 * 1000);
   });
 }
 
