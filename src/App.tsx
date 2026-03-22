@@ -769,7 +769,6 @@ export default function App() {
             }
           } catch (err) {
             console.error('WebSocket message error:', err);
-            logErrorToServer(err, "App.tsx: WebSocket onmessage");
           }
         };
 
@@ -782,7 +781,6 @@ export default function App() {
         };
       } catch (err) {
         console.error('WebSocket connection error:', err);
-        logErrorToServer(err, "App.tsx: WebSocket connect");
         reconnectTimeout = setTimeout(connect, 5000);
       }
     };
@@ -792,12 +790,14 @@ export default function App() {
     // Fallback polling for online count
     const pollInterval = setInterval(async () => {
       try {
-        const res = await fetch('/api/online-count');
-        const data = await res.json();
-        setOnlineCount(data.count);
+        const res = await fetch('/api/stats/active');
+        if (res.ok) {
+          const data = await res.json();
+          setOnlineCount(data.count);
+        }
       } catch (err) {
-        // Ignore polling errors
-        logErrorToServer(err, "App.tsx: fetchOnlineCount polling");
+        // Silently ignore polling network errors (e.g. adblockers or offline)
+        console.debug("Polling active users failed", err);
       }
     }, 30000);
 

@@ -9,6 +9,9 @@ export const logErrorToServer = async (error: Error | string | unknown, context?
       if (errName === 'AbortError' || errName === 'TimeoutError' || (typeof errMsg === 'string' && errMsg.includes('signal timed out'))) {
         return; // Ignore network timeout errors to prevent log spam
       }
+      if (error instanceof TypeError && errMsg === 'Failed to fetch') {
+        return; // Ignore network connection errors to prevent log spam
+      }
     }
 
     if (error instanceof Error) {
