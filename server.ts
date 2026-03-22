@@ -1299,12 +1299,6 @@ async function fetchParallelRatesFromTelegram() {
       return anyChanged;
     }
     return false;
-  } catch (error) {
-    console.error("Error fetching from Telegram:", error);
-    return false;
-  } finally {
-    isScraping = false;
-  }
 }
 
 // Initial fetch and setup
