@@ -1472,7 +1472,26 @@ async function startServer() {
   });
 
   app.get("/api/ping", (req, res) => {
-    res.send("pong");
+    const minutesSinceLastScrape = Math.floor((Date.now() - lastSuccessfulScrape.getTime()) / 60000);
+    
+    // Fallback: if pinged and last scrape was more than 10 mins ago, trigger it
+    if (minutesSinceLastScrape >= 10) {
+      console.log(`[Ping-Trigger] Last scrape was ${minutesSinceLastScrape} mins ago. Triggering update...`);
+      (async () => {
+        try {
+          await fetchOfficialRates();
+          await fetchParallelRatesFromTelegram();
+        } catch (err) {
+          console.error("[Ping-Trigger] Error during update:", err);
+        }
+      })();
+    }
+
+    res.json({ 
+      status: "pong", 
+      lastScrape: lastSuccessfulScrape.toISOString(),
+      minutesSinceLastScrape
+    });
   });
 
   app.get("/api/admin/config", requireAdmin, (req: express.Request, res: express.Response) => {
@@ -2096,6 +2115,17 @@ async function startServer() {
 
   server.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
+    
+    // Initial scrape on startup
+    (async () => {
+      try {
+        console.log("[Startup] Triggering initial rates update...");
+        await fetchOfficialRates();
+        await fetchParallelRatesFromTelegram();
+      } catch (err) {
+        console.error("[Startup] Error during initial update:", err);
+      }
+    })();
     
     // Auto-refresh rates every 10 minutes as long as server is awake
     setInterval(async () => {
