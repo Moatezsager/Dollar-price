@@ -5,7 +5,7 @@ import {
   Activity, Users, Cpu, History as HistoryIcon, AlertTriangle, Terminal, 
   ArrowLeftRight, ArrowUpRight, ArrowDownRight, CheckCircle2, RefreshCw, Layers, Globe, Zap, Search,
   ChevronDown, ChevronUp, Clock, Info, Building2, Coins, Send, Building, TrendingUp,
-  Stethoscope, ListX, Trash
+  Stethoscope, ListX, Trash, LayoutDashboard, Menu, BarChart3, Bell, Shield, Database
 } from "lucide-react";
 import { format } from "date-fns";
 import { ar } from "date-fns/locale";
@@ -186,7 +186,8 @@ export default function Admin() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [activeTab, setActiveTab] = useState<'config' | 'stats' | 'logs' | 'ai' | 'changes' | 'telegram' | 'tools'>('config');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'config' | 'stats' | 'logs' | 'ai' | 'changes' | 'telegram' | 'tools'>('dashboard');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isAuthorizedDevice, setIsAuthorizedDevice] = useState(true);
 
   const [expandedTermIdx, setExpandedTermIdx] = useState<number | null>(null);
@@ -250,6 +251,17 @@ export default function Admin() {
       return () => clearInterval(interval);
     }
   }, [token]);
+
+  const navItems = [
+    { id: 'dashboard', label: 'لوحة التحكم', icon: LayoutDashboard },
+    { id: 'config', label: 'الإعدادات', icon: Settings },
+    { id: 'stats', label: 'النشاط', icon: Activity },
+    { id: 'changes', label: 'السجل', icon: HistoryIcon },
+    { id: 'ai', label: 'قارئ نصوص', icon: Zap },
+    { id: 'telegram', label: 'الحساب', icon: Globe },
+    { id: 'logs', label: 'الأخطاء', icon: AlertTriangle },
+    { id: 'tools', label: 'أدوات', icon: Cpu },
+  ];
 
   const fetchData = async () => {
     setLoading(true);
@@ -807,98 +819,380 @@ export default function Admin() {
   }
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white flex flex-col font-sans selection:bg-emerald-500/30" dir="rtl">
-      {/* Dynamic Header */}
-      <header className="sticky top-0 z-50 bg-[#050505]/95 backdrop-blur-2xl border-b border-white/5 py-4 px-4 md:px-6">
-        <div className="max-w-7xl mx-auto space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                <div className="w-10 h-10 md:w-12 md:h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-blue-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
-                  <ShieldCheck className="w-5 h-5 md:w-6 md:h-6 text-white" />
-                </div>
-                <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-[#050505] shadow-sm ${connectionStatus === 'online' ? 'bg-emerald-500' : 'bg-rose-500'}`}></div>
-              </div>
-              <div className="min-w-0">
-                <h1 className="text-lg md:text-xl font-black tracking-tight text-white leading-tight">
-                  مركز الإدارة <span className="text-emerald-500 text-[10px] bg-emerald-500/10 px-1.5 py-0.5 rounded-full border border-emerald-500/20 ml-1">V4.0</span>
-                </h1>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="flex items-center gap-1.5 text-zinc-500 text-[10px] md:text-xs">
-                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
-                    متصل: {uptimeDisplay || "..." }
-                  </span>
-                </div>
-              </div>
+    <div className="min-h-screen bg-[#050505] text-white flex font-sans selection:bg-emerald-500/30 overflow-hidden" dir="rtl">
+      {/* Sidebar - Desktop */}
+      <aside className="hidden lg:flex flex-col w-72 bg-[#080808] border-l border-white/5 relative z-[60]">
+        <div className="p-8">
+          <div className="flex items-center gap-4 mb-10">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-blue-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+              <ShieldCheck className="w-7 h-7 text-white" />
             </div>
-
-            <div className="flex items-center gap-2">
-               <TelegramStatus />
-               <button
-                  onClick={handleLogout}
-                  className="p-2.5 rounded-xl bg-white/5 text-zinc-500 hover:text-rose-400 hover:bg-rose-500/10 transition-all border border-white/5"
-               >
-                 <LogOut className="w-5 h-5" />
-               </button>
-               <button
-                 onClick={handleSave}
-                 disabled={loading}
-                 className="px-4 md:px-6 py-2.5 rounded-xl bg-white text-black font-black flex items-center gap-2 hover:bg-emerald-400 transition-all active:scale-95 disabled:opacity-50 text-xs md:text-sm shadow-xl shadow-white/5"
-               >
-                 <Save className="w-4 h-4" />
-                 <span className="hidden sm:inline">حفظ النظام</span>
-                 <span className="sm:hidden">حفظ</span>
-               </button>
+            <div>
+              <h1 className="text-xl font-black tracking-tight text-white leading-tight">مركز الإدارة</h1>
+              <span className="text-emerald-500 text-[10px] font-bold uppercase tracking-widest">Version 4.0</span>
             </div>
           </div>
 
-          {/* Quick Real-time Status Chips - Important for Mobile */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 border border-white/5 rounded-full shrink-0">
-               <div className={`w-2 h-2 rounded-full ${stats?.minutesSinceLastScrape && stats.minutesSinceLastScrape < 15 ? 'bg-emerald-500' : 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]'}`}></div>
-               <span className="text-[10px] font-bold text-zinc-400">تيليجرام: {stats?.minutesSinceLastScrape ? `منذ ${stats.minutesSinceLastScrape}د` : '---'}</span>
-            </div>
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 border border-white/5 rounded-full shrink-0">
-               <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-               <span className="text-[10px] font-bold text-zinc-400">المستخدمين: {stats?.onlineUsers || 0}</span>
-            </div>
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 border border-white/5 rounded-full shrink-0">
-               <div className="w-2 h-2 rounded-full bg-purple-500"></div>
-               <span className="text-[10px] font-bold text-zinc-400">الرام: {stats?.memoryUsage ? `${Math.round(stats.memoryUsage.heapUsed / 1024 / 1024)}mb` : '---'}</span>
-            </div>
-          </div>
-
-          {/* Navigation Bar */}
-          <nav className="flex items-center gap-1 bg-white/[0.03] p-1 rounded-2xl border border-white/5 overflow-x-auto scrollbar-hide">
-            {[
-              { id: 'config', label: 'الإعدادات', icon: Settings },
-              { id: 'stats', label: 'النشاط', icon: Activity },
-              { id: 'changes', label: 'السجل', icon: HistoryIcon },
-              { id: 'ai', label: 'قارئ نصوص', icon: Zap },
-              { id: 'telegram', label: 'الحساب', icon: Globe },
-              { id: 'logs', label: 'الأخطاء', icon: AlertTriangle },
-              { id: 'tools', label: 'أدوات', icon: Cpu },
-            ].map(tab => (
+          <nav className="space-y-1.5">
+            {navItems.map(item => (
               <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                className={`flex items-center gap-2 px-4 md:px-5 py-2 md:py-2.5 rounded-xl text-[11px] md:text-xs font-black transition-all whitespace-nowrap shrink-0 group ${
-                  activeTab === tab.id 
+                key={item.id}
+                onClick={() => setActiveTab(item.id as any)}
+                className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-sm font-bold transition-all group ${
+                  activeTab === item.id 
                     ? 'bg-emerald-500 text-black shadow-lg shadow-emerald-500/20' 
                     : 'text-zinc-500 hover:text-white hover:bg-white/5'
                 }`}
               >
-                <tab.icon className={`w-3.5 h-3.5 md:w-4 md:h-4 ${activeTab === tab.id ? 'stroke-[3]' : 'group-hover:scale-110 transition-transform'}`} />
-                {tab.label}
+                <item.icon className={`w-5 h-5 ${activeTab === item.id ? 'stroke-[2.5]' : 'group-hover:scale-110 transition-transform'}`} />
+                {item.label}
               </button>
             ))}
           </nav>
         </div>
-      </header>
 
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6">
-        <AnimatePresence mode="wait">
-          {activeTab === 'config' && (
+        <div className="mt-auto p-6 border-t border-white/5">
+           <div className="bg-white/5 rounded-2xl p-4 mb-4">
+              <div className="flex items-center gap-3 mb-3">
+                 <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                    <Database className="w-4 h-4 text-blue-400" />
+                 </div>
+                 <span className="text-xs font-bold text-zinc-400">حالة النظام</span>
+              </div>
+              <div className="space-y-2">
+                 <div className="flex justify-between text-[10px]">
+                    <span className="text-zinc-500">الاتصال:</span>
+                    <span className={connectionStatus === 'online' ? 'text-emerald-400' : 'text-rose-400'}>
+                       {connectionStatus === 'online' ? 'متصل' : 'منقطع'}
+                    </span>
+                 </div>
+                 <div className="flex justify-between text-[10px]">
+                    <span className="text-zinc-500">الذاكرة:</span>
+                    <span className="text-blue-400">{stats?.memoryUsage ? `${Math.round(stats.memoryUsage.heapUsed / 1024 / 1024)}MB` : '...'}</span>
+                 </div>
+              </div>
+           </div>
+           
+           <button
+              onClick={handleLogout}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-bold text-rose-400 hover:bg-rose-500/10 transition-all border border-rose-500/10"
+           >
+             <LogOut className="w-5 h-5" />
+             تسجيل الخروج
+           </button>
+        </div>
+      </aside>
+
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
+        {/* Top Header */}
+        <header className="h-20 bg-[#050505]/80 backdrop-blur-2xl border-b border-white/5 flex items-center justify-between px-6 shrink-0 relative z-50">
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => setIsSidebarOpen(true)}
+              className="lg:hidden p-2.5 rounded-xl bg-white/5 text-zinc-400 hover:text-white transition-all"
+            >
+              <Menu className="w-6 h-6" />
+            </button>
+            
+            <div className="hidden md:flex items-center gap-3">
+               <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 border border-white/5 rounded-full">
+                  <div className={`w-2 h-2 rounded-full ${stats?.minutesSinceLastScrape && stats.minutesSinceLastScrape < 15 ? 'bg-emerald-500' : 'bg-rose-500 animate-pulse'}`}></div>
+                  <span className="text-[10px] font-bold text-zinc-400">تيليجرام: {stats?.minutesSinceLastScrape ? `منذ ${stats.minutesSinceLastScrape}د` : '---'}</span>
+               </div>
+               <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 border border-white/5 rounded-full">
+                  <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                  <span className="text-[10px] font-bold text-zinc-400">المستخدمين: {stats?.onlineUsers || 0}</span>
+               </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+             <TelegramStatus />
+             <div className="w-px h-6 bg-white/10 mx-2 hidden sm:block"></div>
+             <button
+               onClick={handleSave}
+               disabled={loading}
+               className="px-5 py-2.5 rounded-xl bg-white text-black font-black flex items-center gap-2 hover:bg-emerald-400 transition-all active:scale-95 disabled:opacity-50 text-sm shadow-xl shadow-white/5"
+             >
+               <Save className="w-4 h-4" />
+               <span>حفظ التغييرات</span>
+             </button>
+          </div>
+        </header>
+
+        {/* Mobile Sidebar Overlay */}
+        <AnimatePresence>
+          {isSidebarOpen && (
+            <>
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setIsSidebarOpen(false)}
+                className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] lg:hidden"
+              />
+              <motion.aside 
+                initial={{ x: '100%' }}
+                animate={{ x: 0 }}
+                exit={{ x: '100%' }}
+                className="fixed top-0 right-0 bottom-0 w-80 bg-[#080808] z-[110] lg:hidden p-8 flex flex-col shadow-2xl"
+              >
+                <div className="flex items-center justify-between mb-10">
+                  <div className="flex items-center gap-3">
+                    <ShieldCheck className="w-8 h-8 text-emerald-500" />
+                    <span className="font-black text-xl">القائمة</span>
+                  </div>
+                  <button onClick={() => setIsSidebarOpen(false)} className="p-2 rounded-xl bg-white/5">
+                    <X className="w-6 h-6" />
+                  </button>
+                </div>
+
+                <nav className="space-y-2">
+                  {navItems.map(item => (
+                    <button
+                      key={item.id}
+                      onClick={() => {
+                        setActiveTab(item.id as any);
+                        setIsSidebarOpen(false);
+                      }}
+                      className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-sm font-bold transition-all ${
+                        activeTab === item.id 
+                          ? 'bg-emerald-500 text-black' 
+                          : 'text-zinc-500 hover:bg-white/5'
+                      }`}
+                    >
+                      <item.icon className="w-5 h-5" />
+                      {item.label}
+                    </button>
+                  ))}
+                </nav>
+
+                <div className="mt-auto">
+                  <button
+                    onClick={handleLogout}
+                    className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-sm font-bold text-rose-400 bg-rose-500/5 border border-rose-500/10"
+                  >
+                    <LogOut className="w-5 h-5" />
+                    تسجيل الخروج
+                  </button>
+                </div>
+              </motion.aside>
+            </>
+          )}
+        </AnimatePresence>
+
+        {/* Content Viewport */}
+        <main className="flex-1 overflow-y-auto p-4 md:p-8 relative">
+          <AnimatePresence mode="wait">
+            {activeTab === 'dashboard' && (
+              <motion.div
+                key="dashboard"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="space-y-8 pb-24"
+              >
+                {/* Dashboard Header */}
+                <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+                  <div>
+                    <h2 className="text-3xl font-black text-white mb-2">مرحباً بك، المدير</h2>
+                    <p className="text-zinc-500 font-medium">إليك نظرة سريعة على أداء النظام اليوم.</p>
+                  </div>
+                  <div className="flex items-center gap-3 bg-white/5 p-2 rounded-2xl border border-white/5">
+                    <div className="px-4 py-2 rounded-xl bg-white/5 border border-white/5 flex flex-col items-center">
+                       <span className="text-[10px] text-zinc-500 uppercase font-black">Uptime</span>
+                       <span className="text-xs font-mono text-emerald-400">{uptimeDisplay || "..."}</span>
+                    </div>
+                    <div className="px-4 py-2 rounded-xl bg-white/5 border border-white/5 flex flex-col items-center">
+                       <span className="text-[10px] text-zinc-500 uppercase font-black">Region</span>
+                       <span className="text-xs font-mono text-blue-400">GER_FRA_01</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bento Grid Overview */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  {/* Stats Cards */}
+                  <div className="bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 border border-emerald-500/20 rounded-[2rem] p-6 relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 blur-3xl rounded-full -mr-16 -mt-16 group-hover:bg-emerald-500/20 transition-all"></div>
+                    <div className="flex items-center justify-between mb-4 relative">
+                      <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 flex items-center justify-center">
+                        <Users className="w-6 h-6 text-emerald-400" />
+                      </div>
+                      <span className="text-xs font-black text-emerald-500/50 uppercase tracking-tighter">Live</span>
+                    </div>
+                    <div className="relative">
+                      <h3 className="text-zinc-400 text-xs font-bold mb-1">المستخدمين النشطين</h3>
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-3xl font-black text-white">{stats?.onlineUsers || 0}</span>
+                        <span className="text-xs text-emerald-500 font-bold">+12%</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 border border-blue-500/20 rounded-[2rem] p-6 relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 blur-3xl rounded-full -mr-16 -mt-16 group-hover:bg-blue-500/20 transition-all"></div>
+                    <div className="flex items-center justify-between mb-4 relative">
+                      <div className="w-12 h-12 rounded-2xl bg-blue-500/20 flex items-center justify-center">
+                        <Globe className="w-6 h-6 text-blue-400" />
+                      </div>
+                      <span className="text-xs font-black text-blue-500/50 uppercase tracking-tighter">Scraper</span>
+                    </div>
+                    <div className="relative">
+                      <h3 className="text-zinc-400 text-xs font-bold mb-1">آخر تحديث للأسعار</h3>
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-3xl font-black text-white">{stats?.minutesSinceLastScrape || 0}</span>
+                        <span className="text-xs text-zinc-500 font-bold">دقيقة</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-gradient-to-br from-purple-500/10 to-purple-600/5 border border-purple-500/20 rounded-[2rem] p-6 relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/10 blur-3xl rounded-full -mr-16 -mt-16 group-hover:bg-purple-500/20 transition-all"></div>
+                    <div className="flex items-center justify-between mb-4 relative">
+                      <div className="w-12 h-12 rounded-2xl bg-purple-500/20 flex items-center justify-center">
+                        <Cpu className="w-6 h-6 text-purple-400" />
+                      </div>
+                      <span className="text-xs font-black text-purple-500/50 uppercase tracking-tighter">Health</span>
+                    </div>
+                    <div className="relative">
+                      <h3 className="text-zinc-400 text-xs font-bold mb-1">استهلاك الذاكرة</h3>
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-3xl font-black text-white">{stats?.memoryUsage ? Math.round(stats.memoryUsage.heapUsed / 1024 / 1024) : 0}</span>
+                        <span className="text-xs text-zinc-500 font-bold">MB</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-gradient-to-br from-amber-500/10 to-amber-600/5 border border-amber-500/20 rounded-[2rem] p-6 relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 blur-3xl rounded-full -mr-16 -mt-16 group-hover:bg-amber-500/20 transition-all"></div>
+                    <div className="flex items-center justify-between mb-4 relative">
+                      <div className="w-12 h-12 rounded-2xl bg-amber-500/20 flex items-center justify-center">
+                        <Layers className="w-6 h-6 text-amber-400" />
+                      </div>
+                      <span className="text-xs font-black text-amber-500/50 uppercase tracking-tighter">Data</span>
+                    </div>
+                    <div className="relative">
+                      <h3 className="text-zinc-400 text-xs font-bold mb-1">القنوات المفعلة</h3>
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-3xl font-black text-white">{config?.channels?.length || 0}</span>
+                        <span className="text-xs text-zinc-500 font-bold">قناة</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                  {/* Recent Activity Mini-View */}
+                  <div className="lg:col-span-2 space-y-6">
+                    <div className="bg-white/[0.02] border border-white/5 rounded-[2.5rem] p-8">
+                      <div className="flex items-center justify-between mb-8">
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 rounded-2xl bg-blue-500/10 flex items-center justify-center">
+                            <HistoryIcon className="w-6 h-6 text-blue-400" />
+                          </div>
+                          <div>
+                            <h3 className="text-xl font-black">آخر التحديثات</h3>
+                            <p className="text-xs text-zinc-500">سجل بآخر 5 تغييرات في الأسعار</p>
+                          </div>
+                        </div>
+                        <button onClick={() => setActiveTab('changes')} className="text-xs font-bold text-blue-400 hover:underline">عرض الكل</button>
+                      </div>
+
+                      <div className="space-y-4">
+                        {recentChanges.slice(0, 5).map((change, idx) => (
+                          <div key={idx} className="flex items-center justify-between p-4 rounded-2xl bg-white/[0.03] border border-white/5">
+                            <div className="flex items-center gap-4">
+                              <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-lg">
+                                {change.flag || "💰"}
+                              </div>
+                              <div>
+                                <div className="text-sm font-bold text-white">{change.name}</div>
+                                <div className="text-[10px] text-zinc-500">{format(new Date(change.timestamp), 'HH:mm:ss', { locale: ar })}</div>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-sm font-black text-emerald-400" dir="ltr">{change.value}</div>
+                              <div className="text-[10px] text-zinc-600 font-mono">{change.channel}</div>
+                            </div>
+                          </div>
+                        ))}
+                        {recentChanges.length === 0 && (
+                          <div className="text-center py-10 text-zinc-600 text-sm italic">لا توجد تغييرات مسجلة حالياً</div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Quick Actions & Health */}
+                  <div className="space-y-6">
+                    <div className="bg-white/[0.02] border border-white/5 rounded-[2.5rem] p-8">
+                       <h3 className="text-xl font-black mb-6 flex items-center gap-3">
+                          <Zap className="w-6 h-6 text-amber-400" />
+                          إجراءات سريعة
+                       </h3>
+                       <div className="grid grid-cols-1 gap-3">
+                          <button 
+                            onClick={runDiagnostics}
+                            className="w-full flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all group"
+                          >
+                             <div className="flex items-center gap-3">
+                                <Stethoscope className="w-5 h-5 text-blue-400" />
+                                <span className="text-sm font-bold">فحص النظام</span>
+                             </div>
+                             <ArrowRight className="w-4 h-4 text-zinc-600 group-hover:translate-x-[-4px] transition-transform" />
+                          </button>
+                          <button 
+                            onClick={clearRam}
+                            className="w-full flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all group"
+                          >
+                             <div className="flex items-center gap-3">
+                                <Cpu className="w-5 h-5 text-amber-400" />
+                                <span className="text-sm font-bold">تنظيف الرام</span>
+                             </div>
+                             <ArrowRight className="w-4 h-4 text-zinc-600 group-hover:translate-x-[-4px] transition-transform" />
+                          </button>
+                          <button 
+                            onClick={() => setActiveTab('telegram')}
+                            className="w-full flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all group"
+                          >
+                             <div className="flex items-center gap-3">
+                                <Globe className="w-5 h-5 text-purple-400" />
+                                <span className="text-sm font-bold">إدارة تليجرام</span>
+                             </div>
+                             <ArrowRight className="w-4 h-4 text-zinc-600 group-hover:translate-x-[-4px] transition-transform" />
+                          </button>
+                       </div>
+                    </div>
+
+                    <div className="bg-gradient-to-br from-rose-500/10 to-rose-600/5 border border-rose-500/20 rounded-[2.5rem] p-8">
+                       <div className="flex items-center gap-4 mb-6">
+                          <div className="w-12 h-12 rounded-2xl bg-rose-500/20 flex items-center justify-center">
+                             <AlertTriangle className="w-6 h-6 text-rose-400" />
+                          </div>
+                          <div>
+                             <h3 className="text-xl font-black">سجل الأخطاء</h3>
+                             <p className="text-xs text-rose-500/50">آخر المشاكل التقنية</p>
+                          </div>
+                       </div>
+                       <div className="space-y-3">
+                          {logs.slice(0, 3).map((log, i) => (
+                            <div key={i} className="p-3 rounded-xl bg-rose-500/5 border border-rose-500/10">
+                               <div className="text-[10px] font-bold text-rose-400 mb-1">{log.context}</div>
+                               <div className="text-[10px] text-zinc-500 line-clamp-1 font-mono">{log.message}</div>
+                            </div>
+                          ))}
+                          {logs.length === 0 && <div className="text-center py-4 text-zinc-600 text-[10px]">لا توجد أخطاء مسجلة ✅</div>}
+                          <button onClick={() => setActiveTab('logs')} className="w-full py-3 text-xs font-black text-rose-400 hover:bg-rose-500/10 rounded-xl transition-all mt-2">عرض سجل الأخطاء</button>
+                       </div>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {activeTab === 'config' && (
             <motion.div 
               key="config"
               initial={{ opacity: 0, y: 10 }}
@@ -2198,5 +2492,6 @@ export default function Admin() {
         )}
       </AnimatePresence>
     </div>
+  </div>
   );
 }
