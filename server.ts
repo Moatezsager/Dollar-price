@@ -941,7 +941,6 @@ let isScraping = false;
 let lastSuccessfulScrape = new Date();
 let lastAttemptTime = 0;
 
-let isScraping = false;
 async function fetchParallelRatesFromTelegram() {
   if (isScraping) {
     console.log("[Scraper] Scrape already in progress, skipping...");
