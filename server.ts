@@ -1083,13 +1083,13 @@ async function fetchParallelRatesFromTelegram() {
       }
     }
 
-    // 3. GramJS client is handled by initializeTelegram singleton
-    if (client) {
+    // 3. TelegramManager handled by singleton
+    if (telegramManager) {
       usedGramJs = true;
-      console.log("[Scraper] GramJS client ready.");
+      console.log("[Scraper] TelegramManager ready.");
       for (const channel of channels) {
         try {
-          const messages = await fetchChannelMessages(client, channel, 15);
+          const messages = await telegramManager.fetchMessages(channel, 15);
           if (messages.length > 0) {
             console.log(`[Scraper-GramJS] Fetched ${messages.length} messages from ${channel}`);
             successfulChannels++;
@@ -1113,11 +1113,11 @@ async function fetchParallelRatesFromTelegram() {
         } catch (err) {
           const errorMsg = err instanceof Error ? err.message : String(err);
           console.error(`[Scraper-GramJS] Error fetching ${channel}:`, errorMsg);
-          await logErrorArabic(`خطأ في جلب رسائل القناة ${channel} عبر GramJS`, "الكاشط", errorMsg);
+          await logErrorArabic(`خطأ في جلب رسائل القناة ${channel} عبر TelegramManager`, "الكاشط", errorMsg);
         }
       }
     } else {
-      console.warn("[Scraper] GramJS failed. Forcing HTTP Scraper fallback.");
+      console.warn("[Scraper] TelegramManager failed. Forcing HTTP Scraper fallback.");
       await logErrorArabic("فشل الاتصال بـ GramJS. جاري استخدام الكاشط التقليدي كبديل إجباري.", "الكاشط");
       forceHttpScraper = true;
     }
