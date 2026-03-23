@@ -973,10 +973,13 @@ async function fetchParallelRatesFromTelegram() {
     let totalMessagesProcessed = 0;
 
     // Pre-compile regexes for performance
-    const compiledTerms = appConfig.terms.map(t => ({
-      ...t,
-      compiledRegex: new RegExp(t.regex, 'i')
-    }));
+    // Only include currencies and checks (exclude GOLD and SILVER)
+    const compiledTerms = appConfig.terms
+      .filter(t => !t.id.startsWith('GOLD') && !t.id.startsWith('SILVER'))
+      .map(t => ({
+        ...t,
+        compiledRegex: new RegExp(t.regex, 'i')
+      }));
 
     const extractRateFromText = (cleanText: string, time: number, channel: string) => {
       console.log(`[Scraper] Extracting from: ${cleanText.substring(0, 100)}...`);
@@ -1077,7 +1080,7 @@ async function fetchParallelRatesFromTelegram() {
       console.log("[Scraper] TelegramManager ready.");
       for (const channel of channels) {
         try {
-          const messages = await telegramManager.fetchMessages(channel, 50);
+          const messages = await telegramManager.fetchMessages(channel, 5);
           if (messages.length > 0) {
             console.log(`[Scraper-GramJS] Fetched ${messages.length} messages from ${channel}`);
             successfulChannels++;
@@ -1276,10 +1279,22 @@ async function fetchParallelRatesFromTelegram() {
 
       // Dynamically assign all extracted rates
       for (const term of appConfig.terms) {
+        // Skip gold and silver as requested
+        if (term.id.startsWith('GOLD') || term.id.startsWith('SILVER')) continue;
+
         const currentVal = rates.parallel[term.id];
         const newValFromTelegram = latestRates[term.id];
 
         if (newValFromTelegram !== undefined) {
+          // Strict validation: new price should not deviate by more than 25% from the current price
+          if (currentVal !== undefined && currentVal > 0) {
+            const deviation = Math.abs(newValFromTelegram - currentVal) / currentVal;
+            if (deviation > 0.25) {
+              console.warn(`[Scraper] Rejected price update for ${term.id} due to >25% deviation (${currentVal} -> ${newValFromTelegram})`);
+              continue; // Skip this update
+            }
+          }
+
           // If we found a price in Telegram, and it's DIFFERENT from what we have in Memory
           if (isSignificantChange(currentVal, newValFromTelegram)) {
             console.log(`[Scraper] Price update: ${term.id} (${currentVal} -> ${newValFromTelegram}) Source: ${latestSources[term.id]}`);
