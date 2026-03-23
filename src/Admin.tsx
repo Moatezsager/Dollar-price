@@ -4,7 +4,8 @@ import {
   Settings, Save, Plus, Trash2, ArrowRight, ShieldCheck, LogOut, X, Lock,
   Activity, Users, Cpu, History as HistoryIcon, AlertTriangle, Terminal, 
   ArrowLeftRight, ArrowUpRight, ArrowDownRight, CheckCircle2, RefreshCw, Layers, Globe, Zap, Search,
-  ChevronDown, ChevronUp, Clock, Info, Building2, Coins, Send, Building, TrendingUp
+  ChevronDown, ChevronUp, Clock, Info, Building2, Coins, Send, Building, TrendingUp,
+  Stethoscope, ListX, Trash
 } from "lucide-react";
 import { format } from "date-fns";
 import { ar } from "date-fns/locale";
@@ -185,7 +186,7 @@ export default function Admin() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [activeTab, setActiveTab] = useState<'config' | 'stats' | 'logs' | 'ai' | 'changes' | 'telegram'>('config');
+  const [activeTab, setActiveTab] = useState<'config' | 'stats' | 'logs' | 'ai' | 'changes' | 'telegram' | 'tools'>('config');
   const [isAuthorizedDevice, setIsAuthorizedDevice] = useState(true);
 
   const [expandedTermIdx, setExpandedTermIdx] = useState<number | null>(null);
@@ -252,7 +253,7 @@ export default function Admin() {
 
   const fetchData = async () => {
     setLoading(true);
-    await Promise.all([fetchConfig(), fetchStats(), fetchLogs(), fetchRecentChanges()]);
+    await Promise.all([fetchConfig(), fetchStats(), fetchLogs(), fetchRecentChanges(), fetchLiveFeed()]);
     setLoading(false);
   };
 
@@ -329,6 +330,71 @@ export default function Admin() {
       }
     } catch (err) {
       console.warn("Recent changes fetch failed");
+    }
+  };
+
+  const [liveFeed, setLiveFeed] = useState<any[]>([]);
+  const [diagnosticsResult, setDiagnosticsResult] = useState<any>(null);
+
+  const fetchLiveFeed = async () => {
+    try {
+      const res = await fetchWithTimeout("/api/admin/live-feed", {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setLiveFeed(data.feed || []);
+      }
+    } catch (err) {
+      console.warn("Live feed fetch failed");
+    }
+  };
+
+  const runDiagnostics = async () => {
+    try {
+      setDiagnosticsResult({ loading: true });
+      const res = await fetchWithTimeout("/api/admin/diagnostics", {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setDiagnosticsResult(data);
+      } else {
+        setDiagnosticsResult({ error: "فشل الاتصال" });
+      }
+    } catch (err) {
+      setDiagnosticsResult({ error: "فشل الاتصال" });
+    }
+  };
+
+  const clearQueue = async () => {
+    try {
+      const res = await fetchWithTimeout("/api/admin/clear-queue", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSuccess(data.message);
+        fetchLiveFeed();
+      }
+    } catch (err) {
+      setError("فشل تفريغ الطابور");
+    }
+  };
+
+  const clearRam = async () => {
+    try {
+      const res = await fetchWithTimeout("/api/admin/clear-ram", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSuccess(data.message);
+      }
+    } catch (err) {
+      setError("فشل تنظيف الرام");
     }
   };
 
@@ -811,6 +877,7 @@ export default function Admin() {
               { id: 'ai', label: 'قارئ نصوص', icon: Zap },
               { id: 'telegram', label: 'الحساب', icon: Globe },
               { id: 'logs', label: 'الأخطاء', icon: AlertTriangle },
+              { id: 'tools', label: 'أدوات', icon: Cpu },
             ].map(tab => (
               <button
                 key={tab.id}
@@ -1912,6 +1979,167 @@ export default function Admin() {
                     )}
                   </div>
                 )}
+              </section>
+            </motion.div>
+          )}
+
+          {activeTab === 'tools' && (
+            <motion.div 
+              key="tools"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="space-y-6"
+            >
+              <section className="bg-white/[0.02] border border-white/5 rounded-[2rem] p-6 md:p-8 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-96 h-96 bg-purple-500/5 blur-[100px] rounded-full pointer-events-none"></div>
+                
+                <div className="flex flex-col md:flex-row items-start md:items-center gap-6 mb-8 relative">
+                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-500/20 to-pink-500/20 flex items-center justify-center border border-purple-500/20 shrink-0">
+                    <Stethoscope className="w-8 h-8 text-purple-400" />
+                  </div>
+                  <div className="flex-1">
+                    <h2 className="text-2xl font-black text-white mb-1">أدوات النظام والتشخيص</h2>
+                    <p className="text-sm text-zinc-500 leading-relaxed">
+                      أدوات متقدمة لفحص صحة النظام، إدارة الذاكرة، ومراقبة الرسائل الحية.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative">
+                  {/* Self-Diagnosis Tool */}
+                  <div className="bg-black/40 border border-white/5 rounded-2xl p-6 flex flex-col">
+                    <div className="flex items-center gap-4 mb-4">
+                      <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center border border-blue-500/20">
+                        <Stethoscope className="w-6 h-6 text-blue-400" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-bold text-white">التحقق من صحة الربط</h3>
+                        <p className="text-xs text-zinc-500">فحص شامل لقاعدة البيانات وتليجرام والـ Regex</p>
+                      </div>
+                    </div>
+                    
+                    <button
+                      onClick={runDiagnostics}
+                      disabled={diagnosticsResult?.loading}
+                      className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold transition-all flex items-center justify-center gap-2 mb-4 disabled:opacity-50"
+                    >
+                      {diagnosticsResult?.loading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
+                      اختصار فحص النظام
+                    </button>
+
+                    {diagnosticsResult && !diagnosticsResult.loading && (
+                      <div className="mt-auto bg-white/5 rounded-xl p-4 text-sm">
+                        {diagnosticsResult.error ? (
+                          <div className="text-rose-400 flex items-center gap-2"><AlertTriangle className="w-4 h-4" /> {diagnosticsResult.error}</div>
+                        ) : (
+                          <div className="space-y-2">
+                            <div className="flex justify-between items-center">
+                              <span className="text-zinc-400">قاعدة البيانات:</span>
+                              <span className={diagnosticsResult.db === 'ok' ? 'text-emerald-400' : 'text-rose-400'}>
+                                {diagnosticsResult.db === 'ok' ? 'متصل ✅' : 'خطأ ❌'}
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-zinc-400">تليجرام:</span>
+                              <span className={diagnosticsResult.telegram === 'ok' ? 'text-emerald-400' : 'text-rose-400'}>
+                                {diagnosticsResult.telegram === 'ok' ? 'متصل ✅' : 'غير متصل ❌'}
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-zinc-400">الـ Regex:</span>
+                              <span className={diagnosticsResult.regex === 'ok' ? 'text-emerald-400' : 'text-rose-400'}>
+                                {diagnosticsResult.regex === 'ok' ? 'سليم ✅' : 'خطأ ❌'}
+                              </span>
+                            </div>
+                            <div className="pt-2 mt-2 border-t border-white/10 text-center font-bold text-emerald-400">
+                              {diagnosticsResult.status === 'ok' ? 'الكل جاهز ✅' : 'يوجد أخطاء ❌'}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* RAM Cleanup */}
+                  <div className="bg-black/40 border border-white/5 rounded-2xl p-6 flex flex-col">
+                    <div className="flex items-center gap-4 mb-4">
+                      <div className="w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center border border-amber-500/20">
+                        <Cpu className="w-6 h-6 text-amber-400" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-bold text-white">تنظيف الذاكرة (RAM)</h3>
+                        <p className="text-xs text-zinc-500">تفريغ الذاكرة العشوائية للسيرفر</p>
+                      </div>
+                    </div>
+                    
+                    <button
+                      onClick={clearRam}
+                      className="w-full py-3 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold transition-all flex items-center justify-center gap-2 mt-auto"
+                    >
+                      <Trash className="w-5 h-5" />
+                      تنظيف الرام الآن
+                    </button>
+                  </div>
+                </div>
+              </section>
+
+              <section className="bg-white/[0.02] border border-white/5 rounded-[2rem] p-6 md:p-8 relative overflow-hidden">
+                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 mb-8 relative">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-rose-500/10 flex items-center justify-center border border-rose-500/20">
+                      <ListX className="w-6 h-6 text-rose-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-white">إدارة الرسائل المعلقة</h3>
+                      <p className="text-sm text-zinc-500">مراقبة وتفريغ طابور الرسائل القادمة من تليجرام</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex gap-3">
+                    <button
+                      onClick={fetchLiveFeed}
+                      className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white font-bold transition-all flex items-center gap-2 text-sm"
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                      تحديث
+                    </button>
+                    <button
+                      onClick={clearQueue}
+                      className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold transition-all flex items-center gap-2 text-sm"
+                    >
+                      <Trash className="w-4 h-4" />
+                      تفريغ الطابور
+                    </button>
+                  </div>
+                </div>
+
+                <div className="bg-black/40 border border-white/5 rounded-2xl p-4">
+                  <h4 className="text-sm font-bold text-zinc-400 mb-4 flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                    سجل الرسائل الأخيرة (Live Feed)
+                  </h4>
+                  
+                  <div className="space-y-3">
+                    {liveFeed.length === 0 ? (
+                      <div className="text-center py-8 text-zinc-500 text-sm">
+                        لا توجد رسائل حديثة في الطابور
+                      </div>
+                    ) : (
+                      liveFeed.map((msg, idx) => (
+                        <div key={idx} className="bg-white/5 rounded-xl p-4 border border-white/5">
+                          <div className="flex justify-between items-start mb-2">
+                            <span className="text-xs font-mono text-blue-400">{msg.channel}</span>
+                            <span className="text-xs text-zinc-500">{new Date(msg.timestamp).toLocaleTimeString('ar-SA')}</span>
+                          </div>
+                          <p className="text-sm text-zinc-300 whitespace-pre-wrap break-words" dir="auto">
+                            {msg.text}
+                          </p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
               </section>
             </motion.div>
           )}

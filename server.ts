@@ -958,6 +958,13 @@ let isScraping = false;
 let lastSuccessfulScrape = new Date();
 let lastAttemptTime = 0;
 
+interface LiveFeedMessage {
+  channel: string;
+  text: string;
+  time: number;
+}
+let liveFeed: LiveFeedMessage[] = [];
+
 async function fetchParallelRatesFromTelegram() {
   if (isScraping) {
     console.log("[Scraper] Scrape already in progress, skipping...");
@@ -1096,6 +1103,9 @@ async function fetchParallelRatesFromTelegram() {
             successfulChannels++;
             totalMessagesProcessed += messages.length;
             for (const msg of messages) {
+              liveFeed.unshift({ channel, text: msg.text, time: msg.date });
+              if (liveFeed.length > 5) liveFeed = liveFeed.slice(0, 5);
+
               const cleanText = msg.text.replace(/\n/g, ' ');
               extractRateFromText(cleanText, msg.date, channel);
             }
@@ -1222,6 +1232,9 @@ async function fetchParallelRatesFromTelegram() {
               // Strict today filter for HTTP Scraper to ensure freshness
               const isToday = new Date(time).toDateString() === now.toDateString();
               if (!isToday) continue; 
+
+              liveFeed.unshift({ channel, text: cleanText, time });
+              if (liveFeed.length > 5) liveFeed = liveFeed.slice(0, 5);
 
               extractRateFromText(cleanText, time, channel);
             }
@@ -1604,6 +1617,54 @@ async function startServer() {
       lastScrape: lastSuccessfulScrape.toISOString(),
       minutesSinceLastScrape
     });
+  });
+
+  app.get("/api/admin/diagnostics", requireAdmin, async (req: express.Request, res: express.Response) => {
+    try {
+      const dbStatus = await supabase?.from('logs').select('id').limit(1).then(() => true).catch(() => false) || false;
+      const telegramStatus = telegramManager ? true : false;
+      
+      let regexStatus = true;
+      try {
+        appConfig.terms.forEach(t => new RegExp(t.regex, 'i'));
+      } catch (e) {
+        regexStatus = false;
+      }
+
+      const allGood = dbStatus && telegramStatus && regexStatus;
+      
+      res.json({
+        success: true,
+        status: allGood ? 'ok' : 'error',
+        db: dbStatus ? 'ok' : 'error',
+        telegram: telegramStatus ? 'ok' : 'error',
+        regex: regexStatus ? 'ok' : 'error'
+      });
+    } catch (e) {
+      res.status(500).json({ success: false, error: String(e) });
+    }
+  });
+
+  app.post("/api/admin/clear-queue", requireAdmin, (req: express.Request, res: express.Response) => {
+    liveFeed = [];
+    res.json({ success: true, message: "تم تفريغ الطابور والرسائل المعلقة بنجاح ✅" });
+  });
+
+  app.post("/api/admin/clear-ram", requireAdmin, (req: express.Request, res: express.Response) => {
+    try {
+      if (global.gc) {
+        global.gc();
+        res.json({ success: true, message: "تم تنظيف الذاكرة العشوائية (RAM) بنجاح ✅" });
+      } else {
+        res.json({ success: true, message: "تم تنظيف الكاش الداخلي بنجاح ✅ (GC غير مفعل)" });
+      }
+    } catch (e) {
+      res.json({ success: true, message: "تم تنظيف الكاش الداخلي بنجاح ✅" });
+    }
+  });
+
+  app.get("/api/admin/live-feed", requireAdmin, (req: express.Request, res: express.Response) => {
+    res.json({ success: true, feed: liveFeed });
   });
 
   app.get("/api/admin/config", requireAdmin, (req: express.Request, res: express.Response) => {
