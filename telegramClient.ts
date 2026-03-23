@@ -55,8 +55,13 @@ export class TelegramManager {
       
       console.log("[TelegramManager] Successfully connected and authorized.");
       return this.client;
-    } catch (error) {
-      console.error("[TelegramManager] Connection failed:", error);
+    } catch (error: any) {
+      if (error.errorMessage === 'AUTH_KEY_DUPLICATED' || error.message?.includes('AUTH_KEY_DUPLICATED')) {
+        console.error("[TelegramManager] AUTH_KEY_DUPLICATED: Session is being used elsewhere or is invalid. Please re-authenticate.");
+        // We cannot fix this automatically, we must signal to the user to re-authenticate.
+      } else {
+        console.error("[TelegramManager] Connection failed:", error);
+      }
       this.client = null;
       return null;
     } finally {

@@ -1089,23 +1089,14 @@ async function fetchParallelRatesFromTelegram() {
       console.log("[Scraper] TelegramManager ready.");
       for (const channel of channels) {
         try {
-          const messages = await telegramManager.fetchMessages(channel, 15);
+          const messages = await telegramManager.fetchMessages(channel, 50);
           if (messages.length > 0) {
             console.log(`[Scraper-GramJS] Fetched ${messages.length} messages from ${channel}`);
             successfulChannels++;
             totalMessagesProcessed += messages.length;
             for (const msg of messages) {
-              const msgDate = new Date(msg.date);
-              const now = new Date();
-              
-              // Only process messages from today (local time) or the last 24 hours
-              const isToday = msgDate.toDateString() === now.toDateString();
-              const isWithin24h = (now.getTime() - msgDate.getTime()) < 24 * 60 * 60 * 1000;
-              
-              if (isToday || isWithin24h) {
-                const cleanText = msg.text.replace(/\n/g, ' ');
-                extractRateFromText(cleanText, msg.date, channel);
-              }
+              const cleanText = msg.text.replace(/\n/g, ' ');
+              extractRateFromText(cleanText, msg.date, channel);
             }
           } else {
             console.warn(`[Scraper-GramJS] No messages returned for ${channel}`);
