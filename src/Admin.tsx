@@ -10,6 +10,7 @@ import { format } from "date-fns";
 import { ar } from "date-fns/locale";
 import { logErrorToServer } from "./utils/logger";
 import { FlagIcon } from "./components/FlagIcon";
+import { TelegramStatus } from "./components/TelegramStatus";
 
 interface Stats {
   onlineUsers: number;
@@ -638,6 +639,7 @@ export default function Admin() {
             </div>
 
             <div className="flex items-center gap-2">
+               <TelegramStatus />
                <button
                   onClick={handleLogout}
                   className="p-2.5 rounded-xl bg-white/5 text-zinc-500 hover:text-rose-400 hover:bg-rose-500/10 transition-all border border-white/5"

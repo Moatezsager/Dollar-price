@@ -1364,7 +1364,6 @@ export default function App() {
                 {lastFetchTime ? format(lastFetchTime, "HH:mm:ss") : "..."}
               </span>
             </div>
-
             <div className="h-4 w-[1px] bg-white/10 hidden md:block mx-1"></div>
 
             <button 

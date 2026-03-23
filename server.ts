@@ -10,7 +10,7 @@ import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import { TelegramClient, Api } from "telegram";
 import { StringSession } from "telegram/sessions";
-import { getTelegramClient, fetchChannelMessages, initializeTelegram, activeClient } from "./telegramClient";
+import { getTelegramClient, fetchChannelMessages, initializeTelegram, activeClient, TelegramManager } from "./telegramClient";
 
 // Initialize Supabase client for server
 const supabaseUrl = process.env.VITE_SUPABASE_URL;
@@ -849,6 +849,7 @@ let appConfig: AppConfig = {
     { id: "OFFICIAL_USD", name: "الدولار الرسمي", regex: "(?:الرسمي|المركزي)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 4.0, max: 6.0, isInverse: false, flag: "us" }
   ]
 };
+let telegramManager: TelegramManager | null = null;
 
 async function loadConfigFromSupabase() {
   if (!supabase || !supabaseAnonKey || supabaseAnonKey.includes('dummy')) return;
@@ -910,6 +911,11 @@ async function loadConfigFromSupabase() {
       }
 
       appConfig = dbConfig;
+      telegramManager = new TelegramManager(
+        Number(appConfig.telegramApiId),
+        appConfig.telegramApiHash || "",
+        appConfig.telegramSessionString || ""
+      );
       console.log("Loaded, merged and repaired config from Supabase successfully");
     }
   } catch (err) {
@@ -1968,6 +1974,16 @@ async function startServer() {
       status: minutesSinceLastScrape > 30 ? "stale" : "ok",
       lastScrape: lastSuccessfulScrape,
       minutesSinceLastScrape
+    });
+  });
+
+  app.get("/api/telegram/status", (req: express.Request, res: express.Response) => {
+    if (!telegramManager) {
+      return res.json({ isConnected: false, lastFetchTime: 0 });
+    }
+    res.json({ 
+      isConnected: telegramManager.isConnected(), 
+      lastFetchTime: telegramManager.lastFetchTime 
     });
   });
 
