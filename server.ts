@@ -937,6 +937,7 @@ async function saveConfigToSupabase(newConfig: AppConfig) {
 
 // Telegram channels for parallel market rates
 
+let isScraping = false;
 let lastSuccessfulScrape = new Date();
 let lastAttemptTime = 0;
 
@@ -1077,22 +1078,10 @@ async function fetchParallelRatesFromTelegram() {
       }
     }
 
-    // 3. Ensure client is connected before use
-    if (client && !client.connected) {
-      try {
-        console.log("[Scraper] Client exists but not connected, attempting to connect...");
-        await client.connect();
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        console.error("[Scraper] Failed to reconnect GramJS client:", errorMsg);
-        await logErrorArabic(`فشل إعادة الاتصال بـ GramJS: ${errorMsg}`, "الكاشط");
-        client = null;
-      }
-    }
-
+    // 3. GramJS client is handled by initializeTelegram singleton
     if (client) {
       usedGramJs = true;
-      console.log("[Scraper] GramJS client connected successfully.");
+      console.log("[Scraper] GramJS client ready.");
       for (const channel of channels) {
         try {
           const messages = await fetchChannelMessages(client, channel, 15);
@@ -1133,8 +1122,9 @@ async function fetchParallelRatesFromTelegram() {
         console.warn("[Scraper] GramJS returned 0 messages for all channels.");
       }
       
-      const canUseHttpScraper = appConfig.enableHttpScraper === true || forceHttpScraper;
+      const canUseHttpScraper = appConfig.enableHttpScraper === true;
       if (canUseHttpScraper) {
+        console.log("[Scraper] Using HTTP Scraper fallback...");
         const USER_AGENTS = [
           'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
           'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -1454,6 +1444,23 @@ setInterval(monitorMemory, 30 * 60 * 1000);
 // Run cleanup once on startup, then every 24 hours
 cleanupOldData();
 setInterval(cleanupOldData, 24 * 60 * 60 * 1000);
+
+// Graceful shutdown
+const gracefulShutdown = async () => {
+  console.log("[Server] Shutting down gracefully...");
+  if (activeClient && activeClient.connected) {
+    try {
+      console.log("[GramJS] Disconnecting Telegram client...");
+      await activeClient.disconnect();
+    } catch (e) {
+      console.error("[GramJS] Error during disconnect:", e);
+    }
+  }
+  process.exit(0);
+};
+
+process.on('SIGTERM', gracefulShutdown);
+process.on('SIGINT', gracefulShutdown);
 
 async function startServer() {
   const app = express();
@@ -2256,8 +2263,8 @@ async function startServer() {
     // Initial scrape on startup (with delay to avoid AUTH_KEY_DUPLICATED when Render restarts)
     (async () => {
       try {
-        console.log("[Startup] Waiting 15s for system to settle before GramJS connect...");
-        await new Promise(resolve => setTimeout(resolve, 15000));
+        console.log("[Startup] Waiting 30s for system to settle and old sessions to clear...");
+        await new Promise(resolve => setTimeout(resolve, 30000));
         
         console.log("[Startup] Triggering initial rates update...");
         await fetchOfficialRates();
@@ -2295,9 +2302,10 @@ async function startMonitoring() {
   // Reduced frequency to avoid connection conflicts
   setInterval(async () => {
      try {
-       if (activeClient && !activeClient.connected) {
-         console.log("[Reconnector] Telegram disconnected, attempting reconnect...");
-         await activeClient.connect();
+       // Only attempt if not already connected
+       if (!activeClient || !activeClient.connected) {
+         console.log("[Reconnector] Telegram disconnected or not initialized, attempting reconnect...");
+         await initializeTelegram();
        }
      } catch (e) {
        console.warn("[Reconnector] Stealth reconnection failed, will retry next cycle.");

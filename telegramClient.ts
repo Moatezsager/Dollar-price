@@ -8,17 +8,22 @@ let connectingPromise: Promise<TelegramClient | null> | null = null;
 export const getTelegramClient = async (
   apiId: number,
   apiHash: string,
-  sessionString: string,
-  retryCount = 0
+  sessionString: string
 ): Promise<TelegramClient | null> => {
+  // 1. Return existing connected client immediately
   if (activeClient && activeClient.connected) {
     return activeClient;
   }
 
-  // If we are already connecting, wait for that to finish
+  // 2. If we are already in the process of connecting, wait for that specific promise
   if (connectingPromise) {
-    console.log("[GramJS] Already connecting, waiting for existing promise...");
-    return connectingPromise;
+    console.log("[GramJS] Connection already in progress, waiting...");
+    try {
+      return await connectingPromise;
+    } catch (e) {
+      // If the existing promise failed, we'll fall through and try again below
+      console.warn("[GramJS] Previous connection attempt failed, retrying...");
+    }
   }
 
   if (!apiId || !apiHash || !sessionString) {
@@ -26,56 +31,73 @@ export const getTelegramClient = async (
   }
 
   connectingPromise = (async () => {
-    let client: TelegramClient | null = null;
-    try {
-      console.log(`[GramJS] Creating new Telegram client (Attempt ${retryCount + 1})...`);
-      const stringSession = new StringSession(sessionString);
-      client = new TelegramClient(stringSession, apiId, apiHash, {
-        connectionRetries: 5,
-        useWSS: false,
-        autoReconnect: true,
-      });
+    let lastError: any = null;
+    const maxRetries = 2; // Reduced retries to avoid long blocking
 
-      await client.connect();
-      
-      const isAuthorized = await client.checkAuthorization();
-      if (!isAuthorized) {
-        console.warn("[GramJS] Client connected but not authorized. Session might be invalid.");
-        try { await client.disconnect(); } catch (e) {}
-        throw new Error("Client connected but not authorized. Session might be invalid.");
-      }
-      
-      activeClient = client;
-      console.log("[GramJS] Successfully connected and authorized.");
-      return client;
-    } catch (error) {
-      const errorStr = String(error);
-      console.error(`[GramJS] Connection failed (Attempt ${retryCount + 1}):`, errorStr);
-      
-      if (client) {
-        try { await client.disconnect(); } catch (e) {}
-      }
-
-      // Handle AUTH_KEY_DUPLICATED (406) or other fatal but temporary errors
-      if ((errorStr.includes("406") || errorStr.includes("AUTH_KEY_DUPLICATED")) && retryCount < 3) {
-        const delay = 35000 + (Math.random() * 10000); // 35-45 seconds delay
-        console.warn(`[GramJS] AUTH_KEY_DUPLICATED detected. The session is likely active in another instance. Waiting ${Math.round(delay/1000)}s before retry...`);
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      let client: TelegramClient | null = null;
+      try {
+        console.log(`[GramJS] Connection Attempt ${attempt}/${maxRetries}...`);
         
-        connectingPromise = null; // Reset promise so next attempt works
-        await new Promise(resolve => setTimeout(resolve, delay));
-        return getTelegramClient(apiId, apiHash, sessionString, retryCount + 1);
-      }
-      
-      throw error;
-    } finally {
-      // Only clear the global lock if we are at the top level call and not in a retry sequence
-      if (retryCount === 0) {
-         connectingPromise = null;
+        // If we have an old client that's not connected, try to disconnect it properly first
+        if (activeClient) {
+          try { await activeClient.disconnect(); } catch (e) {}
+          activeClient = null;
+        }
+
+        const stringSession = new StringSession(sessionString);
+        client = new TelegramClient(stringSession, apiId, apiHash, {
+          connectionRetries: 3,
+          useWSS: false,
+          autoReconnect: true,
+          floodSleepThreshold: 60,
+        });
+
+        await client.connect();
+        
+        const isAuthorized = await client.checkAuthorization();
+        if (!isAuthorized) {
+          throw new Error("Connected but NOT authorized. Session may be expired.");
+        }
+        
+        activeClient = client;
+        console.log("[GramJS] Successfully connected and authorized.");
+        return client;
+      } catch (error) {
+        lastError = error;
+        const errorStr = String(error);
+        console.error(`[GramJS] Attempt ${attempt} failed:`, errorStr);
+        
+        if (client) {
+          try { await client.disconnect(); } catch (e) {}
+        }
+
+        // If it's a key duplication error, wait longer and retry
+        if (errorStr.includes("406") || errorStr.includes("AUTH_KEY_DUPLICATED")) {
+           if (attempt < maxRetries) {
+             const delay = 60000 + (Math.random() * 20000); // 60-80 seconds
+             console.warn(`[GramJS] Session conflict (406). Waiting ${Math.round(delay/1000)}s for Telegram to clear old session...`);
+             await new Promise(resolve => setTimeout(resolve, delay));
+             continue; 
+           }
+        }
+        
+        throw error;
       }
     }
+    
+    throw lastError || new Error("Failed to connect after all attempts.");
   })();
 
-  return connectingPromise;
+  try {
+    const result = await connectingPromise;
+    return result;
+  } catch (err) {
+    console.error("[GramJS] Final connection error:", err instanceof Error ? err.message : String(err));
+    return null;
+  } finally {
+    connectingPromise = null;
+  }
 };
 
 export const initializeTelegram = async (): Promise<TelegramClient | null> => {
