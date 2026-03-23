@@ -84,6 +84,7 @@ export class TelegramManager {
       }
 
       const messages = await client.getMessages(entity, { limit });
+      console.log(`[TelegramManager] Successfully fetched ${messages.length} messages from ${channelUsername}`);
       this.lastFetchTime = Date.now();
       
       return messages

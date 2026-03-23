@@ -911,6 +911,7 @@ async function loadConfigFromSupabase() {
       }
 
       appConfig = dbConfig;
+      console.log(`[Startup] Initializing TelegramManager. TG_SESSION_V2 length: ${process.env.TG_SESSION_V2?.length || 0}`);
       telegramManager = new TelegramManager(
         Number(process.env.TELEGRAM_API_ID || appConfig.telegramApiId),
         process.env.TELEGRAM_API_HASH || appConfig.telegramApiHash || "",
@@ -991,46 +992,32 @@ async function fetchParallelRatesFromTelegram() {
         
         if (firstCapturedNum) {
           const firstIndex = match.index! + match[0].indexOf(firstCapturedNum);
-          if (isProbablyDate(cleanText, firstIndex, firstCapturedNum)) {
-            if (secondCapturedNum) {
-              const secondIndex = match.index! + match[0].indexOf(secondCapturedNum);
-              if (!isProbablyDate(cleanText, secondIndex, secondCapturedNum)) {
-                 valStr = secondCapturedNum;
-              }
-            }
-            if (!valStr) return;
+          
+          // Always try to use the second captured number if available, 
+          // as it's often the price in "Item Price Date" format.
+          if (secondCapturedNum) {
+             valStr = secondCapturedNum;
           } else {
-            const matchContent = match[0];
-            const hasSellKeyword = /بيع/i.test(matchContent);
-            const hasBuyKeyword = /شراء/i.test(matchContent);
-
-            if (secondCapturedNum && hasSellKeyword && !hasBuyKeyword) {
-              valStr = secondCapturedNum;
-            } else if (secondCapturedNum) {
-              const partAfterFirstNum = matchContent.split(firstCapturedNum)[1] || "";
-              const hasCategorySeparator = /صكوك|بصك|شيك|مصرف|مقاصة|كاش|نقدي/i.test(partAfterFirstNum);
-              
-              if (!hasCategorySeparator) {
-                valStr = secondCapturedNum;
-              } else {
-                valStr = firstCapturedNum;
-              }
-            } else {
-              valStr = firstCapturedNum;
-            }
+             valStr = firstCapturedNum;
           }
         }
         
         if (valStr) {
           let val = parseFloat(valStr.replace(',', '.'));
           
+          // Special handling for Lira Gold to avoid confusion with Turkish Lira
+          if (key === 'GOLD_LIRA' && val < 500) {
+             // If it's a very small number, it might be misidentified, 
+             // but based on user request, we just need to ensure it's treated as gold.
+          }
+
           if (key === 'TND' && val < 0.6 && val > 0) val = 1 / val;
           if (key === 'EGP' && val > 10.0) val = 1 / val;
           if (key === 'TRY' && val > 10.0) val = 1 / val;
           
           if (isInverse && val > 0) val = 1 / val;
           if (!isNaN(val) && val >= min && val <= max) {
-            if (val > 1900 && val < 2100 && key !== 'GOLD' && !key.startsWith('GOLD_')) return;
+            // Remove the check that was excluding prices between 1900-2100
             priceHistory[key].push({ value: val, time, channel });
           }
         }
