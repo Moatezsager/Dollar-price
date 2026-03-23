@@ -991,10 +991,8 @@ async function fetchParallelRatesFromTelegram() {
         const secondCapturedNum = match[2] || match[4];
         
         if (firstCapturedNum) {
-          const firstIndex = match.index! + match[0].indexOf(firstCapturedNum);
-          
-          // Always try to use the second captured number if available, 
-          // as it's often the price in "Item Price Date" format.
+          // If we have two numbers, the second one is usually the price.
+          // If we only have one number, it must be the price.
           if (secondCapturedNum) {
              valStr = secondCapturedNum;
           } else {
@@ -1003,7 +1001,11 @@ async function fetchParallelRatesFromTelegram() {
         }
         
         if (valStr) {
-          let val = parseFloat(valStr.replace(',', '.'));
+          // Clean the string: remove thousands separators like ',' or '.' if they are used as such,
+          // but keep the decimal point. This is tricky.
+          // Assuming format like 1160.000 or 1.160,000
+          let cleanValStr = valStr.replace(/,/g, ''); 
+          let val = parseFloat(cleanValStr);
           
           // Special handling for Lira Gold to avoid confusion with Turkish Lira
           if (key === 'GOLD_LIRA' && val < 500) {
@@ -1017,7 +1019,6 @@ async function fetchParallelRatesFromTelegram() {
           
           if (isInverse && val > 0) val = 1 / val;
           if (!isNaN(val) && val >= min && val <= max) {
-            // Remove the check that was excluding prices between 1900-2100
             priceHistory[key].push({ value: val, time, channel });
           }
         }
