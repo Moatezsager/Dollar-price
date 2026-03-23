@@ -912,9 +912,9 @@ async function loadConfigFromSupabase() {
 
       appConfig = dbConfig;
       telegramManager = new TelegramManager(
-        Number(appConfig.telegramApiId),
-        appConfig.telegramApiHash || "",
-        appConfig.telegramSessionString || ""
+        Number(process.env.TELEGRAM_API_ID || appConfig.telegramApiId),
+        process.env.TELEGRAM_API_HASH || appConfig.telegramApiHash || "",
+        process.env.TG_SESSION_V2 || appConfig.telegramSessionString || ""
       );
       console.log("Loaded, merged and repaired config from Supabase successfully");
     }

@@ -31,12 +31,13 @@ export class TelegramManager {
     this.isConnecting = true;
     try {
       console.log("[TelegramManager] Attempting to connect...");
+      console.log(`[TelegramManager] API ID: ${this.apiId}, Session String length: ${this.sessionString?.length || 0}`);
       
       if (this.client) {
         try { await this.client.disconnect(); } catch (e) {}
       }
 
-      const stringSession = new StringSession(this.sessionString);
+      const stringSession = new StringSession(this.sessionString || "");
       this.client = new TelegramClient(stringSession, this.apiId, this.apiHash, {
         connectionRetries: 5,
         useWSS: false,
@@ -47,8 +48,9 @@ export class TelegramManager {
       await this.client.connect();
       
       const isAuthorized = await this.client.checkAuthorization();
+      console.log(`[TelegramManager] Authorization check result: ${isAuthorized}`);
       if (!isAuthorized) {
-        throw new Error("Connected but NOT authorized.");
+        throw new Error("Connected but NOT authorized. Session string might be invalid or expired.");
       }
       
       console.log("[TelegramManager] Successfully connected and authorized.");
