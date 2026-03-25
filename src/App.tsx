@@ -1279,7 +1279,7 @@ export default function App() {
                 </div>
                 <div className="flex flex-col">
                   <span className="text-xs font-black uppercase tracking-widest">
-                    {isOffline ? "أنت الآن في وضع الأوفلاين" : "تنبيه: البيانات قديمة"}
+                    {isOffline ? "أنت الآن في وضع عدم الاتصال" : "تنبيه: البيانات قديمة"}
                   </span>
                   <p className="text-[11px] opacity-90 font-medium leading-tight">
                     {isOffline ? (
@@ -1541,7 +1541,7 @@ export default function App() {
             
             <div 
               className="flex items-baseline gap-3 sm:gap-4 cursor-pointer group relative"
-              onClick={() => setSelectedRate({ code: 'USD', name: 'دولار أمريكي (كاش)', market: 'parallel' })}
+              onClick={() => setSelectedRate({ code: 'USD', name: 'دولار أمريكي (نقدي)', market: 'parallel' })}
             >
               {!rates ? (
                 <div className="w-64 h-24 sm:h-32 lg:h-[140px] skeleton-pulse mb-2" />
@@ -2575,7 +2575,7 @@ export default function App() {
             {/* Card 1: USD Cash */}
             <div style={{ padding: '24px', borderRadius: '20px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', position: 'relative', overflow: 'hidden' }}>
               <div style={{ position: 'absolute', top: 0, right: 0, width: '4px', height: '100%', backgroundColor: '#16a34a' }}></div>
-              <p style={{ fontSize: '14px', color: '#166534', fontWeight: '800', margin: '0 0 12px' }}>الدولار الأمريكي (كاش)</p>
+              <p style={{ fontSize: '14px', color: '#166534', fontWeight: '800', margin: '0 0 12px' }}>الدولار الأمريكي (نقدي)</p>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
                 <span style={{ fontSize: '36px', fontWeight: '900', color: '#14532d' }}>{usdRate.toFixed(2)}</span>
                 <span style={{ fontSize: '16px', color: '#166534', fontWeight: '700' }}>د.ل</span>
@@ -2619,7 +2619,7 @@ export default function App() {
             {/* Card 3: EUR */}
             <div style={{ padding: '24px', borderRadius: '20px', backgroundColor: '#fdf4ff', border: '1px solid #fbcfe8', position: 'relative', overflow: 'hidden' }}>
               <div style={{ position: 'absolute', top: 0, right: 0, width: '4px', backgroundColor: '#d946ef', height: '100%' }}></div>
-              <p style={{ fontSize: '14px', color: '#86198f', fontWeight: '800', margin: '0 0 12px' }}>اليورو (كاش)</p>
+              <p style={{ fontSize: '14px', color: '#86198f', fontWeight: '800', margin: '0 0 12px' }}>اليورو (نقدي)</p>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
                 <span style={{ fontSize: '36px', fontWeight: '900', color: '#4a044e' }}>{(rates?.parallel['EUR'] || 0).toFixed(2)}</span>
                 <span style={{ fontSize: '16px', color: '#86198f', fontWeight: '700' }}>د.ل</span>
