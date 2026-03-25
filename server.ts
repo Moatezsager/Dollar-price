@@ -1039,8 +1039,10 @@ async function fetchParallelRatesFromTelegram() {
   lastAttemptTime = now;
   isScraping = true;
   console.log("[Scraper] Lock acquired, starting extraction...");
-  try {
-    const priceHistory: Record<string, { value: number, time: number, channel: string }[]> = {};
+  
+  const scraperPromise = (async () => {
+    try {
+      const priceHistory: Record<string, { value: number, time: number, channel: string }[]> = {};
     for (const term of appConfig.terms) {
       priceHistory[term.id] = [];
     }
@@ -1153,10 +1155,20 @@ async function fetchParallelRatesFromTelegram() {
     // 3. TelegramManager handled by singleton
     if (telegramManager) {
       usedGramJs = true;
-      console.log("[Scraper] TelegramManager ready.");
-      for (const channel of channels) {
+      console.log("[Scraper] TelegramManager ready. Fetching channels in parallel...");
+      
+      const gramJsResults = await Promise.allSettled(channels.map(async (channel) => {
         try {
           const messages = await telegramManager.fetchMessages(channel, 5);
+          return { channel, messages };
+        } catch (err) {
+          throw { channel, error: err };
+        }
+      }));
+
+      for (const result of gramJsResults) {
+        if (result.status === 'fulfilled') {
+          const { channel, messages } = result.value;
           if (messages.length > 0) {
             console.log(`[Scraper-GramJS] Fetched ${messages.length} messages from ${channel}`);
             successfulChannels++;
@@ -1171,8 +1183,9 @@ async function fetchParallelRatesFromTelegram() {
           } else {
             console.warn(`[Scraper-GramJS] No messages returned for ${channel}`);
           }
-        } catch (err) {
-          const errorMsg = err instanceof Error ? err.message : String(err);
+        } else {
+          const { channel, error } = result.reason;
+          const errorMsg = error instanceof Error ? error.message : String(error);
           console.error(`[Scraper-GramJS] Error fetching ${channel}:`, errorMsg);
           await logErrorArabic(`خطأ في جلب رسائل القناة ${channel} عبر TelegramManager`, "الكاشط", errorMsg);
         }
@@ -1208,7 +1221,7 @@ async function fetchParallelRatesFromTelegram() {
           const startTime = Date.now();
           try {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 20000); 
+            const timeoutId = setTimeout(() => controller.abort(), 15000); // Reduced timeout per channel
             
             const randomUA = USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
             
@@ -1448,6 +1461,19 @@ async function fetchParallelRatesFromTelegram() {
   } finally {
     isScraping = false;
   }
+})();
+
+const timeoutPromise = new Promise<null>((_, reject) => {
+  setTimeout(() => reject(new Error("Global Scraper Timeout")), 27000);
+});
+
+try {
+  return await Promise.race([scraperPromise, timeoutPromise]);
+} catch (err) {
+  console.error(`[Scraper] ${err instanceof Error ? err.message : String(err)}`);
+  isScraping = false;
+  return null;
+}
 }
 
 // Initial fetch and setup
