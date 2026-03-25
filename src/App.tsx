@@ -29,7 +29,8 @@ import {
   Smartphone,
   Disc,
   ArrowUp,
-  MoreVertical
+  MoreVertical,
+  ChevronDown
 } from "lucide-react";
 import {
   AreaChart,
@@ -367,6 +368,21 @@ export default function App() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [settingsTab, setSettingsTab] = useState<'general' | 'notifications'>('general');
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+    foreign: false,
+    checks: false,
+    metals: false,
+    transfers: false,
+    official: false
+  });
+
+  const toggleSection = (sectionId: string) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [sectionId]: !prev[sectionId]
+    }));
+    triggerHaptic(10);
+  };
   const [hapticEnabled, setHapticEnabled] = useState(() => {
     const saved = localStorage.getItem('hapticEnabled');
     return saved !== null ? saved === 'true' : true;
@@ -1072,16 +1088,34 @@ export default function App() {
     }).filter(d => d.value > 0);
 
     // CRITICAL: Recharts needs data in ASCENDING order of time
-    return [...data].sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+    const sorted = [...data].sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+    
+    // If only 1 data point, duplicate it so the chart can draw a line
+    if (sorted.length === 1) {
+      return [
+        { ...sorted[0], time: new Date(new Date(sorted[0].time).getTime() - 60000).toISOString() },
+        sorted[0]
+      ];
+    }
+    
+    return sorted;
   }, [selectedRate, history]);
 
   const chartStats = useMemo(() => {
-    if (!chartData.length) return { max: 0, min: 0, avg: 0 };
+    if (!chartData.length) return { max: 0, min: 0, avg: 0, isUp: true, change: 0, changePercent: 0 };
     const values = chartData.map(d => d.value);
+    const first = values[0];
+    const last = values[values.length - 1];
+    const isUp = last >= first;
+    const change = last - first;
+    const changePercent = first !== 0 ? (change / first) * 100 : 0;
     return {
       max: Math.max(...values),
       min: Math.min(...values),
-      avg: values.reduce((a, b) => a + b, 0) / values.length
+      avg: values.reduce((a, b) => a + b, 0) / values.length,
+      isUp,
+      change,
+      changePercent
     };
   }, [chartData]);
 
@@ -1605,15 +1639,15 @@ export default function App() {
                 <AreaChart data={history.filter(h => h.usdParallel > 0)}>
                   <defs>
                     <linearGradient id="colorUsd" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                      <stop offset="5%" stopColor={usdIsUp ? "#f43f5e" : "#10b981"} stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor={usdIsUp ? "#f43f5e" : "#10b981"} stopOpacity={0}/>
                     </linearGradient>
                   </defs>
                   <XAxis dataKey="time" hide />
                   <YAxis domain={[(dataMin: number) => dataMin - 0.02, (dataMax: number) => dataMax + 0.02]} hide />
                   <Tooltip
                     contentStyle={{ backgroundColor: "#050505", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px", color: "#fff", boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.5)" }}
-                    itemStyle={{ color: "#10b981", fontFamily: "monospace", fontSize: "16px" }}
+                    itemStyle={{ color: usdIsUp ? "#f43f5e" : "#10b981", fontFamily: "monospace", fontSize: "16px" }}
                     labelStyle={{ color: "#71717a", fontSize: "12px", marginBottom: "4px" }}
                     labelFormatter={(label) => {
                       try {
@@ -1627,12 +1661,12 @@ export default function App() {
                   <Area
                     type="monotone"
                     dataKey="usdParallel"
-                    stroke="#10b981"
+                    stroke={usdIsUp ? "#f43f5e" : "#10b981"}
                     strokeWidth={2}
                     fillOpacity={1}
                     fill="url(#colorUsd)"
                     isAnimationActive={history.length < 200}
-                    activeDot={{ r: 4, fill: "#050505", stroke: "#10b981", strokeWidth: 2 }}
+                    activeDot={{ r: 4, fill: "#050505", stroke: usdIsUp ? "#f43f5e" : "#10b981", strokeWidth: 2 }}
                   />
                 </AreaChart>
               </ResponsiveContainer>
@@ -1645,14 +1679,20 @@ export default function App() {
         <section id="main-rates-grid" className="space-y-16">
           {/* 1. Foreign Currencies Group */}
           <div>
-            <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-8">
-              <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest">السوق الموازي (عملات أجنبية)</h3>
+            <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-8 cursor-pointer group" onClick={() => toggleSection('foreign')}>
+              <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest group-hover:text-zinc-300 transition-colors">السوق الموازي (عملات أجنبية)</h3>
+              <button className="text-zinc-500 group-hover:text-white transition-colors flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider">
+                {expandedSections.foreign ? 'طي' : 'عرض المزيد'}
+                <ChevronDown className={`w-4 h-4 transition-transform duration-300 ${expandedSections.foreign ? 'rotate-180' : ''}`} />
+              </button>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-8 gap-y-12">
               {(!rates || configTerms.length === 0) ? (
                 Array(5).fill(0).map((_, i) => <RateSkeleton key={i} />)
               ) : (
-                configTerms.filter(t => t.id !== "USD" && t.id !== "OFFICIAL_USD" && !t.id.startsWith("USD_") && !METAL_IDS.includes(t.id)).map(term => {
+                configTerms.filter(t => t.id !== "USD" && t.id !== "OFFICIAL_USD" && !t.id.startsWith("USD_") && !METAL_IDS.includes(t.id))
+                  .slice(0, expandedSections.foreign ? undefined : 5)
+                  .map(term => {
                   const rate = rates?.parallel[term.id] || 0;
                   const prevRate = rates?.previousParallel?.[term.id] || rate;
                   const isUp = rate > prevRate;
@@ -1694,14 +1734,20 @@ export default function App() {
 
           {/* 2. Bank Checks Group */}
           <div id="checks-grid">
-            <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-8">
-              <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest">أسعار صكوك المصارف التجارية (USD)</h3>
+            <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-8 cursor-pointer group" onClick={() => toggleSection('checks')}>
+              <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest group-hover:text-zinc-300 transition-colors">أسعار صكوك المصارف التجارية (USD)</h3>
+              <button className="text-zinc-500 group-hover:text-white transition-colors flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider">
+                {expandedSections.checks ? 'طي' : 'عرض المزيد'}
+                <ChevronDown className={`w-4 h-4 transition-transform duration-300 ${expandedSections.checks ? 'rotate-180' : ''}`} />
+              </button>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-8 gap-y-12">
               {(!rates || configTerms.length === 0) ? (
                 Array(5).fill(0).map((_, i) => <RateSkeleton key={i} />)
               ) : (
-                configTerms.filter(t => t.id.startsWith("USD_") && !["USD_AE", "USD_TR", "USD_CN"].includes(t.id)).map(term => {
+                configTerms.filter(t => t.id.startsWith("USD_") && !["USD_AE", "USD_TR", "USD_CN"].includes(t.id))
+                  .slice(0, expandedSections.checks ? undefined : 5)
+                  .map(term => {
                   const rate = rates?.parallel[term.id] || 0;
                   const prevRate = rates?.previousParallel?.[term.id] || rate;
                   const isUp = rate > prevRate;
@@ -1743,14 +1789,20 @@ export default function App() {
 
           {/* 3. Metals Group */}
           <div id="metals-grid">
-            <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-8">
-              <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest">أسعار الذهب والفضة (المعادن)</h3>
+            <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-8 cursor-pointer group" onClick={() => toggleSection('metals')}>
+              <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest group-hover:text-zinc-300 transition-colors">أسعار الذهب والفضة (المعادن)</h3>
+              <button className="text-zinc-500 group-hover:text-white transition-colors flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider">
+                {expandedSections.metals ? 'طي' : 'عرض المزيد'}
+                <ChevronDown className={`w-4 h-4 transition-transform duration-300 ${expandedSections.metals ? 'rotate-180' : ''}`} />
+              </button>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-8 gap-y-12">
               {(!rates || configTerms.length === 0) ? (
                 Array(5).fill(0).map((_, i) => <RateSkeleton key={i} />)
               ) : (
-                configTerms.filter(t => METAL_IDS.includes(t.id)).map(term => {
+                configTerms.filter(t => METAL_IDS.includes(t.id))
+                  .slice(0, expandedSections.metals ? undefined : 5)
+                  .map(term => {
                   const rate = rates?.parallel[term.id] || 0;
                   const prevRate = rates?.previousParallel?.[term.id] || rate;
                   const isUp = rate > prevRate;
@@ -1807,14 +1859,20 @@ export default function App() {
 
           {/* 4. Transfers Group */}
           <div id="transfers-grid">
-            <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-8">
-              <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest">حوالات العملة (خارج ليبيا)</h3>
+            <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-8 cursor-pointer group" onClick={() => toggleSection('transfers')}>
+              <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest group-hover:text-zinc-300 transition-colors">حوالات العملة (خارج ليبيا)</h3>
+              <button className="text-zinc-500 group-hover:text-white transition-colors flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider">
+                {expandedSections.transfers ? 'طي' : 'عرض المزيد'}
+                <ChevronDown className={`w-4 h-4 transition-transform duration-300 ${expandedSections.transfers ? 'rotate-180' : ''}`} />
+              </button>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-8 gap-y-12">
               {(!rates || configTerms.length === 0) ? (
                 Array(5).fill(0).map((_, i) => <RateSkeleton key={i} />)
               ) : (
-                configTerms.filter(t => ["USD_AE", "USD_TR", "USD_CN"].includes(t.id)).map(term => {
+                configTerms.filter(t => ["USD_AE", "USD_TR", "USD_CN"].includes(t.id))
+                  .slice(0, expandedSections.transfers ? undefined : 5)
+                  .map(term => {
                   const rate = rates?.parallel[term.id] || 0;
                   const prevRate = rates?.previousParallel?.[term.id] || rate;
                   const isUp = rate > prevRate;
@@ -1860,14 +1918,20 @@ export default function App() {
 
         {/* Official Market Table */}
         <section id="official-rates-grid">
-          <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-8">
-            <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest">السوق الرسمي (مصرف ليبيا المركزي)</h3>
+          <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-8 cursor-pointer group" onClick={() => toggleSection('official')}>
+            <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest group-hover:text-zinc-300 transition-colors">السوق الرسمي (مصرف ليبيا المركزي)</h3>
+            <button className="text-zinc-500 group-hover:text-white transition-colors flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider">
+              {expandedSections.official ? 'طي' : 'عرض المزيد'}
+              <ChevronDown className={`w-4 h-4 transition-transform duration-300 ${expandedSections.official ? 'rotate-180' : ''}`} />
+            </button>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-x-8 gap-y-12">
             {(!rates || dynamicCurrencies.length === 0) ? (
               Array(6).fill(0).map((_, i) => <RateSkeleton key={i} />)
             ) : (
-              dynamicCurrencies.map(currency => {
+              dynamicCurrencies
+                .slice(0, expandedSections.official ? undefined : 6)
+                .map(currency => {
                 const rate = rates?.official[currency.code] || 0;
                 const prevRate = rates?.previousOfficial?.[currency.code] || rate;
                 const isUp = rate > prevRate;
@@ -2309,8 +2373,9 @@ export default function App() {
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               className="relative w-full max-w-4xl bg-[#0a0a0a] border border-white/10 rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
             >
-              <div className="p-6 border-b border-white/5 flex items-center justify-between shrink-0">
-                <div className="flex items-center gap-4">
+              <div className="p-6 border-b border-white/5 flex items-center justify-between shrink-0 relative overflow-hidden">
+                <div className={`absolute inset-0 opacity-10 ${chartStats.isUp ? 'bg-gradient-to-r from-rose-500/50 to-transparent' : 'bg-gradient-to-r from-emerald-500/50 to-transparent'}`}></div>
+                <div className="flex items-center gap-4 relative z-10">
                   <FlagIcon 
                     flagCode={configTerms.find(t => t.id === selectedRate.code)?.flag || CURRENCIES.find(c => c.code === selectedRate.code)?.flag} 
                     name={selectedRate.name} 
@@ -2326,7 +2391,7 @@ export default function App() {
                 </div>
                 <button 
                   onClick={() => setSelectedRate(null)} 
-                  className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/10 transition-all"
+                  className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/10 transition-all relative z-10"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -2335,30 +2400,38 @@ export default function App() {
               <div className="p-6 flex-1 overflow-y-auto custom-scrollbar flex flex-col">
                 <div className="flex items-center justify-between mb-8">
                   <div className="flex flex-col">
-                    <span className="text-xs text-zinc-500 mb-1">السعر الحالي</span>
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-4xl font-mono font-bold text-white">
+                    <span className="text-xs text-zinc-500 mb-1">سعر الصرف الحالي</span>
+                    <div className="flex items-baseline gap-3">
+                      <span className="text-4xl sm:text-5xl font-mono font-bold text-white tracking-tight">
                         {(selectedRate.market === 'parallel' ? rates?.parallel[selectedRate.code] : rates?.official[selectedRate.code])?.toFixed(2)}
                       </span>
                       <span className="text-sm text-zinc-500">د.ل</span>
                     </div>
+                    {chartStats.change !== 0 && (
+                      <div className={`flex items-center gap-1.5 mt-2 text-sm font-medium ${chartStats.isUp ? 'text-rose-400' : 'text-emerald-400'}`}>
+                        {chartStats.isUp ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownRight className="w-4 h-4" />}
+                        <span className="font-mono" dir="ltr">
+                          {chartStats.isUp ? '+' : ''}{chartStats.change.toFixed(2)} ({chartStats.isUp ? '+' : ''}{chartStats.changePercent.toFixed(2)}%)
+                        </span>
+                      </div>
+                    )}
                   </div>
                   
                   <div className="flex gap-2">
                     <div className="px-3 py-1.5 rounded-xl bg-white/5 border border-white/5 text-[10px] font-medium text-zinc-400 uppercase tracking-widest">
-                      آخر 24 ساعة
+                      مؤشر 24 ساعة
                     </div>
                   </div>
                 </div>
 
-                <div className="w-full h-[350px] relative mt-4">
+                <div className="w-full h-[250px] sm:h-[350px] min-h-[250px] sm:min-h-[350px] shrink-0 relative mt-4">
                   {chartData.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%" key={selectedRate.code}>
                       <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
                         <defs>
                           <linearGradient id="modalChartGradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.4}/>
-                            <stop offset="95%" stopColor="#10b981" stopOpacity={0.05}/>
+                            <stop offset="5%" stopColor={chartStats.isUp ? "#f43f5e" : "#10b981"} stopOpacity={0.4}/>
+                            <stop offset="95%" stopColor={chartStats.isUp ? "#f43f5e" : "#10b981"} stopOpacity={0.05}/>
                           </linearGradient>
                         </defs>
                         <CartesianGrid 
@@ -2388,7 +2461,7 @@ export default function App() {
                             boxShadow: "0 20px 50px -12px rgba(0, 0, 0, 0.5)",
                             padding: "12px"
                           }}
-                          itemStyle={{ color: "#10b981", fontFamily: "monospace", fontSize: "18px", fontWeight: "bold" }}
+                          itemStyle={{ color: chartStats.isUp ? "#f43f5e" : "#10b981", fontFamily: "monospace", fontSize: "18px", fontWeight: "bold" }}
                           labelStyle={{ color: "#71717a", fontSize: "11px", marginBottom: "6px", fontWeight: "medium" }}
                           labelFormatter={(label) => {
                             try {
@@ -2402,12 +2475,12 @@ export default function App() {
                         <Area
                           type="monotone"
                           dataKey="value"
-                          stroke="#10b981"
+                          stroke={chartStats.isUp ? "#f43f5e" : "#10b981"}
                           strokeWidth={3}
                           fillOpacity={1}
                           fill="url(#modalChartGradient)"
-                          dot={{ r: 3, fill: "#10b981", stroke: "#0a0a0a", strokeWidth: 2, fillOpacity: 1 }}
-                          activeDot={{ r: 6, fill: "#10b981", stroke: "#0a0a0a", strokeWidth: 3 }}
+                          dot={{ r: 3, fill: chartStats.isUp ? "#f43f5e" : "#10b981", stroke: "#0a0a0a", strokeWidth: 2, fillOpacity: 1 }}
+                          activeDot={{ r: 6, fill: chartStats.isUp ? "#f43f5e" : "#10b981", stroke: "#0a0a0a", strokeWidth: 3 }}
                         />
                       </AreaChart>
                     </ResponsiveContainer>
@@ -2421,22 +2494,22 @@ export default function App() {
                   )}
                 </div>
 
-                <div className="mt-8 grid grid-cols-3 gap-4">
-                  <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5">
-                    <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-1">أعلى سعر</p>
-                    <p className="text-lg font-mono font-bold text-white">
+                <div className="mt-8 grid grid-cols-3 gap-3 sm:gap-4">
+                  <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 flex flex-col items-center text-center">
+                    <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-2">أعلى قيمة</p>
+                    <p className="text-lg sm:text-xl font-mono font-bold text-white">
                       {chartStats.max.toFixed(2)}
                     </p>
                   </div>
-                  <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5">
-                    <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-1">أدنى سعر</p>
-                    <p className="text-lg font-mono font-bold text-white">
+                  <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 flex flex-col items-center text-center">
+                    <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-2">أدنى قيمة</p>
+                    <p className="text-lg sm:text-xl font-mono font-bold text-white">
                       {chartStats.min.toFixed(2)}
                     </p>
                   </div>
-                  <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5">
-                    <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-1">متوسط السعر</p>
-                    <p className="text-lg font-mono font-bold text-white">
+                  <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 flex flex-col items-center text-center">
+                    <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-2">المتوسط</p>
+                    <p className="text-lg sm:text-xl font-mono font-bold text-white">
                       {chartStats.avg.toFixed(2)}
                     </p>
                   </div>
@@ -2446,7 +2519,7 @@ export default function App() {
               <div className="p-6 bg-white/[0.02] border-t border-white/5 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-2 text-[10px] text-zinc-500">
                   <Info className="w-3 h-3" />
-                  <span>البيانات معروضة لآخر 24 ساعة من التداولات</span>
+                  <span>تحديثات السوق لآخر 24 ساعة</span>
                 </div>
                 <button 
                   onClick={() => setSelectedRate(null)}
