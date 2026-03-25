@@ -299,6 +299,61 @@ async function logPriceChange(change: PriceChangeLog) {
   }
 }
 
+/**
+ * Synchronizes check rates (USD_CHECKS, USD_JBANK, USD_NCB)
+ * As requested: Dollar (Checks) = Republic or Commercial check rate.
+ * And vice versa: updating any one updates the others.
+ */
+async function syncCheckRates(source: string = "تزامن تلقائي") {
+  const checkIds = ["USD_CHECKS", "USD_JBANK", "USD_NCB"];
+  let latestCheckPrice = 0;
+  let latestCheckTime = 0;
+
+  // Find the most recently updated check price among the group
+  for (const id of checkIds) {
+    const lastChanged = rates.lastChanged.parallel[id];
+    if (lastChanged) {
+      const time = new Date(lastChanged).getTime();
+      if (time > latestCheckTime) {
+        latestCheckTime = time;
+        latestCheckPrice = rates.parallel[id];
+      }
+    }
+  }
+
+  // If we found a valid check price, sync all of them in the group
+  if (latestCheckPrice > 0) {
+    let anyChanged = false;
+    for (const id of checkIds) {
+      if (rates.parallel[id] !== latestCheckPrice) {
+        const oldVal = rates.parallel[id] || latestCheckPrice;
+        
+        // Update memory state
+        rates.previousParallel[id] = oldVal;
+        rates.parallel[id] = latestCheckPrice;
+        rates.lastChanged.parallel[id] = new Date(latestCheckTime).toISOString();
+        anyChanged = true;
+        
+        // Log the change for audit
+        const term = appConfig.terms.find(t => t.id === id);
+        const changeLog = {
+          id: Math.random().toString(36).substring(2, 9),
+          currencyCode: id,
+          currencyName: term ? term.name : id,
+          oldPrice: oldVal,
+          newPrice: latestCheckPrice,
+          source: `${source} (مزامنة الصكوك)`,
+          timestamp: new Date().toISOString()
+        };
+        await logPriceChange(changeLog);
+        console.log(`[Sync] Synced ${id} to ${latestCheckPrice} from check group. Source: ${source}`);
+      }
+    }
+    return anyChanged;
+  }
+  return false;
+}
+
 let lastRatesFetchTime = 0;
 const RATES_CACHE_TTL = 30 * 1000; // 30 seconds
 
@@ -966,6 +1021,8 @@ interface LiveFeedMessage {
 let liveFeed: LiveFeedMessage[] = [];
 
 async function fetchParallelRatesFromTelegram() {
+  console.log(`\n[Scraper] Starting parallel rates fetch at ${new Date().toISOString()}`);
+  
   if (isScraping) {
     console.log("[Scraper] Scrape already in progress, skipping...");
     return null;
@@ -974,12 +1031,14 @@ async function fetchParallelRatesFromTelegram() {
   const now = Date.now();
   // Prevent retrying more than once every 2 minutes if it failed
   if (now - lastAttemptTime < 2 * 60 * 1000) {
-    console.log("[Scraper] Too soon since last attempt, skipping...");
+    const remaining = Math.ceil((2 * 60 * 1000 - (now - lastAttemptTime)) / 1000);
+    console.log(`[Scraper] Too soon since last attempt, skipping... (${remaining}s remaining)`);
     return null;
   }
   
   lastAttemptTime = now;
   isScraping = true;
+  console.log("[Scraper] Lock acquired, starting extraction...");
   try {
     const priceHistory: Record<string, { value: number, time: number, channel: string }[]> = {};
     for (const term of appConfig.terms) {
@@ -1355,6 +1414,10 @@ async function fetchParallelRatesFromTelegram() {
           if (!rates.previousParallel[key]) rates.previousParallel[key] = previousRates[key];
         }
       }
+
+      // Sync check rates after processing all terms
+      const synced = await syncCheckRates("كاشط تيليجرام");
+      if (synced) anyChanged = true;
 
       if (anyChanged) {
         if (newestMessageTime > 0) {
@@ -2022,6 +2085,9 @@ async function startServer() {
       }
       
       if (changed) {
+        // Sync check rates after manual updates
+        await syncCheckRates("تعديل يدوي");
+        
         rates.lastUpdated = new Date().toISOString();
         await saveToSupabase('parallel');
         res.json({ success: true, message: "تم تحديث الأسعار بنجاح" });

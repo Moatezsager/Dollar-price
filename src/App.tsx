@@ -1189,8 +1189,8 @@ export default function App() {
     }
   };
 
-  const usdChecksRate = rates?.parallel["USD_JBANK"] || rates?.parallel["USD_CHECKS"] || 0;
-  const prevUsdChecksRate = rates?.previousParallel?.["USD_JBANK"] || rates?.previousParallel?.["USD_CHECKS"] || usdChecksRate;
+  const usdChecksRate = rates?.parallel["USD_JBANK"] || rates?.parallel["USD_NCB"] || rates?.parallel["USD_CHECKS"] || 0;
+  const prevUsdChecksRate = rates?.previousParallel?.["USD_JBANK"] || rates?.previousParallel?.["USD_NCB"] || rates?.previousParallel?.["USD_CHECKS"] || usdChecksRate;
   const usdChecksIsUp = usdChecksRate > prevUsdChecksRate;
   const usdChecksIsDown = usdChecksRate < prevUsdChecksRate;
 
