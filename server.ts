@@ -1126,6 +1126,18 @@ async function fetchParallelRatesFromTelegram(): Promise<boolean | null> {
 
     console.log(`[Scraper] Validated channels: ${channels.join(', ')}`);
     
+    // Calculate start of today in Libya (UTC+2)
+    const nowTime = new Date();
+    const libyaTime = new Date(nowTime.getTime() + (2 * 60 * 60 * 1000));
+    const startOfTodayLibya = new Date(Date.UTC(
+      libyaTime.getUTCFullYear(),
+      libyaTime.getUTCMonth(),
+      libyaTime.getUTCDate(),
+      0, 0, 0, 0
+    )).getTime() - (2 * 60 * 60 * 1000);
+    
+    console.log(`[Scraper] Filtering messages sent after: ${new Date(startOfTodayLibya).toISOString()} (Start of today in Libya)`);
+
     // Try GramJS first if configured
     let usedGramJs = false;
     let forceHttpScraper = false;
@@ -1175,6 +1187,12 @@ async function fetchParallelRatesFromTelegram(): Promise<boolean | null> {
             successfulChannels++;
             totalMessagesProcessed += messages.length;
             for (const msg of messages) {
+              // Only process messages from today
+              if (msg.date < startOfTodayLibya) {
+                console.log(`[Scraper-GramJS] Skipping old message from ${channel} (Date: ${new Date(msg.date).toISOString()})`);
+                continue;
+              }
+
               liveFeed.unshift({ channel, text: msg.text, time: msg.date });
               if (liveFeed.length > 5) liveFeed = liveFeed.slice(0, 5);
 
@@ -1291,20 +1309,23 @@ async function fetchParallelRatesFromTelegram(): Promise<boolean | null> {
           const { channel, blocks } = result.value;
           
           successfulChannels++;
-          totalMessagesProcessed += (blocks.length - 1);
+          
+          // Only take the last 5 messages from the blocks
+          const recentBlocks = blocks.slice(-6); 
+          totalMessagesProcessed += (recentBlocks.length - 1);
 
-          for (const block of blocks) {
+          for (const block of recentBlocks) {
             const textMatch = block.match(/<div class="tgme_widget_message_text[^>]*>(.*?)<\/div>/);
             const timeMatch = block.match(/<time datetime="([^"]+)"/);
             
             if (textMatch && timeMatch) {
               const cleanText = textMatch[1].replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ');
               const time = new Date(timeMatch[1]).getTime();
-              const now = new Date();
               
-              // Strict today filter for HTTP Scraper to ensure freshness
-              const isToday = new Date(time).toDateString() === now.toDateString();
-              if (!isToday) continue; 
+              // Use the Libya-aware today filter
+              if (time < startOfTodayLibya) {
+                continue; 
+              }
 
               liveFeed.unshift({ channel, text: cleanText, time });
               if (liveFeed.length > 5) liveFeed = liveFeed.slice(0, 5);
