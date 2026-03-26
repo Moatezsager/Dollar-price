@@ -1653,8 +1653,8 @@ export default function App() {
 
           {/* Mini Sparkline Chart */}
           {showChart && (
-            <div className="flex flex-col gap-3 mt-8 lg:mt-0">
-              <div className="flex items-center justify-end gap-2 mb-1">
+            <div className="flex flex-col gap-3 mt-8 lg:mt-0 w-full lg:w-auto">
+              <div className="flex items-center justify-start lg:justify-end gap-2 mb-1">
                 {(['24h', '7d', 'all'] as const).map((range) => (
                   <button
                     key={range}
@@ -1672,7 +1672,7 @@ export default function App() {
                   </button>
                 ))}
               </div>
-              <div id="historical-chart" className="w-full lg:w-[400px] h-[100px] sm:h-[160px] min-w-0 min-h-0 opacity-80 hover:opacity-100 transition-opacity">
+              <div id="historical-chart" className="w-full lg:w-[400px] h-[140px] sm:h-[180px] min-w-0 min-h-0 opacity-80 hover:opacity-100 transition-opacity">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={chartData}>
                     <defs>
