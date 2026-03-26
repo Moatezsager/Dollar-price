@@ -742,6 +742,7 @@ async function fetchFromCBL(): Promise<RateMap | null> {
 
 // Fetch real official rates from open API
 async function fetchOfficialRates(): Promise<boolean> {
+  console.log("[Official] Starting official rates fetch cycle...");
   // 1. Try CBL Website First (Most Accurate for Libya)
   const cblRates = await fetchFromCBL();
   if (cblRates) {
@@ -1020,7 +1021,7 @@ interface LiveFeedMessage {
 }
 let liveFeed: LiveFeedMessage[] = [];
 
-async function fetchParallelRatesFromTelegram() {
+async function fetchParallelRatesFromTelegram(): Promise<boolean | null> {
   console.log(`\n[Scraper] Starting parallel rates fetch at ${new Date().toISOString()}`);
   
   if (isScraping) {
@@ -1464,7 +1465,7 @@ async function fetchParallelRatesFromTelegram() {
 })();
 
 const timeoutPromise = new Promise<null>((_, reject) => {
-  setTimeout(() => reject(new Error("Global Scraper Timeout")), 27000);
+  setTimeout(() => reject(new Error("Global Scraper Timeout")), 22000);
 });
 
 try {
@@ -2465,12 +2466,14 @@ async function startServer() {
       }
     }, 10 * 60 * 1000);
 
-    // Keep-alive ping for Render Free Tier (pings itself every 14 minutes)
+    // Keep-alive ping for Render Free Tier (pings itself every 4 minutes)
     // This combined with external cron-job.org ensures 24/7 uptime
     setInterval(() => {
-      const url = `http://localhost:${PORT}/api/health`;
+      const publicUrl = process.env.APP_URL || `http://localhost:${PORT}`;
+      const url = `${publicUrl}/api/health`;
+      console.log(`[Keep-Alive] Pinging ${url} to prevent hibernation...`);
       fetch(url).catch(() => {});
-    }, 14 * 60 * 1000);
+    }, 4 * 60 * 1000);
   });
 }
 
