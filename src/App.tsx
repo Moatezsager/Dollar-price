@@ -1083,20 +1083,21 @@ export default function App() {
   }, [history, chartRange]);
 
   const chartData = useMemo(() => {
-    if (!selectedRate || !filteredHistory.length) return [];
+    const targetRate = selectedRate || { code: 'USD', name: 'دولار أمريكي', market: 'parallel' as const };
+    if (!filteredHistory.length) return [];
     
     const data = filteredHistory.map(h => {
-      const rateObj = selectedRate.market === 'parallel' ? h.ratesParallel : h.ratesOfficial;
+      const rateObj = targetRate.market === 'parallel' ? h.ratesParallel : h.ratesOfficial;
       let value = 0;
       
       // Attempt to get value from JSONB object first
-      if (rateObj && rateObj[selectedRate.code] !== undefined && rateObj[selectedRate.code] !== null) {
-        value = Number(rateObj[selectedRate.code]);
+      if (rateObj && rateObj[targetRate.code] !== undefined && rateObj[targetRate.code] !== null) {
+        value = Number(rateObj[targetRate.code]);
       } 
       
       // Fallback for main USD if not in JSONB
-      if (value === 0 && selectedRate.code === 'USD') {
-        value = selectedRate.market === 'parallel' ? h.usdParallel : h.usdOfficial;
+      if (value === 0 && targetRate.code === 'USD') {
+        value = targetRate.market === 'parallel' ? h.usdParallel : h.usdOfficial;
       }
       
       return {
