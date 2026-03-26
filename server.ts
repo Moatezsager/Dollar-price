@@ -10,7 +10,7 @@ import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import { TelegramClient, Api } from "telegram";
 import { StringSession } from "telegram/sessions";
-import { getTelegramClient, fetchChannelMessages, initializeTelegram, activeClient, TelegramManager } from "./telegramClient";
+import { getTelegramClient, fetchChannelMessages, initializeTelegram, activeClient, TelegramManager, getTelegramManager } from "./telegramClient";
 
 // Initialize Supabase client for server
 const supabaseUrl = process.env.VITE_SUPABASE_URL;
@@ -571,16 +571,16 @@ async function fetchHistoryFromSupabase() {
   try {
     // Fetch parallel, official and metal history in parallel for speed
     const [parallelRes, officialRes, metalRes] = await Promise.all([
-      supabase.from('parallel_rates').select('recorded_at, usd, rates').order('recorded_at', { ascending: false }).limit(1000),
-      supabase.from('official_rates').select('recorded_at, usd, rates').order('recorded_at', { ascending: false }).limit(1000),
-      supabase.from('metal_rates').select('recorded_at, rates').order('recorded_at', { ascending: false }).limit(1000)
+      supabase.from('parallel_rates').select('recorded_at, usd, rates').order('recorded_at', { ascending: false }).limit(3000),
+      supabase.from('official_rates').select('recorded_at, usd, rates').order('recorded_at', { ascending: false }).limit(3000),
+      supabase.from('metal_rates').select('recorded_at, rates').order('recorded_at', { ascending: false }).limit(3000)
     ]);
 
     // Check for "table not found" errors - fallback to legacy if tables are missing
     if (parallelRes.error?.message.includes('relation "parallel_rates" does not exist') || 
         officialRes.error?.message.includes('relation "official_rates" does not exist')) {
         
-        const { data, error } = await supabase.from('exchange_rates').select('*').order('recorded_at', { ascending: false }).limit(1000);
+        const { data, error } = await supabase.from('exchange_rates').select('*').order('recorded_at', { ascending: false }).limit(3000);
         if (!error && data) {
            cachedHistory = data.reverse().map((row: any) => ({
               time: row.recorded_at,
@@ -647,19 +647,26 @@ async function fetchHistoryFromSupabase() {
       new Date(a.time!).getTime() - new Date(b.time!).getTime()
     );
 
-    let lastParallel: any = rates.parallel;
-    let lastOfficial: any = rates.official;
+    let lastParallelRates: any = { ...rates.parallel };
+    let lastOfficialRates: any = { ...rates.official };
+    let lastUsdParallel = rates.parallel.USD || 0;
+    let lastUsdOfficial = rates.official.USD || 0;
     
-    // Reverse filling is tricky for charts, usually we just want to ensure each point has both for the frontend
-    // but the frontend is designed to handle missing values or we can interpolate.
-    // For now, let's just ensure they exist to avoid crashes.
-    const completedHistory = sortedPoints.map(p => ({
-      time: p.time!,
-      usdParallel: p.usdParallel || 0,
-      usdOfficial: p.usdOfficial || 0,
-      ratesParallel: p.ratesParallel || {},
-      ratesOfficial: p.ratesOfficial || {}
-    })) as HistoryPoint[];
+    // Fill gaps by carrying forward values
+    const completedHistory = sortedPoints.map(p => {
+      if (p.usdParallel !== undefined) lastUsdParallel = p.usdParallel;
+      if (p.usdOfficial !== undefined) lastUsdOfficial = p.usdOfficial;
+      if (p.ratesParallel) lastParallelRates = { ...lastParallelRates, ...p.ratesParallel };
+      if (p.ratesOfficial) lastOfficialRates = { ...lastOfficialRates, ...p.ratesOfficial };
+      
+      return {
+        time: p.time!,
+        usdParallel: lastUsdParallel,
+        usdOfficial: lastUsdOfficial,
+        ratesParallel: { ...lastParallelRates },
+        ratesOfficial: { ...lastOfficialRates }
+      };
+    }) as HistoryPoint[];
 
     if (completedHistory.length > 0) {
       cachedHistory = completedHistory;
@@ -978,7 +985,7 @@ async function loadConfigFromSupabase() {
 
       appConfig = dbConfig;
       console.log(`[Startup] Initializing TelegramManager. TG_SESSION_V2 length: ${process.env.TG_SESSION_V2?.length || 0}`);
-      telegramManager = new TelegramManager(
+      telegramManager = getTelegramManager(
         Number(process.env.TELEGRAM_API_ID || appConfig.telegramApiId),
         process.env.TELEGRAM_API_HASH || appConfig.telegramApiHash || "",
         process.env.TG_SESSION_V2 || appConfig.telegramSessionString || ""
@@ -1623,6 +1630,15 @@ async function startServer() {
     });
   }
 
+  function broadcastRatesUpdate(updatedRates: Rates) {
+    const data = JSON.stringify({ type: 'rates_update', rates: updatedRates });
+    wss.clients.forEach((client: any) => {
+      if (client.readyState === 1) {
+        client.send(data);
+      }
+    });
+  }
+
   // Global Error Handlers
   process.on('unhandledRejection', async (reason, promise) => {
     console.error('Unhandled Rejection at:', promise, 'reason:', reason);
@@ -1797,6 +1813,7 @@ async function startServer() {
       const parallelTally = await fetchParallelRatesFromTelegram();
       if (parallelTally) {
         await saveToSupabase('parallel');
+        broadcastRatesUpdate(rates);
       }
       
       res.json({ success: true, message: "تم حفظ الإعدادات بنجاح" });
@@ -1914,6 +1931,7 @@ async function startServer() {
         console.log("[Admin] Changes detected! Saving to database...");
         const saveType = (officialUpdate && parallelTally) ? 'both' : (officialUpdate ? 'official' : 'parallel');
         await saveToSupabase(saveType);
+        broadcastRatesUpdate(rates);
       }
       
       res.json({ 
@@ -2138,6 +2156,7 @@ async function startServer() {
         
         rates.lastUpdated = new Date().toISOString();
         await saveToSupabase('parallel');
+        broadcastRatesUpdate(rates);
         res.json({ success: true, message: "تم تحديث الأسعار بنجاح" });
       } else {
         res.json({ success: true, message: "لم يتم اكتشاف أي تغييرات" });
@@ -2246,6 +2265,7 @@ async function startServer() {
       if (parallelUpdate) {
         console.log("[Cron-Job] Parallel changes detected! Saving to database...");
         await saveToSupabase('parallel');
+        broadcastRatesUpdate(rates);
         changed = true;
       } else {
         console.log("[Cron-Job] Checked parallel sources. No price changes found.");
@@ -2305,6 +2325,7 @@ async function startServer() {
       if (officialUpdate) {
         console.log("[Cron-Job-Official] Official changes detected! Saving to database...");
         await saveToSupabase('official');
+        broadcastRatesUpdate(rates);
         changed = true;
       } else {
         console.log("[Cron-Job-Official] Checked official sources. No price changes found.");

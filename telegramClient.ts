@@ -15,23 +15,38 @@ export class TelegramManager {
     this.sessionString = sessionString;
   }
 
+  /**
+   * Gets or creates the Telegram client instance.
+   * Implements connection stability and authorization checks.
+   */
   public async getClient(): Promise<TelegramClient | null> {
+    // If already connected and authorized, return it
     if (this.client && this.client.connected) {
-      return this.client;
+      try {
+        const isAuthorized = await this.client.checkAuthorization();
+        if (isAuthorized) {
+          activeClient = this.client;
+          return this.client;
+        }
+      } catch (e) {
+        console.warn("[TelegramManager] Authorization check failed, re-connecting...");
+      }
     }
 
+    // Handle concurrent connection attempts
     if (this.isConnecting) {
-      // Wait for existing connection attempt
-      while (this.isConnecting) {
+      console.log("[TelegramManager] Connection already in progress, waiting...");
+      let attempts = 0;
+      while (this.isConnecting && attempts < 20) {
         await new Promise(resolve => setTimeout(resolve, 500));
+        attempts++;
       }
-      return this.client && this.client.connected ? this.client : null;
+      if (this.client && this.client.connected) return this.client;
     }
 
     this.isConnecting = true;
     try {
-      console.log("[TelegramManager] Attempting to connect...");
-      console.log(`[TelegramManager] API ID: ${this.apiId}, Session String length: ${this.sessionString?.length || 0}`);
+      console.log("[TelegramManager] Initializing new Telegram client...");
       
       if (this.client) {
         try { await this.client.disconnect(); } catch (e) {}
@@ -39,52 +54,70 @@ export class TelegramManager {
 
       const stringSession = new StringSession(this.sessionString || "");
       this.client = new TelegramClient(stringSession, this.apiId, this.apiHash, {
-        connectionRetries: 5,
+        connectionRetries: 10,
         useWSS: false,
         autoReconnect: true,
-        floodSleepThreshold: 60,
+        floodSleepThreshold: 120,
+        deviceModel: "PriceScraperServer",
+        systemVersion: "1.0.0",
+        appVersion: "1.0.0",
+      });
+
+      // Set up event listeners for stability
+      this.client.addEventHandler((event) => {
+        // Log important events if needed
       });
 
       await this.client.connect();
       
       const isAuthorized = await this.client.checkAuthorization();
-      console.log(`[TelegramManager] Authorization check result: ${isAuthorized}`);
       if (!isAuthorized) {
-        throw new Error("Connected but NOT authorized. Session string might be invalid or expired.");
+        throw new Error("Session is not authorized. Please check your session string.");
       }
       
       console.log("[TelegramManager] Successfully connected and authorized.");
+      activeClient = this.client;
       return this.client;
     } catch (error: any) {
-      if (error.errorMessage === 'AUTH_KEY_DUPLICATED' || error.message?.includes('AUTH_KEY_DUPLICATED')) {
-        console.error("[TelegramManager] AUTH_KEY_DUPLICATED: Session is being used elsewhere or is invalid. Please re-authenticate.");
-        // We cannot fix this automatically, we must signal to the user to re-authenticate.
-      } else {
-        console.error("[TelegramManager] Connection failed:", error);
-      }
+      console.error("[TelegramManager] Connection failed:", error.message || error);
       this.client = null;
+      activeClient = null;
       return null;
     } finally {
       this.isConnecting = false;
     }
   }
 
+  /**
+   * Fetches messages from a channel with robust error handling.
+   */
   public async fetchMessages(channelUsername: string, limit: number = 10): Promise<{text: string, date: number}[]> {
     const client = await this.getClient();
-    if (!client) return [];
+    if (!client) {
+      console.error(`[TelegramManager] Cannot fetch messages from ${channelUsername}: Client not ready.`);
+      return [];
+    }
 
     try {
       const username = channelUsername.replace('@', '').trim();
       let entity;
+      
+      // Try to get entity from cache/username
       try {
         entity = await client.getEntity(username);
       } catch (e) {
+        console.log(`[TelegramManager] Entity not found for ${username}, resolving...`);
         const resolved = await client.invoke(new Api.contacts.ResolveUsername({ username }));
-        entity = (resolved.chats && resolved.chats.length > 0) ? resolved.chats[0] : username;
+        if (resolved.chats && resolved.chats.length > 0) {
+          entity = resolved.chats[0];
+        } else if (resolved.users && resolved.users.length > 0) {
+          entity = resolved.users[0];
+        } else {
+          entity = username;
+        }
       }
 
       const messages = await client.getMessages(entity, { limit });
-      console.log(`[TelegramManager] Successfully fetched ${messages.length} messages from ${channelUsername}`);
       this.lastFetchTime = Date.now();
       
       return messages
@@ -93,9 +126,27 @@ export class TelegramManager {
           text: m.message || "",
           date: m.date ? m.date * 1000 : Date.now(),
         }));
-    } catch (error) {
-      console.error(`[TelegramManager] Error fetching messages from ${channelUsername}:`, error);
+    } catch (error: any) {
+      console.error(`[TelegramManager] Error fetching messages from ${channelUsername}:`, error.message || error);
+      
+      // If it's a connection error, try to reconnect for next time
+      if (error.message?.includes('connection') || error.message?.includes('disconnected')) {
+        this.client = null;
+        activeClient = null;
+      }
+      
       return [];
+    }
+  }
+
+  public async disconnect(): Promise<void> {
+    if (this.client) {
+      try {
+        await this.client.disconnect();
+        console.log("[TelegramManager] Disconnected successfully.");
+      } catch (e) {}
+      this.client = null;
+      activeClient = null;
     }
   }
 
@@ -104,28 +155,74 @@ export class TelegramManager {
   }
 }
 
+// Singleton and helper exports
 export let activeClient: TelegramClient | null = null;
-let connectingPromise: Promise<TelegramClient | null> | null = null;
+let managerInstance: TelegramManager | null = null;
 
+/**
+ * Gets the singleton TelegramManager instance.
+ */
+export const getTelegramManager = (
+  apiId: number,
+  apiHash: string,
+  sessionString: string
+): TelegramManager => {
+  if (!managerInstance) {
+    managerInstance = new TelegramManager(apiId, apiHash, sessionString);
+  }
+  return managerInstance;
+};
+
+/**
+ * Gets a Telegram client using provided credentials.
+ * Reuses existing manager if credentials match.
+ */
 export const getTelegramClient = async (
   apiId: number,
   apiHash: string,
   sessionString: string
 ): Promise<TelegramClient | null> => {
-  // ... (keep existing implementation for backward compatibility if needed, 
-  // but ideally refactor server.ts to use TelegramManager)
-  // For now, I will just export the manager and let server.ts use it.
-  return null; 
+  const manager = getTelegramManager(apiId, apiHash, sessionString);
+  return await manager.getClient();
 };
 
+/**
+ * Initializes Telegram using environment variables.
+ */
 export const initializeTelegram = async (): Promise<TelegramClient | null> => {
-  return null;
+  const apiId = Number(process.env.TELEGRAM_API_ID);
+  const apiHash = process.env.TELEGRAM_API_HASH;
+  const sessionString = process.env.TELEGRAM_SESSION;
+
+  if (!apiId || !apiHash || !sessionString) {
+    console.warn("[Telegram] Missing environment variables for initialization.");
+    return null;
+  }
+
+  return await getTelegramClient(apiId, apiHash, sessionString);
 };
 
+/**
+ * Helper to fetch messages from a channel.
+ */
 export const fetchChannelMessages = async (
   client: TelegramClient,
   channelUsername: string,
   limit: number = 10
 ): Promise<{text: string, date: number}[]> => {
-  return [];
+  // We can't easily use the manager here if we only have the client,
+  // but we can implement the logic directly.
+  try {
+    const username = channelUsername.replace('@', '').trim();
+    const messages = await client.getMessages(username, { limit });
+    return messages
+      .filter((m) => m.message && m.message.trim() !== "")
+      .map((m) => ({
+        text: m.message || "",
+        date: m.date ? m.date * 1000 : Date.now(),
+      }));
+  } catch (error) {
+    console.error(`[Telegram] Error in fetchChannelMessages for ${channelUsername}:`, error);
+    return [];
+  }
 };

@@ -395,6 +395,7 @@ export default function App() {
     const saved = localStorage.getItem('showChart');
     return saved !== null ? saved === 'true' : true;
   });
+  const [chartRange, setChartRange] = useState<'24h' | '7d' | 'all'>('7d');
   const [defaultMarket, setDefaultMarket] = useState<'parallel' | 'official'>(() => {
     const saved = localStorage.getItem('defaultMarket');
     return (saved as 'parallel' | 'official') || 'parallel';
@@ -813,6 +814,8 @@ export default function App() {
             const data = JSON.parse(event.data);
             if (data.type === 'online_count') {
               setOnlineCount(data.count);
+            } else if (data.type === 'rates_update') {
+              setRates(data.rates);
             }
           } catch (err) {
             console.error('WebSocket message error:', err);
@@ -1064,10 +1067,25 @@ export default function App() {
     return () => clearInterval(interval);
   }, [autoRefreshEnabled]);
 
-  const chartData = useMemo(() => {
-    if (!selectedRate || !history.length) return [];
+  const filteredHistory = useMemo(() => {
+    if (!history.length) return [];
+    const now = new Date();
+    let cutoff: Date | null = null;
     
-    const data = history.map(h => {
+    if (chartRange === '24h') {
+      cutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    } else if (chartRange === '7d') {
+      cutoff = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    }
+    
+    if (!cutoff) return history;
+    return history.filter(h => new Date(h.time) >= cutoff!);
+  }, [history, chartRange]);
+
+  const chartData = useMemo(() => {
+    if (!selectedRate || !filteredHistory.length) return [];
+    
+    const data = filteredHistory.map(h => {
       const rateObj = selectedRate.market === 'parallel' ? h.ratesParallel : h.ratesOfficial;
       let value = 0;
       
@@ -1099,7 +1117,7 @@ export default function App() {
     }
     
     return sorted;
-  }, [selectedRate, history]);
+  }, [selectedRate, filteredHistory]);
 
   const chartStats = useMemo(() => {
     if (!chartData.length) return { max: 0, min: 0, avg: 0, isUp: true, change: 0, changePercent: 0 };
@@ -1634,42 +1652,62 @@ export default function App() {
 
           {/* Mini Sparkline Chart */}
           {showChart && (
-            <div id="historical-chart" className="w-full lg:w-[400px] h-[100px] sm:h-[160px] min-w-0 min-h-0 opacity-80 hover:opacity-100 transition-opacity mt-8 lg:mt-0">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={history.filter(h => h.usdParallel > 0)}>
-                  <defs>
-                    <linearGradient id="colorUsd" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor={usdIsUp ? "#f43f5e" : "#10b981"} stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor={usdIsUp ? "#f43f5e" : "#10b981"} stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <XAxis dataKey="time" hide />
-                  <YAxis domain={[(dataMin: number) => dataMin - 0.02, (dataMax: number) => dataMax + 0.02]} hide />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: "#050505", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px", color: "#fff", boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.5)" }}
-                    itemStyle={{ color: usdIsUp ? "#f43f5e" : "#10b981", fontFamily: "monospace", fontSize: "16px" }}
-                    labelStyle={{ color: "#71717a", fontSize: "12px", marginBottom: "4px" }}
-                    labelFormatter={(label) => {
-                      try {
-                        return format(new Date(label), "dd MMM - HH:mm", { locale: ar });
-                      } catch (e) {
-                        return label;
-                      }
+            <div className="flex flex-col gap-3 mt-8 lg:mt-0">
+              <div className="flex items-center justify-end gap-2 mb-1">
+                {(['24h', '7d', 'all'] as const).map((range) => (
+                  <button
+                    key={range}
+                    onClick={() => {
+                      setChartRange(range);
+                      triggerHaptic(5);
                     }}
-                    formatter={(value: number) => [value.toFixed(2) + ' د.ل', 'السعر']}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="usdParallel"
-                    stroke={usdIsUp ? "#f43f5e" : "#10b981"}
-                    strokeWidth={2}
-                    fillOpacity={1}
-                    fill="url(#colorUsd)"
-                    isAnimationActive={history.length < 200}
-                    activeDot={{ r: 4, fill: "#050505", stroke: usdIsUp ? "#f43f5e" : "#10b981", strokeWidth: 2 }}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+                    className={`px-3 py-1 text-[10px] font-medium rounded-full transition-all border ${
+                      chartRange === range 
+                        ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400' 
+                        : 'bg-white/5 border-white/5 text-zinc-500 hover:bg-white/10'
+                    }`}
+                  >
+                    {range === '24h' ? '24 ساعة' : range === '7d' ? '7 أيام' : 'الكل'}
+                  </button>
+                ))}
+              </div>
+              <div id="historical-chart" className="w-full lg:w-[400px] h-[100px] sm:h-[160px] min-w-0 min-h-0 opacity-80 hover:opacity-100 transition-opacity">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={chartData}>
+                    <defs>
+                      <linearGradient id="colorUsd" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor={usdIsUp ? "#f43f5e" : "#10b981"} stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor={usdIsUp ? "#f43f5e" : "#10b981"} stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <XAxis dataKey="time" hide />
+                    <YAxis domain={[(dataMin: number) => dataMin - 0.02, (dataMax: number) => dataMax + 0.02]} hide />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: "#050505", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px", color: "#fff", boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.5)" }}
+                      itemStyle={{ color: usdIsUp ? "#f43f5e" : "#10b981", fontFamily: "monospace", fontSize: "16px" }}
+                      labelStyle={{ color: "#71717a", fontSize: "12px", marginBottom: "4px" }}
+                      labelFormatter={(label) => {
+                        try {
+                          return format(new Date(label), "dd MMM - HH:mm", { locale: ar });
+                        } catch (e) {
+                          return label;
+                        }
+                      }}
+                      formatter={(value: number) => [value.toFixed(2) + ' د.ل', 'السعر']}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="value"
+                      stroke={usdIsUp ? "#f43f5e" : "#10b981"}
+                      strokeWidth={2}
+                      fillOpacity={1}
+                      fill="url(#colorUsd)"
+                      isAnimationActive={chartData.length < 200}
+                      activeDot={{ r: 4, fill: "#050505", stroke: usdIsUp ? "#f43f5e" : "#10b981", strokeWidth: 2 }}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           )}
         </section>
@@ -2418,9 +2456,22 @@ export default function App() {
                   </div>
                   
                   <div className="flex gap-2">
-                    <div className="px-3 py-1.5 rounded-xl bg-white/5 border border-white/5 text-[10px] font-medium text-zinc-400 uppercase tracking-widest">
-                      مؤشر 24 ساعة
-                    </div>
+                    {(['24h', '7d', 'all'] as const).map((range) => (
+                      <button
+                        key={range}
+                        onClick={() => {
+                          setChartRange(range);
+                          triggerHaptic(5);
+                        }}
+                        className={`px-3 py-1 text-[10px] font-medium rounded-full transition-all border ${
+                          chartRange === range 
+                            ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400' 
+                            : 'bg-white/5 border-white/5 text-zinc-500 hover:bg-white/10'
+                        }`}
+                      >
+                        {range === '24h' ? '24 ساعة' : range === '7d' ? '7 أيام' : 'الكل'}
+                      </button>
+                    ))}
                   </div>
                 </div>
 
