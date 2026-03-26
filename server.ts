@@ -1605,7 +1605,7 @@ process.on('SIGINT', gracefulShutdown);
 async function startServer() {
   const app = express();
   const server = createServer(app);
-  const PORT = Number(process.env.PORT) || 3000;
+  const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
   // Online Users Tracking
   const wss = new WebSocketServer({ server });
@@ -2480,7 +2480,7 @@ async function startServer() {
     });
   }
 
-  server.listen(PORT, "0.0.0.0", () => {
+  server.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
     
     // Initial scrape on startup (with delay to avoid AUTH_KEY_DUPLICATED when Render restarts)
