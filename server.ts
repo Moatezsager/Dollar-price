@@ -1075,11 +1075,67 @@ let lastSuccessfulScrape = new Date();
 let lastAttemptTime = 0;
 
 interface LiveFeedMessage {
+  id: string;
   channel: string;
   text: string;
   time: number;
+  status: 'processed' | 'skipped' | 'error';
+  extractedRates?: { code: string, value: number }[];
+  error?: string;
 }
 let liveFeed: LiveFeedMessage[] = [];
+
+/**
+ * Extracts rates from a given text based on the current configuration.
+ * Returns an array of extracted rates.
+ */
+const extractRatesFromText = (cleanText: string) => {
+  const results: { code: string, value: number }[] = [];
+  
+  // Pre-compile regexes for performance
+  const compiledTerms = appConfig.terms.map(t => ({
+    ...t,
+    compiledRegex: new RegExp(t.regex, 'i')
+  }));
+
+  for (const term of compiledTerms) {
+    const match = cleanText.match(term.compiledRegex);
+    if (!match) continue;
+
+    let valStr = null;
+    const firstCapturedNum = match[1] || match[3];
+    const secondCapturedNum = match[2] || match[4];
+    
+    if (firstCapturedNum) {
+      if (secondCapturedNum) {
+        const secondIndex = match.index! + match[0].indexOf(secondCapturedNum);
+        if (isProbablyDateOrTime(cleanText, secondIndex, secondCapturedNum)) {
+          valStr = firstCapturedNum;
+        } else {
+          valStr = secondCapturedNum;
+        }
+      } else {
+        valStr = firstCapturedNum;
+      }
+    }
+    
+    if (valStr) {
+      let cleanValStr = valStr.replace(/,/g, ''); 
+      let val = parseFloat(cleanValStr);
+      
+      if (term.id === 'GOLD_LIRA' && val < 500) continue;
+      if (term.id === 'TND' && val < 1.0 && val > 0) val = 1 / val;
+      if (term.id === 'EGP' && val > 20.0) val = 1 / val;
+      if (term.id === 'TRY' && val > 20.0) val = 1 / val;
+      if (term.isInverse && val > 0) val = 1 / val;
+      
+      if (!isNaN(val) && val >= term.min && val <= term.max) {
+        results.push({ code: term.id, value: val });
+      }
+    }
+  }
+  return results;
+};
 
 async function fetchParallelRatesFromTelegram(): Promise<boolean | null> {
   console.log(`\n[Scraper] Starting parallel rates fetch at ${new Date().toISOString()}`);
@@ -1110,66 +1166,6 @@ async function fetchParallelRatesFromTelegram(): Promise<boolean | null> {
 
     let successfulChannels = 0;
     let totalMessagesProcessed = 0;
-
-    // Pre-compile regexes for performance
-    const compiledTerms = appConfig.terms
-      .map(t => ({
-        ...t,
-        compiledRegex: new RegExp(t.regex, 'i')
-      }));
-
-    const extractRateFromText = (cleanText: string, time: number, channel: string) => {
-      console.log(`[Scraper] Extracting from: ${cleanText.substring(0, 100)}...`);
-      const extractRate = (compiledRegex: RegExp, key: string, min: number, max: number, isInverse = false) => {
-        const match = cleanText.match(compiledRegex);
-        if (!match) return;
-        console.log(`[Scraper] Match found for ${key}: ${match[0]}`);
-
-        let valStr = null;
-        
-        const firstCapturedNum = match[1] || match[3];
-        const secondCapturedNum = match[2] || match[4];
-        
-        if (firstCapturedNum) {
-          if (secondCapturedNum) {
-            const secondIndex = match.index! + match[0].indexOf(secondCapturedNum);
-            if (isProbablyDateOrTime(cleanText, secondIndex, secondCapturedNum)) {
-              valStr = firstCapturedNum;
-            } else {
-              valStr = secondCapturedNum;
-            }
-          } else {
-             valStr = firstCapturedNum;
-          }
-        }
-        
-        if (valStr) {
-          // Clean the string: remove thousands separators like ',' or '.' if they are used as such,
-          // but keep the decimal point. This is tricky.
-          // Assuming format like 1160.000 or 1.160,000
-          let cleanValStr = valStr.replace(/,/g, ''); 
-          let val = parseFloat(cleanValStr);
-          
-          // Special handling for Lira Gold to avoid confusion with Turkish Lira
-          if (key === 'GOLD_LIRA' && val < 500) {
-             return;
-          }
-
-          if (key === 'TND' && val < 1.0 && val > 0) val = 1 / val;
-          if (key === 'EGP' && val > 20.0) val = 1 / val;
-          if (key === 'TRY' && val > 20.0) val = 1 / val;
-          
-          if (isInverse && val > 0) val = 1 / val;
-          if (!isNaN(val) && val >= min && val <= max) {
-            priceHistory[key].push({ value: val, time, channel });
-          }
-        }
-      };
-
-      for (const term of compiledTerms) {
-        extractRate(term.compiledRegex, term.id, term.min, term.max, term.isInverse);
-      }
-    };
 
     console.log(`[Scraper] Starting fetch from ${appConfig.channels?.length || 0} channels.`);
     
@@ -1254,11 +1250,26 @@ async function fetchParallelRatesFromTelegram(): Promise<boolean | null> {
                 continue;
               }
 
-              liveFeed.unshift({ channel, text: msg.text, time: msg.date });
-              if (liveFeed.length > 5) liveFeed = liveFeed.slice(0, 5);
-
               const cleanText = msg.text.replace(/\n/g, ' ');
-              extractRateFromText(cleanText, msg.date, channel);
+              const extracted = extractRatesFromText(cleanText);
+              
+              const feedMsg: LiveFeedMessage = {
+                id: Math.random().toString(36).substring(2, 11),
+                channel,
+                text: msg.text,
+                time: msg.date,
+                status: extracted.length > 0 ? 'processed' : 'skipped',
+                extractedRates: extracted
+              };
+              
+              liveFeed.unshift(feedMsg);
+              if (liveFeed.length > 100) liveFeed = liveFeed.slice(0, 100);
+
+              if (extracted.length > 0) {
+                for (const res of extracted) {
+                  priceHistory[res.code].push({ value: res.value, time: msg.date, channel });
+                }
+              }
             }
           } else {
             console.warn(`[Scraper-GramJS] No messages returned for ${channel}`);
@@ -1388,10 +1399,25 @@ async function fetchParallelRatesFromTelegram(): Promise<boolean | null> {
                 continue; 
               }
 
-              liveFeed.unshift({ channel, text: cleanText, time });
-              if (liveFeed.length > 5) liveFeed = liveFeed.slice(0, 5);
+                  const extracted = extractRatesFromText(cleanText);
+                  
+                  const feedMsg: LiveFeedMessage = {
+                    id: Math.random().toString(36).substring(2, 11),
+                    channel,
+                    text: cleanText,
+                    time,
+                    status: extracted.length > 0 ? 'processed' : 'skipped',
+                    extractedRates: extracted
+                  };
+                  
+                  liveFeed.unshift(feedMsg);
+                  if (liveFeed.length > 100) liveFeed = liveFeed.slice(0, 100);
 
-              extractRateFromText(cleanText, time, channel);
+                  if (extracted.length > 0) {
+                    for (const res of extracted) {
+                      priceHistory[res.code].push({ value: res.value, time, channel });
+                    }
+                  }
             }
           }
         }
@@ -1948,6 +1974,40 @@ async function startServer() {
 
   app.get("/api/admin/live-feed", requireAdmin, (req: express.Request, res: express.Response) => {
     res.json({ success: true, feed: liveFeed });
+  });
+
+  app.post("/api/admin/manual-extract", requireAdmin, async (req: express.Request, res: express.Response) => {
+    const { text, time, channel } = req.body;
+    if (!text) return res.status(400).json({ success: false, message: "Text is required" });
+    
+    const cleanText = text.replace(/\n/g, ' ');
+    const extracted = extractRatesFromText(cleanText);
+    
+    if (extracted.length === 0) {
+      return res.json({ success: false, message: "لم يتم العثور على أي أسعار في هذا النص" });
+    }
+    
+    let anyChanged = false;
+    for (const item of extracted) {
+      const currentVal = rates.parallel[item.code];
+      if (isSignificantChange(currentVal, item.value)) {
+        rates.previousParallel[item.code] = currentVal || item.value;
+        rates.parallel[item.code] = item.value;
+        rates.lastChanged.parallel[item.code] = new Date().toISOString();
+        anyChanged = true;
+      }
+    }
+    
+    if (anyChanged) {
+      await saveRatesToSupabase();
+      broadcastRates();
+    }
+    
+    res.json({ 
+      success: true, 
+      message: `تم استخراج ${extracted.length} أسعار بنجاح ✅`,
+      extracted 
+    });
   });
 
   app.get("/api/admin/config", requireAdmin, (req: express.Request, res: express.Response) => {

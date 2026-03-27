@@ -5,7 +5,8 @@ import {
   Activity, Users, Cpu, History as HistoryIcon, AlertTriangle, Terminal, 
   ArrowLeftRight, ArrowUpRight, ArrowDownRight, CheckCircle2, RefreshCw, Layers, Globe, Zap, Search,
   ChevronDown, ChevronUp, Clock, Info, Building2, Coins, Send, Building, TrendingUp,
-  Stethoscope, ListX, Trash, LayoutDashboard, Menu, BarChart3, Bell, Shield, Database, Link, Copy, Code2
+  Stethoscope, ListX, Trash, LayoutDashboard, Menu, BarChart3, Bell, Shield, Database, Link, Copy, Code2,
+  Download, Pause, Play, Filter, XCircle, AlertCircle
 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { ar } from "date-fns/locale";
@@ -362,9 +363,14 @@ export default function Admin() {
   };
 
   const [liveFeed, setLiveFeed] = useState<any[]>([]);
+  const [feedSearch, setFeedSearch] = useState("");
+  const [feedChannelFilter, setFeedChannelFilter] = useState("all");
+  const [feedStatusFilter, setFeedStatusFilter] = useState("all");
+  const [isFeedPaused, setIsFeedPaused] = useState(false);
   const [diagnosticsResult, setDiagnosticsResult] = useState<any>(null);
 
   const fetchLiveFeed = async () => {
+    if (isFeedPaused) return;
     try {
       const res = await fetchWithTimeout("/api/admin/live-feed", {
         headers: { Authorization: `Bearer ${token}` }
@@ -376,6 +382,51 @@ export default function Admin() {
     } catch (err) {
       console.warn("Live feed fetch failed");
     }
+  };
+
+  const handleManualExtract = async (msg: any) => {
+    try {
+      const res = await fetchWithTimeout("/api/admin/manual-extract", {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify({ text: msg.text, time: msg.time, channel: msg.channel })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSuccess(data.message);
+        setTimeout(() => setSuccess(""), 3000);
+      } else {
+        setError(data.message);
+        setTimeout(() => setError(""), 3000);
+      }
+    } catch (err) {
+      setError("فشل الاستخراج اليدوي");
+    }
+  };
+
+  const downloadFeedCSV = () => {
+    const headers = ["ID", "Channel", "Time", "Status", "Text", "Extracted Rates"];
+    const rows = liveFeed.map(msg => [
+      msg.id,
+      msg.channel,
+      new Date(msg.time).toLocaleString('ar-SA'),
+      msg.status,
+      `"${msg.text.replace(/"/g, '""')}"`,
+      msg.extractedRates ? `"${msg.extractedRates.map((r: any) => `${r.code}:${r.value}`).join(', ')}"` : ""
+    ]);
+    
+    const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
+    const blob = new Blob([`\ufeff${csvContent}`], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `telegram_feed_${new Date().toISOString()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const runDiagnostics = async () => {
@@ -2609,7 +2660,23 @@ export default function Admin() {
                     </div>
                   </div>
                   
-                  <div className="flex gap-3">
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      onClick={() => setIsFeedPaused(!isFeedPaused)}
+                      className={`px-4 py-2 rounded-xl font-bold transition-all flex items-center gap-2 text-sm ${
+                        isFeedPaused ? 'bg-emerald-600 hover:bg-emerald-500 text-white' : 'bg-amber-600/20 hover:bg-amber-600/30 text-amber-400 border border-amber-600/30'
+                      }`}
+                    >
+                      {isFeedPaused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
+                      {isFeedPaused ? 'استئناف' : 'إيقاف مؤقت'}
+                    </button>
+                    <button
+                      onClick={downloadFeedCSV}
+                      className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white font-bold transition-all flex items-center gap-2 text-sm"
+                    >
+                      <Download className="w-4 h-4" />
+                      تصدير CSV
+                    </button>
                     <button
                       onClick={fetchLiveFeed}
                       className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white font-bold transition-all flex items-center gap-2 text-sm"
@@ -2627,27 +2694,127 @@ export default function Admin() {
                   </div>
                 </div>
 
+                {/* Filters */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                    <input
+                      type="text"
+                      placeholder="بحث في محتوى الرسائل..."
+                      value={feedSearch}
+                      onChange={(e) => setFeedSearch(e.target.value)}
+                      className="w-full bg-black/40 border border-white/5 rounded-xl py-2 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all"
+                    />
+                  </div>
+                  <div className="relative">
+                    <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                    <select
+                      value={feedChannelFilter}
+                      onChange={(e) => setFeedChannelFilter(e.target.value)}
+                      className="w-full bg-black/40 border border-white/5 rounded-xl py-2 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all appearance-none"
+                    >
+                      <option value="all">جميع القنوات</option>
+                      {Array.from(new Set(liveFeed.map(m => m.channel))).map(c => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="relative">
+                    <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                    <select
+                      value={feedStatusFilter}
+                      onChange={(e) => setFeedStatusFilter(e.target.value)}
+                      className="w-full bg-black/40 border border-white/5 rounded-xl py-2 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all appearance-none"
+                    >
+                      <option value="all">جميع الحالات</option>
+                      <option value="processed">تم الاستخراج</option>
+                      <option value="skipped">تم التخطي</option>
+                      <option value="error">خطأ</option>
+                    </select>
+                  </div>
+                </div>
+
                 <div className="bg-black/40 border border-white/5 rounded-2xl p-4">
-                  <h4 className="text-sm font-bold text-zinc-400 mb-4 flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                    سجل الرسائل الأخيرة (Live Feed)
+                  <h4 className="text-sm font-bold text-zinc-400 mb-4 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full ${isFeedPaused ? 'bg-amber-500' : 'bg-emerald-500 animate-pulse'}`}></div>
+                      سجل الرسائل الأخيرة ({liveFeed.length})
+                    </div>
+                    {isFeedPaused && <span className="text-[10px] text-amber-500 uppercase tracking-wider">التحديث التلقائي متوقف</span>}
                   </h4>
                   
-                  <div className="space-y-3">
-                    {liveFeed.length === 0 ? (
-                      <div className="text-center py-8 text-zinc-500 text-sm">
-                        لا توجد رسائل حديثة في الطابور
+                  <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+                    {liveFeed.filter(msg => {
+                      const matchesSearch = msg.text.toLowerCase().includes(feedSearch.toLowerCase());
+                      const matchesChannel = feedChannelFilter === "all" || msg.channel === feedChannelFilter;
+                      const matchesStatus = feedStatusFilter === "all" || msg.status === feedStatusFilter;
+                      return matchesSearch && matchesChannel && matchesStatus;
+                    }).length === 0 ? (
+                      <div className="text-center py-12 text-zinc-500 text-sm">
+                        <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-4">
+                          <Search className="w-6 h-6 opacity-20" />
+                        </div>
+                        لا توجد رسائل تطابق معايير البحث
                       </div>
                     ) : (
-                      liveFeed.map((msg, idx) => (
-                        <div key={idx} className="bg-white/5 rounded-xl p-4 border border-white/5">
-                          <div className="flex justify-between items-start mb-2">
-                            <span className="text-xs font-mono text-blue-400">{msg.channel}</span>
-                            <span className="text-xs text-zinc-500">{new Date(msg.timestamp).toLocaleTimeString('ar-SA')}</span>
+                      liveFeed.filter(msg => {
+                        const matchesSearch = msg.text.toLowerCase().includes(feedSearch.toLowerCase());
+                        const matchesChannel = feedChannelFilter === "all" || msg.channel === feedChannelFilter;
+                        const matchesStatus = feedStatusFilter === "all" || msg.status === feedStatusFilter;
+                        return matchesSearch && matchesChannel && matchesStatus;
+                      }).map((msg, idx) => (
+                        <div key={msg.id || idx} className="bg-white/[0.03] rounded-xl p-4 border border-white/5 hover:bg-white/[0.05] transition-all group">
+                          <div className="flex justify-between items-start mb-3">
+                            <div className="flex items-center gap-3">
+                              <span className="px-2 py-0.5 rounded-md bg-blue-500/10 text-[10px] font-bold text-blue-400 border border-blue-500/20">
+                                {msg.channel}
+                              </span>
+                              <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-bold border ${
+                                msg.status === 'processed' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                                msg.status === 'error' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
+                                'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'
+                              }`}>
+                                {msg.status === 'processed' ? <CheckCircle2 className="w-3 h-3" /> : 
+                                 msg.status === 'error' ? <XCircle className="w-3 h-3" /> : 
+                                 <AlertCircle className="w-3 h-3" />}
+                                {msg.status === 'processed' ? 'تم الاستخراج' : 
+                                 msg.status === 'error' ? 'خطأ' : 'تخطي'}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <span className="text-[10px] text-zinc-500 font-mono">
+                                {new Date(msg.time).toLocaleDateString('ar-SA')} {new Date(msg.time).toLocaleTimeString('ar-SA')}
+                              </span>
+                              <button 
+                                onClick={() => handleManualExtract(msg)}
+                                className="opacity-0 group-hover:opacity-100 transition-all p-1.5 rounded-lg bg-blue-500/10 text-blue-400 hover:bg-blue-500/20"
+                                title="استخراج يدوي"
+                              >
+                                <Zap className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </div>
-                          <p className="text-sm text-zinc-300 whitespace-pre-wrap break-words" dir="auto">
+                          
+                          <p className="text-sm text-zinc-300 whitespace-pre-wrap break-words mb-3 leading-relaxed" dir="auto">
                             {msg.text}
                           </p>
+
+                          {msg.extractedRates && msg.extractedRates.length > 0 && (
+                            <div className="flex flex-wrap gap-2 pt-3 border-t border-white/5">
+                              {msg.extractedRates.map((rate: any, rIdx: number) => (
+                                <div key={rIdx} className="flex items-center gap-2 bg-white/5 rounded-lg px-2 py-1 border border-white/5">
+                                  <span className="text-[10px] font-bold text-zinc-400">{rate.code}:</span>
+                                  <span className="text-[10px] font-mono text-emerald-400">{rate.value.toFixed(3)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          
+                          {msg.error && (
+                            <div className="mt-2 text-[10px] text-rose-400 bg-rose-500/5 p-2 rounded-lg border border-rose-500/10">
+                              {msg.error}
+                            </div>
+                          )}
                         </div>
                       ))
                     )}
