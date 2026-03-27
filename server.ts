@@ -2536,7 +2536,7 @@ async function startServer() {
       
       // Check for stale data (older than 30 minutes)
       const lastUpdatedTime = new Date(rates.lastUpdated).getTime();
-      const isStale = (Date.now() - lastUpdatedTime) > (30 * 60 * 1000);
+      const isStale = (Date.now() - lastUpdatedTime) > (12 * 60 * 60 * 1000);
       
       // Set cache control headers to force caching for 1 minute
       res.setHeader('Cache-Control', 'public, max-age=60');
@@ -2553,7 +2553,7 @@ async function startServer() {
       
       if (isStale) {
         // Add a warning message if data is stale
-        (publicData as any).warning = "البيانات قديمة جداً ولم يتم تحديثها منذ أكثر من 30 دقيقة.";
+        (publicData as any).warning = "البيانات قديمة جداً ولم يتم تحديثها منذ أكثر من 12 ساعة.";
       }
       
       logRequest(200);
