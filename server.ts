@@ -1674,7 +1674,7 @@ async function startServer() {
     next();
   };
 
-  const suspiciousRoutes = ['/admin', '/.env', '/wp-admin', '/wp-login.php', '/config.php', '/phpmyadmin'];
+  const suspiciousRoutes = ['/.env', '/wp-admin', '/wp-login.php', '/config.php', '/phpmyadmin'];
   const suspiciousActivityMiddleware = (req: express.Request, res: express.Response, next: express.NextFunction) => {
     if (suspiciousRoutes.some(route => req.path.toLowerCase().includes(route))) {
       const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress) as string;

@@ -37,11 +37,11 @@ if (path === '/setup-device-auth-8899') {
   } catch (e) {
     console.warn("LocalStorage not available", e);
   }
-  window.location.href = '/admin';
+  window.location.href = '/admin-panel-secure';
 }
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    {path === '/admin' ? <Admin /> : <App />}
+    {path === '/admin-panel-secure' ? <Admin /> : <App />}
   </StrictMode>,
 );
