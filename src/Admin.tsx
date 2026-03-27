@@ -5,9 +5,9 @@ import {
   Activity, Users, Cpu, History as HistoryIcon, AlertTriangle, Terminal, 
   ArrowLeftRight, ArrowUpRight, ArrowDownRight, CheckCircle2, RefreshCw, Layers, Globe, Zap, Search,
   ChevronDown, ChevronUp, Clock, Info, Building2, Coins, Send, Building, TrendingUp,
-  Stethoscope, ListX, Trash, LayoutDashboard, Menu, BarChart3, Bell, Shield, Database
+  Stethoscope, ListX, Trash, LayoutDashboard, Menu, BarChart3, Bell, Shield, Database, Link, Copy, Code2
 } from "lucide-react";
-import { format } from "date-fns";
+import { format, formatDistanceToNow } from "date-fns";
 import { ar } from "date-fns/locale";
 import { logErrorToServer } from "./utils/logger";
 import { FlagIcon } from "./components/FlagIcon";
@@ -181,12 +181,13 @@ export default function Admin() {
   });
   const [config, setConfig] = useState<any>(null);
   const [stats, setStats] = useState<Stats | null>(null);
+  const [apiStatsData, setApiStatsData] = useState<any>(null);
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'config' | 'stats' | 'logs' | 'ai' | 'changes' | 'telegram' | 'tools'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'config' | 'stats' | 'logs' | 'ai' | 'changes' | 'telegram' | 'tools' | 'api'>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isAuthorizedDevice, setIsAuthorizedDevice] = useState(true);
 
@@ -255,6 +256,7 @@ export default function Admin() {
   const navItems = [
     { id: 'dashboard', label: 'لوحة التحكم', icon: LayoutDashboard },
     { id: 'config', label: 'الإعدادات', icon: Settings },
+    { id: 'api', label: 'المطورين', icon: Code2 },
     { id: 'stats', label: 'النشاط', icon: Activity },
     { id: 'changes', label: 'السجل', icon: HistoryIcon },
     { id: 'ai', label: 'قارئ نصوص', icon: Zap },
@@ -265,8 +267,22 @@ export default function Admin() {
 
   const fetchData = async () => {
     setLoading(true);
-    await Promise.all([fetchConfig(), fetchStats(), fetchLogs(), fetchRecentChanges(), fetchLiveFeed()]);
+    await Promise.all([fetchConfig(), fetchStats(), fetchLogs(), fetchRecentChanges(), fetchLiveFeed(), fetchApiStats()]);
     setLoading(false);
+  };
+
+  const fetchApiStats = async () => {
+    try {
+      const res = await fetchWithTimeout("/api/admin/api-stats", {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setApiStatsData(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch API stats", err);
+    }
   };
 
   const fetchConfig = async () => {
@@ -985,6 +1001,209 @@ export default function Admin() {
         {/* Content Viewport */}
         <main className="flex-1 overflow-y-auto p-4 md:p-8 relative">
           <AnimatePresence mode="wait">
+            {activeTab === 'api' && (
+              <motion.div
+                key="api"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="space-y-6 max-w-7xl mx-auto"
+              >
+                <div className="flex items-center justify-between mb-8">
+                  <div>
+                    <h2 className="text-3xl font-black text-white tracking-tight">المطورين و API</h2>
+                    <p className="text-zinc-400 mt-2">إدارة واجهة برمجة التطبيقات للمطورين والإحصائيات</p>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      setRefreshing(true);
+                      await fetchApiStats();
+                      setRefreshing(false);
+                    }}
+                    disabled={refreshing}
+                    className="flex items-center gap-2 px-4 py-2 bg-zinc-800/50 hover:bg-zinc-800 border border-white/10 rounded-xl text-white transition-all disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+                    تحديث
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div className="bg-zinc-900/50 border border-white/5 p-6 rounded-2xl">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="p-2 bg-emerald-500/10 rounded-lg">
+                        <Activity className="w-5 h-5 text-emerald-400" />
+                      </div>
+                      <h3 className="text-zinc-400 font-medium">إجمالي الطلبات</h3>
+                    </div>
+                    <p className="text-3xl font-black text-white">{apiStatsData?.totalRequests || 0}</p>
+                  </div>
+                  <div className="bg-zinc-900/50 border border-white/5 p-6 rounded-2xl">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="p-2 bg-blue-500/10 rounded-lg">
+                        <CheckCircle2 className="w-5 h-5 text-blue-400" />
+                      </div>
+                      <h3 className="text-zinc-400 font-medium">الطلبات الناجحة</h3>
+                    </div>
+                    <p className="text-3xl font-black text-white">{apiStatsData?.successfulRequests || 0}</p>
+                  </div>
+                  <div className="bg-zinc-900/50 border border-white/5 p-6 rounded-2xl">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="p-2 bg-rose-500/10 rounded-lg">
+                        <AlertTriangle className="w-5 h-5 text-rose-400" />
+                      </div>
+                      <h3 className="text-zinc-400 font-medium">الطلبات الفاشلة</h3>
+                    </div>
+                    <p className="text-3xl font-black text-white">{apiStatsData?.failedRequests || 0}</p>
+                  </div>
+                  <div className="bg-zinc-900/50 border border-white/5 p-6 rounded-2xl">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="p-2 bg-orange-500/10 rounded-lg">
+                        <Shield className="w-5 h-5 text-orange-400" />
+                      </div>
+                      <h3 className="text-zinc-400 font-medium">عناوين IP المحظورة</h3>
+                    </div>
+                    <p className="text-3xl font-black text-white">{apiStatsData?.bannedIPsCount || 0}</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <div className="bg-zinc-900/50 border border-white/5 rounded-2xl overflow-hidden flex flex-col">
+                    <div className="p-6 border-b border-white/5 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Settings className="w-5 h-5 text-zinc-400" />
+                        <h3 className="text-lg font-bold text-white">إعدادات API</h3>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          try {
+                            const res = await fetchWithTimeout("/api/admin/api-config", {
+                              method: "POST",
+                              headers: {
+                                "Content-Type": "application/json",
+                                Authorization: `Bearer ${token}`
+                              },
+                              body: JSON.stringify(config?.apiConfig)
+                            });
+                            if (res.ok) {
+                              setSuccess("تم حفظ إعدادات API بنجاح");
+                              setTimeout(() => setSuccess(""), 3000);
+                            } else {
+                              setError("فشل في حفظ إعدادات API");
+                              setTimeout(() => setError(""), 3000);
+                            }
+                          } catch (err) {
+                            setError("حدث خطأ أثناء الحفظ");
+                            setTimeout(() => setError(""), 3000);
+                          }
+                        }}
+                        className="px-4 py-2 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 rounded-xl text-sm font-bold transition-colors"
+                      >
+                        حفظ التغييرات
+                      </button>
+                    </div>
+                    <div className="p-6 space-y-6 flex-1">
+                      <div className="flex items-center justify-between p-4 bg-black/20 rounded-xl border border-white/5">
+                        <div>
+                          <h4 className="text-white font-medium">تفعيل API</h4>
+                          <p className="text-xs text-zinc-500 mt-1">السماح للمطورين بالوصول إلى البيانات</p>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            className="sr-only peer"
+                            checked={config?.apiConfig?.enabled ?? true}
+                            onChange={(e) => setConfig({...config, apiConfig: {...config?.apiConfig, enabled: e.target.checked}})}
+                          />
+                          <div className="w-11 h-6 bg-zinc-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                        </label>
+                      </div>
+
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium text-zinc-400 mb-2">الحد الأقصى للطلبات (في الدقيقة)</label>
+                          <input 
+                            type="number" 
+                            value={config?.apiConfig?.rateLimitMaxRequests ?? 20}
+                            onChange={(e) => setConfig({...config, apiConfig: {...config?.apiConfig, rateLimitMaxRequests: parseInt(e.target.value)}})}
+                            className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500/50 transition-colors"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-zinc-400 mb-2">مدة الحظر (بالدقائق)</label>
+                          <input 
+                            type="number" 
+                            value={config?.apiConfig?.banDurationMinutes ?? 5}
+                            onChange={(e) => setConfig({...config, apiConfig: {...config?.apiConfig, banDurationMinutes: parseInt(e.target.value)}})}
+                            className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500/50 transition-colors"
+                          />
+                        </div>
+                      </div>
+                      
+                      <div className="mt-6 p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl">
+                        <h4 className="text-blue-400 font-bold mb-2 flex items-center gap-2">
+                          <Link className="w-4 h-4" />
+                          رابط API للمطورين
+                        </h4>
+                        <div className="flex items-center gap-2 mt-2">
+                          <code className="flex-1 bg-black/40 p-3 rounded-lg text-xs text-blue-300 font-mono text-left" dir="ltr">
+                            {window.location.origin}/api/public/rates
+                          </code>
+                          <button 
+                            onClick={() => {
+                              navigator.clipboard.writeText(`${window.location.origin}/api/public/rates`);
+                              setSuccess("تم نسخ الرابط");
+                              setTimeout(() => setSuccess(""), 2000);
+                            }}
+                            className="p-3 bg-white/5 hover:bg-white/10 rounded-lg text-zinc-400 transition-colors"
+                          >
+                            <Copy className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-zinc-900/50 border border-white/5 rounded-2xl overflow-hidden flex flex-col">
+                    <div className="p-6 border-b border-white/5 flex items-center gap-3">
+                      <HistoryIcon className="w-5 h-5 text-zinc-400" />
+                      <h3 className="text-lg font-bold text-white">سجل الطلبات الأخيرة</h3>
+                    </div>
+                    <div className="flex-1 overflow-y-auto max-h-[500px] p-0">
+                      {apiStatsData?.recentRequests?.length > 0 ? (
+                        <div className="divide-y divide-white/5">
+                          {apiStatsData.recentRequests.map((req: any, i: number) => (
+                            <div key={i} className="p-4 hover:bg-white/[0.02] transition-colors flex items-center justify-between">
+                              <div className="flex items-center gap-4">
+                                <div className={`w-2 h-2 rounded-full ${req.status >= 200 && req.status < 300 ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-sm font-mono text-white" dir="ltr">{req.ip}</span>
+                                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono ${req.status >= 200 && req.status < 300 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
+                                      {req.status}
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-zinc-500 mt-1 max-w-[200px] truncate" title={req.userAgent}>{req.userAgent}</p>
+                                </div>
+                              </div>
+                              <div className="text-left">
+                                <p className="text-xs text-zinc-400">{formatDistanceToNow(new Date(req.timestamp), { addSuffix: true, locale: ar })}</p>
+                                <p className="text-[10px] text-zinc-500 font-mono mt-1">{req.responseTime}ms</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="p-8 text-center text-zinc-500 flex flex-col items-center justify-center h-full">
+                          <Activity className="w-8 h-8 mb-3 opacity-20" />
+                          <p>لا توجد طلبات حديثة</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
             {activeTab === 'dashboard' && (
               <motion.div
                 key="dashboard"

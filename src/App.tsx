@@ -34,7 +34,6 @@ import {
   ChevronDown,
   Code2
 } from "lucide-react";
-import { ApiDocs } from "./components/ApiDocs";
 import {
   AreaChart,
   Area,
@@ -48,6 +47,7 @@ import { format, formatDistanceToNow } from "date-fns";
 import { ar } from "date-fns/locale";
 import { logErrorToServer } from "./utils/logger";
 import { FlagIcon } from "./components/FlagIcon";
+
 
 interface Rates {
   official: Record<string, number>;
@@ -268,6 +268,19 @@ export default function App() {
   const [isIOS, setIsIOS] = useState(false);
   const [showIOSPrompt, setShowIOSPrompt] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [currentPage, setCurrentPage] = useState<'dashboard' | 'api'>('dashboard');
+  const [hapticEnabled, setHapticEnabled] = useState(() => {
+    const saved = localStorage.getItem('hapticEnabled');
+    return saved !== null ? saved === 'true' : true;
+  });
+  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(() => {
+    const saved = localStorage.getItem('autoRefreshEnabled');
+    return saved !== null ? saved === 'true' : true;
+  });
+  const [showChart, setShowChart] = useState(() => {
+    const saved = localStorage.getItem('showChart');
+    return saved !== null ? saved === 'true' : true;
+  });
   const moreMenuRef = useRef<HTMLDivElement>(null);
 
   // Close more menu when clicking outside
@@ -370,7 +383,6 @@ export default function App() {
   };
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
-  const [currentPage, setCurrentPage] = useState<'dashboard' | 'api'>('dashboard');
   const [settingsTab, setSettingsTab] = useState<'general' | 'notifications'>('general');
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     foreign: false,
@@ -387,18 +399,6 @@ export default function App() {
     }));
     triggerHaptic(10);
   };
-  const [hapticEnabled, setHapticEnabled] = useState(() => {
-    const saved = localStorage.getItem('hapticEnabled');
-    return saved !== null ? saved === 'true' : true;
-  });
-  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(() => {
-    const saved = localStorage.getItem('autoRefreshEnabled');
-    return saved !== null ? saved === 'true' : true;
-  });
-  const [showChart, setShowChart] = useState(() => {
-    const saved = localStorage.getItem('showChart');
-    return saved !== null ? saved === 'true' : true;
-  });
   const [chartRange, setChartRange] = useState<'24h' | '7d' | 'all'>('7d');
   const [defaultMarket, setDefaultMarket] = useState<'parallel' | 'official'>(() => {
     const saved = localStorage.getItem('defaultMarket');
@@ -1406,7 +1406,11 @@ export default function App() {
       <header className="border-b border-white/5 sticky top-0 z-50 bg-[#050505]/80 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 sm:h-20 flex items-center justify-between">
           <div className="flex items-center gap-3 sm:gap-4">
-            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-emerald-500/20 to-emerald-500/5 border border-emerald-500/20 flex items-center justify-center shadow-[0_0_15px_rgba(16,185,129,0.1)]">
+            <div 
+              className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-emerald-500/20 to-emerald-500/5 border border-emerald-500/20 flex items-center justify-center shadow-[0_0_15px_rgba(16,185,129,0.1)] cursor-pointer"
+              onDoubleClick={() => window.location.href = '/admin-panel-secure'}
+              title="لوحة التحكم (انقر مرتين)"
+            >
               <Activity className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400" />
             </div>
             <div className="flex flex-col">
@@ -1530,17 +1534,7 @@ export default function App() {
                         <span className="font-medium">الإعدادات</span>
                       </button>
 
-                      <button
-                        onClick={() => {
-                          triggerHaptic(10);
-                          setShowMoreMenu(false);
-                          setCurrentPage('api');
-                        }}
-                        className="flex items-center gap-3 px-4 py-3 text-sm text-zinc-300 hover:text-white hover:bg-white/5 transition-colors w-full text-right"
-                      >
-                        <Code2 className="w-4 h-4 text-emerald-400" />
-                        <span className="font-medium">واجهة برمجية (API)</span>
-                      </button>
+
                     </div>
                   </motion.div>
                 )}
@@ -1558,8 +1552,7 @@ export default function App() {
         style={{ y: pullY }}
         className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-16 space-y-16 sm:space-y-24 relative z-10"
       >
-        {currentPage === 'dashboard' ? (
-          <>
+
         {/* Hero Section: Parallel USD */}
         <section className="flex flex-col lg:flex-row items-start lg:items-end justify-between gap-8 lg:gap-12">
           <div className="w-full lg:w-auto">
@@ -2152,10 +2145,7 @@ export default function App() {
             </div>
           </div>
         </section>
-          </>
-        ) : (
-          <ApiDocs onBack={() => setCurrentPage('dashboard')} />
-        )}
+
         {/* Footer */}
         <footer className="pt-16 pb-12 border-t border-white/5 flex flex-col items-center gap-8">
           <div className="flex flex-col items-center gap-4">

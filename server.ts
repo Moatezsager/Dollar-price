@@ -70,6 +70,12 @@ interface AppConfig {
   telegramApiHash?: string;
   telegramSessionString?: string;
   enableHttpScraper?: boolean;
+  apiConfig?: {
+    enabled: boolean;
+    rateLimitWindowMs: number;
+    rateLimitMaxRequests: number;
+    banDurationMinutes: number;
+  };
 }
 
 // Arabic Logging Utility
@@ -886,6 +892,12 @@ async function fetchOfficialRates(): Promise<boolean> {
 let appConfig: AppConfig = {
   channels: ["dollarr_ly", "musheermarket", "lydollar", "djheih2026", "suqalmushir"],
   enableHttpScraper: true,
+  apiConfig: {
+    enabled: true,
+    rateLimitWindowMs: 60000,
+    rateLimitMaxRequests: 20,
+    banDurationMinutes: 5,
+  },
   terms: [
     { id: "USD", name: "دولار أمريكي", regex: "(?:USD|usd|الدولار|دولار|الخضراء|خضراء|كاش|💵|🇺🇸)(?!\\s*صكوك|\\s*بصك|\\s*شيك)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
     { id: "EUR", name: "يورو", regex: "(?:EUR|eur|يورو|اليورو|💶|🇪🇺)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "eu" },
@@ -1809,6 +1821,30 @@ async function startServer() {
     });
   });
 
+  app.get("/api/admin/api-stats", requireAdmin, (req: express.Request, res: express.Response) => {
+    res.json(apiStats);
+  });
+
+  app.post("/api/admin/api-config", requireAdmin, async (req: express.Request, res: express.Response) => {
+    try {
+      const newConfig = req.body;
+      appConfig.apiConfig = {
+        ...appConfig.apiConfig,
+        ...newConfig,
+      };
+      
+      // Update the rate limiter dynamically
+      publicApiLimiter.windowMs = appConfig.apiConfig?.rateLimitWindowMs || 60000;
+      publicApiLimiter.max = appConfig.apiConfig?.rateLimitMaxRequests || 20;
+
+      await saveConfigToSupabase(appConfig);
+      res.json({ success: true, config: appConfig.apiConfig });
+    } catch (err) {
+      console.error("Error updating API config:", err);
+      res.status(500).json({ success: false, error: "Failed to update API config" });
+    }
+  });
+
   app.get("/api/admin/diagnostics", requireAdmin, async (req: express.Request, res: express.Response) => {
     try {
       const dbStatus = await supabase?.from('logs').select('id').limit(1).then(() => true).catch(() => false) || false;
@@ -2296,35 +2332,84 @@ async function startServer() {
     }
   });
 
+  interface ApiStat {
+    timestamp: string;
+    ip: string;
+    userAgent: string;
+    status: number;
+    responseTime: number;
+  }
+
+  let apiStats = {
+    totalRequests: 0,
+    successfulRequests: 0,
+    failedRequests: 0,
+    bannedIPsCount: 0,
+    recentRequests: [] as ApiStat[]
+  };
+
   const publicApiLimiter = rateLimit({
-    windowMs: 1 * 60 * 1000, // 1 minute
-    max: 20, // Limit each IP to 20 requests per minute
+    windowMs: appConfig.apiConfig?.rateLimitWindowMs || 60000,
+    max: appConfig.apiConfig?.rateLimitMaxRequests || 20,
     handler: (req, res, next, options) => {
       const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress) as string;
       if (ip) {
-        // Ban for 5 minutes
-        bannedIPs.set(ip, Date.now() + 5 * 60 * 1000);
-        console.warn(`[Security] Banned IP ${ip} for 5 minutes due to rate limit exceeded.`);
+        const banDuration = appConfig.apiConfig?.banDurationMinutes || 5;
+        bannedIPs.set(ip, Date.now() + banDuration * 60 * 1000);
+        console.warn(`[Security] Banned IP ${ip} for ${banDuration} minutes due to rate limit exceeded.`);
+        apiStats.bannedIPsCount++;
       }
-      res.status(options.statusCode).json({ success: false, error: "Too many requests. Your IP is temporarily banned for 5 minutes." });
+      apiStats.failedRequests++;
+      res.status(options.statusCode).json({ success: false, error: `Too many requests. Your IP is temporarily banned.` });
     },
     standardHeaders: true,
     legacyHeaders: false,
   });
 
   app.all("/api/public/rates", publicApiLimiter, async (req: express.Request, res: express.Response) => {
+    const startTime = Date.now();
+    const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress) as string || 'Unknown';
+    const userAgent = req.headers['user-agent'] || 'Unknown';
+    apiStats.totalRequests++;
+
+    const logRequest = (status: number) => {
+      if (status >= 200 && status < 300) {
+        apiStats.successfulRequests++;
+      } else {
+        apiStats.failedRequests++;
+      }
+      apiStats.recentRequests.unshift({
+        timestamp: new Date().toISOString(),
+        ip,
+        userAgent,
+        status,
+        responseTime: Date.now() - startTime
+      });
+      if (apiStats.recentRequests.length > 100) {
+        apiStats.recentRequests.pop();
+      }
+    };
+
+    if (appConfig.apiConfig?.enabled === false) {
+      logRequest(503);
+      res.status(503).json({ success: false, error: "API is currently disabled by administrator." });
+      return;
+    }
+
     // CORS Policy: Allow all origins, but only GET method
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET');
     
     // Handle preflight OPTIONS request
     if (req.method === 'OPTIONS') {
+      logRequest(204);
       res.status(204).end();
       return;
     }
 
     // Restrict to GET method
     if (req.method !== 'GET') {
+      logRequest(405);
       res.status(405).json({ success: false, error: "Method Not Allowed. Only GET is supported." });
       return;
     }
@@ -2354,9 +2439,11 @@ async function startServer() {
         (publicData as any).warning = "البيانات قديمة جداً ولم يتم تحديثها منذ أكثر من 30 دقيقة.";
       }
       
+      logRequest(200);
       res.json(publicData);
     } catch (err) {
       console.error("Error in /api/public/rates:", err);
+      logRequest(500);
       res.status(500).json({ success: false, error: "Internal Server Error" });
     }
   });
