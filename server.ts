@@ -1414,7 +1414,9 @@ async function fetchParallelRatesFromTelegram(): Promise<boolean | null> {
           if (currentVal !== undefined && currentVal > 0) {
             const deviation = Math.abs(newValFromTelegram - currentVal) / currentVal;
             if (deviation > 0.25) {
-              console.warn(`[Scraper] Rejected price update for ${term.id} due to >25% deviation (${currentVal} -> ${newValFromTelegram})`);
+              const msg = `تم رفض تحديث سعر ${term.name} (${term.id}) بسبب قفزة غير منطقية من ${currentVal} إلى ${newValFromTelegram} (تغيير بنسبة ${(deviation*100).toFixed(1)}%)`;
+              console.warn(`[Scraper] ${msg}`);
+              await logErrorArabic(msg, "حماية البيانات");
               continue; // Skip this update
             }
           }
@@ -1655,11 +1657,72 @@ async function startServer() {
   app.use(express.json());
   app.set('trust proxy', 1);
 
+  // Security Middlewares
+  const bannedIPs = new Map<string, number>();
+
+  const ipBanMiddleware = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress) as string;
+    if (ip && bannedIPs.has(ip)) {
+      const banExpiry = bannedIPs.get(ip)!;
+      if (Date.now() < banExpiry) {
+        res.status(403).json({ success: false, error: "Your IP is temporarily banned due to excessive requests or suspicious activity." });
+        return;
+      } else {
+        bannedIPs.delete(ip);
+      }
+    }
+    next();
+  };
+
+  const suspiciousRoutes = ['/admin', '/.env', '/wp-admin', '/wp-login.php', '/config.php', '/phpmyadmin'];
+  const suspiciousActivityMiddleware = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    if (suspiciousRoutes.some(route => req.path.toLowerCase().includes(route))) {
+      const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress) as string;
+      if (ip) {
+        // Ban permanently (or for a very long time, e.g., 30 days)
+        bannedIPs.set(ip, Date.now() + 30 * 24 * 60 * 60 * 1000);
+        console.warn(`[Security] Banned IP ${ip} for accessing suspicious route: ${req.path}`);
+      }
+      res.status(403).json({ success: false, error: "Suspicious activity detected. IP banned." });
+      return;
+    }
+    next();
+  };
+
+  const userAgentMiddleware = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    // Only apply to API routes
+    if (req.path.startsWith('/api/')) {
+      const ua = req.headers['user-agent'];
+      if (!ua || ua.trim() === '' || ua.length < 5) {
+        res.status(403).json({ success: false, error: "Valid User-Agent header is required." });
+        return;
+      }
+    }
+    next();
+  };
+
+  const timeoutMiddleware = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    // Set timeout to 5 seconds for API routes
+    if (req.path.startsWith('/api/')) {
+      res.setTimeout(5000, () => {
+        if (!res.headersSent) {
+          res.status(408).json({ success: false, error: "Request Timeout (5s limit exceeded)" });
+        }
+      });
+    }
+    next();
+  };
+
+  app.use(ipBanMiddleware);
+  app.use(suspiciousActivityMiddleware);
+  app.use(userAgentMiddleware);
+  app.use(timeoutMiddleware);
+
   // Security Headers
   app.use(helmet({
     crossOriginEmbedderPolicy: false,
     crossOriginResourcePolicy: false,
-    frameguard: false,
+    // frameguard is enabled by default (SAMEORIGIN), which prevents other sites from embedding this site in an iframe
     contentSecurityPolicy: {
       directives: {
         ...helmet.contentSecurityPolicy.getDefaultDirectives(),
@@ -1668,7 +1731,7 @@ async function startServer() {
         "script-src": ["'self'", "'unsafe-inline'", "'unsafe-eval'", "blob:", "https://*.google.com", "https://*.gstatic.com"],
         "font-src": ["'self'", "https://fonts.gstatic.com", "data:", "https://*.googleapis.com"],
         "style-src": ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://*.gstatic.com"],
-        "frame-ancestors": ["*"],
+        "frame-ancestors": ["'self'", "https://*.google.com", "https://*.corp.google.com"],
         "worker-src": ["'self'", "blob:"],
         "upgrade-insecure-requests": null,
       },
@@ -2236,26 +2299,61 @@ async function startServer() {
   const publicApiLimiter = rateLimit({
     windowMs: 1 * 60 * 1000, // 1 minute
     max: 20, // Limit each IP to 20 requests per minute
-    message: { success: false, error: "Too many requests, please try again later. Max 20 requests per minute." },
+    handler: (req, res, next, options) => {
+      const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress) as string;
+      if (ip) {
+        // Ban for 5 minutes
+        bannedIPs.set(ip, Date.now() + 5 * 60 * 1000);
+        console.warn(`[Security] Banned IP ${ip} for 5 minutes due to rate limit exceeded.`);
+      }
+      res.status(options.statusCode).json({ success: false, error: "Too many requests. Your IP is temporarily banned for 5 minutes." });
+    },
     standardHeaders: true,
     legacyHeaders: false,
   });
 
-  app.get("/api/public/rates", publicApiLimiter, async (req: express.Request, res: express.Response) => {
+  app.all("/api/public/rates", publicApiLimiter, async (req: express.Request, res: express.Response) => {
+    // CORS Policy: Allow all origins, but only GET method
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET');
+    
+    // Handle preflight OPTIONS request
+    if (req.method === 'OPTIONS') {
+      res.status(204).end();
+      return;
+    }
+
+    // Restrict to GET method
+    if (req.method !== 'GET') {
+      res.status(405).json({ success: false, error: "Method Not Allowed. Only GET is supported." });
+      return;
+    }
+
     try {
       await initializeRatesFromDB(false);
+      
+      // Check for stale data (older than 30 minutes)
+      const lastUpdatedTime = new Date(rates.lastUpdated).getTime();
+      const isStale = (Date.now() - lastUpdatedTime) > (30 * 60 * 1000);
       
       // Set cache control headers to force caching for 1 minute
       res.setHeader('Cache-Control', 'public, max-age=60');
       
       const publicData = {
-        success: true,
+        success: !isStale,
+        stale: isStale,
         data: {
           USD: rates.parallel.USD,
           EUR: rates.parallel.EUR,
         },
         lastUpdated: rates.lastUpdated
       };
+      
+      if (isStale) {
+        // Add a warning message if data is stale
+        (publicData as any).warning = "البيانات قديمة جداً ولم يتم تحديثها منذ أكثر من 30 دقيقة.";
+      }
+      
       res.json(publicData);
     } catch (err) {
       console.error("Error in /api/public/rates:", err);
