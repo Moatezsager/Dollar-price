@@ -3,6 +3,7 @@ import { motion, AnimatePresence, useMotionValue, useTransform, animate } from "
 import Joyride, { Step, CallBackProps, STATUS, TooltipRenderProps } from 'react-joyride';
 import {
   ArrowLeftRight,
+  ArrowUpDown,
   ArrowDownRight,
   ArrowUpRight,
   ArrowRight,
@@ -30,8 +31,10 @@ import {
   Disc,
   ArrowUp,
   MoreVertical,
-  ChevronDown
+  ChevronDown,
+  Code2
 } from "lucide-react";
+import { ApiDocs } from "./components/ApiDocs";
 import {
   AreaChart,
   Area,
@@ -367,6 +370,7 @@ export default function App() {
   };
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [currentPage, setCurrentPage] = useState<'dashboard' | 'api'>('dashboard');
   const [settingsTab, setSettingsTab] = useState<'general' | 'notifications'>('general');
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     foreign: false,
@@ -447,62 +451,56 @@ export default function App() {
     {
       target: 'body',
       title: 'مرحباً بك في منصة المؤشر!',
-      content: 'أهلاً بك في منصة المؤشر لأسعار الصرف. دعنا نأخذك في جولة سريعة ومبسطة للتعرف على أهم الميزات التي ستساعدك في متابعة السوق. يرجى العلم أنه قد تختلف الأسعار بفارق بسيط بين المدن.',
+      content: 'أهلاً بك في منصة المؤشر لأسعار الصرف. دليلك الشامل لمتابعة أسعار العملات في ليبيا لحظة بلحظة. دعنا نأخذك في جولة سريعة للتعرف على أهم الميزات.',
       placement: 'center',
       disableBeacon: true,
     },
     {
       target: '#main-rates-grid',
       title: 'أسعار السوق الموازي',
-      content: 'هنا يمكنك متابعة أحدث أسعار العملات الأجنبية في السوق الموازي لحظة بلحظة، مع مؤشرات التغير (ارتفاع أو انخفاض).',
+      content: 'هنا يمكنك متابعة أحدث أسعار العملات الأجنبية في السوق الموازي، مع مؤشرات توضح اتجاه السعر (ارتفاع أو انخفاض) مقارنة بآخر تحديث.',
       placement: 'bottom',
     },
     {
       target: '#checks-grid',
       title: 'أسعار الصكوك',
-      content: 'في هذا القسم، يمكنك متابعة أسعار الدولار مقابل صكوك المصارف التجارية المختلفة.',
+      content: 'في هذا القسم، نعرض لك أسعار الدولار مقابل صكوك المصارف التجارية المختلفة (مثل التجارة والتنمية، الوحدة، الجمهورية).',
       placement: 'bottom',
     },
     {
       target: '#transfers-grid',
-      title: 'حوالات العملة',
-      content: 'هنا تجد أسعار حوالات العملة إلى خارج ليبيا (مثل تركيا، دبي، والصين) لتسهيل معاملاتك التجارية.',
+      title: 'حوالات العملة (خارج ليبيا)',
+      content: 'هنا تجد أسعار حوالات العملة إلى أهم الوجهات التجارية (مثل تركيا، دبي، والصين) لتسهيل متابعة تكاليف الاستيراد.',
       placement: 'bottom',
     },
     {
       target: '#official-rates-grid',
       title: 'أسعار السوق الرسمي',
-      content: 'يعرض هذا القسم أسعار الصرف الرسمية المعتمدة من مصرف ليبيا المركزي للعملات الرئيسية.',
+      content: 'يعرض هذا القسم أسعار الصرف الرسمية المعتمدة من مصرف ليبيا المركزي للعملات الرئيسية، ويتم تحديثها تلقائياً.',
       placement: 'top',
     },
     {
       target: '#historical-chart',
       title: 'الرسم البياني للتغيرات',
-      content: 'يعرض هذا الرسم البياني المصغر مسار تغير سعر الدولار في السوق الموازي خلال الفترة الماضية ليعطيك نظرة عامة سريعة.',
+      content: 'رسم بياني تفاعلي يعرض مسار تغير سعر الدولار في السوق الموازي خلال الفترة الماضية ليعطيك نظرة عامة سريعة على اتجاه السوق.',
       placement: 'bottom',
     },
     {
       target: '#currency-converter-section',
       title: 'محول العملات الذكي',
-      content: 'أداة قوية وسريعة لحساب القيم بين الدينار الليبي والعملات الأخرى بناءً على أحدث الأسعار.',
+      content: 'أداة قوية لحساب القيم بين الدينار الليبي والعملات الأخرى. تعرض لك النتيجة في السوق الموازي والسعر الرسمي في نفس الوقت للمقارنة.',
       placement: 'top',
     },
     {
-      target: '#market-toggle',
-      title: 'تحديد نوع السوق',
-      content: 'يمكنك التبديل بين أسعار السوق الموازي والأسعار الرسمية لحسابات أكثر دقة حسب احتياجك.',
-      placement: 'bottom',
-    },
-    {
       target: '#converter-input',
-      title: 'إدخال المبلغ',
-      content: 'أدخل المبلغ هنا، واختر العملة، وسيقوم المحول بحساب القيمة فوراً وبشكل تلقائي.',
+      title: 'إدخال المبلغ والتبديل',
+      content: 'أدخل المبلغ هنا، واختر العملة. يمكنك استخدام زر التبديل (الأسهم) لعكس عملية التحويل بين العملة الأجنبية والدينار الليبي بسهولة.',
       placement: 'top',
     },
     {
       target: '#more-menu-btn',
       title: 'خيارات إضافية',
-      content: 'من هنا يمكنك مشاركة التطبيق، تحميل تقرير PDF احترافي للأسعار، أو تخصيص إعدادات التنبيهات الذكية.',
+      content: 'من هنا يمكنك مشاركة التطبيق مع الآخرين، تحميل تقرير PDF احترافي للأسعار الحالية، أو تخصيص إعدادات التنبيهات الذكية.',
       placement: 'bottom',
     }
   ]);
@@ -1175,18 +1173,28 @@ export default function App() {
   // منطق محول العملات
   const [converterAmount, setConverterAmount] = useState<number>(100);
   const [converterFrom, setConverterFrom] = useState<string>("USD");
-  const [converterMarket, setConverterMarket] = useState<'parallel' | 'official'>("parallel");
   const [converterMode, setConverterMode] = useState<'toLYD' | 'fromLYD'>("toLYD");
 
-  const converterResult = useMemo(() => {
+  const resultParallel = useMemo(() => {
     if (!rates) return 0;
-    const rate = (converterMarket === 'parallel' ? rates.parallel[converterFrom] : rates.official[converterFrom]) || 0;
+    const rate = rates.parallel[converterFrom] || 0;
     if (rate === 0) return 0;
-    
-    return converterMode === 'toLYD' 
-      ? converterAmount * rate 
-      : converterAmount / rate;
-  }, [converterAmount, converterFrom, converterMarket, converterMode, rates]);
+    return converterMode === 'toLYD' ? converterAmount * rate : converterAmount / rate;
+  }, [converterAmount, converterFrom, converterMode, rates]);
+
+  const resultOfficial = useMemo(() => {
+    if (!rates) return 0;
+    const rate = rates.official[converterFrom] || 0;
+    if (rate === 0) return 0;
+    return converterMode === 'toLYD' ? converterAmount * rate : converterAmount / rate;
+  }, [converterAmount, converterFrom, converterMode, rates]);
+
+  const handleSwap = () => {
+    // استخدم النتيجة الحالية في السوق الموازي كقيمة جديدة عند التبديل
+    const newAmount = resultParallel;
+    setConverterAmount(Number(newAmount.toFixed(2)));
+    setConverterMode(prev => prev === 'toLYD' ? 'fromLYD' : 'toLYD');
+  };
 
   const usdRate = rates?.parallel["USD"] || 0;
   const prevUsdRate = rates?.previousParallel?.["USD"] || usdRate;
@@ -1521,6 +1529,18 @@ export default function App() {
                         <Settings2 className="w-4 h-4 text-zinc-400" />
                         <span className="font-medium">الإعدادات</span>
                       </button>
+
+                      <button
+                        onClick={() => {
+                          triggerHaptic(10);
+                          setShowMoreMenu(false);
+                          setCurrentPage('api');
+                        }}
+                        className="flex items-center gap-3 px-4 py-3 text-sm text-zinc-300 hover:text-white hover:bg-white/5 transition-colors w-full text-right"
+                      >
+                        <Code2 className="w-4 h-4 text-emerald-400" />
+                        <span className="font-medium">واجهة برمجية (API)</span>
+                      </button>
                     </div>
                   </motion.div>
                 )}
@@ -1538,7 +1558,8 @@ export default function App() {
         style={{ y: pullY }}
         className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-16 space-y-16 sm:space-y-24 relative z-10"
       >
-        
+        {currentPage === 'dashboard' ? (
+          <>
         {/* Hero Section: Parallel USD */}
         <section className="flex flex-col lg:flex-row items-start lg:items-end justify-between gap-8 lg:gap-12">
           <div className="w-full lg:w-auto">
@@ -2031,99 +2052,99 @@ export default function App() {
                     <p className="text-[11px] text-zinc-500 uppercase tracking-[0.2em] font-mono font-bold">Smart Exchange Calculator</p>
                   </div>
                 </div>
-
-                <div id="market-toggle" className="flex p-1.5 bg-white/[0.02] border border-white/5 rounded-2xl w-full sm:w-fit">
-                  <button 
-                    onClick={() => setConverterMarket('parallel')}
-                    className={`flex-1 sm:flex-none py-2.5 px-6 rounded-xl text-[11px] font-black transition-all duration-300 ${converterMarket === 'parallel' ? 'bg-emerald-500 text-[#050505] shadow-[0_8px_20px_-4px_rgba(16,185,129,0.4)]' : 'text-zinc-500 hover:text-white'}`}
-                  >
-                    السوق الموازي
-                  </button>
-                  <button 
-                    onClick={() => setConverterMarket('official')}
-                    className={`flex-1 sm:flex-none py-2.5 px-6 rounded-xl text-[11px] font-black transition-all duration-300 ${converterMarket === 'official' ? 'bg-indigo-500 text-white shadow-[0_8px_20px_-4px_rgba(79,70,229,0.4)]' : 'text-zinc-500 hover:text-white'}`}
-                  >
-                    السعر الرسمي
-                  </button>
-                </div>
               </div>
 
-              <div className="flex flex-col lg:grid lg:grid-cols-5 gap-6 lg:gap-8 items-stretch">
-                {/* Source Input */}
-                <div id="converter-input" className="lg:col-span-2 space-y-4">
-                  <div className="relative group/input">
-                    <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mr-4 mb-2 block">المبلغ المراد تحويله</label>
-                    <div className="relative">
-                      <input 
-                        type="number"
-                        value={converterAmount || ''}
-                        onChange={(e) => setConverterAmount(Number(e.target.value))}
-                        className="w-full bg-white/[0.03] border border-white/10 rounded-[1.5rem] p-5 sm:p-6 text-white font-mono text-2xl sm:text-3xl focus:outline-none focus:border-emerald-500/40 transition-all duration-500 shadow-inner appearance-none"
-                        placeholder="0.00"
-                      />
-                      <div className="absolute left-4 sm:left-6 top-1/2 -translate-y-1/2 text-zinc-600 font-bold text-sm sm:text-base">
-                        {converterMode === 'toLYD' ? (configTerms.find(t => t.id === converterFrom)?.name.split(' ')[0] || converterFrom) : 'دينار ليبي'}
-                      </div>
-                    </div>
+              <div className="flex flex-col gap-6">
+                {/* Input Area */}
+                <div className="flex flex-col sm:flex-row items-center gap-4 bg-white/[0.02] p-4 sm:p-6 rounded-3xl border border-white/5">
+                  <div className="flex-1 w-full">
+                    <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-2 block">
+                      {converterMode === 'toLYD' ? 'المبلغ (عملة أجنبية)' : 'المبلغ (دينار ليبي)'}
+                    </label>
+                    <input 
+                      type="number"
+                      value={converterAmount || ''}
+                      onChange={(e) => setConverterAmount(Number(e.target.value))}
+                      className="w-full bg-transparent text-white font-mono text-3xl sm:text-4xl focus:outline-none appearance-none"
+                      placeholder="0.00"
+                    />
                   </div>
-                  
-                  <div className="flex items-center gap-3">
-                    <div className="flex-1 relative">
+                  <div className="shrink-0 w-full sm:w-auto">
+                    {converterMode === 'toLYD' ? (
                       <select 
                         value={converterFrom}
                         onChange={(e) => setConverterFrom(e.target.value)}
-                        className="w-full bg-white/[0.03] border border-white/5 rounded-2xl p-4 text-white font-bold focus:outline-none appearance-none cursor-pointer hover:bg-white/[0.05] transition-colors pr-4 text-sm sm:text-base"
+                        className="w-full sm:w-auto bg-white/[0.05] border border-white/10 rounded-2xl p-4 text-white font-bold focus:outline-none appearance-none cursor-pointer hover:bg-white/[0.1] transition-colors text-center"
                       >
                         {configTerms.filter(t => !METAL_IDS.includes(t.id) && t.id !== "OFFICIAL_USD").map(t => (
                           <option key={t.id} value={t.id} className="bg-[#121212]">{t.name}</option>
                         ))}
                       </select>
-                    </div>
-                    
-                    <button 
-                      onClick={() => setConverterMode(prev => prev === 'toLYD' ? 'fromLYD' : 'toLYD')}
-                      className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-white hover:bg-emerald-500 hover:text-black hover:border-emerald-500 transition-all duration-500 group/swap shrink-0"
-                    >
-                      <ArrowLeftRight className={`w-5 h-5 sm:w-6 sm:h-6 transition-transform duration-500 ${converterMode === 'fromLYD' ? 'rotate-180' : ''}`} />
-                    </button>
+                    ) : (
+                      <div className="w-full sm:w-auto bg-white/[0.05] border border-white/10 rounded-2xl p-4 text-white font-bold text-center">
+                        دينار ليبي (LYD)
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                {/* Arrow Decor - Hidden on mobile */}
-                <div className="hidden lg:flex items-center justify-center">
-                  <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center animate-pulse">
-                    <ArrowDownRight className="w-6 h-6 text-zinc-700 -rotate-45" />
-                  </div>
+                {/* Swap Button */}
+                <div className="flex justify-center -my-9 relative z-10">
+                  <button 
+                    onClick={handleSwap}
+                    className="w-14 h-14 rounded-full bg-[#050505] border border-white/10 flex items-center justify-center text-emerald-400 hover:bg-emerald-500 hover:text-black hover:border-emerald-500 transition-all duration-300 shadow-lg group/swap"
+                  >
+                    <ArrowUpDown className="w-6 h-6 transition-transform duration-500 group-hover/swap:rotate-180" />
+                  </button>
                 </div>
 
-                {/* Result Display */}
-                <div className="lg:col-span-2">
-                  <div className="h-full bg-gradient-to-br from-white/[0.02] to-transparent border border-white/5 rounded-[2rem] p-6 sm:p-8 flex flex-col items-center justify-center text-center relative overflow-hidden group/result shadow-2xl min-h-[160px]">
-                    <div className="absolute inset-0 bg-emerald-500/[0.01] opacity-0 group-hover/result:opacity-100 transition-opacity duration-700"></div>
-                    
-                    <span className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mb-4 sm:mb-6 block">النتيجة المقدرة</span>
-                    
-                    <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4 relative z-10 w-full" dir="ltr">
-                      <motion.span 
-                        key={`${converterResult}-${converterMode}`}
-                        initial={{ opacity: 0, scale: 0.9, y: 10 }}
-                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                        className={`font-light text-white font-mono tracking-tighter break-all ${
-                          converterResult.toString().length > 10 ? 'text-3xl sm:text-4xl' : 
-                          converterResult.toString().length > 7 ? 'text-4xl sm:text-5xl' : 
-                          'text-5xl sm:text-7xl'
-                        }`}
-                      >
-                        {converterResult % 1 === 0 ? converterResult : converterResult.toFixed(2)}
-                      </motion.span>
-                      <span className="text-xl sm:text-3xl text-emerald-500/70 font-light shrink-0">
-                        {converterMode === 'fromLYD' ? (configTerms.find(t => t.id === converterFrom)?.name.split(' ')[0] || converterFrom) : 'د.ل'}
+                {/* Output Area - Parallel & Official side by side */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
+                  {/* Parallel Result */}
+                  <div className="bg-gradient-to-br from-emerald-500/[0.05] to-transparent border border-emerald-500/20 p-6 rounded-3xl flex flex-col items-center justify-center text-center relative overflow-hidden group">
+                    <span className="text-emerald-500/70 text-[10px] font-bold uppercase tracking-widest mb-2">السوق الموازي</span>
+                    <div className="flex items-end gap-2 my-4">
+                      <span className="text-3xl sm:text-4xl font-light text-white font-mono tracking-tighter break-all">
+                        {resultParallel % 1 === 0 ? resultParallel : resultParallel.toFixed(2)}
                       </span>
                     </div>
+                    <div className="mt-auto w-full">
+                      {converterMode === 'fromLYD' ? (
+                        <select 
+                          value={converterFrom}
+                          onChange={(e) => setConverterFrom(e.target.value)}
+                          className="w-full bg-white/[0.05] border border-white/10 rounded-xl p-3 text-white text-sm font-bold focus:outline-none appearance-none cursor-pointer hover:bg-white/[0.1] transition-colors text-center"
+                        >
+                          {configTerms.filter(t => !METAL_IDS.includes(t.id) && t.id !== "OFFICIAL_USD").map(t => (
+                            <option key={t.id} value={t.id} className="bg-[#121212]">{t.name}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <div className="w-full bg-white/[0.02] border border-white/5 rounded-xl p-3 text-zinc-400 text-sm font-bold text-center">
+                          دينار ليبي (LYD)
+                        </div>
+                      )}
+                    </div>
+                  </div>
 
-                    <div className="mt-6 sm:mt-10 flex items-center gap-3 text-[9px] sm:text-[10px] text-zinc-500 bg-black/40 px-4 sm:px-5 py-2 sm:py-2.5 rounded-full border border-white/5 backdrop-blur-md">
-                      <Zap className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-yellow-500 animate-pulse" />
-                      <span className="font-medium">بناءً على {converterMarket === 'parallel' ? 'أسعار السوق' : 'الأسعار الرسمية'} اللحظية</span>
+                  {/* Official Result */}
+                  <div className="bg-gradient-to-br from-indigo-500/[0.05] to-transparent border border-indigo-500/20 p-6 rounded-3xl flex flex-col items-center justify-center text-center relative overflow-hidden group">
+                    <span className="text-indigo-400/70 text-[10px] font-bold uppercase tracking-widest mb-2">السعر الرسمي</span>
+                    <div className="flex items-end gap-2 my-4">
+                      <span className="text-3xl sm:text-4xl font-light text-white font-mono tracking-tighter break-all">
+                        {resultOfficial % 1 === 0 ? resultOfficial : resultOfficial.toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="mt-auto w-full">
+                      {converterMode === 'fromLYD' ? (
+                        <div className="w-full bg-white/[0.02] border border-white/5 rounded-xl p-3 text-zinc-400 text-sm font-bold text-center">
+                          {configTerms.find(t => t.id === converterFrom)?.name || converterFrom}
+                        </div>
+                      ) : (
+                        <div className="w-full bg-white/[0.02] border border-white/5 rounded-xl p-3 text-zinc-400 text-sm font-bold text-center">
+                          دينار ليبي (LYD)
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -2131,6 +2152,10 @@ export default function App() {
             </div>
           </div>
         </section>
+          </>
+        ) : (
+          <ApiDocs onBack={() => setCurrentPage('dashboard')} />
+        )}
         {/* Footer */}
         <footer className="pt-16 pb-12 border-t border-white/5 flex flex-col items-center gap-8">
           <div className="flex flex-col items-center gap-4">
