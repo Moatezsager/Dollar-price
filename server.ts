@@ -100,6 +100,47 @@ async function logErrorArabic(message: string, context = "النظام", stack?:
   }
 }
 
+/**
+ * Loads the latest rates from Supabase to ensure the memory state is always
+ * synchronized with the most recent data on startup.
+ */
+async function loadLatestRatesFromSupabase() {
+  if (!supabase) return;
+  
+  try {
+    console.log("[Startup] Loading latest rates from Supabase to ensure latest prices...");
+    
+    // Load parallel rates
+    const { data: parallelData, error: parallelError } = await supabase
+      .from('parallel_rates')
+      .select('usd, rates, recorded_at')
+      .order('recorded_at', { ascending: false })
+      .limit(1);
+      
+    if (parallelData && parallelData.length > 0) {
+      const latest = parallelData[0];
+      rates.parallel = { ...rates.parallel, ...latest.rates, USD: latest.usd };
+      rates.lastUpdated = latest.recorded_at;
+      console.log("[Startup] Successfully loaded latest parallel rates from", latest.recorded_at);
+    }
+    
+    // Load official rates
+    const { data: officialData, error: officialError } = await supabase
+      .from('official_rates')
+      .select('usd, rates, recorded_at')
+      .order('recorded_at', { ascending: false })
+      .limit(1);
+      
+    if (officialData && officialData.length > 0) {
+      const latest = officialData[0];
+      rates.official = { ...rates.official, ...latest.rates, USD: latest.usd };
+      console.log("[Startup] Successfully loaded latest official rates from", latest.recorded_at);
+    }
+  } catch (err) {
+    console.error("[Startup] Failed to load latest rates from Supabase:", err);
+  }
+}
+
 let rates: Rates = {
   official: {
     USD: 4.85,
@@ -1191,7 +1232,8 @@ async function fetchParallelRatesFromTelegram(): Promise<boolean | null> {
       
       const gramJsResults = await Promise.allSettled(channels.map(async (channel) => {
         try {
-          const messages = await telegramManager.fetchMessages(channel, 5);
+          // Increased limit to 20 to ensure we capture all relevant messages from today
+          const messages = await telegramManager.fetchMessages(channel, 20);
           return { channel, messages };
         } catch (err) {
           throw { channel, error: err };
@@ -1329,8 +1371,8 @@ async function fetchParallelRatesFromTelegram(): Promise<boolean | null> {
           
           successfulChannels++;
           
-          // Only take the last 5 messages from the blocks
-          const recentBlocks = blocks.slice(-6); 
+          // Only take the last 20 messages from the blocks for better coverage
+          const recentBlocks = blocks.slice(-21); 
           totalMessagesProcessed += (recentBlocks.length - 1);
 
           for (const block of recentBlocks) {
@@ -1373,6 +1415,7 @@ async function fetchParallelRatesFromTelegram(): Promise<boolean | null> {
 
     const latestRates: Record<string, number> = {};
     const latestSources: Record<string, string> = {};
+    const latestTimes: Record<string, number> = {};
     const previousRates: Record<string, number> = {};
     let newestMessageTime = 0;
 
@@ -1393,6 +1436,7 @@ async function fetchParallelRatesFromTelegram(): Promise<boolean | null> {
       const newestEntry = historyArr[0];
       latestRates[key] = newestEntry.value; 
       latestSources[key] = newestEntry.channel;
+      latestTimes[key] = newestEntry.time;
       
       if (newestEntry.time > newestMessageTime) {
         newestMessageTime = newestEntry.time;
@@ -1420,8 +1464,20 @@ async function fetchParallelRatesFromTelegram(): Promise<boolean | null> {
 
         const currentVal = rates.parallel[term.id];
         const newValFromTelegram = latestRates[term.id];
+        const newValTime = latestTimes[term.id];
+        
+        // Get the time of the current in-memory price
+        const currentLastChanged = rates.lastChanged.parallel[term.id];
+        const currentTime = currentLastChanged ? new Date(currentLastChanged).getTime() : 0;
 
         if (newValFromTelegram !== undefined) {
+          // Only process if the new price is actually newer than what we have in memory
+          // This ensures we always deal with the LATEST available prices
+          if (newValTime < currentTime) {
+            console.log(`[Scraper] Skipping update for ${term.id}: Scraped price is older than current memory state.`);
+            continue;
+          }
+
           // Strict validation: new price should not deviate by more than 25% from the current price
           if (currentVal !== undefined && currentVal > 0) {
             const deviation = Math.abs(newValFromTelegram - currentVal) / currentVal;
@@ -2702,6 +2758,9 @@ async function startServer() {
     // Initial scrape on startup (with delay to avoid AUTH_KEY_DUPLICATED when Render restarts)
     (async () => {
       try {
+        // 1. Load latest rates from Supabase immediately to ensure we have the latest prices
+        await loadLatestRatesFromSupabase();
+        
         console.log("[Startup] Waiting 30s for system to settle and old sessions to clear...");
         await new Promise(resolve => setTimeout(resolve, 30000));
         
