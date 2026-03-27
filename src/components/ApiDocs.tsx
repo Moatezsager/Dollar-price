@@ -21,8 +21,12 @@ export const ApiDocs: React.FC<ApiDocsProps> = ({ onBack }) => {
 fetch('https://dollar-price-qp14.onrender.com/api/rates')
   .then(response => response.json())
   .then(data => {
-    console.log('سعر الدولار:', data.usd);
-    console.log('سعر اليورو:', data.eur);
+    // استخراج سعر الدولار كاش واليورو من السوق الموازي
+    const usdCash = data.parallel.USD;
+    const eur = data.parallel.EUR;
+    
+    console.log('سعر الدولار كاش:', usdCash);
+    console.log('سعر اليورو:', eur);
   })
   .catch(error => console.error('خطأ في الاتصال:', error));`,
     py: `# جلب أسعار الدولار واليورو اللحظية (مجاني)
@@ -32,8 +36,13 @@ url = 'https://dollar-price-qp14.onrender.com/api/rates'
 try:
     response = requests.get(url)
     data = response.json()
-    print('سعر الدولار:', data.get('usd'))
-    print('سعر اليورو:', data.get('eur'))
+    
+    # استخراج سعر الدولار كاش واليورو من السوق الموازي
+    usd_cash = data.get('parallel', {}).get('USD')
+    eur = data.get('parallel', {}).get('EUR')
+    
+    print('سعر الدولار كاش:', usd_cash)
+    print('سعر اليورو:', eur)
 except Exception as e:
     print('خطأ في الاتصال:', e)`,
     curl: `# جلب أسعار الدولار واليورو اللحظية (مجاني)
@@ -129,6 +138,41 @@ curl -X GET "https://dollar-price-qp14.onrender.com/api/rates" \\
           ))}
           <div className="px-4 py-2 rounded-lg bg-white/[0.02] border border-white/5 text-zinc-500 text-sm font-medium">
             وغيرها الكثير...
+          </div>
+        </div>
+      </div>
+
+      {/* Best Practices / Server Protection */}
+      <div className="bg-blue-500/5 border border-blue-500/20 rounded-3xl p-6 sm:p-8">
+        <div className="flex items-start gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-blue-500/10 flex items-center justify-center shrink-0 mt-1">
+            <Server className="w-6 h-6 text-blue-400" />
+          </div>
+          <div>
+            <h3 className="text-xl font-bold text-white mb-2">أفضل الممارسات للحفاظ على استقرار الخدمة</h3>
+            <p className="text-zinc-400 text-sm leading-relaxed mb-4">
+              لضمان استمرار الخدمة المجانية للجميع وتجنب حظر الـ IP الخاص بك (Rate Limiting)، يرجى اتباع الإرشادات التالية عند ربط تطبيقاتك:
+            </p>
+            <ul className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <li className="flex items-start gap-3 bg-[#0a0a0a] p-4 rounded-xl border border-white/5">
+                <div className="mt-0.5 w-5 h-5 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
+                  <span className="text-blue-400 text-xs font-bold">1</span>
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-zinc-200 mb-1">التخزين المؤقت (Caching)</h4>
+                  <p className="text-xs text-zinc-500 leading-relaxed">قم بتخزين النتيجة في السيرفر الخاص بك لمدة 5 إلى 10 دقائق على الأقل قبل طلب بيانات جديدة.</p>
+                </div>
+              </li>
+              <li className="flex items-start gap-3 bg-[#0a0a0a] p-4 rounded-xl border border-white/5">
+                <div className="mt-0.5 w-5 h-5 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
+                  <span className="text-blue-400 text-xs font-bold">2</span>
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-zinc-200 mb-1">تجنب الطلبات المباشرة من العميل</h4>
+                  <p className="text-xs text-zinc-500 leading-relaxed">اجعل سيرفرك هو من يكلم الـ API الخاص بنا، ثم قم بتوزيع البيانات لعملائك لتخفيف الضغط.</p>
+                </div>
+              </li>
+            </ul>
           </div>
         </div>
       </div>
