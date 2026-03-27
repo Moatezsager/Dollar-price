@@ -18,35 +18,32 @@ export const ApiDocs: React.FC<ApiDocsProps> = ({ onBack }) => {
 
   const snippets = {
     js: `// جلب أسعار الدولار واليورو اللحظية (مجاني)
-fetch('https://dollar-price-qp14.onrender.com/api/rates')
+fetch('https://dollar-price-qp14.onrender.com/api/public/rates')
   .then(response => response.json())
-  .then(data => {
-    // استخراج سعر الدولار كاش واليورو من السوق الموازي
-    const usdCash = data.parallel.USD;
-    const eur = data.parallel.EUR;
-    
-    console.log('سعر الدولار كاش:', usdCash);
-    console.log('سعر اليورو:', eur);
+  .then(result => {
+    if (result.success) {
+      console.log('سعر الدولار كاش:', result.data.USD);
+      console.log('سعر اليورو:', result.data.EUR);
+      console.log('آخر تحديث:', result.lastUpdated);
+    }
   })
   .catch(error => console.error('خطأ في الاتصال:', error));`,
     py: `# جلب أسعار الدولار واليورو اللحظية (مجاني)
 import requests
 
-url = 'https://dollar-price-qp14.onrender.com/api/rates'
+url = 'https://dollar-price-qp14.onrender.com/api/public/rates'
 try:
     response = requests.get(url)
-    data = response.json()
+    result = response.json()
     
-    # استخراج سعر الدولار كاش واليورو من السوق الموازي
-    usd_cash = data.get('parallel', {}).get('USD')
-    eur = data.get('parallel', {}).get('EUR')
-    
-    print('سعر الدولار كاش:', usd_cash)
-    print('سعر اليورو:', eur)
+    if result.get('success'):
+        print('سعر الدولار كاش:', result['data']['USD'])
+        print('سعر اليورو:', result['data']['EUR'])
+        print('آخر تحديث:', result['lastUpdated'])
 except Exception as e:
     print('خطأ في الاتصال:', e)`,
     curl: `# جلب أسعار الدولار واليورو اللحظية (مجاني)
-curl -X GET "https://dollar-price-qp14.onrender.com/api/rates" \\
+curl -X GET "https://dollar-price-qp14.onrender.com/api/public/rates" \\
   -H "Accept: application/json"`
   };
 
@@ -91,7 +88,7 @@ curl -X GET "https://dollar-price-qp14.onrender.com/api/rates" \\
               </span>
             </h1>
             <p className="text-zinc-400 text-base sm:text-lg leading-relaxed mb-8">
-              نوفر واجهة برمجية (API) مستقرة، سريعة، وموثوقة لربط تطبيقاتك ومواقعك بأسعار السوق الموازي والرسمي في ليبيا. ابدأ الربط في دقائق معدودة.
+              واجهة برمجية (API) احترافية وموثوقة لربط تطبيقاتك ومواقعك بأسعار الصرف في السوق الموازي والرسمي. تكامل سلس وسريع لضمان أفضل تجربة للمستخدم.
             </p>
             
             <div className="flex flex-wrap items-center gap-4">
@@ -142,41 +139,6 @@ curl -X GET "https://dollar-price-qp14.onrender.com/api/rates" \\
         </div>
       </div>
 
-      {/* Best Practices / Server Protection */}
-      <div className="bg-blue-500/5 border border-blue-500/20 rounded-3xl p-6 sm:p-8">
-        <div className="flex items-start gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-blue-500/10 flex items-center justify-center shrink-0 mt-1">
-            <Server className="w-6 h-6 text-blue-400" />
-          </div>
-          <div>
-            <h3 className="text-xl font-bold text-white mb-2">أفضل الممارسات للحفاظ على استقرار الخدمة</h3>
-            <p className="text-zinc-400 text-sm leading-relaxed mb-4">
-              لضمان استمرار الخدمة المجانية للجميع وتجنب حظر الـ IP الخاص بك (Rate Limiting)، يرجى اتباع الإرشادات التالية عند ربط تطبيقاتك:
-            </p>
-            <ul className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <li className="flex items-start gap-3 bg-[#0a0a0a] p-4 rounded-xl border border-white/5">
-                <div className="mt-0.5 w-5 h-5 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
-                  <span className="text-blue-400 text-xs font-bold">1</span>
-                </div>
-                <div>
-                  <h4 className="text-sm font-bold text-zinc-200 mb-1">التخزين المؤقت (Caching)</h4>
-                  <p className="text-xs text-zinc-500 leading-relaxed">قم بتخزين النتيجة في السيرفر الخاص بك لمدة 5 إلى 10 دقائق على الأقل قبل طلب بيانات جديدة.</p>
-                </div>
-              </li>
-              <li className="flex items-start gap-3 bg-[#0a0a0a] p-4 rounded-xl border border-white/5">
-                <div className="mt-0.5 w-5 h-5 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
-                  <span className="text-blue-400 text-xs font-bold">2</span>
-                </div>
-                <div>
-                  <h4 className="text-sm font-bold text-zinc-200 mb-1">تجنب الطلبات المباشرة من العميل</h4>
-                  <p className="text-xs text-zinc-500 leading-relaxed">اجعل سيرفرك هو من يكلم الـ API الخاص بنا، ثم قم بتوزيع البيانات لعملائك لتخفيف الضغط.</p>
-                </div>
-              </li>
-            </ul>
-          </div>
-        </div>
-      </div>
-
       {/* Pricing / Tiers */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
         
@@ -201,7 +163,7 @@ curl -X GET "https://dollar-price-qp14.onrender.com/api/rates" \\
             </div>
             
             <p className="text-zinc-400 text-sm mb-8 leading-relaxed">
-              احصل على أسعار الدولار (USD) واليورو (EUR) اللحظية في السوق الموازي بشكل مجاني تماماً. مثالية للمشاريع الصغيرة، التطبيقات الشخصية، أو لتجربة الخدمة.
+              وصول مجاني لأسعار الدولار (USD) واليورو (EUR) اللحظية في السوق الموازي. مثالية للمشاريع الناشئة والتطبيقات الشخصية.
             </p>
 
             <div className="bg-[#111] rounded-2xl border border-white/5 overflow-hidden mb-8">
@@ -297,7 +259,7 @@ curl -X GET "https://dollar-price-qp14.onrender.com/api/rates" \\
             </div>
             
             <p className="text-zinc-400 text-sm mb-8 leading-relaxed">
-              وصول كامل ومطلق لجميع بيانات المنصة. مصممة لتلبية احتياجات الأعمال المتقدمة، المتاجر الإلكترونية، والتطبيقات المالية التي تتطلب دقة وتفاصيل شاملة.
+              وصول شامل لجميع بيانات المنصة. مصممة لتلبية احتياجات الأعمال المتقدمة، المتاجر الإلكترونية، والتطبيقات المالية التي تتطلب دقة وتفاصيل متكاملة.
             </p>
 
             <div className="bg-[#111]/80 backdrop-blur-sm rounded-2xl border border-white/5 p-6 mb-8 relative overflow-hidden">

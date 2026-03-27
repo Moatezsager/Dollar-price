@@ -2233,6 +2233,36 @@ async function startServer() {
     }
   });
 
+  const publicApiLimiter = rateLimit({
+    windowMs: 1 * 60 * 1000, // 1 minute
+    max: 20, // Limit each IP to 20 requests per minute
+    message: { success: false, error: "Too many requests, please try again later. Max 20 requests per minute." },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
+  app.get("/api/public/rates", publicApiLimiter, async (req: express.Request, res: express.Response) => {
+    try {
+      await initializeRatesFromDB(false);
+      
+      // Set cache control headers to force caching for 1 minute
+      res.setHeader('Cache-Control', 'public, max-age=60');
+      
+      const publicData = {
+        success: true,
+        data: {
+          USD: rates.parallel.USD,
+          EUR: rates.parallel.EUR,
+        },
+        lastUpdated: rates.lastUpdated
+      };
+      res.json(publicData);
+    } catch (err) {
+      console.error("Error in /api/public/rates:", err);
+      res.status(500).json({ success: false, error: "Internal Server Error" });
+    }
+  });
+
   app.get("/api/refresh-parallel", async (req: express.Request, res: express.Response) => {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.setHeader('Pragma', 'no-cache');
