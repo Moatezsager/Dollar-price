@@ -1426,7 +1426,8 @@ async function fetchParallelRatesFromTelegram(): Promise<boolean | null> {
           if (currentVal !== undefined && currentVal > 0) {
             const deviation = Math.abs(newValFromTelegram - currentVal) / currentVal;
             if (deviation > 0.25) {
-              const msg = `تم رفض تحديث سعر ${term.name} (${term.id}) بسبب قفزة غير منطقية من ${currentVal} إلى ${newValFromTelegram} (تغيير بنسبة ${(deviation*100).toFixed(1)}%)`;
+              const sourceName = latestSources[term.id] || 'غير معروف';
+              const msg = `تم رفض تحديث سعر ${term.name} (${term.id}) من المصدر (${sourceName}) بسبب قفزة غير منطقية من ${currentVal} إلى ${newValFromTelegram} (تغيير بنسبة ${(deviation*100).toFixed(1)}%)`;
               console.warn(`[Scraper] ${msg}`);
               await logErrorArabic(msg, "حماية البيانات");
               continue; // Skip this update
