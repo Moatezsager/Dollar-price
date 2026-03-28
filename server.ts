@@ -2812,6 +2812,20 @@ async function startServer() {
     });
   }
 
+  // Memory Monitor
+  const MEMORY_THRESHOLD = 500 * 1024 * 1024; // 500MB
+  setInterval(async () => {
+    const mem = process.memoryUsage();
+    if (mem.heapUsed > MEMORY_THRESHOLD) {
+      console.warn(`[MemoryMonitor] High memory usage: ${Math.round(mem.heapUsed / 1024 / 1024)}MB. Cleaning...`);
+      liveFeed = []; // Clear queue
+      if (global.gc) {
+        global.gc();
+      }
+      await fetchParallelRatesFromTelegram();
+    }
+  }, 60000); // Check every minute
+
   server.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
     
