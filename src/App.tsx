@@ -310,6 +310,7 @@ export default function App() {
 
   // Haptic Feedback Helper
   const triggerHaptic = (pattern: number | number[] = 10) => {
+    console.log('triggerHaptic called, enabled:', hapticEnabled, 'supported:', !!window.navigator.vibrate);
     if (hapticEnabled && window.navigator.vibrate) {
       window.navigator.vibrate(pattern);
     }
