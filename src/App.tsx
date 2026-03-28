@@ -1420,13 +1420,17 @@ export default function App() {
           </div>
           
           <div className="flex items-center gap-1.5 sm:gap-3">
-            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/5 bg-white/[0.02]">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
-              <span className="text-[10px] font-mono text-zinc-400 tracking-wider uppercase" dir="ltr">
-                {lastFetchTime ? format(lastFetchTime, "HH:mm:ss") : "..."}
+            <div className="flex items-center gap-2 px-2 sm:px-3 py-1.5 rounded-full border border-white/5 bg-white/[0.02]">
+              {isRefreshing ? (
+                <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
+              ) : (
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+              )}
+              <span className="text-[9px] sm:text-[10px] font-mono text-zinc-400 tracking-wider uppercase hidden sm:block" dir="ltr">
+                {isRefreshing ? "جاري التحديث..." : (lastFetchTime ? format(lastFetchTime, "HH:mm:ss") : "...")}
               </span>
             </div>
             <div className="h-4 w-[1px] bg-white/10 hidden md:block mx-1"></div>
