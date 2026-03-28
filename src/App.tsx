@@ -748,13 +748,24 @@ export default function App() {
     }
   };
 
-  const generatePDF = async () => {
+  const [selectedCurrencies, setSelectedCurrencies] = useState<string[]>([]);
+  const [showCurrencyModal, setShowCurrencyModal] = useState(false);
+
+  const generatePDF = async (currencies?: string[]) => {
     setIsGeneratingPDF(true);
     addToast("جاري التجهيز للطباعة...", "سيتم جلب أحدث الأسعار من قاعدة البيانات", "info");
     
     try {
       // Force a fresh data fetch from server before printing to ensure database values are used
       await fetchData(true);
+      
+      // Update selected currencies for the PDF template
+      if (currencies) {
+        setSelectedCurrencies(currencies);
+      } else {
+        // Default to all if none specified
+        setSelectedCurrencies(configTerms.filter(c => c.id !== 'OFFICIAL_USD').map(c => c.id));
+      }
       
       // Use a longer delay and multiple frames to ensure React has finished rendering the updated data
       // and the browser has layouted the hidden container
@@ -768,6 +779,7 @@ export default function App() {
           addToast("خطأ فني في التقرير", "حدث خطأ داخلي أثناء فتح نافذة طباعة المتصفح", "info");
         } finally {
           setIsGeneratingPDF(false);
+          setShowCurrencyModal(false);
         }
       }, 1200);
     } catch (err) {
@@ -1498,6 +1510,20 @@ export default function App() {
                   >
                     <div className="py-1 flex flex-col">
                       <button
+                        id="export-pdf-btn"
+                        onClick={() => {
+                          triggerHaptic(15);
+                          setShowMoreMenu(false);
+                          setShowCurrencyModal(true);
+                        }}
+                        disabled={isGeneratingPDF}
+                        className={`flex items-center gap-3 px-4 py-3 text-sm text-zinc-300 hover:text-white hover:bg-white/5 transition-colors w-full text-right ${isGeneratingPDF ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      >
+                        <FileText className="w-4 h-4 text-blue-400" />
+                        <span className="font-medium">{isGeneratingPDF ? 'جاري التحميل...' : 'طباعة PDF'}</span>
+                      </button>
+
+                      <button
                         onClick={() => {
                           triggerHaptic(10);
                           setShowMoreMenu(false);
@@ -1507,20 +1533,6 @@ export default function App() {
                       >
                         <Share2 className="w-4 h-4 text-emerald-400" />
                         <span className="font-medium">مشاركة التطبيق</span>
-                      </button>
-                      
-                      <button
-                        id="export-pdf-btn"
-                        onClick={() => {
-                          triggerHaptic(15);
-                          setShowMoreMenu(false);
-                          generatePDF();
-                        }}
-                        disabled={isGeneratingPDF}
-                        className={`flex items-center gap-3 px-4 py-3 text-sm text-zinc-300 hover:text-white hover:bg-white/5 transition-colors w-full text-right ${isGeneratingPDF ? 'opacity-50 cursor-not-allowed' : ''}`}
-                      >
-                        <FileText className="w-4 h-4 text-blue-400" />
-                        <span className="font-medium">{isGeneratingPDF ? 'جاري التحميل...' : 'طباعة PDF'}</span>
                       </button>
 
                       <div className="h-[1px] bg-white/10 my-1"></div>
@@ -2604,6 +2616,61 @@ export default function App() {
         )}
       </AnimatePresence>
 
+      {/* Currency Selection Modal for PDF */}
+      <AnimatePresence>
+        {showCurrencyModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="bg-[#1a1a1a] border border-white/10 rounded-3xl p-6 w-full max-w-md shadow-2xl"
+            >
+              <h2 className="text-xl font-bold text-white mb-6 text-right">تخصيص تقرير PDF</h2>
+              <p className="text-sm text-zinc-400 mb-6 text-right">اختر العملات التي ترغب في تضمينها في التقرير:</p>
+              
+              <div className="grid grid-cols-2 gap-3 mb-8 max-h-[300px] overflow-y-auto pr-2">
+                {configTerms.filter(c => c.id !== 'OFFICIAL_USD').map(c => (
+                  <button
+                    key={c.id}
+                    onClick={() => {
+                      if (selectedCurrencies.includes(c.id)) {
+                        setSelectedCurrencies(selectedCurrencies.filter(id => id !== c.id));
+                      } else {
+                        setSelectedCurrencies([...selectedCurrencies, c.id]);
+                      }
+                    }}
+                    className={`p-3 rounded-xl border text-right flex items-center justify-between transition-colors ${
+                      selectedCurrencies.includes(c.id)
+                        ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400'
+                        : 'bg-white/5 border-white/5 text-zinc-400 hover:bg-white/10'
+                    }`}
+                  >
+                    <span className="text-xs font-bold">{c.name}</span>
+                    {selectedCurrencies.includes(c.id) && <CheckCircle2 className="w-4 h-4" />}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowCurrencyModal(false)}
+                  className="flex-1 px-4 py-3 bg-white/5 text-white rounded-xl font-bold hover:bg-white/10 transition-colors"
+                >
+                  إلغاء
+                </button>
+                <button
+                  onClick={() => generatePDF(selectedCurrencies)}
+                  className="flex-1 px-4 py-3 bg-emerald-500 text-black rounded-xl font-bold hover:bg-emerald-400 transition-colors"
+                >
+                  طباعة التقرير
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Hidden PDF Template - Unlocked by @media print */}
       <div 
         id="pdf-report-container"
@@ -2727,7 +2794,7 @@ export default function App() {
                   </tr>
                 </thead>
                 <tbody>
-                  {configTerms.filter(c => c.id !== 'OFFICIAL_USD').map((c, idx) => {
+                  {configTerms.filter(c => c.id !== 'OFFICIAL_USD' && selectedCurrencies.includes(c.id)).map((c, idx) => {
                     const rate = rates?.parallel[c.id] || 0;
                     if (rate === 0) return null; // Skip empty rates
                     const prev = rates?.previousParallel?.[c.id] || rate;
