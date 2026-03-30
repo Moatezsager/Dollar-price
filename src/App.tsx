@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useMemo } from "react";
-import { motion, AnimatePresence, useMotionValue, useTransform, animate } from "motion/react";
+import { motion, AnimatePresence, useMotionValue, useTransform, animate, MotionConfig } from "motion/react";
 import Joyride, { Step, CallBackProps, STATUS, TooltipRenderProps } from 'react-joyride';
 import {
   ArrowLeftRight,
@@ -384,7 +384,15 @@ export default function App() {
   };
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
-  const [settingsTab, setSettingsTab] = useState<'general' | 'notifications'>('general');
+  const [settingsTab, setSettingsTab] = useState<'general' | 'notifications' | 'appearance' | 'advanced'>('general');
+  const [compactMode, setCompactMode] = useState(() => {
+    const saved = localStorage.getItem('compactMode');
+    return saved !== null ? saved === 'true' : false;
+  });
+  const [dataSaver, setDataSaver] = useState(() => {
+    const saved = localStorage.getItem('dataSaver');
+    return saved !== null ? saved === 'true' : false;
+  });
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     foreign: false,
     checks: false,
@@ -404,6 +412,14 @@ export default function App() {
   const [defaultMarket, setDefaultMarket] = useState<'parallel' | 'official'>(() => {
     const saved = localStorage.getItem('defaultMarket');
     return (saved as 'parallel' | 'official') || 'parallel';
+  });
+  const [soundEnabled, setSoundEnabled] = useState(() => {
+    const saved = localStorage.getItem('soundEnabled');
+    return saved !== null ? saved === 'true' : true;
+  });
+  const [animationsEnabled, setAnimationsEnabled] = useState(() => {
+    const saved = localStorage.getItem('animationsEnabled');
+    return saved !== null ? saved === 'true' : true;
   });
   const [showPostInstall, setShowPostInstall] = useState(false);
   const [notificationThreshold, setNotificationThreshold] = useState(0.001);
@@ -672,6 +688,42 @@ export default function App() {
     thresholdRef.current = notificationThreshold;
   }, [notificationThreshold]);
 
+  const soundEnabledRef = useRef(soundEnabled);
+  useEffect(() => {
+    soundEnabledRef.current = soundEnabled;
+  }, [soundEnabled]);
+
+  const playNotificationSound = (type: 'up' | 'down') => {
+    if (!soundEnabledRef.current) return;
+    try {
+      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const oscillator = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+      
+      if (type === 'up') {
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(523.25, audioCtx.currentTime); // C5
+        oscillator.frequency.exponentialRampToValueAtTime(1046.50, audioCtx.currentTime + 0.1); // C6
+      } else {
+        oscillator.type = 'triangle';
+        oscillator.frequency.setValueAtTime(440, audioCtx.currentTime); // A4
+        oscillator.frequency.exponentialRampToValueAtTime(220, audioCtx.currentTime + 0.15); // A3
+      }
+      
+      gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+      gainNode.gain.linearRampToValueAtTime(0.1, audioCtx.currentTime + 0.02);
+      gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+      
+      oscillator.start(audioCtx.currentTime);
+      oscillator.stop(audioCtx.currentTime + 0.3);
+    } catch (e) {
+      console.warn("Audio playback failed", e);
+    }
+  };
+
   const addToast = (title: string, body: string, type: 'up' | 'down' | 'info') => {
     const id = Math.random().toString(36).substring(2, 9);
     setToasts(prev => [...prev, { id, title, body, type }]);
@@ -721,6 +773,7 @@ export default function App() {
 
     // In-app toast (دائماً يظهر للمستخدم النشط)
     addToast(title, body, diff > 0 ? 'up' : 'down');
+    playNotificationSound(diff > 0 ? 'up' : 'down');
 
     // Native notification
     try {
@@ -1072,11 +1125,12 @@ export default function App() {
   useEffect(() => {
     fetchData().catch(() => {});
     if (!autoRefreshEnabled) return;
+    const intervalTime = dataSaver ? 60000 : 10000;
     const interval = setInterval(() => {
       fetchData().catch(() => {});
-    }, 10000); // Poll every 10 seconds
+    }, intervalTime);
     return () => clearInterval(interval);
-  }, [autoRefreshEnabled]);
+  }, [autoRefreshEnabled, dataSaver]);
 
   const filteredHistory = useMemo(() => {
     if (!history.length) return [];
@@ -1262,8 +1316,9 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white font-sans selection:bg-emerald-500/20 relative overflow-hidden" dir="rtl">
-      {/* No more Splash Screen - Skeletons show the structure immediately */}
+    <MotionConfig transition={animationsEnabled ? undefined : { duration: 0 }}>
+      <div className="min-h-screen bg-[#050505] text-white font-sans selection:bg-emerald-500/20 relative overflow-hidden" dir="rtl">
+        {/* No more Splash Screen - Skeletons show the structure immediately */}
 
       <Joyride
         steps={tourSteps}
@@ -1567,6 +1622,8 @@ export default function App() {
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
         style={{ y: pullY }}
+        data-compact={compactMode}
+        data-animations={animationsEnabled}
         className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-16 space-y-16 sm:space-y-24 relative z-10"
       >
 
@@ -2110,25 +2167,33 @@ export default function App() {
 
                 {/* Output Area - Parallel & Official side by side */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
-                  {/* Parallel Result */}
-                  <div className="bg-gradient-to-br from-emerald-500/[0.05] to-transparent border border-emerald-500/20 p-6 rounded-3xl flex flex-col items-center justify-center text-center relative overflow-hidden group">
-                    <span className="text-emerald-500/70 text-[10px] font-bold uppercase tracking-widest mb-2">السوق الموازي</span>
+                  {/* Result 1 */}
+                  <div className={`bg-gradient-to-br border p-6 rounded-3xl flex flex-col items-center justify-center text-center relative overflow-hidden group ${defaultMarket === 'parallel' ? 'from-emerald-500/[0.05] to-transparent border-emerald-500/20' : 'from-indigo-500/[0.05] to-transparent border-indigo-500/20'}`}>
+                    <span className={`${defaultMarket === 'parallel' ? 'text-emerald-500/70' : 'text-indigo-400/70'} text-[10px] font-bold uppercase tracking-widest mb-2`}>
+                      {defaultMarket === 'parallel' ? 'السوق الموازي' : 'السعر الرسمي'}
+                    </span>
                     <div className="flex items-end gap-2 my-4">
                       <span className="text-3xl sm:text-4xl font-light text-white font-mono tracking-tighter break-all">
-                        {resultParallel % 1 === 0 ? resultParallel : resultParallel.toFixed(2)}
+                        {defaultMarket === 'parallel' ? (resultParallel % 1 === 0 ? resultParallel : resultParallel.toFixed(2)) : (resultOfficial % 1 === 0 ? resultOfficial : resultOfficial.toFixed(2))}
                       </span>
                     </div>
                     <div className="mt-auto w-full">
                       {converterMode === 'fromLYD' ? (
-                        <select 
-                          value={converterFrom}
-                          onChange={(e) => setConverterFrom(e.target.value)}
-                          className="w-full bg-white/[0.05] border border-white/10 rounded-xl p-3 text-white text-sm font-bold focus:outline-none appearance-none cursor-pointer hover:bg-white/[0.1] transition-colors text-center"
-                        >
-                          {configTerms.filter(t => !METAL_IDS.includes(t.id) && t.id !== "OFFICIAL_USD").map(t => (
-                            <option key={t.id} value={t.id} className="bg-[#121212]">{t.name}</option>
-                          ))}
-                        </select>
+                        defaultMarket === 'parallel' ? (
+                          <select 
+                            value={converterFrom}
+                            onChange={(e) => setConverterFrom(e.target.value)}
+                            className="w-full bg-white/[0.05] border border-white/10 rounded-xl p-3 text-white text-sm font-bold focus:outline-none appearance-none cursor-pointer hover:bg-white/[0.1] transition-colors text-center"
+                          >
+                            {configTerms.filter(t => !METAL_IDS.includes(t.id) && t.id !== "OFFICIAL_USD").map(t => (
+                              <option key={t.id} value={t.id} className="bg-[#121212]">{t.name}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <div className="w-full bg-white/[0.02] border border-white/5 rounded-xl p-3 text-zinc-400 text-sm font-bold text-center">
+                            {configTerms.find(t => t.id === converterFrom)?.name || converterFrom}
+                          </div>
+                        )
                       ) : (
                         <div className="w-full bg-white/[0.02] border border-white/5 rounded-xl p-3 text-zinc-400 text-sm font-bold text-center">
                           دينار ليبي (LYD)
@@ -2137,19 +2202,33 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Official Result */}
-                  <div className="bg-gradient-to-br from-indigo-500/[0.05] to-transparent border border-indigo-500/20 p-6 rounded-3xl flex flex-col items-center justify-center text-center relative overflow-hidden group">
-                    <span className="text-indigo-400/70 text-[10px] font-bold uppercase tracking-widest mb-2">السعر الرسمي</span>
+                  {/* Result 2 */}
+                  <div className={`bg-gradient-to-br border p-6 rounded-3xl flex flex-col items-center justify-center text-center relative overflow-hidden group ${defaultMarket === 'parallel' ? 'from-indigo-500/[0.05] to-transparent border-indigo-500/20' : 'from-emerald-500/[0.05] to-transparent border-emerald-500/20'}`}>
+                    <span className={`${defaultMarket === 'parallel' ? 'text-indigo-400/70' : 'text-emerald-500/70'} text-[10px] font-bold uppercase tracking-widest mb-2`}>
+                      {defaultMarket === 'parallel' ? 'السعر الرسمي' : 'السوق الموازي'}
+                    </span>
                     <div className="flex items-end gap-2 my-4">
                       <span className="text-3xl sm:text-4xl font-light text-white font-mono tracking-tighter break-all">
-                        {resultOfficial % 1 === 0 ? resultOfficial : resultOfficial.toFixed(2)}
+                        {defaultMarket === 'parallel' ? (resultOfficial % 1 === 0 ? resultOfficial : resultOfficial.toFixed(2)) : (resultParallel % 1 === 0 ? resultParallel : resultParallel.toFixed(2))}
                       </span>
                     </div>
                     <div className="mt-auto w-full">
                       {converterMode === 'fromLYD' ? (
-                        <div className="w-full bg-white/[0.02] border border-white/5 rounded-xl p-3 text-zinc-400 text-sm font-bold text-center">
-                          {configTerms.find(t => t.id === converterFrom)?.name || converterFrom}
-                        </div>
+                        defaultMarket === 'parallel' ? (
+                          <div className="w-full bg-white/[0.02] border border-white/5 rounded-xl p-3 text-zinc-400 text-sm font-bold text-center">
+                            {configTerms.find(t => t.id === converterFrom)?.name || converterFrom}
+                          </div>
+                        ) : (
+                          <select 
+                            value={converterFrom}
+                            onChange={(e) => setConverterFrom(e.target.value)}
+                            className="w-full bg-white/[0.05] border border-white/10 rounded-xl p-3 text-white text-sm font-bold focus:outline-none appearance-none cursor-pointer hover:bg-white/[0.1] transition-colors text-center"
+                          >
+                            {configTerms.filter(t => !METAL_IDS.includes(t.id) && t.id !== "OFFICIAL_USD").map(t => (
+                              <option key={t.id} value={t.id} className="bg-[#121212]">{t.name}</option>
+                            ))}
+                          </select>
+                        )
                       ) : (
                         <div className="w-full bg-white/[0.02] border border-white/5 rounded-xl p-3 text-zinc-400 text-sm font-bold text-center">
                           دينار ليبي (LYD)
@@ -2271,18 +2350,30 @@ export default function App() {
               </div>
 
               {/* Tabs */}
-              <div className="flex border-b border-white/5">
+              <div className="flex border-b border-white/5 overflow-x-auto custom-scrollbar">
                 <button
                   onClick={() => setSettingsTab('general')}
-                  className={`flex-1 py-3 text-sm font-medium transition-colors border-b-2 ${settingsTab === 'general' ? 'border-indigo-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
+                  className={`flex-none px-4 py-3 text-sm font-medium transition-colors border-b-2 whitespace-nowrap ${settingsTab === 'general' ? 'border-indigo-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
                 >
                   عام
                 </button>
                 <button
                   onClick={() => setSettingsTab('notifications')}
-                  className={`flex-1 py-3 text-sm font-medium transition-colors border-b-2 ${settingsTab === 'notifications' ? 'border-indigo-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
+                  className={`flex-none px-4 py-3 text-sm font-medium transition-colors border-b-2 whitespace-nowrap ${settingsTab === 'notifications' ? 'border-indigo-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
                 >
                   التنبيهات
+                </button>
+                <button
+                  onClick={() => setSettingsTab('appearance')}
+                  className={`flex-none px-4 py-3 text-sm font-medium transition-colors border-b-2 whitespace-nowrap ${settingsTab === 'appearance' ? 'border-indigo-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
+                >
+                  المظهر
+                </button>
+                <button
+                  onClick={() => setSettingsTab('advanced')}
+                  className={`flex-none px-4 py-3 text-sm font-medium transition-colors border-b-2 whitespace-nowrap ${settingsTab === 'advanced' ? 'border-indigo-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
+                >
+                  متقدم
                 </button>
               </div>
 
@@ -2303,6 +2394,25 @@ export default function App() {
                           if (newVal && window.navigator.vibrate) window.navigator.vibrate(10);
                         }}
                         className={`w-11 h-6 rounded-full transition-colors flex items-center px-1 ${hapticEnabled ? 'bg-indigo-500 justify-end' : 'bg-zinc-700 justify-start'}`}
+                      >
+                        <motion.div layout className="w-4 h-4 rounded-full bg-white shadow-sm" />
+                      </button>
+                    </div>
+
+                    {/* Sound Toggle */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-zinc-200">المؤثرات الصوتية</p>
+                        <p className="text-[10px] text-zinc-500 mt-1">تفعيل أو تعطيل الأصوات عند تغير الأسعار</p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          const newVal = !soundEnabled;
+                          setSoundEnabled(newVal);
+                          localStorage.setItem('soundEnabled', String(newVal));
+                          triggerHaptic(10);
+                        }}
+                        className={`w-11 h-6 rounded-full transition-colors flex items-center px-1 ${soundEnabled ? 'bg-indigo-500 justify-end' : 'bg-zinc-700 justify-start'}`}
                       >
                         <motion.div layout className="w-4 h-4 rounded-full bg-white shadow-sm" />
                       </button>
@@ -2411,6 +2521,92 @@ export default function App() {
                       </p>
                     </div>
                   </>
+                )}
+
+                {settingsTab === 'appearance' && (
+                  <div className="space-y-6">
+                    {/* Compact Mode Toggle */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-zinc-200">الوضع المضغوط</p>
+                        <p className="text-[10px] text-zinc-500 mt-1">تصغير حجم البطاقات لعرض المزيد من البيانات</p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          const newVal = !compactMode;
+                          setCompactMode(newVal);
+                          localStorage.setItem('compactMode', String(newVal));
+                          triggerHaptic(10);
+                        }}
+                        className={`w-11 h-6 rounded-full transition-colors flex items-center px-1 ${compactMode ? 'bg-indigo-500 justify-end' : 'bg-zinc-700 justify-start'}`}
+                      >
+                        <motion.div layout className="w-4 h-4 rounded-full bg-white shadow-sm" />
+                      </button>
+                    </div>
+
+                    {/* Animations Toggle */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-zinc-200">الحركات التفاعلية</p>
+                        <p className="text-[10px] text-zinc-500 mt-1">تفعيل أو تعطيل الحركات والانتقالات في التطبيق</p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          const newVal = !animationsEnabled;
+                          setAnimationsEnabled(newVal);
+                          localStorage.setItem('animationsEnabled', String(newVal));
+                          triggerHaptic(10);
+                        }}
+                        className={`w-11 h-6 rounded-full transition-colors flex items-center px-1 ${animationsEnabled ? 'bg-indigo-500 justify-end' : 'bg-zinc-700 justify-start'}`}
+                      >
+                        <motion.div layout className="w-4 h-4 rounded-full bg-white shadow-sm" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {settingsTab === 'advanced' && (
+                  <div className="space-y-6">
+                    {/* Data Saver Toggle */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-zinc-200">توفير البيانات</p>
+                        <p className="text-[10px] text-zinc-500 mt-1">تقليل استهلاك البيانات بإيقاف التحديثات التلقائية السريعة</p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          const newVal = !dataSaver;
+                          setDataSaver(newVal);
+                          localStorage.setItem('dataSaver', String(newVal));
+                          triggerHaptic(10);
+                        }}
+                        className={`w-11 h-6 rounded-full transition-colors flex items-center px-1 ${dataSaver ? 'bg-indigo-500 justify-end' : 'bg-zinc-700 justify-start'}`}
+                      >
+                        <motion.div layout className="w-4 h-4 rounded-full bg-white shadow-sm" />
+                      </button>
+                    </div>
+
+                    {/* Default Market Select */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-zinc-200">السوق الافتراضي</p>
+                        <p className="text-[10px] text-zinc-500 mt-1">تحديد السوق المفضل لعرض الأسعار</p>
+                      </div>
+                      <select
+                        value={defaultMarket}
+                        onChange={(e) => {
+                          const val = e.target.value as 'parallel' | 'official';
+                          setDefaultMarket(val);
+                          localStorage.setItem('defaultMarket', val);
+                          triggerHaptic(10);
+                        }}
+                        className="bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white outline-none focus:border-indigo-500/50"
+                      >
+                        <option value="parallel">السوق الموازي</option>
+                        <option value="official">السوق الرسمي</option>
+                      </select>
+                    </div>
+                  </div>
                 )}
               </div>
 
@@ -2873,5 +3069,6 @@ export default function App() {
         </div>
       </div>
     </div>
+    </MotionConfig>
   );
 }

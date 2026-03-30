@@ -12,6 +12,34 @@ body {
   color: #ffffff;
 }
 
+/* Compact Mode */
+[data-compact="true"] .group.p-2\.5 {
+  padding: 0.5rem !important;
+  margin: -0.5rem !important;
+}
+[data-compact="true"] .group.p-2\.5 .text-2xl {
+  font-size: 1.25rem !important;
+  line-height: 1.75rem !important;
+}
+[data-compact="true"] .group.p-2\.5 .mb-3 {
+  margin-bottom: 0.25rem !important;
+}
+[data-compact="true"] .group.p-2\.5 .mb-4 {
+  margin-bottom: 0.25rem !important;
+}
+[data-compact="true"] .group.p-2\.5 .w-10 {
+  width: 1.5rem !important;
+}
+[data-compact="true"] .group.p-2\.5 .h-10 {
+  height: 1.5rem !important;
+}
+
+/* Disabled Animations */
+[data-animations="false"] * {
+  transition: none !important;
+  animation: none !important;
+}
+
 /* Skeleton Pulse Animation */
 .skeleton-pulse {
   position: relative;
