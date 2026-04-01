@@ -1237,31 +1237,66 @@ export default function App() {
     return trends;
   }, [history, rates]);
 
-  // منطق محول العملات
-  const [converterAmount, setConverterAmount] = useState<number>(100);
-  const [converterFrom, setConverterFrom] = useState<string>("USD");
-  const [converterMode, setConverterMode] = useState<'toLYD' | 'fromLYD'>("toLYD");
+  // منطق محول العملات الذكي
+  const [convActiveField, setConvActiveField] = useState<'top' | 'parallel' | 'official'>('top');
+  const [convInputValue, setConvInputValue] = useState<string>('100');
+  const [convCurrency, setConvCurrency] = useState<string>('USD');
 
-  const resultParallel = useMemo(() => {
-    if (!rates) return 0;
-    const rate = rates.parallel[converterFrom] || 0;
-    if (rate === 0) return 0;
-    return converterMode === 'toLYD' ? converterAmount * rate : converterAmount / rate;
-  }, [converterAmount, converterFrom, converterMode, rates]);
-
-  const resultOfficial = useMemo(() => {
-    if (!rates) return 0;
-    const rate = rates.official[converterFrom] || 0;
-    if (rate === 0) return 0;
-    return converterMode === 'toLYD' ? converterAmount * rate : converterAmount / rate;
-  }, [converterAmount, converterFrom, converterMode, rates]);
-
-  const handleSwap = () => {
-    // استخدم النتيجة الحالية في السوق الموازي كقيمة جديدة عند التبديل
-    const newAmount = resultParallel;
-    setConverterAmount(Number(newAmount.toFixed(2)));
-    setConverterMode(prev => prev === 'toLYD' ? 'fromLYD' : 'toLYD');
+  const detectCurrency = (text: string) => {
+    const lower = text.toLowerCase();
+    if (lower.includes('$') || lower.includes('usd') || lower.includes('دولار')) return 'USD';
+    if (lower.includes('€') || lower.includes('eur') || lower.includes('يورو')) return 'EUR';
+    if (lower.includes('£') || lower.includes('gbp') || lower.includes('باوند') || lower.includes('استرليني')) return 'GBP';
+    if (lower.includes('tnd') || lower.includes('تونسي')) return 'TND';
+    if (lower.includes('egp') || lower.includes('جنيه') || lower.includes('مصر')) return 'EGP';
+    if (lower.includes('try') || lower.includes('₺') || lower.includes('ليرة') || lower.includes('تركي')) return 'TRY';
+    if (lower.includes('cad') || lower.includes('كندي')) return 'CAD';
+    if (lower.includes('aed') || lower.includes('درهم') || lower.includes('اماراتي')) return 'AED';
+    if (lower.includes('sar') || lower.includes('ريال') || lower.includes('سعودي')) return 'SAR';
+    if (lower.includes('lyd') || lower.includes('د.ل') || lower.includes('دينار') || lower.includes('ليبي')) return 'LYD';
+    return null;
   };
+
+  const extractNumber = (text: string) => {
+    const match = text.match(/[\d.]+/);
+    return match ? parseFloat(match[0]) : 0;
+  };
+
+  const { topAmount, parallelAmount, officialAmount } = useMemo(() => {
+    if (!rates) return { topAmount: 0, parallelAmount: 0, officialAmount: 0 };
+    
+    const parallelRate = rates.parallel[convCurrency] || 1;
+    const officialRate = rates.official[convCurrency] || 1;
+    
+    let top = 0;
+    let parallel = 0;
+    let official = 0;
+    
+    const parsedInput = extractNumber(convInputValue);
+    const detected = detectCurrency(convInputValue);
+
+    if (convActiveField === 'top') {
+      if (detected === 'LYD') {
+        parallel = parsedInput;
+        top = parallelRate ? parallel / parallelRate : 0;
+        official = top * officialRate;
+      } else {
+        top = parsedInput;
+        parallel = top * parallelRate;
+        official = top * officialRate;
+      }
+    } else if (convActiveField === 'parallel') {
+      parallel = parsedInput;
+      top = parallelRate ? parallel / parallelRate : 0;
+      official = top * officialRate;
+    } else if (convActiveField === 'official') {
+      official = parsedInput;
+      top = officialRate ? official / officialRate : 0;
+      parallel = top * parallelRate;
+    }
+    
+    return { topAmount: top, parallelAmount: parallel, officialAmount: official };
+  }, [convActiveField, convInputValue, convCurrency, rates]);
 
   const usdRate = rates?.parallel["USD"] || 0;
   const prevUsdRate = rates?.previousParallel?.["USD"] || usdRate;
@@ -2122,118 +2157,98 @@ export default function App() {
               </div>
 
               <div className="flex flex-col gap-6">
-                {/* Input Area */}
-                <div className="flex flex-col sm:flex-row items-center gap-4 bg-white/[0.02] p-4 sm:p-6 rounded-3xl border border-white/5">
+                {/* Smart Input Area */}
+                <div className="flex flex-col sm:flex-row items-center gap-4 bg-white/[0.02] p-4 sm:p-6 rounded-3xl border border-white/5 relative z-20">
                   <div className="flex-1 w-full">
                     <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-2 block">
-                      {converterMode === 'toLYD' ? 'المبلغ (عملة أجنبية)' : 'المبلغ (دينار ليبي)'}
+                      المبلغ (اكتب الرقم أو العملة، مثال: 100$ أو 50 دينار)
                     </label>
                     <input 
-                      type="number"
-                      value={converterAmount || ''}
-                      onChange={(e) => setConverterAmount(Number(e.target.value))}
+                      type="text"
+                      value={convActiveField === 'top' ? convInputValue : (topAmount ? (topAmount % 1 === 0 ? topAmount : topAmount.toFixed(2)) : '')}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setConvActiveField('top');
+                        setConvInputValue(val);
+                        const detected = detectCurrency(val);
+                        if (detected && detected !== 'LYD') {
+                          setConvCurrency(detected);
+                        }
+                      }}
                       className="w-full bg-transparent text-white font-mono text-3xl sm:text-4xl focus:outline-none appearance-none"
-                      placeholder="0.00"
+                      placeholder="100 $"
+                      dir="ltr"
+                      style={{ textAlign: 'right' }}
                     />
                   </div>
                   <div className="shrink-0 w-full sm:w-auto">
-                    {converterMode === 'toLYD' ? (
-                      <select 
-                        value={converterFrom}
-                        onChange={(e) => setConverterFrom(e.target.value)}
-                        className="w-full sm:w-auto bg-white/[0.05] border border-white/10 rounded-2xl p-4 text-white font-bold focus:outline-none appearance-none cursor-pointer hover:bg-white/[0.1] transition-colors text-center"
-                      >
-                        {configTerms.filter(t => !METAL_IDS.includes(t.id) && t.id !== "OFFICIAL_USD").map(t => (
-                          <option key={t.id} value={t.id} className="bg-[#121212]">{t.name}</option>
-                        ))}
-                      </select>
-                    ) : (
-                      <div className="w-full sm:w-auto bg-white/[0.05] border border-white/10 rounded-2xl p-4 text-white font-bold text-center">
-                        دينار ليبي (LYD)
-                      </div>
-                    )}
+                    <select 
+                      value={convCurrency}
+                      onChange={(e) => {
+                        setConvCurrency(e.target.value);
+                        if (convActiveField !== 'top') {
+                          setConvActiveField('top');
+                          setConvInputValue(topAmount.toString());
+                        }
+                      }}
+                      className="w-full sm:w-auto bg-white/[0.05] border border-white/10 rounded-2xl p-4 text-white font-bold focus:outline-none appearance-none cursor-pointer hover:bg-white/[0.1] transition-colors text-center"
+                    >
+                      {configTerms.filter(t => !METAL_IDS.includes(t.id) && t.id !== "OFFICIAL_USD").map(t => (
+                        <option key={t.id} value={t.id} className="bg-[#121212]">{t.name}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 
-                {/* Swap Button */}
-                <div className="flex justify-center -my-9 relative z-10">
-                  <button 
-                    onClick={handleSwap}
-                    className="w-14 h-14 rounded-full bg-[#050505] border border-white/10 flex items-center justify-center text-emerald-400 hover:bg-emerald-500 hover:text-black hover:border-emerald-500 transition-all duration-300 shadow-lg group/swap"
-                  >
-                    <ArrowUpDown className="w-6 h-6 transition-transform duration-500 group-hover/swap:rotate-180" />
-                  </button>
-                </div>
-
                 {/* Output Area - Parallel & Official side by side */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2 relative z-10">
                   {/* Result 1 */}
-                  <div className={`bg-gradient-to-br border p-6 rounded-3xl flex flex-col items-center justify-center text-center relative overflow-hidden group ${defaultMarket === 'parallel' ? 'from-emerald-500/[0.05] to-transparent border-emerald-500/20' : 'from-indigo-500/[0.05] to-transparent border-indigo-500/20'}`}>
+                  <div className={`bg-gradient-to-br border p-6 rounded-3xl flex flex-col items-center justify-center text-center relative overflow-hidden group transition-all focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-offset-[#050505] ${defaultMarket === 'parallel' ? 'from-emerald-500/[0.05] to-transparent border-emerald-500/20 focus-within:ring-emerald-500/50' : 'from-indigo-500/[0.05] to-transparent border-indigo-500/20 focus-within:ring-indigo-500/50'}`}>
                     <span className={`${defaultMarket === 'parallel' ? 'text-emerald-500/70' : 'text-indigo-400/70'} text-[10px] font-bold uppercase tracking-widest mb-2`}>
                       {defaultMarket === 'parallel' ? 'السوق الموازي' : 'السعر الرسمي'}
                     </span>
-                    <div className="flex items-end gap-2 my-4">
-                      <span className="text-3xl sm:text-4xl font-light text-white font-mono tracking-tighter break-all">
-                        {defaultMarket === 'parallel' ? (resultParallel % 1 === 0 ? resultParallel : resultParallel.toFixed(2)) : (resultOfficial % 1 === 0 ? resultOfficial : resultOfficial.toFixed(2))}
-                      </span>
+                    <div className="flex items-end gap-2 my-4 w-full">
+                      <input
+                        type="number"
+                        value={convActiveField === (defaultMarket === 'parallel' ? 'parallel' : 'official') ? convInputValue : (defaultMarket === 'parallel' ? (parallelAmount ? (parallelAmount % 1 === 0 ? parallelAmount : parallelAmount.toFixed(2)) : '') : (officialAmount ? (officialAmount % 1 === 0 ? officialAmount : officialAmount.toFixed(2)) : ''))}
+                        onChange={(e) => {
+                          setConvActiveField(defaultMarket === 'parallel' ? 'parallel' : 'official');
+                          setConvInputValue(e.target.value);
+                        }}
+                        className="w-full bg-transparent text-center text-3xl sm:text-4xl font-light text-white font-mono tracking-tighter focus:outline-none appearance-none"
+                        placeholder="0.00"
+                        dir="ltr"
+                      />
                     </div>
                     <div className="mt-auto w-full">
-                      {converterMode === 'fromLYD' ? (
-                        defaultMarket === 'parallel' ? (
-                          <select 
-                            value={converterFrom}
-                            onChange={(e) => setConverterFrom(e.target.value)}
-                            className="w-full bg-white/[0.05] border border-white/10 rounded-xl p-3 text-white text-sm font-bold focus:outline-none appearance-none cursor-pointer hover:bg-white/[0.1] transition-colors text-center"
-                          >
-                            {configTerms.filter(t => !METAL_IDS.includes(t.id) && t.id !== "OFFICIAL_USD").map(t => (
-                              <option key={t.id} value={t.id} className="bg-[#121212]">{t.name}</option>
-                            ))}
-                          </select>
-                        ) : (
-                          <div className="w-full bg-white/[0.02] border border-white/5 rounded-xl p-3 text-zinc-400 text-sm font-bold text-center">
-                            {configTerms.find(t => t.id === converterFrom)?.name || converterFrom}
-                          </div>
-                        )
-                      ) : (
-                        <div className="w-full bg-white/[0.02] border border-white/5 rounded-xl p-3 text-zinc-400 text-sm font-bold text-center">
-                          دينار ليبي (LYD)
-                        </div>
-                      )}
+                      <div className="w-full bg-white/[0.02] border border-white/5 rounded-xl p-3 text-zinc-400 text-sm font-bold text-center">
+                        دينار ليبي (LYD)
+                      </div>
                     </div>
                   </div>
 
                   {/* Result 2 */}
-                  <div className={`bg-gradient-to-br border p-6 rounded-3xl flex flex-col items-center justify-center text-center relative overflow-hidden group ${defaultMarket === 'parallel' ? 'from-indigo-500/[0.05] to-transparent border-indigo-500/20' : 'from-emerald-500/[0.05] to-transparent border-emerald-500/20'}`}>
+                  <div className={`bg-gradient-to-br border p-6 rounded-3xl flex flex-col items-center justify-center text-center relative overflow-hidden group transition-all focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-offset-[#050505] ${defaultMarket === 'parallel' ? 'from-indigo-500/[0.05] to-transparent border-indigo-500/20 focus-within:ring-indigo-500/50' : 'from-emerald-500/[0.05] to-transparent border-emerald-500/20 focus-within:ring-emerald-500/50'}`}>
                     <span className={`${defaultMarket === 'parallel' ? 'text-indigo-400/70' : 'text-emerald-500/70'} text-[10px] font-bold uppercase tracking-widest mb-2`}>
                       {defaultMarket === 'parallel' ? 'السعر الرسمي' : 'السوق الموازي'}
                     </span>
-                    <div className="flex items-end gap-2 my-4">
-                      <span className="text-3xl sm:text-4xl font-light text-white font-mono tracking-tighter break-all">
-                        {defaultMarket === 'parallel' ? (resultOfficial % 1 === 0 ? resultOfficial : resultOfficial.toFixed(2)) : (resultParallel % 1 === 0 ? resultParallel : resultParallel.toFixed(2))}
-                      </span>
+                    <div className="flex items-end gap-2 my-4 w-full">
+                      <input
+                        type="number"
+                        value={convActiveField === (defaultMarket === 'parallel' ? 'official' : 'parallel') ? convInputValue : (defaultMarket === 'parallel' ? (officialAmount ? (officialAmount % 1 === 0 ? officialAmount : officialAmount.toFixed(2)) : '') : (parallelAmount ? (parallelAmount % 1 === 0 ? parallelAmount : parallelAmount.toFixed(2)) : ''))}
+                        onChange={(e) => {
+                          setConvActiveField(defaultMarket === 'parallel' ? 'official' : 'parallel');
+                          setConvInputValue(e.target.value);
+                        }}
+                        className="w-full bg-transparent text-center text-3xl sm:text-4xl font-light text-white font-mono tracking-tighter focus:outline-none appearance-none"
+                        placeholder="0.00"
+                        dir="ltr"
+                      />
                     </div>
                     <div className="mt-auto w-full">
-                      {converterMode === 'fromLYD' ? (
-                        defaultMarket === 'parallel' ? (
-                          <div className="w-full bg-white/[0.02] border border-white/5 rounded-xl p-3 text-zinc-400 text-sm font-bold text-center">
-                            {configTerms.find(t => t.id === converterFrom)?.name || converterFrom}
-                          </div>
-                        ) : (
-                          <select 
-                            value={converterFrom}
-                            onChange={(e) => setConverterFrom(e.target.value)}
-                            className="w-full bg-white/[0.05] border border-white/10 rounded-xl p-3 text-white text-sm font-bold focus:outline-none appearance-none cursor-pointer hover:bg-white/[0.1] transition-colors text-center"
-                          >
-                            {configTerms.filter(t => !METAL_IDS.includes(t.id) && t.id !== "OFFICIAL_USD").map(t => (
-                              <option key={t.id} value={t.id} className="bg-[#121212]">{t.name}</option>
-                            ))}
-                          </select>
-                        )
-                      ) : (
-                        <div className="w-full bg-white/[0.02] border border-white/5 rounded-xl p-3 text-zinc-400 text-sm font-bold text-center">
-                          دينار ليبي (LYD)
-                        </div>
-                      )}
+                      <div className="w-full bg-white/[0.02] border border-white/5 rounded-xl p-3 text-zinc-400 text-sm font-bold text-center">
+                        دينار ليبي (LYD)
+                      </div>
                     </div>
                   </div>
                 </div>

@@ -2409,6 +2409,96 @@ async function startServer() {
     });
   });
 
+  // Programmatic access to fetch messages from a Telegram channel
+  app.get("/api/telegram/messages", requireAdmin, async (req: express.Request, res: express.Response) => {
+    const channel = req.query.channel as string;
+    const limit = parseInt(req.query.limit as string) || 10;
+
+    if (!channel) {
+      return res.status(400).json({ success: false, error: "Channel username is required" });
+    }
+
+    if (!telegramManager || !telegramManager.isConnected()) {
+      return res.status(503).json({ success: false, error: "Telegram client is not connected" });
+    }
+
+    try {
+      const messages = await telegramManager.fetchMessages(channel, Math.min(limit, 100));
+      res.json({ success: true, messages });
+    } catch (error: any) {
+      console.error(`[API] Error fetching messages for ${channel}:`, error);
+      res.status(500).json({ success: false, error: error.message || "Failed to fetch messages" });
+    }
+  });
+
+  // Programmatic access to trigger an update from a specific Telegram channel
+  app.post("/api/telegram/update", requireAdmin, async (req: express.Request, res: express.Response) => {
+    const { channel, limit = 10 } = req.body;
+
+    if (!channel) {
+      return res.status(400).json({ success: false, error: "Channel username is required" });
+    }
+
+    if (!telegramManager || !telegramManager.isConnected()) {
+      return res.status(503).json({ success: false, error: "Telegram client is not connected" });
+    }
+
+    try {
+      const messages = await telegramManager.fetchMessages(channel, Math.min(limit, 50));
+      
+      let anyUpdated = false;
+      const allExtracted: { code: string, value: number }[] = [];
+      
+      // Process messages from oldest to newest to ensure the latest rate is applied last
+      const sortedMessages = [...messages].sort((a, b) => a.date - b.date);
+      
+      for (const msg of sortedMessages) {
+        const cleanText = msg.text.replace(/\n/g, ' ');
+        const extracted = extractRatesFromText(cleanText);
+        
+        for (const item of extracted) {
+          allExtracted.push(item);
+          const currentVal = rates.parallel[item.code];
+          
+          if (isSignificantChange(currentVal, item.value)) {
+            rates.previousParallel[item.code] = currentVal || item.value;
+            rates.parallel[item.code] = item.value;
+            rates.lastChanged.parallel[item.code] = new Date(msg.date).toISOString();
+            anyUpdated = true;
+            
+            const term = appConfig.terms.find(t => t.id === item.code);
+            await logPriceChange({
+              id: Math.random().toString(36).substring(2, 9),
+              currencyCode: item.code,
+              currencyName: term ? term.name : item.code,
+              oldPrice: currentVal || item.value,
+              newPrice: item.value,
+              source: `API Update (${channel})`,
+              timestamp: new Date(msg.date).toISOString()
+            });
+          }
+        }
+      }
+      
+      if (anyUpdated) {
+        rates.lastUpdated = new Date().toISOString();
+        await syncCheckRates(`API Update (${channel})`);
+        await saveToSupabase('parallel');
+        broadcastRates();
+      }
+      
+      res.json({ 
+        success: true, 
+        message: anyUpdated ? "Rates updated successfully" : "No new rates found",
+        extracted: allExtracted,
+        updated: anyUpdated
+      });
+    } catch (error: any) {
+      console.error(`[API] Error updating from ${channel}:`, error);
+      res.status(500).json({ success: false, error: error.message || "Failed to update from channel" });
+    }
+  });
+
   app.get("/api/config", (req: express.Request, res: express.Response) => {
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
     res.json({ terms: appConfig.terms });
