@@ -1841,12 +1841,19 @@ export default function App() {
         <section id="main-rates-grid" className="space-y-16">
           {/* 1. Foreign Currencies Group */}
           <div>
-            <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-8 cursor-pointer group" onClick={() => toggleSection('foreign')}>
-              <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest group-hover:text-zinc-300 transition-colors">السوق الموازي (عملات أجنبية)</h3>
-              <button className="text-zinc-500 group-hover:text-white transition-colors flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider">
-                {expandedSections.foreign ? 'طي' : 'عرض المزيد'}
-                <ChevronDown className={`w-4 h-4 transition-transform duration-300 ${expandedSections.foreign ? 'rotate-180' : ''}`} />
-              </button>
+            <div className="flex items-center justify-between mb-6 cursor-pointer group" onClick={() => toggleSection('foreign')}>
+              <div className="flex items-center gap-3.5">
+                <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-emerald-500/5 border border-emerald-500/10 flex items-center justify-center text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.1)] group-hover:scale-105 transition-transform duration-300">
+                  <Globe className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white tracking-wide">السوق الموازي</h3>
+                  <p className="text-[11px] text-zinc-400 font-medium mt-0.5">عملات أجنبية</p>
+                </div>
+              </div>
+              <div className="w-8 h-8 rounded-full bg-zinc-800/50 flex items-center justify-center group-hover:bg-zinc-700 transition-colors">
+                <ChevronDown className={`w-4 h-4 text-zinc-400 transition-transform duration-300 ${expandedSections.foreign ? 'rotate-180' : ''}`} />
+              </div>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-8 gap-y-12">
               {(!rates || configTerms.length === 0) ? (
@@ -1896,12 +1903,19 @@ export default function App() {
 
           {/* 2. Bank Checks Group */}
           <div id="checks-grid">
-            <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-8 cursor-pointer group" onClick={() => toggleSection('checks')}>
-              <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest group-hover:text-zinc-300 transition-colors">أسعار صكوك المصارف التجارية (USD)</h3>
-              <button className="text-zinc-500 group-hover:text-white transition-colors flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider">
-                {expandedSections.checks ? 'طي' : 'عرض المزيد'}
-                <ChevronDown className={`w-4 h-4 transition-transform duration-300 ${expandedSections.checks ? 'rotate-180' : ''}`} />
-              </button>
+            <div className="flex items-center justify-between mb-6 cursor-pointer group" onClick={() => toggleSection('checks')}>
+              <div className="flex items-center gap-3.5">
+                <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-cyan-500/5 border border-cyan-500/10 flex items-center justify-center text-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.1)] group-hover:scale-105 transition-transform duration-300">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white tracking-wide">صكوك المصارف</h3>
+                  <p className="text-[11px] text-zinc-400 font-medium mt-0.5">دولار أمريكي (USD)</p>
+                </div>
+              </div>
+              <div className="w-8 h-8 rounded-full bg-zinc-800/50 flex items-center justify-center group-hover:bg-zinc-700 transition-colors">
+                <ChevronDown className={`w-4 h-4 text-zinc-400 transition-transform duration-300 ${expandedSections.checks ? 'rotate-180' : ''}`} />
+              </div>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-8 gap-y-12">
               {(!rates || configTerms.length === 0) ? (
@@ -1951,12 +1965,19 @@ export default function App() {
 
           {/* 3. Metals Group */}
           <div id="metals-grid">
-            <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-8 cursor-pointer group" onClick={() => toggleSection('metals')}>
-              <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest group-hover:text-zinc-300 transition-colors">أسعار الذهب والفضة (المعادن)</h3>
-              <button className="text-zinc-500 group-hover:text-white transition-colors flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider">
-                {expandedSections.metals ? 'طي' : 'عرض المزيد'}
-                <ChevronDown className={`w-4 h-4 transition-transform duration-300 ${expandedSections.metals ? 'rotate-180' : ''}`} />
-              </button>
+            <div className="flex items-center justify-between mb-6 cursor-pointer group" onClick={() => toggleSection('metals')}>
+              <div className="flex items-center gap-3.5">
+                <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-amber-500/20 to-amber-500/5 border border-amber-500/10 flex items-center justify-center text-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.1)] group-hover:scale-105 transition-transform duration-300">
+                  <Coins className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white tracking-wide">المعادن الثمينة</h3>
+                  <p className="text-[11px] text-zinc-400 font-medium mt-0.5">أسعار الذهب والفضة</p>
+                </div>
+              </div>
+              <div className="w-8 h-8 rounded-full bg-zinc-800/50 flex items-center justify-center group-hover:bg-zinc-700 transition-colors">
+                <ChevronDown className={`w-4 h-4 text-zinc-400 transition-transform duration-300 ${expandedSections.metals ? 'rotate-180' : ''}`} />
+              </div>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-8 gap-y-12">
               {(!rates || configTerms.length === 0) ? (
@@ -2021,12 +2042,19 @@ export default function App() {
 
           {/* 4. Transfers Group */}
           <div id="transfers-grid">
-            <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-8 cursor-pointer group" onClick={() => toggleSection('transfers')}>
-              <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest group-hover:text-zinc-300 transition-colors">حوالات العملة (خارج ليبيا)</h3>
-              <button className="text-zinc-500 group-hover:text-white transition-colors flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider">
-                {expandedSections.transfers ? 'طي' : 'عرض المزيد'}
-                <ChevronDown className={`w-4 h-4 transition-transform duration-300 ${expandedSections.transfers ? 'rotate-180' : ''}`} />
-              </button>
+            <div className="flex items-center justify-between mb-6 cursor-pointer group" onClick={() => toggleSection('transfers')}>
+              <div className="flex items-center gap-3.5">
+                <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-blue-500/20 to-blue-500/5 border border-blue-500/10 flex items-center justify-center text-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.1)] group-hover:scale-105 transition-transform duration-300">
+                  <ArrowLeftRight className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white tracking-wide">حوالات العملة</h3>
+                  <p className="text-[11px] text-zinc-400 font-medium mt-0.5">تحويلات خارج ليبيا</p>
+                </div>
+              </div>
+              <div className="w-8 h-8 rounded-full bg-zinc-800/50 flex items-center justify-center group-hover:bg-zinc-700 transition-colors">
+                <ChevronDown className={`w-4 h-4 text-zinc-400 transition-transform duration-300 ${expandedSections.transfers ? 'rotate-180' : ''}`} />
+              </div>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-8 gap-y-12">
               {(!rates || configTerms.length === 0) ? (
@@ -2080,12 +2108,19 @@ export default function App() {
 
         {/* Official Market Table */}
         <section id="official-rates-grid">
-          <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-8 cursor-pointer group" onClick={() => toggleSection('official')}>
-            <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest group-hover:text-zinc-300 transition-colors">السوق الرسمي (مصرف ليبيا المركزي)</h3>
-            <button className="text-zinc-500 group-hover:text-white transition-colors flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider">
-              {expandedSections.official ? 'طي' : 'عرض المزيد'}
-              <ChevronDown className={`w-4 h-4 transition-transform duration-300 ${expandedSections.official ? 'rotate-180' : ''}`} />
-            </button>
+          <div className="flex items-center justify-between mb-6 cursor-pointer group" onClick={() => toggleSection('official')}>
+            <div className="flex items-center gap-3.5">
+              <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-indigo-500/5 border border-indigo-500/10 flex items-center justify-center text-indigo-400 shadow-[0_0_15px_rgba(99,102,241,0.1)] group-hover:scale-105 transition-transform duration-300">
+                <Building2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white tracking-wide">السوق الرسمي</h3>
+                <p className="text-[11px] text-zinc-400 font-medium mt-0.5">مصرف ليبيا المركزي</p>
+              </div>
+            </div>
+            <div className="w-8 h-8 rounded-full bg-zinc-800/50 flex items-center justify-center group-hover:bg-zinc-700 transition-colors">
+              <ChevronDown className={`w-4 h-4 text-zinc-400 transition-transform duration-300 ${expandedSections.official ? 'rotate-180' : ''}`} />
+            </div>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-x-8 gap-y-12">
             {(!rates || dynamicCurrencies.length === 0) ? (
