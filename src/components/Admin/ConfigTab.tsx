@@ -122,7 +122,7 @@ export const ConfigTab: React.FC<ConfigTabProps> = ({ config, setConfig, onSave,
                 >
                   <div className="flex items-center gap-4">
                     <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-center text-xl shadow-inner group-hover:scale-110 transition-transform">
-                      {term.flag || <FlagIcon code={term.id} className="w-6 h-6" />}
+                      {term.flag || <FlagIcon flagCode={term.id.slice(0, 2).toLowerCase()} name={term.name} className="w-6 h-6" />}
                     </div>
                     <div>
                       <h3 className="font-black text-white text-base flex items-center gap-2">
