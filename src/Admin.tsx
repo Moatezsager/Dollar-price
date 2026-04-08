@@ -1129,7 +1129,7 @@ export default function Admin() {
         </AnimatePresence>
 
         {/* Content Viewport */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-8 relative">
+        <main className="flex-1 overflow-y-auto p-4 md:p-8 relative pb-24 md:pb-8">
           <AnimatePresence mode="wait">
             {activeTab === 'api' && (
               <motion.div
@@ -1488,12 +1488,54 @@ export default function Admin() {
 
                   {/* Quick Actions & Health */}
                   <div className="space-y-6">
+                    {/* System Health */}
+                    <div className="bg-white/[0.02] border border-white/5 rounded-[2.5rem] p-8">
+                       <h3 className="text-xl font-black mb-6 flex items-center gap-3">
+                          <Activity className="w-6 h-6 text-emerald-400" />
+                          صحة النظام
+                       </h3>
+                       <div className="space-y-5">
+                          <div>
+                             <div className="flex justify-between text-xs mb-2">
+                                <span className="text-zinc-400 font-bold">استهلاك الذاكرة (RAM)</span>
+                                <span className="text-emerald-400 font-mono">{stats?.memoryUsage ? Math.round(stats.memoryUsage.heapUsed / 1024 / 1024) : 0} MB / {stats?.memoryUsage ? Math.round(stats.memoryUsage.heapTotal / 1024 / 1024) : 0} MB</span>
+                             </div>
+                             <div className="h-2 bg-white/5 rounded-full overflow-hidden">
+                                <div 
+                                  className="h-full bg-emerald-500 rounded-full transition-all duration-1000" 
+                                  style={{ width: `${stats?.memoryUsage ? Math.min(100, (stats.memoryUsage.heapUsed / stats.memoryUsage.heapTotal) * 100) : 0}%` }}
+                                ></div>
+                             </div>
+                          </div>
+                          <div>
+                             <div className="flex justify-between text-xs mb-2">
+                                <span className="text-zinc-400 font-bold">حالة قاعدة البيانات</span>
+                                <span className={stats?.dbConnected !== false ? 'text-emerald-400' : 'text-rose-400'}>
+                                  {stats?.dbConnected !== false ? 'متصل ومستقر' : 'غير متصل'}
+                                </span>
+                             </div>
+                             <div className="h-2 bg-white/5 rounded-full overflow-hidden">
+                                <div className={`h-full rounded-full transition-all duration-1000 w-full ${stats?.dbConnected !== false ? 'bg-emerald-500' : 'bg-rose-500'}`}></div>
+                             </div>
+                          </div>
+                          <div>
+                             <div className="flex justify-between text-xs mb-2">
+                                <span className="text-zinc-400 font-bold">وقت التشغيل (Uptime)</span>
+                                <span className="text-blue-400 font-mono">{uptimeDisplay || "..."}</span>
+                             </div>
+                             <div className="h-2 bg-white/5 rounded-full overflow-hidden">
+                                <div className="h-full bg-blue-500 rounded-full w-full"></div>
+                             </div>
+                          </div>
+                       </div>
+                    </div>
+
                     <div className="bg-white/[0.02] border border-white/5 rounded-[2.5rem] p-8">
                        <h3 className="text-xl font-black mb-6 flex items-center gap-3">
                           <Zap className="w-6 h-6 text-amber-400" />
-                          إجراءات سريعة
+                          إجراءات الخادم (Server Controls)
                        </h3>
-                       <div className="grid grid-cols-1 gap-3">
+                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <button 
                             onClick={runDiagnostics}
                             className="w-full flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all group"
@@ -1515,12 +1557,32 @@ export default function Admin() {
                              <ArrowRight className="w-4 h-4 text-zinc-600 group-hover:translate-x-[-4px] transition-transform" />
                           </button>
                           <button 
-                            onClick={() => setActiveTab('telegram')}
+                            onClick={async () => {
+                              try {
+                                const res = await fetch("/api/admin/refresh", { method: "POST", headers: { Authorization: `Bearer ${token}` } });
+                                if (res.ok) setSuccess("تم بدء جلب الأسعار يدوياً");
+                              } catch (e) { setError("فشل بدء الجلب"); }
+                            }}
                             className="w-full flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all group"
                           >
                              <div className="flex items-center gap-3">
-                                <Globe className="w-5 h-5 text-purple-400" />
-                                <span className="text-sm font-bold">إدارة تليجرام</span>
+                                <RefreshCw className="w-5 h-5 text-emerald-400" />
+                                <span className="text-sm font-bold">تحديث الأسعار الآن</span>
+                             </div>
+                             <ArrowRight className="w-4 h-4 text-zinc-600 group-hover:translate-x-[-4px] transition-transform" />
+                          </button>
+                          <button 
+                            onClick={async () => {
+                              try {
+                                const res = await fetch("/api/admin/cleanup", { method: "POST", headers: { Authorization: `Bearer ${token}` } });
+                                if (res.ok) setSuccess("تم تنظيف قاعدة البيانات");
+                              } catch (e) { setError("فشل تنظيف قاعدة البيانات"); }
+                            }}
+                            className="w-full flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all group"
+                          >
+                             <div className="flex items-center gap-3">
+                                <Database className="w-5 h-5 text-rose-400" />
+                                <span className="text-sm font-bold">تنظيف قاعدة البيانات</span>
                              </div>
                              <ArrowRight className="w-4 h-4 text-zinc-600 group-hover:translate-x-[-4px] transition-transform" />
                           </button>
@@ -3063,8 +3125,8 @@ export default function Admin() {
         </AnimatePresence>
       </main>
 
-      {/* Floating Status Bar - Bottom */}
-      <footer className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] w-fit">
+      {/* Floating Status Bar - Bottom (Desktop Only) */}
+      <footer className="hidden md:flex fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] w-fit">
          <div className="bg-black/80 backdrop-blur-2xl border border-white/10 px-6 py-3 rounded-2xl flex items-center gap-6 shadow-2xl">
             <div className="flex items-center gap-2">
                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]"></div>
@@ -3082,6 +3144,31 @@ export default function Admin() {
             </div>
          </div>
       </footer>
+
+      {/* Mobile Bottom Navigation */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-[#080808]/90 backdrop-blur-xl border-t border-white/10 z-[100] px-6 py-3 flex items-center justify-between shadow-[0_-10px_40px_rgba(0,0,0,0.5)] pb-safe">
+        {[
+          { id: 'dashboard', icon: LayoutDashboard, label: 'الرئيسية' },
+          { id: 'database', icon: Database, label: 'البيانات' },
+          { id: 'config', icon: Settings, label: 'الإعدادات' },
+          { id: 'logs', icon: AlertTriangle, label: 'الأخطاء' },
+        ].map((item) => (
+          <button
+            key={item.id}
+            onClick={() => setActiveTab(item.id as any)}
+            className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-all ${
+              activeTab === item.id 
+                ? 'text-emerald-400' 
+                : 'text-zinc-500 hover:text-zinc-300'
+            }`}
+          >
+            <div className={`p-2 rounded-xl ${activeTab === item.id ? 'bg-emerald-500/10' : 'bg-transparent'}`}>
+              <item.icon className={`w-5 h-5 ${activeTab === item.id ? 'stroke-[2.5]' : ''}`} />
+            </div>
+            <span className="text-[10px] font-bold">{item.label}</span>
+          </button>
+        ))}
+      </nav>
 
       {/* Full-screen success/error messages over overlay */}
       <AnimatePresence>

@@ -12,6 +12,10 @@ body {
   color: #ffffff;
 }
 
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 1rem);
+}
+
 /* Compact Mode */
 [data-compact="true"] .group.p-2\.5 {
   padding: 0.5rem !important;
