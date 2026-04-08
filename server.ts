@@ -1037,11 +1037,11 @@ async function loadConfigFromSupabase() {
       }
 
       appConfig = dbConfig;
-      console.log(`[Startup] Initializing TelegramManager. TG_SESSION_V2 length: ${process.env.TG_SESSION_V2?.length || 0}`);
+      console.log(`[Startup] Initializing TelegramManager. Session length: ${(process.env.TELEGRAM_SESSION || process.env.TG_SESSION_V2 || appConfig.telegramSessionString)?.length || 0}`);
       telegramManager = getTelegramManager(
         Number(process.env.TELEGRAM_API_ID || appConfig.telegramApiId),
         process.env.TELEGRAM_API_HASH || appConfig.telegramApiHash || "",
-        process.env.TG_SESSION_V2 || appConfig.telegramSessionString || ""
+        process.env.TELEGRAM_SESSION || process.env.TG_SESSION_V2 || appConfig.telegramSessionString || ""
       );
       console.log("Loaded, merged and repaired config from Supabase successfully");
     }
@@ -1124,9 +1124,24 @@ const extractRatesFromText = (cleanText: string) => {
       let val = parseFloat(cleanValStr);
       
       if (term.id === 'GOLD_LIRA' && val < 500) continue;
-      if (term.id === 'TND' && val < 1.0 && val > 0) val = 1 / val;
-      if (term.id === 'EGP' && val > 20.0) val = 1 / val;
-      if (term.id === 'TRY' && val > 20.0) val = 1 / val;
+      
+      // Smart extraction for TND
+      if (term.id === 'TND') {
+        if (val < 1.0 && val > 0) {
+          val = 1 / val; // e.g., 0.39 -> 2.56
+        }
+      }
+      
+      // Smart extraction for EGP
+      if (term.id === 'EGP') {
+        if (val >= 2.0 && val <= 10.0) {
+          val = 1 / val; // e.g., 1 LYD = 6.66 EGP -> 0.15 LYD
+        } else if (val > 10.0 && val <= 100.0) {
+          val = val / 100; // e.g., 100 EGP = 15 LYD -> 0.15 LYD
+        }
+      }
+      
+      if (term.id === 'TRY' && val > 1.0) val = 1 / val;
       if (term.isInverse && val > 0) val = 1 / val;
       
       if (!isNaN(val) && val >= term.min && val <= term.max) {
@@ -1507,7 +1522,9 @@ async function fetchParallelRatesFromTelegram(): Promise<boolean | null> {
           // Strict validation: new price should not deviate by more than 25% from the current price
           if (currentVal !== undefined && currentVal > 0) {
             const deviation = Math.abs(newValFromTelegram - currentVal) / currentVal;
-            if (deviation > 0.25) {
+            // Relaxed deviation for TND and EGP (allow up to 100% change)
+            const allowedDeviation = (term.id === 'TND' || term.id === 'EGP') ? 1.0 : 0.25;
+            if (deviation > allowedDeviation) {
               const sourceName = latestSources[term.id] || 'غير معروف';
               const msg = `تم رفض تحديث سعر ${term.name} (${term.id}) من المصدر (${sourceName}) بسبب قفزة غير منطقية من ${currentVal} إلى ${newValFromTelegram} (تغيير بنسبة ${(deviation*100).toFixed(1)}%)`;
               console.warn(`[Scraper] ${msg}`);
@@ -2215,11 +2232,104 @@ async function startServer() {
         serverUptime: process.uptime(),
         serverStartTime: serverStartTime.toISOString(),
         memoryUsage: process.memoryUsage(),
+        dbConnected: !!(supabase && supabaseAnonKey && !supabaseAnonKey.includes('dummy')),
         dbStats
       });
     } catch (err) {
       console.error("Stats fetch failed:", err);
       res.status(500).json({ success: false, message: "فشل جلب الإحصائيات" });
+    }
+  });
+
+  app.get("/api/admin/records/:market/:currency", requireAdmin, async (req: express.Request, res: express.Response) => {
+    const { market, currency } = req.params;
+    const table = market === 'official' ? 'official_rates' : 'parallel_rates';
+    
+    if (!supabase || !supabaseAnonKey || supabaseAnonKey.includes('dummy')) {
+      return res.status(500).json({ success: false, message: "قاعدة البيانات غير متصلة" });
+    }
+    
+    try {
+      const { data, error } = await supabase
+        .from(table)
+        .select('id, recorded_at, rates')
+        .order('recorded_at', { ascending: false })
+        .limit(500);
+        
+      if (error) throw error;
+      
+      const records = data.map(row => ({
+        id: row.id,
+        recorded_at: row.recorded_at,
+        value: row.rates ? row.rates[currency] : null
+      })).filter(r => r.value !== null && r.value !== undefined);
+      
+      res.json({ success: true, records });
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
+  app.put("/api/admin/records/:market/:id", requireAdmin, async (req: express.Request, res: express.Response) => {
+    const { market, id } = req.params;
+    const { currency, value } = req.body;
+    const table = market === 'official' ? 'official_rates' : 'parallel_rates';
+    
+    if (!supabase || !supabaseAnonKey || supabaseAnonKey.includes('dummy')) {
+      return res.status(500).json({ success: false, message: "قاعدة البيانات غير متصلة" });
+    }
+    
+    try {
+      const { data: existing, error: fetchError } = await supabase
+        .from(table)
+        .select('rates')
+        .eq('id', id)
+        .single();
+        
+      if (fetchError) throw fetchError;
+      
+      const updatedRates = { ...existing.rates, [currency]: parseFloat(value) };
+      
+      const { error: updateError } = await supabase
+        .from(table)
+        .update({ rates: updatedRates })
+        .eq('id', id);
+        
+      if (updateError) throw updateError;
+      
+      // Invalidate caches
+      cachedHistory = null;
+      lastHistoryFetchTime = 0;
+      
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
+  app.delete("/api/admin/records/:market/:id", requireAdmin, async (req: express.Request, res: express.Response) => {
+    const { market, id } = req.params;
+    const table = market === 'official' ? 'official_rates' : 'parallel_rates';
+    
+    if (!supabase || !supabaseAnonKey || supabaseAnonKey.includes('dummy')) {
+      return res.status(500).json({ success: false, message: "قاعدة البيانات غير متصلة" });
+    }
+    
+    try {
+      const { error } = await supabase
+        .from(table)
+        .delete()
+        .eq('id', id);
+        
+      if (error) throw error;
+      
+      // Invalidate caches
+      cachedHistory = null;
+      lastHistoryFetchTime = 0;
+      
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: err.message });
     }
   });
 
@@ -2310,9 +2420,23 @@ async function startServer() {
                continue;
             }
 
-            if (term.id === 'TND' && val < 1.0 && val > 0) val = 1 / val;
-            if (term.id === 'EGP' && val > 20.0) val = 1 / val;
-            if (term.id === 'TRY' && val > 20.0) val = 1 / val;
+            // Smart extraction for TND
+            if (term.id === 'TND') {
+              if (val < 1.0 && val > 0) {
+                val = 1 / val; // e.g., 0.39 -> 2.56
+              }
+            }
+            
+            // Smart extraction for EGP
+            if (term.id === 'EGP') {
+              if (val >= 2.0 && val <= 10.0) {
+                val = 1 / val; // e.g., 1 LYD = 6.66 EGP -> 0.15 LYD
+              } else if (val > 10.0 && val <= 100.0) {
+                val = val / 100; // e.g., 100 EGP = 15 LYD -> 0.15 LYD
+              }
+            }
+
+            if (term.id === 'TRY' && val > 1.0) val = 1 / val;
             
             if (term.isInverse && val > 0) val = 1 / val;
             if (!isNaN(val) && val >= term.min && val <= term.max) {
@@ -2407,6 +2531,96 @@ async function startServer() {
       isConnected: telegramManager.isConnected(), 
       lastFetchTime: telegramManager.lastFetchTime 
     });
+  });
+
+  // Programmatic access to fetch messages from a Telegram channel
+  app.get("/api/telegram/messages", requireAdmin, async (req: express.Request, res: express.Response) => {
+    const channel = req.query.channel as string;
+    const limit = parseInt(req.query.limit as string) || 10;
+
+    if (!channel) {
+      return res.status(400).json({ success: false, error: "Channel username is required" });
+    }
+
+    if (!telegramManager || !telegramManager.isConnected()) {
+      return res.status(503).json({ success: false, error: "Telegram client is not connected" });
+    }
+
+    try {
+      const messages = await telegramManager.fetchMessages(channel, Math.min(limit, 100));
+      res.json({ success: true, messages });
+    } catch (error: any) {
+      console.error(`[API] Error fetching messages for ${channel}:`, error);
+      res.status(500).json({ success: false, error: error.message || "Failed to fetch messages" });
+    }
+  });
+
+  // Programmatic access to trigger an update from a specific Telegram channel
+  app.post("/api/telegram/update", requireAdmin, async (req: express.Request, res: express.Response) => {
+    const { channel, limit = 10 } = req.body;
+
+    if (!channel) {
+      return res.status(400).json({ success: false, error: "Channel username is required" });
+    }
+
+    if (!telegramManager || !telegramManager.isConnected()) {
+      return res.status(503).json({ success: false, error: "Telegram client is not connected" });
+    }
+
+    try {
+      const messages = await telegramManager.fetchMessages(channel, Math.min(limit, 50));
+      
+      let anyUpdated = false;
+      const allExtracted: { code: string, value: number }[] = [];
+      
+      // Process messages from oldest to newest to ensure the latest rate is applied last
+      const sortedMessages = [...messages].sort((a, b) => a.date - b.date);
+      
+      for (const msg of sortedMessages) {
+        const cleanText = msg.text.replace(/\n/g, ' ');
+        const extracted = extractRatesFromText(cleanText);
+        
+        for (const item of extracted) {
+          allExtracted.push(item);
+          const currentVal = rates.parallel[item.code];
+          
+          if (isSignificantChange(currentVal, item.value)) {
+            rates.previousParallel[item.code] = currentVal || item.value;
+            rates.parallel[item.code] = item.value;
+            rates.lastChanged.parallel[item.code] = new Date(msg.date).toISOString();
+            anyUpdated = true;
+            
+            const term = appConfig.terms.find(t => t.id === item.code);
+            await logPriceChange({
+              id: Math.random().toString(36).substring(2, 9),
+              currencyCode: item.code,
+              currencyName: term ? term.name : item.code,
+              oldPrice: currentVal || item.value,
+              newPrice: item.value,
+              source: `API Update (${channel})`,
+              timestamp: new Date(msg.date).toISOString()
+            });
+          }
+        }
+      }
+      
+      if (anyUpdated) {
+        rates.lastUpdated = new Date().toISOString();
+        await syncCheckRates(`API Update (${channel})`);
+        await saveToSupabase('parallel');
+        broadcastRates();
+      }
+      
+      res.json({ 
+        success: true, 
+        message: anyUpdated ? "Rates updated successfully" : "No new rates found",
+        extracted: allExtracted,
+        updated: anyUpdated
+      });
+    } catch (error: any) {
+      console.error(`[API] Error updating from ${channel}:`, error);
+      res.status(500).json({ success: false, error: error.message || "Failed to update from channel" });
+    }
   });
 
   app.get("/api/config", (req: express.Request, res: express.Response) => {
