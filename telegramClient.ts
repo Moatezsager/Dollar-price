@@ -7,12 +7,28 @@ export class TelegramManager {
   private apiHash: string;
   private sessionString: string;
   private isConnecting = false;
+  private lastFailureTime = 0;
   public lastFetchTime: number = 0;
 
   constructor(apiId: number, apiHash: string, sessionString: string) {
     this.apiId = apiId;
     this.apiHash = apiHash;
     this.sessionString = sessionString;
+  }
+
+  public updateCredentials(apiId: number, apiHash: string, sessionString: string) {
+    if (this.apiId !== apiId || this.apiHash !== apiHash || this.sessionString !== sessionString) {
+      console.log("[TelegramManager] Credentials updated, will reconnect on next request.");
+      this.apiId = apiId;
+      this.apiHash = apiHash;
+      this.sessionString = sessionString;
+      // Force a new client on next getClient()
+      if (this.client) {
+        this.client.disconnect().catch(() => {});
+        this.client = null;
+        activeClient = null;
+      }
+    }
   }
 
   /**
@@ -31,6 +47,13 @@ export class TelegramManager {
       } catch (e) {
         console.warn("[TelegramManager] Authorization check failed, re-connecting...");
       }
+    }
+
+    // Cooldown check to prevent rapid reconnection loops
+    const now = Date.now();
+    if (now - this.lastFailureTime < 30000) {
+      console.warn(`[TelegramManager] In cooldown period (${Math.ceil((30000 - (now - this.lastFailureTime)) / 1000)}s remaining), skipping connection attempt.`);
+      return null;
     }
 
     // Handle concurrent connection attempts
@@ -79,9 +102,20 @@ export class TelegramManager {
       activeClient = this.client;
       return this.client;
     } catch (error: any) {
-      console.error("[TelegramManager] Connection failed:", error.message || error);
+      const errorMsg = error.message || String(error);
+      console.error("[TelegramManager] Connection failed:", errorMsg);
+      
+      if (errorMsg.includes("AUTH_KEY_DUPLICATED")) {
+        console.error("[TelegramManager] CRITICAL: Auth key is duplicated. This session is being used by another client. Waiting 10s before cleanup...");
+        await new Promise(resolve => setTimeout(resolve, 10000));
+      }
+      
+      if (this.client) {
+        try { await this.client.disconnect(); } catch (e) {}
+      }
       this.client = null;
       activeClient = null;
+      this.lastFailureTime = Date.now();
       return null;
     } finally {
       this.isConnecting = false;
@@ -169,6 +203,9 @@ export const getTelegramManager = (
 ): TelegramManager => {
   if (!managerInstance) {
     managerInstance = new TelegramManager(apiId, apiHash, sessionString);
+  } else {
+    // Update credentials if they changed
+    managerInstance.updateCredentials(apiId, apiHash, sessionString);
   }
   return managerInstance;
 };
@@ -190,9 +227,9 @@ export const getTelegramClient = async (
  * Initializes Telegram using environment variables.
  */
 export const initializeTelegram = async (): Promise<TelegramClient | null> => {
-  const apiId = Number(process.env.TELEGRAM_API_ID);
-  const apiHash = process.env.TELEGRAM_API_HASH;
-  const sessionString = process.env.TELEGRAM_SESSION;
+  const apiId = Number(process.env.TELEGRAM_API_ID || process.env.VITE_TELEGRAM_API_ID);
+  const apiHash = process.env.TELEGRAM_API_HASH || process.env.VITE_TELEGRAM_API_HASH;
+  const sessionString = process.env.TELEGRAM_SESSION || process.env.TG_SESSION_V2 || process.env.VITE_TELEGRAM_SESSION;
 
   if (!apiId || !apiHash || !sessionString) {
     console.warn("[Telegram] Missing environment variables for initialization.");
