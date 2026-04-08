@@ -425,7 +425,12 @@ export default function App() {
   const [notificationThreshold, setNotificationThreshold] = useState(0.001);
   const [toasts, setToasts] = useState<{ id: string, title: string, body: string, type: 'up' | 'down' | 'info' }[]>([]);
   const [onlineCount, setOnlineCount] = useState<number>(1);
-  const [appStatus, setAppStatus] = useState<{ status: string, minutesSinceLastScrape: number } | null>(null);
+  const [appStatus, setAppStatus] = useState<{ 
+    status: string, 
+    minutesSinceLastScrape: number,
+    minutesSinceLastChange?: number,
+    lastUpdated?: string
+  } | null>(null);
   const [configTerms, setConfigTerms] = useState<any[]>([]);
   const [runTour, setRunTour] = useState(false);
 
@@ -1415,7 +1420,11 @@ export default function App() {
                     {isOffline ? (
                       "يرجى التحقق من اتصال الإنترنت للحصول على آخر التحديثات اللحظية."
                     ) : (
-                      `آخر تحديث كان منذ أكثر من 12 ساعة. الأسعار قد تختلف.`
+                      appStatus?.minutesSinceLastChange && appStatus.minutesSinceLastChange > 60 ? (
+                        `آخر تغيير في الأسعار كان منذ ${Math.floor(appStatus.minutesSinceLastChange / 60)} ساعة. قد تختلف الأسعار الحالية.`
+                      ) : (
+                        `آخر تحديث للبيانات كان منذ أكثر من 12 ساعة. الأسعار قد تختلف.`
+                      )
                     )}
                   </p>
                 </div>

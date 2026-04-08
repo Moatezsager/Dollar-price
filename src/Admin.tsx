@@ -2050,8 +2050,8 @@ export default function Admin() {
                     <div className="p-5 rounded-2xl bg-white/[0.03] border border-white/5">
                       <div className="flex justify-between items-center mb-2">
                         <span className="text-zinc-500 text-xs md:text-sm">حالة آخر تحديث تلقائي</span>
-                        <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md ${stats && stats.minutesSinceLastScrape > 30 ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'}`}>
-                           {stats && stats.minutesSinceLastScrape > 30 ? 'Stale' : 'Active'}
+                        <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md ${stats && stats.minutesSinceLastScrape > 720 ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'}`}>
+                           {stats && stats.minutesSinceLastScrape > 720 ? 'Stale' : 'Active'}
                         </span>
                       </div>
                       <p className="text-lg md:text-xl font-bold text-white mb-2">

@@ -2578,11 +2578,19 @@ async function startServer() {
   });
 
   app.get("/api/status", (req: express.Request, res: express.Response) => {
+    const lastUpdatedTime = new Date(rates.lastUpdated).getTime();
+    const minutesSinceLastChange = Math.floor((Date.now() - lastUpdatedTime) / 60000);
     const minutesSinceLastScrape = Math.floor((Date.now() - lastSuccessfulScrape.getTime()) / 60000);
+    
+    // Consider data stale if no price changes for 12 hours OR no successful scrape for 12 hours
+    const isStale = minutesSinceLastChange > 720 || minutesSinceLastScrape > 720;
+    
     res.json({ 
-      status: minutesSinceLastScrape > 30 ? "stale" : "ok",
+      status: isStale ? "stale" : "ok",
       lastScrape: lastSuccessfulScrape,
-      minutesSinceLastScrape
+      lastUpdated: rates.lastUpdated,
+      minutesSinceLastScrape,
+      minutesSinceLastChange
     });
   });
 
@@ -2817,7 +2825,7 @@ async function startServer() {
     try {
       await initializeRatesFromDB(false);
       
-      // Check for stale data (older than 30 minutes)
+      // Check for stale data (older than 12 hours)
       const lastUpdatedTime = new Date(rates.lastUpdated).getTime();
       const isStale = (Date.now() - lastUpdatedTime) > (12 * 60 * 60 * 1000);
       
