@@ -579,15 +579,23 @@ async function saveToSupabase(type: 'parallel' | 'official' | 'both' = 'both') {
       }
     });
 
-    // Cleanup old records from ALL tables (maintenance)
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const cutoff = thirtyDaysAgo.toISOString();
+    // Maintenance Cleanup: Two levels of cleanup to optimize database size
+    // 1. Price Archive: Keep 30 days of rates history for charts and auditing
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    
+    // 2. Logs cleanup: Keep only 24 hours of technical logs to avoid bloating
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     
     await Promise.allSettled([
-      supabase.from('parallel_rates').delete().lt('recorded_at', cutoff),
-      supabase.from('official_rates').delete().lt('recorded_at', cutoff),
-      supabase.from('exchange_rates').delete().lt('recorded_at', cutoff)
+      // Tables that keep 30 days of data (Prices & Metals)
+      supabase.from('parallel_rates').delete().lt('recorded_at', thirtyDaysAgo),
+      supabase.from('official_rates').delete().lt('recorded_at', thirtyDaysAgo),
+      supabase.from('metal_rates').delete().lt('recorded_at', thirtyDaysAgo),
+      supabase.from('exchange_rates').delete().lt('recorded_at', thirtyDaysAgo),
+      
+      // Tables that clean after 24 hours (Technical Logs & Traceability)
+      supabase.from('price_changes_log').delete().lt('created_at', twentyFourHoursAgo),
+      supabase.from('error_logs').delete().lt('created_at', twentyFourHoursAgo)
     ]);
         
     // Invalidate caches
@@ -1243,8 +1251,8 @@ async function fetchParallelRatesFromTelegram(): Promise<boolean | null> {
       
       const gramJsResults = await Promise.allSettled(channels.map(async (channel) => {
         try {
-          // Increased limit to 20 to ensure we capture all relevant messages from today
-          const messages = await telegramManager.fetchMessages(channel, 20);
+          const manager = getTelegramManager();
+          const messages = manager ? await manager.fetchMessages(channel, 20) : [];
           return { channel, messages };
         } catch (err) {
           throw { channel, error: err };
@@ -1933,9 +1941,9 @@ async function startServer() {
         ...newConfig,
       };
       
-      // Update the rate limiter dynamically
-      publicApiLimiter.windowMs = appConfig.apiConfig?.rateLimitWindowMs || 60000;
-      publicApiLimiter.max = appConfig.apiConfig?.rateLimitMaxRequests || 20;
+      // Update the rate limiter dynamically using any cast to bypass type errors
+      (publicApiLimiter as any).windowMs = appConfig.apiConfig?.rateLimitWindowMs || 60000;
+      (publicApiLimiter as any).max = appConfig.apiConfig?.rateLimitMaxRequests || 20;
 
       await saveConfigToSupabase(appConfig);
       res.json({ success: true, config: appConfig.apiConfig });
@@ -1947,7 +1955,7 @@ async function startServer() {
 
   app.get("/api/admin/diagnostics", requireAdmin, async (req: express.Request, res: express.Response) => {
     try {
-      const dbStatus = await supabase?.from('logs').select('id').limit(1).then(() => true).catch(() => false) || false;
+      const dbStatus = await (supabase?.from('error_logs').select('id').limit(1).then(() => true).catch(() => false)) || false;
       const telegramStatus = telegramManager ? true : false;
       
       let regexStatus = true;
@@ -2016,8 +2024,8 @@ async function startServer() {
     }
     
     if (anyChanged) {
-      await saveRatesToSupabase();
-      broadcastRates();
+      await saveToSupabase('parallel');
+      broadcastRatesUpdate(rates);
     }
     
     res.json({ 
@@ -2507,6 +2515,40 @@ async function startServer() {
     }
   });
 
+  app.post("/api/admin/clear-ram", requireAdmin, async (req: express.Request, res: express.Response) => {
+    try {
+      liveFeed = []; // Clear queue
+      cachedHistory = null;
+      lastHistoryFetchTime = 0;
+      
+      if (global.gc) {
+        global.gc();
+        res.json({ success: true, message: "تم تفريغ الذاكرة وتنظيف الكاش بنجاح ✅" });
+      } else {
+        res.json({ success: true, message: "تم تنظيف الكاش (GC غير مفعل) ⚠️" });
+      }
+    } catch (err) {
+      res.status(500).json({ success: false, message: "فشل تنظيف الذاكرة" });
+    }
+  });
+
+  app.get("/api/admin/api-stats", requireAdmin, (req: express.Request, res: express.Response) => {
+    res.json(apiStats);
+  });
+
+  app.delete("/api/admin/error-logs", requireAdmin, async (req: express.Request, res: express.Response) => {
+    if (supabase && supabaseAnonKey && !supabaseAnonKey.includes('dummy')) {
+      try {
+        await supabase.from('error_logs').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+        res.json({ success: true });
+      } catch (e) {
+        res.status(500).json({ success: false, message: "فشل حذف السجلات من قاعدة البيانات" });
+      }
+    } else {
+       res.json({ success: true, message: "قاعدة البيانات غير متصلة، لم يتم الحذف" });
+    }
+  });
+
   // --- End Admin API ---
 
   // API Routes
@@ -2542,12 +2584,12 @@ async function startServer() {
       return res.status(400).json({ success: false, error: "Channel username is required" });
     }
 
-    if (!telegramManager || !telegramManager.isConnected()) {
+    if (!getTelegramManager() || !getTelegramManager().isConnected()) {
       return res.status(503).json({ success: false, error: "Telegram client is not connected" });
     }
 
     try {
-      const messages = await telegramManager.fetchMessages(channel, Math.min(limit, 100));
+      const messages = await getTelegramManager().fetchMessages(channel, Math.min(limit, 100));
       res.json({ success: true, messages });
     } catch (error: any) {
       console.error(`[API] Error fetching messages for ${channel}:`, error);
@@ -2563,12 +2605,12 @@ async function startServer() {
       return res.status(400).json({ success: false, error: "Channel username is required" });
     }
 
-    if (!telegramManager || !telegramManager.isConnected()) {
+    if (!getTelegramManager() || !getTelegramManager().isConnected()) {
       return res.status(503).json({ success: false, error: "Telegram client is not connected" });
     }
 
     try {
-      const messages = await telegramManager.fetchMessages(channel, Math.min(limit, 50));
+      const messages = await getTelegramManager().fetchMessages(channel, Math.min(limit, 50));
       
       let anyUpdated = false;
       const allExtracted: { code: string, value: number }[] = [];
@@ -2608,7 +2650,7 @@ async function startServer() {
         rates.lastUpdated = new Date().toISOString();
         await syncCheckRates(`API Update (${channel})`);
         await saveToSupabase('parallel');
-        broadcastRates();
+        broadcastRatesUpdate(rates);
       }
       
       res.json({ 

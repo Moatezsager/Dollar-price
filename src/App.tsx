@@ -48,240 +48,122 @@ import { ar } from "date-fns/locale";
 import { logErrorToServer } from "./utils/logger";
 import { FlagIcon } from "./components/FlagIcon";
 
+// Custom Components
+import { ScrollToTop } from "./components/ScrollToTop";
+import { PostInstallNotification } from "./components/PostInstallNotification";
+import { SkeletonRates, RateSkeleton } from "./components/SkeletonRates";
+import { TourTooltip } from "./components/TourTooltip";
 
-interface Rates {
-  official: Record<string, number>;
-  parallel: Record<string, number>;
-  previousOfficial?: Record<string, number>;
-  previousParallel?: Record<string, number>;
-  lastUpdated: string;
-  lastChanged?: {
-    official: Record<string, string>;
-    parallel: Record<string, string>;
-  };
-}
+// Custom Hooks
+import { useRates, Rates, HistoryPoint } from "./hooks/useRates";
+import { usePWA } from "./hooks/usePWA";
+import { useTheme } from "./hooks/useTheme";
+import { useNotifications } from "./hooks/useNotifications";
+import { CURRENCIES, METAL_IDS, PARALLEL_DETAILS } from "./constants";
 
-interface HistoryPoint {
-  time: string;
-  usdParallel: number;
-  usdOfficial: number;
-  ratesParallel?: Record<string, number>;
-  ratesOfficial?: Record<string, number>;
-}
 
-const CURRENCIES = [
-  { code: "USD", name: "دولار أمريكي", flag: "us" },
-  { code: "EUR", name: "يورو", flag: "eu" },
-  { code: "GBP", name: "جنيه إسترليني", flag: "gb" },
-  { code: "TND", name: "دينار تونسي", flag: "tn" },
-  { code: "TRY", name: "ليرة تركية", flag: "tr" },
-  { code: "EGP", name: "جنيه مصري", flag: "eg" },
-  { code: "JOD", name: "دينار أردني", flag: "jo" },
-  { code: "BHD", name: "دينار بحريني", flag: "bh" },
-  { code: "KWD", name: "دينار كويتي", flag: "kw" },
-  { code: "AED", name: "درهم إماراتي", flag: "ae" },
-  { code: "SAR", name: "ريال سعودي", flag: "sa" },
-  { code: "QAR", name: "ريال قطري", flag: "qa" },
-  { code: "CNY", name: "يوان صيني", flag: "cn" },
-];
 
-const PARALLEL_DETAILS = [
-  { code: "USD_TR", name: "حوالات تركيا", flag: "tr", unit: "د.ل" },
-  { code: "USD_AE", name: "حوالات دبي", flag: "ae", unit: "د.ل" },
-  { code: "USD_CN", name: "حوالات الصين", flag: "cn", unit: "د.ل" },
-];
-
-const METAL_IDS = [
-  "GOLD", 
-  "GOLD_EXT_18", 
-  "GOLD_EXT_21", 
-  "GOLD_SCRAP_18", 
-  "GOLD_SCRAP_21", 
-  "GOLD_CAST_18", 
-  "GOLD_CAST_24", 
-  "GOLD_LIRA_8G", 
-  "GOLD_MUJARA_14G", 
-  "SILVER_CAST_1000",
-  "SILVER_SCRAP"
-];
-
-const PostInstallNotification = ({ onClose }: { onClose: () => void }) => {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = () => {
-    const url = window.location.origin;
-    navigator.clipboard.writeText(url);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 50, scale: 0.9 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: 20, scale: 0.9 }}
-      className="fixed bottom-6 left-6 right-6 md:left-auto md:right-8 md:w-[400px] z-[100]"
-    >
-      <div className="relative overflow-hidden rounded-3xl bg-[#0a0a0a] border border-emerald-500/30 shadow-[0_20px_50px_-12px_rgba(16,185,129,0.3)] p-6 backdrop-blur-xl">
-        {/* Background glow */}
-        <div className="absolute -top-24 -right-24 w-48 h-48 bg-emerald-500/10 blur-[80px] rounded-full" />
-        
-        <div className="relative flex flex-col gap-4">
-          <div className="flex items-start justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 flex items-center justify-center border border-emerald-500/30">
-                <CheckCircle2 className="w-6 h-6 text-emerald-400" />
-              </div>
-              <div className="text-right">
-                <h3 className="text-white font-bold text-lg">تم التثبيت بنجاح!</h3>
-                <p className="text-zinc-400 text-xs">شكراً لتثبيت تطبيق مؤشر الدينار</p>
-              </div>
-            </div>
-            <button 
-              onClick={onClose}
-              className="p-2 hover:bg-white/5 rounded-xl transition-colors text-zinc-500 hover:text-white"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-
-          <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/5 text-right">
-            <p className="text-zinc-300 text-sm leading-relaxed mb-4">
-              يمكنك الآن الوصول السريع لأسعار الصرف من شاشتك الرئيسية. شارك التطبيق مع أصدقائك!
-            </p>
-            
-            <div className="flex items-center gap-2">
-              <div className="flex-1 px-4 py-2.5 rounded-xl bg-black/40 border border-white/5 text-zinc-500 text-xs font-mono truncate text-left">
-                {window.location.origin}
-              </div>
-              <button
-                onClick={handleCopy}
-                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-                  copied 
-                    ? 'bg-emerald-500 text-black' 
-                    : 'bg-white text-black hover:bg-zinc-200'
-                }`}
-              >
-                {copied ? (
-                  <>
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    تم النسخ
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-3.5 h-3.5" />
-                    نسخ الرابط
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </motion.div>
-  );
-};
-
-const ScrollToTop = ({ triggerHaptic }: { triggerHaptic: (p?: number) => void }) => {
-  const [isVisible, setIsVisible] = useState(false);
-
-  useEffect(() => {
-    const toggleVisibility = () => {
-      if (window.pageYOffset > 300) {
-        setIsVisible(true);
-      } else {
-        setIsVisible(false);
-      }
-    };
-
-    window.addEventListener("scroll", toggleVisibility);
-    return () => window.removeEventListener("scroll", toggleVisibility);
-  }, []);
-
-  const scrollToTop = () => {
-    triggerHaptic(15);
-    window.scrollTo({
-      top: 0,
-      behavior: "smooth",
-    });
-  };
-
-  return (
-    <AnimatePresence>
-      {isVisible && (
-        <motion.button
-          initial={{ opacity: 0, scale: 0.5 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.5 }}
-          onClick={scrollToTop}
-          className="fixed bottom-24 right-6 z-[100] w-12 h-12 rounded-full bg-emerald-500 text-black shadow-lg flex items-center justify-center hover:bg-emerald-400 transition-colors"
-          title="العودة للأعلى"
-        >
-          <ArrowUp className="w-6 h-6" />
-        </motion.button>
-      )}
-    </AnimatePresence>
-  );
-};
-
-const RateSkeleton = () => (
-  <div className="flex flex-col p-2.5 rounded-2xl skeleton-pulse -m-2.5">
-    <div className="flex items-center justify-between mb-4">
-      <div className="flex items-center gap-2">
-        <div className="w-8 h-8 rounded-full bg-white/5" />
-        <div className="w-16 h-3 bg-white/5 rounded-full" />
-      </div>
-      <div className="w-10 h-3 bg-white/5 rounded-full" />
-    </div>
-    <div className="flex items-center gap-2 mb-3">
-      <div className="w-24 h-8 bg-white/5 rounded-xl" />
-    </div>
-    <div className="flex items-center justify-between gap-2">
-      <div className="w-12 h-2 bg-white/5 rounded-full" />
-      <div className="w-16 h-2 bg-white/5 rounded-full" />
-    </div>
-  </div>
-);
-
-const SkeletonRates = () => (
-  <div className="space-y-16">
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-8 gap-y-12">
-      {[...Array(10)].map((_, i) => <RateSkeleton key={i} />)}
-    </div>
-  </div>
-);
 
 export default function App() {
-  const [rates, setRates] = useState<Rates | null>(null);
-  const [history, setHistory] = useState<HistoryPoint[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null);
+  const { 
+    hapticEnabled, setHapticEnabled,
+    autoRefreshEnabled, setAutoRefreshEnabled,
+    showChart, setShowChart,
+    compactMode, setCompactMode,
+    dataSaver, setDataSaver,
+    soundEnabled, setSoundEnabled,
+    animationsEnabled, setAnimationsEnabled,
+    triggerHaptic 
+  } = useTheme();
+
+  const {
+    rates, history, loading, isRefreshing,
+    lastFetchTime, onlineCount, appStatus,
+    configTerms, fetchData
+  } = useRates(autoRefreshEnabled, dataSaver);
+
+  const {
+    showInstallBanner, isStandalone, isIOS,
+    showIOSPrompt, showPostInstall,
+    setShowPostInstall, setShowIOSPrompt,
+    handleInstall
+  } = usePWA();
+
+  const {
+    toasts, setToasts, addToast,
+    notificationsEnabled, setNotificationsEnabled,
+    requestPermission: requestNotificationPermission, showPriceNotification, playNotificationSound
+  } = useNotifications(soundEnabled);
+
   const [selectedRate, setSelectedRate] = useState<{ code: string, name: string, market: 'official' | 'parallel' } | null>(null);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
-  const [notificationsEnabled, setNotificationsEnabled] = useState(
-    typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted'
-  );
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
-  const [showInstallBanner, setShowInstallBanner] = useState(false);
-  const [isStandalone, setIsStandalone] = useState(false);
-  const [isIOS, setIsIOS] = useState(false);
-  const [showIOSPrompt, setShowIOSPrompt] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [showCurrencyModal, setShowCurrencyModal] = useState(false);
+  const [selectedCurrencies, setSelectedCurrencies] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState<'dashboard' | 'api'>('dashboard');
-  const [hapticEnabled, setHapticEnabled] = useState(() => {
-    const saved = localStorage.getItem('hapticEnabled');
-    return saved !== null ? saved === 'true' : true;
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<'general' | 'notifications' | 'appearance' | 'advanced'>('general');
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+    foreign: false,
+    checks: false,
+    metals: false,
+    transfers: false,
+    official: false
   });
-  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(() => {
-    const saved = localStorage.getItem('autoRefreshEnabled');
-    return saved !== null ? saved === 'true' : true;
+  const [chartRange, setChartRange] = useState<'24h' | '7d' | 'all'>('7d');
+  const [defaultMarket, setDefaultMarket] = useState<'parallel' | 'official'>(() => {
+    const saved = localStorage.getItem('defaultMarket');
+    return (saved as 'parallel' | 'official') || 'parallel';
   });
-  const [showChart, setShowChart] = useState(() => {
-    const saved = localStorage.getItem('showChart');
-    return saved !== null ? saved === 'true' : true;
-  });
+  const [notificationThreshold, setNotificationThreshold] = useState(0.001);
+  const [runTour, setRunTour] = useState(false);
+  const [startY, setStartY] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement>(null);
+  const reportRef = useRef<HTMLDivElement>(null);
+  const thresholdRef = useRef<number>(0.001);
+  const ratesRef = useRef<Rates | null>(null);
+  const configTermsRef = useRef<any[]>([]);
+  const lastNotifiedRef = useRef<Record<string, number>>({});
+
+  const dynamicCurrencies = useMemo(() => {
+    if (!configTerms.length) return CURRENCIES;
+    return configTerms
+      .filter(t => t.id !== "OFFICIAL_USD" && !t.id.startsWith("USD_") && !METAL_IDS.includes(t.id))
+      .map(t => ({ code: t.id, name: t.name, flag: t.flag }));
+  }, [configTerms]);
+
+  const pullY = useMotionValue(0);
+  const pullOpacity = useTransform(pullY, [0, 80], [0, 1]);
+  const pullScale = useTransform(pullY, [0, 80], [0.5, 1]);
+  const pullRotate = useTransform(pullY, [0, 80], [0, 360]);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (window.scrollY === 0) {
+      setStartY(e.touches[0].clientY);
+      setIsDragging(true);
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isDragging) return;
+    const currentY = e.touches[0].clientY;
+    const diff = currentY - startY;
+    if (diff > 0) {
+      pullY.set(Math.min(diff * 0.5, 100)); // Add resistance
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (!isDragging) return;
+    setIsDragging(false);
+    if (pullY.get() > 80) {
+      triggerHaptic(20);
+      fetchData(true);
+    }
+    animate(pullY, 0, { type: "spring", stiffness: 300, damping: 20 });
+  };
 
   // Close more menu when clicking outside
   useEffect(() => {
@@ -308,57 +190,6 @@ export default function App() {
     };
   }, []);
 
-  // Haptic Feedback Helper
-  const triggerHaptic = (pattern: number | number[] = 10) => {
-    console.log('triggerHaptic called, enabled:', hapticEnabled, 'supported:', !!window.navigator.vibrate);
-    if (hapticEnabled && window.navigator.vibrate) {
-      window.navigator.vibrate(pattern);
-    }
-  };
-
-  // PWA Install Logic
-  useEffect(() => {
-    const handleBeforeInstallPrompt = (e: any) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-      setShowInstallBanner(true);
-    };
-
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-
-    if (window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone) {
-      setIsStandalone(true);
-    }
-
-    const userAgent = window.navigator.userAgent.toLowerCase();
-    setIsIOS(/iphone|ipad|ipod/.test(userAgent));
-
-    // Check iOS prompt
-    const iosPromptDismissed = localStorage.getItem('iosPromptDismissed');
-    if (/iphone|ipad|ipod/.test(userAgent) && !iosPromptDismissed && !window.matchMedia('(display-mode: standalone)').matches) {
-      setTimeout(() => setShowIOSPrompt(true), 5000);
-    }
-
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    };
-  }, []);
-
-  const handleInstall = async () => {
-    triggerHaptic(20);
-    if (!deferredPrompt) return;
-    try {
-      deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
-      if (outcome === 'accepted') {
-        setDeferredPrompt(null);
-        setShowInstallBanner(false);
-      }
-    } catch (err) {
-      console.error("Install prompt failed:", err);
-    }
-  };
-
   const handleShare = async () => {
     triggerHaptic(15);
     if (navigator.share) {
@@ -369,10 +200,8 @@ export default function App() {
           url: window.location.origin,
         });
       } catch (error: any) {
-        // Ignore AbortError (user canceled)
         if (error.name !== 'AbortError') {
           console.error('Error sharing', error);
-          // Fallback to clipboard if share fails for other reasons
           navigator.clipboard.writeText(window.location.origin);
           addToast('تنبيه', 'تم نسخ الرابط بدلاً من المشاركة', 'info');
         }
@@ -382,24 +211,6 @@ export default function App() {
       addToast('تم النسخ', 'تم نسخ رابط التطبيق لمشاركته', 'info');
     }
   };
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [showSettingsModal, setShowSettingsModal] = useState(false);
-  const [settingsTab, setSettingsTab] = useState<'general' | 'notifications' | 'appearance' | 'advanced'>('general');
-  const [compactMode, setCompactMode] = useState(() => {
-    const saved = localStorage.getItem('compactMode');
-    return saved !== null ? saved === 'true' : false;
-  });
-  const [dataSaver, setDataSaver] = useState(() => {
-    const saved = localStorage.getItem('dataSaver');
-    return saved !== null ? saved === 'true' : false;
-  });
-  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
-    foreign: false,
-    checks: false,
-    metals: false,
-    transfers: false,
-    official: false
-  });
 
   const toggleSection = (sectionId: string) => {
     setExpandedSections(prev => ({
@@ -407,61 +218,6 @@ export default function App() {
       [sectionId]: !prev[sectionId]
     }));
     triggerHaptic(10);
-  };
-  const [chartRange, setChartRange] = useState<'24h' | '7d' | 'all'>('7d');
-  const [defaultMarket, setDefaultMarket] = useState<'parallel' | 'official'>(() => {
-    const saved = localStorage.getItem('defaultMarket');
-    return (saved as 'parallel' | 'official') || 'parallel';
-  });
-  const [soundEnabled, setSoundEnabled] = useState(() => {
-    const saved = localStorage.getItem('soundEnabled');
-    return saved !== null ? saved === 'true' : true;
-  });
-  const [animationsEnabled, setAnimationsEnabled] = useState(() => {
-    const saved = localStorage.getItem('animationsEnabled');
-    return saved !== null ? saved === 'true' : true;
-  });
-  const [showPostInstall, setShowPostInstall] = useState(false);
-  const [notificationThreshold, setNotificationThreshold] = useState(0.001);
-  const [toasts, setToasts] = useState<{ id: string, title: string, body: string, type: 'up' | 'down' | 'info' }[]>([]);
-  const [onlineCount, setOnlineCount] = useState<number>(1);
-  const [appStatus, setAppStatus] = useState<{ status: string, minutesSinceLastScrape: number } | null>(null);
-  const [configTerms, setConfigTerms] = useState<any[]>([]);
-  const [runTour, setRunTour] = useState(false);
-
-  // Pull to Refresh Logic
-  const pullY = useMotionValue(0);
-  const pullOpacity = useTransform(pullY, [0, 80], [0, 1]);
-  const pullScale = useTransform(pullY, [0, 80], [0.5, 1]);
-  const pullRotate = useTransform(pullY, [0, 80], [0, 360]);
-
-  const [startY, setStartY] = useState(0);
-  const [isDragging, setIsDragging] = useState(false);
-
-  const handleTouchStart = (e: React.TouchEvent) => {
-    if (window.scrollY === 0) {
-      setStartY(e.touches[0].clientY);
-      setIsDragging(true);
-    }
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (!isDragging) return;
-    const currentY = e.touches[0].clientY;
-    const diff = currentY - startY;
-    if (diff > 0) {
-      pullY.set(Math.min(diff * 0.5, 100)); // Add resistance
-    }
-  };
-
-  const handleTouchEnd = () => {
-    if (!isDragging) return;
-    setIsDragging(false);
-    if (pullY.get() > 80) {
-      triggerHaptic(20);
-      fetchData(true);
-    }
-    animate(pullY, 0, { type: "spring", stiffness: 300, damping: 20 });
   };
 
   const [tourSteps] = useState<Step[]>([
@@ -542,11 +298,9 @@ export default function App() {
         className="relative bg-zinc-900/95 backdrop-blur-xl border border-white/10 rounded-3xl p-6 w-[360px] max-w-[90vw] shadow-[0_30px_60px_-15px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(255,255,255,0.1)] overflow-hidden" 
         dir="rtl"
       >
-        {/* Glow effect */}
         <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-500/10 blur-[60px] rounded-full pointer-events-none -translate-y-1/2 translate-x-1/2"></div>
         <div className="absolute bottom-0 left-0 w-48 h-48 bg-blue-500/10 blur-[60px] rounded-full pointer-events-none translate-y-1/2 -translate-x-1/2"></div>
 
-        {/* Header */}
         <div className="flex items-start justify-between mb-4 relative z-10">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-blue-500/20 flex items-center justify-center border border-emerald-500/20 shrink-0">
@@ -570,14 +324,11 @@ export default function App() {
           </button>
         </div>
 
-        {/* Content */}
         <div className="text-zinc-400 text-sm leading-relaxed mb-8 font-medium relative z-10 pl-2 pr-2">
           {step.content}
         </div>
 
-        {/* Progress & Actions */}
         <div className="flex flex-col gap-4 relative z-10">
-          {/* Custom Progress Bar */}
           <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
             <div 
               className="h-full bg-gradient-to-l from-emerald-500 to-blue-500 rounded-full transition-all duration-500 relative"
@@ -587,7 +338,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* Buttons */}
           <div className="flex items-center justify-between mt-2">
             <div className="flex items-center gap-2">
               {!isFirstStep && (
@@ -628,15 +378,11 @@ export default function App() {
   useEffect(() => {
     const tourCompleted = localStorage.getItem('tourCompleted');
     if (!tourCompleted) {
-      // Small delay to ensure DOM is ready
       setTimeout(() => setRunTour(true), 1500);
     }
 
-    // Listen for PWA installation
     const handleAppInstalled = () => {
-      console.log('App was installed');
       setShowPostInstall(true);
-      // Auto hide after 15 seconds if not interacted with
       setTimeout(() => setShowPostInstall(false), 15000);
     };
 
@@ -644,185 +390,69 @@ export default function App() {
     return () => window.removeEventListener('appinstalled', handleAppInstalled);
   }, []);
 
-  const reportRef = useRef<HTMLDivElement>(null);
-  const ratesRef = useRef<Rates | null>(null);
-  const thresholdRef = useRef<number>(0.001);
-  const lastNotifiedRef = useRef<Record<string, number>>({});
-  const configTermsRef = useRef<any[]>([]);
-
-  // Derive dynamic currencies from configTerms to support user-added currencies
-  const dynamicCurrencies = useMemo(() => {
-    if (configTerms.length === 0) return CURRENCIES;
-    return configTerms
-      .filter(t => t.id !== "OFFICIAL_USD" && !t.id.startsWith("USD_") && !METAL_IDS.includes(t.id))
-      .map(t => ({ code: t.id, name: t.name, flag: t.flag }));
-  }, [configTerms]);
-
-  // Keep refs in sync with state to avoid closure issues in setInterval
   useEffect(() => {
     ratesRef.current = rates;
-  }, [rates]);
-
-  useEffect(() => {
     configTermsRef.current = configTerms;
-  }, [configTerms]);
-
-  const fetchConfig = async () => {
-    try {
-      const response = await fetch(`/api/config?t=${Date.now()}`);
-      const data = await response.json();
-      if (data && data.terms) {
-        setConfigTerms(data.terms);
-      }
-    } catch (error) {
-      console.error("Failed to fetch config:", error);
-      logErrorToServer(error, "App.tsx: fetchConfig");
-    }
-  };
-
-  useEffect(() => {
-    fetchConfig().catch(() => {});
-  }, []);
-
-  useEffect(() => {
     thresholdRef.current = notificationThreshold;
-  }, [notificationThreshold]);
+  }, [rates, configTerms, notificationThreshold]);
 
-  const soundEnabledRef = useRef(soundEnabled);
+
+
   useEffect(() => {
-    soundEnabledRef.current = soundEnabled;
-  }, [soundEnabled]);
-
-  const playNotificationSound = (type: 'up' | 'down') => {
-    if (!soundEnabledRef.current) return;
-    try {
-      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const oscillator = audioCtx.createOscillator();
-      const gainNode = audioCtx.createGain();
+    const handleSync = async () => {
+      if (!rates) return;
       
-      oscillator.connect(gainNode);
-      gainNode.connect(audioCtx.destination);
-      
-      if (type === 'up') {
-        oscillator.type = 'sine';
-        oscillator.frequency.setValueAtTime(523.25, audioCtx.currentTime); // C5
-        oscillator.frequency.exponentialRampToValueAtTime(1046.50, audioCtx.currentTime + 0.1); // C6
-      } else {
-        oscillator.type = 'triangle';
-        oscillator.frequency.setValueAtTime(440, audioCtx.currentTime); // A4
-        oscillator.frequency.exponentialRampToValueAtTime(220, audioCtx.currentTime + 0.15); // A3
-      }
-      
-      gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
-      gainNode.gain.linearRampToValueAtTime(0.1, audioCtx.currentTime + 0.02);
-      gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
-      
-      oscillator.start(audioCtx.currentTime);
-      oscillator.stop(audioCtx.currentTime + 0.3);
-    } catch (e) {
-      console.warn("Audio playback failed", e);
-    }
-  };
-
-  const addToast = (title: string, body: string, type: 'up' | 'down' | 'info') => {
-    const id = Math.random().toString(36).substring(2, 9);
-    setToasts(prev => [...prev, { id, title, body, type }]);
-    setTimeout(() => {
-      setToasts(prev => prev.filter(t => t.id !== id));
-    }, 5000);
-  };
-
-  const showPriceNotification = async (code: string, name: string, oldPrice: number, newPrice: number) => {
-    const diff = newPrice - oldPrice;
-    const absDiff = Math.abs(diff);
-    
-    // 1. تحقق من حد التغيير (Threshold)
-    if (absDiff < thresholdRef.current) return;
-
-    // 2. منع التكرار الذكي: تحقق من آخر سعر تم التنبيه به وآخر وقت
-    try {
-      const lastNotifyData = localStorage.getItem(`last_notify_${code}`);
-      if (lastNotifyData) {
-        const { price, time } = JSON.parse(lastNotifyData);
-        const timeDiff = Date.now() - time;
+      const currentRates = ratesRef.current;
+      if (currentRates && new Date(rates.lastUpdated).getTime() > new Date(currentRates.lastUpdated).getTime()) {
+        const priorityIds = ["USD", "USD_JBANK", "USD_CHECKS", "EUR", "GOLD"];
+        const changes: any[] = [];
         
-        // إذا كان السعر هو نفسه ولم يمر 10 دقائق، لا تكرر الإشعار
-        if (price === newPrice && timeDiff < 10 * 60 * 1000) {
-          console.log(`[Notification] Skipping duplicate for ${code}`);
-          return;
+        Object.keys(rates.parallel).forEach(code => {
+          const oldPrice = currentRates.parallel[code];
+          const newPrice = rates.parallel[code];
+          if (oldPrice && newPrice && Math.abs(oldPrice - newPrice) >= thresholdRef.current) {
+            if (lastNotifiedRef.current[code] !== newPrice) {
+              const term = configTerms.find(t => t.id === code);
+              changes.push({ code, name: term?.name || code, oldPrice, newPrice, priority: priorityIds.indexOf(code) !== -1 ? priorityIds.indexOf(code) : 999 });
+            }
+          }
+        });
+
+        if (changes.length > 0) {
+          changes.sort((a, b) => a.priority - b.priority);
+          changes.slice(0, 3).forEach(c => showPriceNotification(c.code, c.name, c.oldPrice, c.newPrice, thresholdRef.current));
+          if (changes.length > 3) addToast("📊 تحديثات أسعار إضافية", `تم رصد تغيرات في أسعار ${changes.length - 3} عملات أخرى.`, "info");
+          addToast("تم تحديث الأسعار", "تم رصد تغييرات جديدة في السوق وتحديث البيانات", "info");
         }
       }
-    } catch (e) {
-      console.warn("Notification storage check failed", e);
-    }
+      ratesRef.current = rates;
+    };
+    handleSync();
+  }, [rates, configTerms, showPriceNotification, addToast]);
 
-    const direction = diff > 0 ? 'ارتفاع' : 'انخفاض';
-    const arrow = diff > 0 ? '📈' : '📉';
-    const title = `${arrow} ${direction} في سعر ${name}`;
-    const body = `السعر الجديد: ${newPrice.toFixed(2)} د.ل (تغير بمقدار ${diff > 0 ? '+' : ''}${diff.toFixed(2)})`;
-
-    // تسجيل التنبيه الحالي لمنع التكرار
-    try {
-      localStorage.setItem(`last_notify_${code}`, JSON.stringify({
-        price: newPrice,
-        time: Date.now()
-      }));
-    } catch (e) {
-      console.warn("Failed to save notification state to localStorage", e);
-    }
-
-    // In-app toast (دائماً يظهر للمستخدم النشط)
-    addToast(title, body, diff > 0 ? 'up' : 'down');
-    playNotificationSound(diff > 0 ? 'up' : 'down');
-
-    // Native notification
-    try {
-      if (Notification.permission === 'granted' && 'serviceWorker' in navigator) {
-        const registration = await navigator.serviceWorker.ready;
-        if (registration) {
-          await registration.showNotification(title, {
-            body,
-            icon: 'https://flagcdn.com/w80/ly.png',
-            badge: 'https://flagcdn.com/w80/ly.png',
-            vibrate: [200, 100, 200],
-            tag: `price-change-${code}`, // استخدام Tag لمنع تراكم الإشعارات لنفس العملة
-            renotify: true,
-            data: { url: window.location.origin },
-            silent: false,
-            dir: 'rtl',
-            actions: [
-              { action: 'open', title: 'فتح التطبيق' }
-            ]
-          } as any);
-        }
-      }
-    } catch (err) {
-      console.error("Failed to show notification:", err);
-      logErrorToServer(err, "App.tsx: showNotification");
-    }
-  };
-
-  const [selectedCurrencies, setSelectedCurrencies] = useState<string[]>([]);
-  const [showCurrencyModal, setShowCurrencyModal] = useState(false);
+  useEffect(() => {
+    fetchData().catch(() => {});
+    if (!autoRefreshEnabled) return;
+    const intervalTime = dataSaver ? 60000 : 10000;
+    const interval = setInterval(() => {
+      fetchData().catch(() => {});
+    }, intervalTime);
+    return () => clearInterval(interval);
+  }, [autoRefreshEnabled, dataSaver]);
 
   const generatePDF = async (currencies?: string[]) => {
     setIsGeneratingPDF(true);
     addToast("جاري التجهيز للطباعة...", "سيتم جلب أحدث الأسعار من قاعدة البيانات", "info");
     
     try {
-      // Force a fresh data fetch from server before printing to ensure database values are used
       await fetchData(true);
       
-      // Update selected currencies for the PDF template
       if (currencies) {
         setSelectedCurrencies(currencies);
       } else {
-        // Default to all if none specified
         setSelectedCurrencies(configTerms.filter(c => c.id !== 'OFFICIAL_USD').map(c => c.id));
       }
       
-      // Use a longer delay and multiple frames to ensure React has finished rendering the updated data
-      // and the browser has layouted the hidden container
       setTimeout(() => {
         try {
           window.print();
@@ -842,295 +472,6 @@ export default function App() {
       addToast("خطأ في جلب البيانات", "تعذر تحديث الأسعار للتقرير", "info");
     }
   };
-
-  const requestNotificationPermission = async () => {
-    try {
-      if (!("Notification" in window)) {
-        addToast("غير مدعوم", "متصفحك لا يدعم الإشعارات", "info");
-        return;
-      }
-      const permission = await Notification.requestPermission();
-      if (permission === 'granted') {
-        setNotificationsEnabled(true);
-        addToast("تم تفعيل التنبيهات", "ستصلك إشعارات عند تغير الأسعار الهامة", "info");
-      } else {
-        addToast("تم رفض التنبيهات", "يرجى تفعيل الإشعارات من إعدادات المتصفح", "info");
-      }
-    } catch (error) {
-      console.error("Error requesting notification permission:", error);
-      logErrorToServer(error, "App.tsx: requestNotificationPermission");
-      addToast("خطأ", "تعذر تفعيل الإشعارات", "info");
-    }
-  };
-
-  useEffect(() => {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}`;
-    let socket: WebSocket | null = null;
-    let reconnectTimeout: any = null;
-
-    const connect = () => {
-      try {
-        socket = new WebSocket(wsUrl);
-
-        socket.onmessage = (event) => {
-          try {
-            const data = JSON.parse(event.data);
-            if (data.type === 'online_count') {
-              setOnlineCount(data.count);
-            } else if (data.type === 'rates_update') {
-              setRates(data.rates);
-            }
-          } catch (err) {
-            console.error('WebSocket message error:', err);
-          }
-        };
-
-        socket.onclose = () => {
-          reconnectTimeout = setTimeout(connect, 3000);
-        };
-
-        socket.onerror = () => {
-          socket?.close();
-        };
-      } catch (err) {
-        console.error('WebSocket connection error:', err);
-        reconnectTimeout = setTimeout(connect, 5000);
-      }
-    };
-
-    connect();
-
-    // Fallback polling for online count
-    const pollInterval = setInterval(async () => {
-      try {
-        const res = await fetch('/api/stats/active');
-        if (res.ok) {
-          const data = await res.json();
-          setOnlineCount(data.count);
-        }
-      } catch (err) {
-        // Silently ignore polling network errors (e.g. adblockers or offline)
-        console.debug("Polling active users failed", err);
-      }
-    }, 30000);
-
-    return () => {
-      socket?.close();
-      clearTimeout(reconnectTimeout);
-      clearInterval(pollInterval);
-    };
-  }, []);
-
-  useEffect(() => {
-    const handleOnline = () => setIsOffline(false);
-    const handleOffline = () => setIsOffline(true);
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-    
-    // Load from local storage on mount
-    try {
-      const savedRates = localStorage.getItem('lyd_rates');
-      const savedHistory = localStorage.getItem('lyd_history');
-      if (savedRates) setRates(JSON.parse(savedRates));
-      if (savedHistory) setHistory(JSON.parse(savedHistory));
-    } catch (err) {
-      console.warn("LocalStorage not available:", err);
-    }
-
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, []);
-
-  const fetchData = async (forceRefresh = false) => {
-    setIsRefreshing(true);
-    try {
-      if (forceRefresh) {
-        await fetchConfig();
-      }
-      const [ratesResult, historyResult] = await Promise.allSettled([
-        fetch(forceRefresh ? "/api/rates?refresh=true" : "/api/rates", { signal: AbortSignal.timeout(30000) }),
-        fetch("/api/history", { signal: AbortSignal.timeout(30000) }),
-      ]);
-      
-      if (ratesResult.status === 'rejected') {
-        throw ratesResult.reason;
-      }
-      if (historyResult.status === 'rejected') {
-        throw historyResult.reason;
-      }
-
-      const ratesRes = ratesResult.value;
-      const historyRes = historyResult.value;
-
-      if (!ratesRes.ok || !historyRes.ok) {
-        if (ratesRes.status === 502 || historyRes.status === 502) return;
-        throw new Error("Network response was not ok");
-      }
-
-      const ratesContentType = ratesRes.headers.get("content-type");
-      const historyContentType = historyRes.headers.get("content-type");
-
-      if (!ratesContentType?.includes("application/json") || !historyContentType?.includes("application/json")) {
-        return;
-      }
-
-      const newRates: Rates = await ratesRes.json();
-      const newHistory = await historyRes.json();
-      
-      // Check for price changes to notify using the ref to get the latest state
-      let hasChanges = false;
-      const currentRates = ratesRef.current;
-      
-      if (currentRates) {
-        // Only notify if the change is significant and the new date is newer than what we have
-        const isNewer = new Date(newRates.lastUpdated).getTime() > new Date(currentRates.lastUpdated).getTime();
-        
-        if (isNewer) {
-          // Check all parallel currencies
-          const currenciesToCheck = Object.keys(newRates.parallel);
-          const changes: { code: string; name: string; oldPrice: number; newPrice: number; priority: number }[] = [];
-          
-          // Define priority currencies (USD, USD_JBANK, USD_CHECKS, EUR, GOLD)
-          const priorityIds = ["USD", "USD_JBANK", "USD_CHECKS", "EUR", "GOLD"];
-          
-          currenciesToCheck.forEach(code => {
-            const oldPrice = currentRates.parallel[code];
-            const newPrice = newRates.parallel[code];
-            
-            // Significant change threshold (0.001 Dinar)
-            if (oldPrice && newPrice && Math.abs(oldPrice - newPrice) >= thresholdRef.current) {
-              // Avoid notifying the same price twice if it hasn't changed since last notify
-              if (lastNotifiedRef.current[code] !== newPrice) {
-                const term = configTermsRef.current.find(t => t.id === code);
-                const name = term ? term.name : code;
-                const priority = priorityIds.indexOf(code);
-                
-                changes.push({ 
-                  code, 
-                  name, 
-                  oldPrice, 
-                  newPrice, 
-                  priority: priority === -1 ? 999 : priority 
-                });
-                lastNotifiedRef.current[code] = newPrice;
-              }
-            }
-          });
-
-          if (changes.length > 0) {
-            hasChanges = true;
-            // Sort by priority (lower number first)
-            changes.sort((a, b) => a.priority - b.priority);
-            
-            // Show up to 3 individual notifications for the most important changes
-            const maxIndividual = 3;
-            const toNotify = changes.slice(0, maxIndividual);
-            const remainingCount = changes.length - maxIndividual;
-            
-            for (const change of toNotify) {
-              showPriceNotification(change.code, change.name, change.oldPrice, change.newPrice).catch(err => {
-                console.error("Error showing notification:", err);
-              });
-            }
-            
-            // If there are more changes, show a summary notification
-            if (remainingCount > 0) {
-              const summaryTitle = "📊 تحديثات أسعار إضافية";
-              const summaryBody = `بالإضافة للعملات الرئيسية، تم رصد تغيرات في أسعار ${remainingCount} عملات وأصناف أخرى في السوق.`;
-              
-              addToast(summaryTitle, summaryBody, "info");
-              
-              // Also show native notification for summary if possible
-              try {
-                if (Notification.permission === 'granted' && 'serviceWorker' in navigator) {
-                  const registration = await navigator.serviceWorker.ready;
-                  if (registration) {
-                    await registration.showNotification(summaryTitle, {
-                      body: summaryBody,
-                      icon: 'https://flagcdn.com/w80/ly.png',
-                      badge: 'https://flagcdn.com/w80/ly.png',
-                      tag: 'price-change-summary',
-                      renotify: true,
-                      dir: 'rtl'
-                    } as any);
-                  }
-                }
-              } catch (err) {
-                console.error("Failed to show summary notification:", err);
-              }
-            }
-          }
-        }
-      }
-
-      setRates(newRates);
-      setHistory(newHistory);
-      // We use server-provided lastUpdated for business logic, but keep track of sync time
-      setLastFetchTime(new Date());
-
-      // Fetch status
-      try {
-        const statusRes = await fetch("/api/status");
-        if (statusRes.ok) {
-          const statusData = await statusRes.json();
-          setAppStatus(statusData);
-        }
-      } catch (err) {
-        logErrorToServer(err, "App.tsx: fetchStatus");
-      }
-
-      // Persist to local storage
-      try {
-        localStorage.setItem('lyd_rates', JSON.stringify(newRates));
-        localStorage.setItem('lyd_history', JSON.stringify(newHistory));
-      } catch (err) {
-        console.warn("Failed to save to localStorage:", err);
-      }
-
-      if (hasChanges) {
-        addToast("تم تحديث الأسعار", "تم رصد تغييرات جديدة في السوق وتحديث البيانات", "info");
-      }
-    } catch (error) {
-      const errName = error && typeof error === 'object' ? (error as any).name : '';
-      const errMsg = error && typeof error === 'object' ? (error as any).message : '';
-      
-      if (error instanceof TypeError && errMsg === "Failed to fetch") {
-        console.warn("Server might be restarting or network is down...");
-      } else if (errName === 'AbortError' || errName === 'TimeoutError' || (typeof errMsg === 'string' && errMsg.includes('signal timed out'))) {
-        console.warn("Fetch request timed out");
-      } else {
-        const isNetworkError = typeof errMsg === 'string' && errMsg.includes("Network response was not ok");
-        
-        if (!isNetworkError) {
-          console.error("Failed to fetch data:", error);
-          logErrorToServer(error, "App.tsx: fetchData");
-        } else {
-          console.warn("Fetch data failed: Network response was not ok");
-        }
-        
-        // Only show toast if it was a manual refresh
-        if (forceRefresh) {
-          addToast("خطأ في التحديث", "تعذر الاتصال بالخادم، يرجى المحاولة لاحقاً", "info");
-        }
-      }
-    } finally {
-      setLoading(false);
-      setIsRefreshing(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchData().catch(() => {});
-    if (!autoRefreshEnabled) return;
-    const intervalTime = dataSaver ? 60000 : 10000;
-    const interval = setInterval(() => {
-      fetchData().catch(() => {});
-    }, intervalTime);
-    return () => clearInterval(interval);
-  }, [autoRefreshEnabled, dataSaver]);
 
   const filteredHistory = useMemo(() => {
     if (!history.length) return [];
