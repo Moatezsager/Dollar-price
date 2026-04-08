@@ -183,13 +183,14 @@ export default function Admin() {
   });
   const [config, setConfig] = useState<any>(null);
   const [stats, setStats] = useState<Stats | null>(null);
+  const [userLogs, setUserLogs] = useState<any[]>([]);
   const [apiStatsData, setApiStatsData] = useState<any>(null);
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'config' | 'stats' | 'logs' | 'ai' | 'changes' | 'telegram' | 'tools' | 'api' | 'database'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'config' | 'stats' | 'logs' | 'ai' | 'changes' | 'telegram' | 'tools' | 'api' | 'database' | 'tracking'>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isAuthorizedDevice, setIsAuthorizedDevice] = useState(true);
 
@@ -335,6 +336,7 @@ export default function Admin() {
   const navItems = [
     { id: 'dashboard', label: 'لوحة التحكم', icon: LayoutDashboard },
     { id: 'database', label: 'قاعدة البيانات', icon: Database },
+    { id: 'tracking', label: 'المتصلين', icon: Users },
     { id: 'config', label: 'الإعدادات', icon: Settings },
     { id: 'api', label: 'المطورين', icon: Code2 },
     { id: 'stats', label: 'النشاط', icon: Activity },
@@ -344,6 +346,54 @@ export default function Admin() {
     { id: 'logs', label: 'الأخطاء', icon: AlertTriangle },
     { id: 'tools', label: 'أدوات', icon: Cpu },
   ];
+
+  useEffect(() => {
+    if (!token) return;
+
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}`;
+    let socket: WebSocket | null = null;
+    let reconnectTimeout: any = null;
+
+    const connect = () => {
+      try {
+        socket = new WebSocket(wsUrl);
+
+        socket.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (data.type === 'online_count') {
+              setStats(prev => prev ? { ...prev, onlineUsers: data.count } : null);
+            } else if (data.type === 'user_logs') {
+              setUserLogs(data.logs);
+            } else if (data.type === 'config_update') {
+              setConfig(data.config);
+            }
+          } catch (err) {
+            console.error('WebSocket message error:', err);
+          }
+        };
+
+        socket.onclose = () => {
+          reconnectTimeout = setTimeout(connect, 3000);
+        };
+
+        socket.onerror = () => {
+          socket?.close();
+        };
+      } catch (err) {
+        console.error('WebSocket connection error:', err);
+        reconnectTimeout = setTimeout(connect, 5000);
+      }
+    };
+
+    connect();
+
+    return () => {
+      socket?.close();
+      clearTimeout(reconnectTimeout);
+    };
+  }, [token]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -1667,14 +1717,25 @@ export default function Admin() {
                     </div>
                   ))}
                 </div>
-                <div className="mt-6 flex items-center justify-between p-4 rounded-2xl bg-white/[0.03] border border-white/5">
-                  <span className="text-sm font-bold text-zinc-400">تفعيل الكاشط التقليدي (احتياطي)</span>
-                  <button 
-                    onClick={() => setConfig({...config, enableHttpScraper: !config.enableHttpScraper})}
-                    className={`w-14 h-8 rounded-full transition-colors ${config.enableHttpScraper ? 'bg-emerald-500' : 'bg-zinc-700'}`}
-                  >
-                    <div className={`w-6 h-6 rounded-full bg-white transition-transform ${config.enableHttpScraper ? 'translate-x-7' : 'translate-x-1'}`} />
-                  </button>
+                <div className="mt-6 flex flex-col gap-4">
+                  <div className="flex items-center justify-between p-4 rounded-2xl bg-white/[0.03] border border-white/5">
+                    <span className="text-sm font-bold text-zinc-400">تفعيل الكاشط التقليدي (احتياطي)</span>
+                    <button 
+                      onClick={() => setConfig({...config, enableHttpScraper: !config.enableHttpScraper})}
+                      className={`w-14 h-8 rounded-full transition-colors ${config.enableHttpScraper ? 'bg-emerald-500' : 'bg-zinc-700'}`}
+                    >
+                      <div className={`w-6 h-6 rounded-full bg-white transition-transform ${config.enableHttpScraper ? 'translate-x-7' : 'translate-x-1'}`} />
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between p-4 rounded-2xl bg-white/[0.03] border border-white/5">
+                    <span className="text-sm font-bold text-zinc-400">تفعيل تتبع الأجهزة المتصلة (Online Tracking)</span>
+                    <button 
+                      onClick={() => setConfig({...config, enableUserTracking: !config.enableUserTracking})}
+                      className={`w-14 h-8 rounded-full transition-colors ${config.enableUserTracking ? 'bg-emerald-500' : 'bg-zinc-700'}`}
+                    >
+                      <div className={`w-6 h-6 rounded-full bg-white transition-transform ${config.enableUserTracking ? 'translate-x-7' : 'translate-x-1'}`} />
+                    </button>
+                  </div>
                 </div>
               </section>
 
@@ -2195,6 +2256,125 @@ export default function Admin() {
                       ))}
                     </div>
                   )}
+                </div>
+              </section>
+            </motion.div>
+          )}
+
+          {activeTab === 'tracking' && (
+            <motion.div 
+              key="tracking"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="space-y-6"
+            >
+              <section className="bg-[#0a0a0a] border border-white/10 rounded-[2.5rem] overflow-hidden shadow-2xl">
+                <div className="p-8 border-b border-white/5 flex items-center justify-between">
+                  <div>
+                    <h2 className="text-xl font-black flex items-center gap-3 text-emerald-400">
+                      <Users className="w-6 h-6" />
+                      سجل الأجهزة المتصلة
+                    </h2>
+                    <p className="text-sm text-zinc-500 mt-1">عرض تفاصيل الأجهزة التي دخلت الموقع حالياً (آخر 200 جهاز)</p>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2 bg-white/5 px-4 py-2 rounded-xl border border-white/5">
+                      <span className="text-xs text-zinc-400">تتبع الأجهزة:</span>
+                      <button 
+                        onClick={async () => {
+                          try {
+                            const res = await fetch("/api/admin/tracking/toggle", {
+                              method: "POST",
+                              headers: { Authorization: `Bearer ${token}` }
+                            });
+                            if (res.ok) {
+                              const data = await res.json();
+                              setConfig({ ...config, enableUserTracking: data.enabled });
+                            }
+                          } catch (err) {
+                            console.error("Toggle tracking failed:", err);
+                          }
+                        }}
+                        className={`w-10 h-5 rounded-full transition-colors relative ${config?.enableUserTracking ? 'bg-emerald-500' : 'bg-zinc-700'}`}
+                      >
+                        <div className={`absolute top-1 w-3 h-3 rounded-full bg-white transition-all ${config?.enableUserTracking ? 'right-1' : 'right-6'}`} />
+                      </button>
+                    </div>
+                    <button 
+                      onClick={async () => {
+                        try {
+                          const res = await fetch("/api/admin/tracking/logs", {
+                            headers: { Authorization: `Bearer ${token}` }
+                          });
+                          if (res.ok) {
+                            const data = await res.json();
+                            setUserLogs(data.logs);
+                          }
+                        } catch (err) {
+                          console.error("Fetch logs failed:", err);
+                        }
+                      }}
+                      className="p-3 rounded-xl bg-white/5 text-zinc-400 hover:text-white transition-all border border-white/5"
+                    >
+                      <RefreshCw className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="overflow-x-auto">
+                  <table className="w-full text-right">
+                    <thead>
+                      <tr className="bg-white/[0.02] text-zinc-500 text-[10px] uppercase tracking-widest font-black">
+                        <th className="px-6 py-4">الجهاز</th>
+                        <th className="px-6 py-4">IP</th>
+                        <th className="px-6 py-4">المتصفح</th>
+                        <th className="px-6 py-4">الوقت</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {userLogs.length === 0 ? (
+                        <tr>
+                          <td colSpan={4} className="py-20 text-center">
+                            <div className="flex flex-col items-center gap-4">
+                              <Users className="w-10 h-10 text-zinc-800" />
+                              <p className="text-zinc-600">لا توجد أجهزة مسجلة حالياً.</p>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : (
+                        userLogs.map((log) => (
+                          <tr key={log.id} className="hover:bg-white/[0.02] transition-colors group">
+                            <td className="px-6 py-4">
+                              <div className="flex items-center gap-3">
+                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                                  log.deviceType === 'Mobile' ? 'bg-blue-500/10 text-blue-400' : 
+                                  log.deviceType === 'Tablet' ? 'bg-purple-500/10 text-purple-400' : 
+                                  log.deviceType === 'Bot' ? 'bg-rose-500/10 text-rose-400' : 'bg-emerald-500/10 text-emerald-400'
+                                }`}>
+                                  {log.deviceType === 'Mobile' ? <Cpu className="w-4 h-4" /> : <Globe className="w-4 h-4" />}
+                                </div>
+                                <span className="text-sm font-bold text-white">{log.deviceType}</span>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className="text-xs font-mono text-zinc-400">{log.ip}</span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className="text-[10px] text-zinc-500 font-mono truncate max-w-[200px] block" title={log.userAgent}>
+                                {log.userAgent}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className="text-[10px] text-zinc-500">
+                                {formatDistanceToNow(new Date(log.timestamp), { addSuffix: true, locale: ar })}
+                              </span>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
                 </div>
               </section>
             </motion.div>

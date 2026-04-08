@@ -70,6 +70,7 @@ interface AppConfig {
   telegramApiHash?: string;
   telegramSessionString?: string;
   enableHttpScraper?: boolean;
+  enableUserTracking?: boolean;
   apiConfig?: {
     enabled: boolean;
     rateLimitWindowMs: number;
@@ -964,6 +965,7 @@ async function fetchOfficialRates(): Promise<boolean> {
 let appConfig: AppConfig = {
   channels: ["dollarr_ly", "musheermarket", "lydollar", "djheih2026", "suqalmushir"],
   enableHttpScraper: true,
+  enableUserTracking: true,
   apiConfig: {
     enabled: true,
     rateLimitWindowMs: 60000,
@@ -1749,6 +1751,16 @@ const gracefulShutdown = async () => {
 process.on('SIGTERM', gracefulShutdown);
 process.on('SIGINT', gracefulShutdown);
 
+interface DeviceLogEntry {
+  id: string;
+  ip: string;
+  userAgent: string;
+  timestamp: string;
+  deviceType: string;
+}
+
+let userLogs: DeviceLogEntry[] = [];
+
 async function startServer() {
   const app = express();
   const server = createServer(app);
@@ -1758,9 +1770,40 @@ async function startServer() {
   const wss = new WebSocketServer({ server });
   let onlineUsers = 0;
 
-  wss.on('connection', (ws: any) => {
+  wss.on('connection', (ws: any, req: any) => {
+    if (!appConfig.enableUserTracking) {
+      onlineUsers++;
+      broadcastOnlineCount();
+      ws.on('close', () => {
+        onlineUsers = Math.max(0, onlineUsers - 1);
+        broadcastOnlineCount();
+      });
+      return;
+    }
+
     onlineUsers++;
+    
+    const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress) as string;
+    const ua = req.headers['user-agent'] || 'Unknown';
+    
+    let deviceType = "Desktop";
+    if (/mobile/i.test(ua)) deviceType = "Mobile";
+    if (/tablet/i.test(ua)) deviceType = "Tablet";
+    if (/bot|crawler|spider/i.test(ua)) deviceType = "Bot";
+
+    const newLog: DeviceLogEntry = {
+      id: Math.random().toString(36).substring(2, 11),
+      ip: ip,
+      userAgent: ua,
+      timestamp: new Date().toISOString(),
+      deviceType: deviceType
+    };
+
+    userLogs.unshift(newLog);
+    if (userLogs.length > 200) userLogs.pop();
+
     broadcastOnlineCount();
+    broadcastUserLogs();
 
     ws.on('close', () => {
       onlineUsers = Math.max(0, onlineUsers - 1);
@@ -1770,6 +1813,24 @@ async function startServer() {
 
   function broadcastOnlineCount() {
     const data = JSON.stringify({ type: 'online_count', count: onlineUsers });
+    wss.clients.forEach((client: any) => {
+      if (client.readyState === 1) {
+        client.send(data);
+      }
+    });
+  }
+
+  function broadcastUserLogs() {
+    const data = JSON.stringify({ type: 'user_logs', logs: userLogs });
+    wss.clients.forEach((client: any) => {
+      if (client.readyState === 1) {
+        client.send(data);
+      }
+    });
+  }
+
+  function broadcastConfigUpdate() {
+    const data = JSON.stringify({ type: 'config_update', config: appConfig });
     wss.clients.forEach((client: any) => {
       if (client.readyState === 1) {
         client.send(data);
@@ -2086,6 +2147,7 @@ async function startServer() {
         broadcastRatesUpdate(rates);
       }
       
+      broadcastConfigUpdate();
       res.json({ success: true, message: "تم حفظ الإعدادات بنجاح" });
     } catch (err) {
       console.error("Error saving config:", err);
@@ -2093,6 +2155,17 @@ async function startServer() {
         res.status(500).json({ success: false, message: "حدث خطأ أثناء الحفظ" });
       }
     }
+  });
+
+  app.get("/api/admin/tracking/logs", requireAdmin, (req: express.Request, res: express.Response) => {
+    res.json({ success: true, logs: userLogs });
+  });
+
+  app.post("/api/admin/tracking/toggle", requireAdmin, async (req: express.Request, res: express.Response) => {
+    appConfig.enableUserTracking = !appConfig.enableUserTracking;
+    await saveConfigToSupabase(appConfig);
+    broadcastConfigUpdate();
+    res.json({ success: true, enabled: appConfig.enableUserTracking });
   });
 
   // --- Telegram MTProto Auth Endpoints ---
