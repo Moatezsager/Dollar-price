@@ -783,13 +783,27 @@ async function fetchFromCBL(): Promise<RateMap | null> {
         const targetRow = rows.find(row => row.includes(name));
         if (targetRow) {
           // Extract the "Selling Price" (بيع) rate as per user request
-          // Looking for the number after the "بيع:" span
-          const rateMatch = targetRow.match(/بيع:\s*<\/span>\s*([\d.]+)/i);
+          // Looking for the number after the "بيع:" span or just a number in the row
+          const rateMatch = targetRow.match(/بيع:\s*<\/span>\s*([\d.]+)/i) || 
+                           targetRow.match(/بيع\s*([\d.]+)/i) ||
+                           targetRow.match(/([\d.]+)\s*بيع/i);
+          
           if (rateMatch && rateMatch[1]) {
             const val = parseFloat(rateMatch[1]);
             if (!isNaN(val) && val > 0) {
               results[currency.id] = val;
               break; 
+            }
+          } else {
+            // Fallback: try to find any number in the row if "بيع" is present
+            const numbers = targetRow.match(/[\d.]+/g);
+            if (numbers && numbers.length > 0) {
+              // Usually selling price is the last or second to last number
+              const val = parseFloat(numbers[numbers.length - 1]);
+              if (!isNaN(val) && val > 0 && val < 10) { // Sanity check for LYD rates
+                results[currency.id] = val;
+                break;
+              }
             }
           }
         }
@@ -800,8 +814,9 @@ async function fetchFromCBL(): Promise<RateMap | null> {
       console.log(`[CBL Scraper] Successfully extracted ${Object.keys(results).length} rates from CBL website (USD: ${results.USD})`);
       return results;
     }
-    console.warn("[CBL Scraper] Could not find valid USD rate in the HTML");
-    await logErrorArabic("فشل استخراج الدولار من موقع المصرف المركزي - قد يكون الهيكل تغير", "مصرف ليبيا المركزي");
+    
+    console.warn("[CBL Scraper] Could not find valid USD rate in the HTML. Results:", results);
+    await logErrorArabic(`فشل استخراج الدولار من موقع المصرف المركزي - النتائج المستخرجة: ${JSON.stringify(results)}`, "مصرف ليبيا المركزي");
     return null;
   } catch (err) {
     console.error("[CBL Scraper] Error scraping CBL website:", err);
@@ -1463,7 +1478,9 @@ async function fetchParallelRatesFromTelegram(): Promise<boolean | null> {
     console.log(`[Scraper] Successfully processed ${totalMessagesProcessed} messages from ${successfulChannels} channels.`);
   } else {
     console.warn("[Scraper] Failed to fetch any messages from any channels.");
-    await logErrorArabic("فشل الكاشط في جلب أي بيانات من جميع القنوات", "الكاشط", `القنوات: ${channels.join(', ')}`);
+    const channelList = channels.join(', ');
+    const usedSources = usedGramJs ? "GramJS" : (forceHttpScraper ? "HTTP (Forced)" : "None");
+    await logErrorArabic(`فشل الكاشط في جلب أي بيانات من جميع القنوات (${channels.length} قناة)`, "الكاشط", `القنوات: ${channelList}\nالمصادر المستخدمة: ${usedSources}\nإجمالي الرسائل: ${totalMessagesProcessed}`);
   }
 
     // Memory monitoring
@@ -1957,7 +1974,9 @@ async function startServer() {
       res.json({ success: true, config: appConfig.apiConfig });
     } catch (err) {
       console.error("Error updating API config:", err);
-      res.status(500).json({ success: false, error: "Failed to update API config" });
+      if (!res.headersSent) {
+        res.status(500).json({ success: false, error: "Failed to update API config" });
+      }
     }
   });
 
@@ -1983,7 +2002,9 @@ async function startServer() {
         regex: regexStatus ? 'ok' : 'error'
       });
     } catch (e) {
-      res.status(500).json({ success: false, error: String(e) });
+      if (!res.headersSent) {
+        res.status(500).json({ success: false, error: String(e) });
+      }
     }
   });
 
@@ -2068,7 +2089,9 @@ async function startServer() {
       res.json({ success: true, message: "تم حفظ الإعدادات بنجاح" });
     } catch (err) {
       console.error("Error saving config:", err);
-      res.status(500).json({ success: false, message: "حدث خطأ أثناء الحفظ" });
+      if (!res.headersSent) {
+        res.status(500).json({ success: false, message: "حدث خطأ أثناء الحفظ" });
+      }
     }
   });
 
@@ -2111,7 +2134,9 @@ async function startServer() {
       });
     } catch (err: any) {
       console.error("Telegram send code error:", err);
-      res.status(500).json({ success: false, message: err.message || "فشل إرسال الكود" });
+      if (!res.headersSent) {
+        res.status(500).json({ success: false, message: err.message || "فشل إرسال الكود" });
+      }
     }
   });
 
@@ -2166,7 +2191,9 @@ async function startServer() {
       });
     } catch (err: any) {
       console.error("Telegram verify code error:", err);
-      res.status(500).json({ success: false, message: err.message || "فشل التحقق من الكود" });
+      if (!res.headersSent) {
+        res.status(500).json({ success: false, message: err.message || "فشل التحقق من الكود" });
+      }
     }
   });
 
@@ -2193,7 +2220,9 @@ async function startServer() {
       });
     } catch (err) {
       console.error("Manual refresh failed:", err);
-      res.status(500).json({ success: false, message: "فشل التحديث اليدوي" });
+      if (!res.headersSent) {
+        res.status(500).json({ success: false, message: "فشل التحديث اليدوي" });
+      }
     }
   });
 
@@ -2204,7 +2233,9 @@ async function startServer() {
       res.json({ success: true, message: "تم تنظيف البيانات القديمة بنجاح" });
     } catch (err) {
       console.error("Manual cleanup failed:", err);
-      res.status(500).json({ success: false, message: "فشل تنظيف البيانات" });
+      if (!res.headersSent) {
+        res.status(500).json({ success: false, message: "فشل تنظيف البيانات" });
+      }
     }
   });
 
@@ -2253,7 +2284,9 @@ async function startServer() {
       });
     } catch (err) {
       console.error("Stats fetch failed:", err);
-      res.status(500).json({ success: false, message: "فشل جلب الإحصائيات" });
+      if (!res.headersSent) {
+        res.status(500).json({ success: false, message: "فشل جلب الإحصائيات" });
+      }
     }
   });
 
@@ -2282,7 +2315,9 @@ async function startServer() {
       
       res.json({ success: true, records });
     } catch (err: any) {
-      res.status(500).json({ success: false, message: err.message });
+      if (!res.headersSent) {
+        res.status(500).json({ success: false, message: err.message });
+      }
     }
   });
 
@@ -2319,7 +2354,9 @@ async function startServer() {
       
       res.json({ success: true });
     } catch (err: any) {
-      res.status(500).json({ success: false, message: err.message });
+      if (!res.headersSent) {
+        res.status(500).json({ success: false, message: err.message });
+      }
     }
   });
 
@@ -2345,7 +2382,9 @@ async function startServer() {
       
       res.json({ success: true });
     } catch (err: any) {
-      res.status(500).json({ success: false, message: err.message });
+      if (!res.headersSent) {
+        res.status(500).json({ success: false, message: err.message });
+      }
     }
   });
 
@@ -2364,7 +2403,9 @@ async function startServer() {
       res.json(data);
     } catch (err) {
       console.error("Error fetching logs:", err);
-      res.status(500).json({ success: false, message: "فشل جلب السجلات" });
+      if (!res.headersSent) {
+        res.status(500).json({ success: false, message: "فشل جلب السجلات" });
+      }
     }
   });
 
@@ -2383,7 +2424,9 @@ async function startServer() {
       res.json(data);
     } catch (err) {
       console.error("Error fetching logs:", err);
-      res.status(500).json({ success: false, message: "فشل جلب السجلات" });
+      if (!res.headersSent) {
+        res.status(500).json({ success: false, message: "فشل جلب السجلات" });
+      }
     }
   });
 
@@ -2469,7 +2512,9 @@ async function startServer() {
       }
     } catch (err: any) {
       console.error("Extraction failed:", err);
-      res.status(500).json({ success: false, message: `خطأ في الاستخراج: ${err.message || 'فشل العملية'}` });
+      if (!res.headersSent) {
+        res.status(500).json({ success: false, message: `خطأ في الاستخراج: ${err.message || 'فشل العملية'}` });
+      }
     }
   });
 
@@ -2519,7 +2564,9 @@ async function startServer() {
       }
     } catch (err) {
       console.error("Manual rate update failed:", err);
-      res.status(500).json({ success: false, message: "فشل تحديث الأسعار" });
+      if (!res.headersSent) {
+        res.status(500).json({ success: false, message: "فشل تحديث الأسعار" });
+      }
     }
   });
 
@@ -2567,7 +2614,9 @@ async function startServer() {
       res.json({ success: true, messages });
     } catch (error: any) {
       console.error(`[API] Error fetching messages for ${channel}:`, error);
-      res.status(500).json({ success: false, error: error.message || "Failed to fetch messages" });
+      if (!res.headersSent) {
+        res.status(500).json({ success: false, error: error.message || "Failed to fetch messages" });
+      }
     }
   });
 
@@ -2635,7 +2684,9 @@ async function startServer() {
       });
     } catch (error: any) {
       console.error(`[API] Error updating from ${channel}:`, error);
-      res.status(500).json({ success: false, error: error.message || "Failed to update from channel" });
+      if (!res.headersSent) {
+        res.status(500).json({ success: false, error: error.message || "Failed to update from channel" });
+      }
     }
   });
 
@@ -2675,7 +2726,9 @@ async function startServer() {
       res.json(rates);
     } catch (err) {
       console.error("Error in /api/rates:", err);
-      res.json(rates);
+      if (!res.headersSent) {
+        res.json(rates);
+      }
     }
   });
 
@@ -2790,8 +2843,10 @@ async function startServer() {
       res.json(publicData);
     } catch (err) {
       console.error("Error in /api/public/rates:", err);
-      logRequest(500);
-      res.status(500).json({ success: false, error: "Internal Server Error" });
+      if (!res.headersSent) {
+        logRequest(500);
+        res.status(500).json({ success: false, error: "Internal Server Error" });
+      }
     }
   });
 
@@ -2848,7 +2903,9 @@ async function startServer() {
       });
     } catch (err) {
       console.error("[Cron-Job] Parallel refresh failed:", err);
-      res.status(500).json({ success: false, error: "Internal server error during refresh" });
+      if (!res.headersSent) {
+        res.status(500).json({ success: false, error: "Internal server error during refresh" });
+      }
     }
   });
 
@@ -2898,7 +2955,9 @@ async function startServer() {
       });
     } catch (err) {
       console.error("[Cron-Job-Official] Official refresh failed:", err);
-      res.status(500).json({ success: false, error: "Internal server error during official refresh" });
+      if (!res.headersSent) {
+        res.status(500).json({ success: false, error: "Internal server error during official refresh" });
+      }
     }
   });
 
@@ -2955,7 +3014,9 @@ async function startServer() {
       });
     } catch (err) {
       console.error("[Maintenance] Cleanup failed:", err);
-      res.status(500).json({ success: false, error: "Internal server error during cleanup" });
+      if (!res.headersSent) {
+        res.status(500).json({ success: false, error: "Internal server error during cleanup" });
+      }
     }
   });
 
@@ -3014,7 +3075,9 @@ async function startServer() {
       const dbHistory = await fetchHistoryFromSupabase();
       res.json(dbHistory);
     } catch (err) {
-      res.json(history);
+      if (!res.headersSent) {
+        res.json(history);
+      }
     }
   });
 
