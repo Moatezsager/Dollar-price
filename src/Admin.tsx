@@ -22,6 +22,7 @@ interface Stats {
   termsCount: number;
   serverUptime: number;
   serverStartTime: string;
+  dbConnected?: boolean;
   memoryUsage: { rss: number; heapUsed: number; heapTotal: number };
   dbStats?: {
     parallelRatesCount: number;
@@ -188,12 +189,89 @@ export default function Admin() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'config' | 'stats' | 'logs' | 'ai' | 'changes' | 'telegram' | 'tools' | 'api'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'config' | 'stats' | 'logs' | 'ai' | 'changes' | 'telegram' | 'tools' | 'api' | 'database'>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isAuthorizedDevice, setIsAuthorizedDevice] = useState(true);
 
   const [expandedTermIdx, setExpandedTermIdx] = useState<number | null>(null);
   const [testTexts, setTestTexts] = useState<Record<number, string>>({});
+  
+  // Database Tab State
+  const [dbMarket, setDbMarket] = useState<'parallel' | 'official'>('parallel');
+  const [dbCurrency, setDbCurrency] = useState<string>('USD');
+  const [dbRecords, setDbRecords] = useState<any[]>([]);
+  const [dbLoading, setDbLoading] = useState(false);
+  const [editingRecord, setEditingRecord] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState<string>('');
+
+  const fetchDbRecords = async () => {
+    if (!token) return;
+    setDbLoading(true);
+    try {
+      const res = await fetch(`/api/admin/records/${dbMarket}/${dbCurrency}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.success) {
+        setDbRecords(data.records);
+      } else {
+        setError(data.message || "فشل جلب السجلات");
+      }
+    } catch (err) {
+      setError("خطأ في الاتصال");
+    } finally {
+      setDbLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'database' && token) {
+      fetchDbRecords();
+    }
+  }, [activeTab, dbMarket, dbCurrency, token]);
+
+  const handleUpdateRecord = async (id: string) => {
+    if (!token || !editValue) return;
+    try {
+      const res = await fetch(`/api/admin/records/${dbMarket}/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ currency: dbCurrency, value: editValue })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSuccess("تم تحديث السجل بنجاح");
+        setEditingRecord(null);
+        fetchDbRecords();
+      } else {
+        setError(data.message || "فشل التحديث");
+      }
+    } catch (err) {
+      setError("خطأ في الاتصال");
+    }
+  };
+
+  const handleDeleteRecord = async (id: string) => {
+    if (!token || !confirm("هل أنت متأكد من حذف هذا السجل؟")) return;
+    try {
+      const res = await fetch(`/api/admin/records/${dbMarket}/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSuccess("تم حذف السجل بنجاح");
+        fetchDbRecords();
+      } else {
+        setError(data.message || "فشل الحذف");
+      }
+    } catch (err) {
+      setError("خطأ في الاتصال");
+    }
+  };
   const [newKeywords, setNewKeywords] = useState<Record<number, string>>({});
   const [searchPath, setSearchPath] = useState("");
   const [recentChanges, setRecentChanges] = useState<any[]>([]);
@@ -256,6 +334,7 @@ export default function Admin() {
 
   const navItems = [
     { id: 'dashboard', label: 'لوحة التحكم', icon: LayoutDashboard },
+    { id: 'database', label: 'قاعدة البيانات', icon: Database },
     { id: 'config', label: 'الإعدادات', icon: Settings },
     { id: 'api', label: 'المطورين', icon: Code2 },
     { id: 'stats', label: 'النشاط', icon: Activity },
@@ -1269,6 +1348,18 @@ export default function Admin() {
                     <h2 className="text-3xl font-black text-white mb-2">مرحباً بك، المدير</h2>
                     <p className="text-zinc-500 font-medium">إليك نظرة سريعة على أداء النظام اليوم.</p>
                   </div>
+                  
+                  {stats && stats.dbConnected === false && (
+                    <div className="bg-rose-500/10 border border-rose-500/20 rounded-2xl p-4 flex items-center gap-4 animate-pulse">
+                      <div className="w-10 h-10 rounded-xl bg-rose-500/20 flex items-center justify-center shrink-0">
+                        <AlertTriangle className="w-6 h-6 text-rose-500" />
+                      </div>
+                      <div>
+                        <h4 className="text-rose-500 font-bold text-sm">قاعدة البيانات غير متصلة</h4>
+                        <p className="text-rose-500/70 text-xs">يرجى التحقق من متغيرات البيئة (Supabase URL & Key)</p>
+                      </div>
+                    </div>
+                  )}
                   <div className="flex items-center gap-3 bg-white/5 p-2 rounded-2xl border border-white/5">
                     <div className="px-4 py-2 rounded-xl bg-white/5 border border-white/5 flex flex-col items-center">
                        <span className="text-[10px] text-zinc-500 uppercase font-black">Uptime</span>
@@ -2543,6 +2634,151 @@ export default function Admin() {
                     )}
                   </div>
                 )}
+              </section>
+            </motion.div>
+          )}
+
+          {activeTab === 'database' && (
+            <motion.div 
+              key="database"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="space-y-6"
+            >
+              <section className="bg-white/[0.02] border border-white/5 rounded-[2rem] p-6 md:p-8 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-500/5 blur-[100px] rounded-full pointer-events-none"></div>
+                
+                <div className="flex flex-col md:flex-row items-start md:items-center gap-6 mb-8 relative">
+                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 flex items-center justify-center border border-emerald-500/20 shrink-0">
+                    <Database className="w-8 h-8 text-emerald-400" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-white mb-2">قاعدة البيانات</h2>
+                    <p className="text-zinc-400">عرض وتعديل السجلات التاريخية للأسعار</p>
+                  </div>
+                </div>
+
+                <div className="flex flex-col md:flex-row gap-4 mb-6 relative">
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium text-zinc-400 mb-2">السوق</label>
+                    <select
+                      value={dbMarket}
+                      onChange={(e) => setDbMarket(e.target.value as 'parallel' | 'official')}
+                      className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500 transition-colors"
+                    >
+                      <option value="parallel">السوق الموازي</option>
+                      <option value="official">السوق الرسمي</option>
+                    </select>
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium text-zinc-400 mb-2">العملة / الصنف</label>
+                    <select
+                      value={dbCurrency}
+                      onChange={(e) => setDbCurrency(e.target.value)}
+                      className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500 transition-colors"
+                    >
+                      {config?.terms.map(t => (
+                        <option key={t.id} value={t.id}>{t.name} ({t.id})</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex items-end">
+                    <button
+                      onClick={fetchDbRecords}
+                      disabled={dbLoading}
+                      className="h-[50px] px-6 bg-emerald-500 hover:bg-emerald-400 text-black font-bold rounded-xl transition-colors flex items-center gap-2 disabled:opacity-50"
+                    >
+                      <RefreshCw className={`w-5 h-5 ${dbLoading ? 'animate-spin' : ''}`} />
+                      تحديث
+                    </button>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto relative">
+                  <table className="w-full text-right">
+                    <thead>
+                      <tr className="border-b border-white/10 text-zinc-400 text-sm">
+                        <th className="pb-3 px-4 font-medium">التاريخ والوقت</th>
+                        <th className="pb-3 px-4 font-medium">السعر المسجل</th>
+                        <th className="pb-3 px-4 font-medium w-32">إجراءات</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {dbRecords.length === 0 ? (
+                        <tr>
+                          <td colSpan={3} className="py-8 text-center text-zinc-500">
+                            لا توجد سجلات لهذه العملة
+                          </td>
+                        </tr>
+                      ) : (
+                        dbRecords.map((record) => (
+                          <tr key={record.id} className="hover:bg-white/5 transition-colors group">
+                            <td className="py-3 px-4 text-zinc-300" dir="ltr">
+                              {format(new Date(record.recorded_at), 'yyyy-MM-dd HH:mm:ss')}
+                            </td>
+                            <td className="py-3 px-4">
+                              {editingRecord === record.id ? (
+                                <input
+                                  type="number"
+                                  step="0.001"
+                                  value={editValue}
+                                  onChange={(e) => setEditValue(e.target.value)}
+                                  className="w-32 bg-black border border-emerald-500/50 rounded-lg px-3 py-1 text-white focus:outline-none focus:border-emerald-500"
+                                  autoFocus
+                                />
+                              ) : (
+                                <span className="font-mono text-emerald-400 font-bold">
+                                  {record.value?.toFixed(4)}
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4">
+                              {editingRecord === record.id ? (
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={() => handleUpdateRecord(record.id)}
+                                    className="p-1.5 bg-emerald-500/20 text-emerald-500 rounded-lg hover:bg-emerald-500 hover:text-black transition-colors"
+                                    title="حفظ"
+                                  >
+                                    <Save className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => setEditingRecord(null)}
+                                    className="p-1.5 bg-zinc-500/20 text-zinc-400 rounded-lg hover:bg-zinc-500 hover:text-white transition-colors"
+                                    title="إلغاء"
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <button
+                                    onClick={() => {
+                                      setEditingRecord(record.id);
+                                      setEditValue(record.value?.toString() || '');
+                                    }}
+                                    className="p-1.5 bg-blue-500/10 text-blue-400 rounded-lg hover:bg-blue-500 hover:text-white transition-colors"
+                                    title="تعديل"
+                                  >
+                                    <Settings className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteRecord(record.id)}
+                                    className="p-1.5 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500 hover:text-white transition-colors"
+                                    title="حذف"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </section>
             </motion.div>
           )}
