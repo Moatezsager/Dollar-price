@@ -3042,32 +3042,44 @@ export default function Admin() {
                   </h4>
                   
                   <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
-                    {liveFeed.filter(msg => {
-                      const matchesSearch = msg.text.toLowerCase().includes(feedSearch.toLowerCase());
-                      const matchesChannel = feedChannelFilter === "all" || msg.channel === feedChannelFilter;
-                      const matchesStatus = feedStatusFilter === "all" || msg.status === feedStatusFilter;
-                      return matchesSearch && matchesChannel && matchesStatus;
-                    }).length === 0 ? (
-                      <div className="text-center py-12 text-zinc-500 text-sm">
-                        <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-4">
-                          <Search className="w-6 h-6 opacity-20" />
-                        </div>
-                        لا توجد رسائل تطابق معايير البحث
-                      </div>
-                    ) : (
-                      liveFeed.filter(msg => {
+                    {(() => {
+                      const filteredFeed = liveFeed.filter(msg => {
                         const matchesSearch = msg.text.toLowerCase().includes(feedSearch.toLowerCase());
                         const matchesChannel = feedChannelFilter === "all" || msg.channel === feedChannelFilter;
                         const matchesStatus = feedStatusFilter === "all" || msg.status === feedStatusFilter;
                         return matchesSearch && matchesChannel && matchesStatus;
-                      }).map((msg, idx) => (
-                        <div key={msg.id || idx} className="bg-white/[0.03] rounded-xl p-4 border border-white/5 hover:bg-white/[0.05] transition-all group">
-                          <div className="flex justify-between items-start mb-3">
+                      }).sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+
+                      if (filteredFeed.length === 0) {
+                        return (
+                          <div className="text-center py-12 text-zinc-500 text-sm">
+                            <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-4">
+                              <Search className="w-6 h-6 opacity-20" />
+                            </div>
+                            لا توجد رسائل تطابق معايير البحث
+                          </div>
+                        );
+                      }
+
+                      return filteredFeed.map((msg, idx) => (
+                        <div key={msg.id || idx} className="bg-white/[0.02] rounded-2xl p-5 border border-white/5 hover:bg-white/[0.04] hover:border-white/10 transition-all group relative overflow-hidden">
+                          <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 blur-3xl rounded-full pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                          <div className="flex justify-between items-start mb-4 relative z-10">
                             <div className="flex items-center gap-3">
-                              <span className="px-2 py-0.5 rounded-md bg-blue-500/10 text-[10px] font-bold text-blue-400 border border-blue-500/20">
-                                {msg.channel}
-                              </span>
-                              <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-bold border ${
+                              <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center border border-blue-500/20 shrink-0">
+                                <Send className="w-4 h-4 text-blue-400" />
+                              </div>
+                              <div className="flex flex-col">
+                                <span className="text-sm font-bold text-white tracking-tight">
+                                  {msg.channel}
+                                </span>
+                                <span className="text-[10px] text-zinc-500 font-mono">
+                                  {formatDistanceToNow(new Date(msg.time), { addSuffix: true, locale: ar })}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold border ${
                                 msg.status === 'processed' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
                                 msg.status === 'error' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
                                 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'
@@ -3078,44 +3090,53 @@ export default function Admin() {
                                 {msg.status === 'processed' ? 'تم الاستخراج' : 
                                  msg.status === 'error' ? 'خطأ' : 'تخطي'}
                               </div>
-                            </div>
-                            <div className="flex items-center gap-3">
-                              <span className="text-[10px] text-zinc-500 font-mono">
-                                {new Date(msg.time).toLocaleDateString('ar-SA')} {new Date(msg.time).toLocaleTimeString('ar-SA')}
-                              </span>
+                              <button 
+                                onClick={() => {
+                                  navigator.clipboard.writeText(msg.text);
+                                  setSuccess("تم نسخ النص");
+                                  setTimeout(() => setSuccess(""), 2000);
+                                }}
+                                className="opacity-0 group-hover:opacity-100 transition-all p-1.5 rounded-lg bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10"
+                                title="نسخ النص"
+                              >
+                                <Copy className="w-4 h-4" />
+                              </button>
                               <button 
                                 onClick={() => handleManualExtract(msg)}
                                 className="opacity-0 group-hover:opacity-100 transition-all p-1.5 rounded-lg bg-blue-500/10 text-blue-400 hover:bg-blue-500/20"
                                 title="استخراج يدوي"
                               >
-                                <Zap className="w-3.5 h-3.5" />
+                                <Zap className="w-4 h-4" />
                               </button>
                             </div>
                           </div>
                           
-                          <p className="text-sm text-zinc-300 whitespace-pre-wrap break-words mb-3 leading-relaxed" dir="auto">
-                            {msg.text}
-                          </p>
+                          <div className="bg-black/40 rounded-xl p-4 border border-white/5 relative z-10">
+                            <p className="text-sm text-zinc-300 whitespace-pre-wrap break-words leading-relaxed" dir="auto">
+                              {msg.text}
+                            </p>
+                          </div>
 
                           {msg.extractedRates && msg.extractedRates.length > 0 && (
-                            <div className="flex flex-wrap gap-2 pt-3 border-t border-white/5">
+                            <div className="flex flex-wrap gap-2 pt-4 mt-4 border-t border-white/5 relative z-10">
                               {msg.extractedRates.map((rate: any, rIdx: number) => (
-                                <div key={rIdx} className="flex items-center gap-2 bg-white/5 rounded-lg px-2 py-1 border border-white/5">
-                                  <span className="text-[10px] font-bold text-zinc-400">{rate.code}:</span>
-                                  <span className="text-[10px] font-mono text-emerald-400">{rate.value.toFixed(3)}</span>
+                                <div key={rIdx} className="flex items-center gap-2 bg-emerald-500/10 rounded-lg px-3 py-1.5 border border-emerald-500/20">
+                                  <span className="text-[11px] font-bold text-emerald-500/70">{rate.code}:</span>
+                                  <span className="text-[12px] font-black font-mono text-emerald-400">{rate.value.toFixed(3)}</span>
                                 </div>
                               ))}
                             </div>
                           )}
                           
                           {msg.error && (
-                            <div className="mt-2 text-[10px] text-rose-400 bg-rose-500/5 p-2 rounded-lg border border-rose-500/10">
-                              {msg.error}
+                            <div className="mt-4 text-xs text-rose-400 bg-rose-500/5 p-3 rounded-xl border border-rose-500/10 relative z-10 flex items-start gap-2">
+                              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                              <span className="leading-relaxed">{msg.error}</span>
                             </div>
                           )}
                         </div>
-                      ))
-                    )}
+                      ));
+                    })()}
                   </div>
                 </div>
               </section>
