@@ -406,13 +406,16 @@ const RATES_CACHE_TTL = 30 * 1000; // 30 seconds
 
 // Initialize rates from Database on startup to ensure accuracy
 async function initializeRatesFromDB(force = false) {
-  if (!force && Date.now() - lastRatesFetchTime < RATES_CACHE_TTL) {
-    return; // Use memory cache
+  // If not forced, and we already have data in memory that is relatively fresh, skip DB load
+  // This prevents memory state (from scraper) being overwritten by older DB data
+  if (!force && lastRatesFetchTime > 0 && (Date.now() - lastRatesFetchTime < RATES_CACHE_TTL)) {
+    return; 
   }
 
   if (!supabase || !supabaseAnonKey || supabaseAnonKey.includes('dummy')) return;
   
   try {
+    console.log(`[DB] Initializing rates from Supabase (force=${force})...`);
     // 1. Fetch latest parallel rates
     const { data: parallelData, error: parallelError } = await supabase
       .from('parallel_rates')
@@ -506,19 +509,24 @@ async function initializeRatesFromDB(force = false) {
 }
 
 async function saveToSupabase(type: 'parallel' | 'official' | 'both' = 'both') {
-  if (!supabase || !supabaseAnonKey || supabaseAnonKey.includes('dummy')) return; 
+  if (!supabase || !supabaseAnonKey || supabaseAnonKey.includes('dummy')) {
+    console.warn("[DB] Supabase not initialized or using dummy key. Skipping save.");
+    return; 
+  }
   
   try {
     const results = [];
+    const now = new Date().toISOString();
     
     // 1. Save Parallel Rates if needed
     if (type === 'parallel' || type === 'both') {
       if (rates.parallel.USD >= 5.5) {
+        console.log(`[DB] Saving parallel rates to Supabase (USD: ${rates.parallel.USD})...`);
         results.push(supabase.from('parallel_rates').insert([{
           usd: rates.parallel.USD,
           rates: rates.parallel,
           last_changed: rates.lastChanged.parallel,
-          recorded_at: rates.lastUpdated
+          recorded_at: rates.lastUpdated || now
         }]));
       }
     }
@@ -526,10 +534,11 @@ async function saveToSupabase(type: 'parallel' | 'official' | 'both' = 'both') {
     // 2. Save Official Rates if needed
     if (type === 'official' || type === 'both') {
       if (rates.official.USD > 0) {
+        console.log(`[DB] Saving official rates to Supabase (USD: ${rates.official.USD})...`);
         results.push(supabase.from('official_rates').insert([{
           usd: rates.official.USD,
           rates: rates.official,
-          recorded_at: new Date().toISOString()
+          recorded_at: now
         }]));
       }
     }
@@ -552,7 +561,7 @@ async function saveToSupabase(type: 'parallel' | 'official' | 'both' = 'both') {
         results.push(supabase.from('metal_rates').insert([{
           rates: metalRates,
           last_changed: metalChanges,
-          recorded_at: rates.lastUpdated
+          recorded_at: rates.lastUpdated || now
         }]));
       }
     }
@@ -566,7 +575,7 @@ async function saveToSupabase(type: 'parallel' | 'official' | 'both' = 'both') {
       previous_parallel: rates.previousParallel,
       previous_official: rates.previousOfficial,
       last_changed: rates.lastChanged,
-      recorded_at: rates.lastUpdated
+      recorded_at: rates.lastUpdated || now
     };
     results.push(supabase.from('exchange_rates').insert([legacyRecord]));
 
@@ -575,7 +584,14 @@ async function saveToSupabase(type: 'parallel' | 'official' | 'both' = 'both') {
     // Log errors but don't crash (some tables might not exist yet)
     settled.forEach((res, i) => {
       if (res.status === 'rejected') {
-        console.error(`Save error for source ${i}:`, res.reason);
+        console.error(`[DB] Save error for source ${i}:`, res.reason);
+      } else {
+        const val = res.value as any;
+        if (val && val.error) {
+          console.error(`[DB] Supabase error in source ${i}:`, val.error.message);
+        } else {
+          console.log(`[DB] Successfully saved source ${i} to Supabase.`);
+        }
       }
     });
 
@@ -2807,19 +2823,15 @@ async function startServer() {
       // 1. Fetch data from Telegram
       const parallelUpdate = await fetchParallelRatesFromTelegram();
       
-      let changed = false;
-      if (parallelUpdate) {
-        console.log("[Cron-Job] Parallel changes detected! Saving to database...");
+      // Always save to DB if we successfully fetched data (parallelUpdate is true or false, not null)
+      // This ensures DB is in sync with memory even if the price itself didn't change.
+      // This prevents "Memory Poisoning" where initializeRatesFromDB might overwrite memory with old DB data.
+      if (parallelUpdate !== null) {
+        console.log(`[Cron-Job] Fetch completed (Changes: ${parallelUpdate}). Syncing with database...`);
         await saveToSupabase('parallel');
         broadcastRatesUpdate(rates);
-        changed = true;
       } else {
-        console.log("[Cron-Job] Checked parallel sources. No price changes found.");
-        // Even if no price changed, we might want to sync memory cache with DB 
-        // if memory was lost (e.g. server restart)
-        if (rates.parallel.USD < 1) {
-          await initializeRatesFromDB(true);
-        }
+        console.log("[Cron-Job] Scraper was busy or too recent. Skipping DB sync.");
       }
       
       const duration = Date.now() - startTime;
@@ -2827,10 +2839,10 @@ async function startServer() {
       
       res.status(200).json({ 
         success: true, 
-        message: changed ? "Parallel data updated and saved" : "No changes detected, DB stays synced",
+        message: parallelUpdate !== null ? "Parallel data updated and synced with database" : "Scraper busy, no update performed",
         details: {
           duration_ms: duration,
-          parallel_usd: { current: newUsd, changed },
+          parallel_usd: newUsd,
           last_sync: new Date().toISOString()
         }
       });
@@ -2867,25 +2879,20 @@ async function startServer() {
       // 1. Fetch official rates (CBL + fallbacks)
       const officialUpdate = await fetchOfficialRates();
       
-      let changed = false;
-      if (officialUpdate) {
-        console.log("[Cron-Job-Official] Official changes detected! Saving to database...");
-        await saveToSupabase('official');
-        broadcastRatesUpdate(rates);
-        changed = true;
-      } else {
-        console.log("[Cron-Job-Official] Checked official sources. No price changes found.");
-      }
+      // Always save to DB if we successfully fetched data to ensure sync
+      console.log(`[Cron-Job-Official] Fetch completed (Changes: ${officialUpdate}). Syncing with database...`);
+      await saveToSupabase('official');
+      broadcastRatesUpdate(rates);
       
       const duration = Date.now() - startTime;
       const newOfficial = rates.official.USD;
       
       res.status(200).json({ 
         success: true, 
-        message: changed ? "Official data updated and saved" : "No changes detected",
+        message: "Official data updated and synced with database",
         details: {
           duration_ms: duration,
-          official_usd: { current: newOfficial, changed },
+          official_usd: newOfficial,
           last_sync: new Date().toISOString()
         }
       });
@@ -3053,8 +3060,15 @@ async function startServer() {
         await new Promise(resolve => setTimeout(resolve, 30000));
         
         console.log("[Startup] Triggering initial rates update...");
-        await fetchOfficialRates();
-        await fetchParallelRatesFromTelegram();
+        const officialChanged = await fetchOfficialRates();
+        const parallelChanged = await fetchParallelRatesFromTelegram();
+        
+        if (officialChanged || parallelChanged) {
+          console.log("[Startup] Initial changes detected! Saving to database...");
+          const saveType = (officialChanged && parallelChanged) ? 'both' : (officialChanged ? 'official' : 'parallel');
+          await saveToSupabase(saveType);
+          broadcastRatesUpdate(rates);
+        }
       } catch (err) {
         console.error("[Startup] Error during initial update:", err);
       }
@@ -3064,8 +3078,15 @@ async function startServer() {
     setInterval(async () => {
       try {
         console.log("[Auto-Refresh] Triggering automatic rates update...");
-        await fetchOfficialRates();
-        await fetchParallelRatesFromTelegram();
+        const officialChanged = await fetchOfficialRates();
+        const parallelChanged = await fetchParallelRatesFromTelegram();
+        
+        if (officialChanged || parallelChanged) {
+          console.log("[Auto-Refresh] Changes detected! Saving to database...");
+          const saveType = (officialChanged && parallelChanged) ? 'both' : (officialChanged ? 'official' : 'parallel');
+          await saveToSupabase(saveType);
+          broadcastRatesUpdate(rates);
+        }
       } catch (err) {
         console.error("[Auto-Refresh] Error during automatic update:", err);
       }
