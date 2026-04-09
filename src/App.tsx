@@ -1402,7 +1402,7 @@ export default function App() {
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className={`relative z-[60] border-b overflow-hidden shadow-lg ${
+            className={`relative z-[60] border-b overflow-hidden shadow-lg pt-safe ${
               isOffline 
                 ? 'bg-rose-500 border-rose-400 text-white' 
                 : 'bg-amber-500 border-amber-400 text-black'
@@ -1516,7 +1516,7 @@ export default function App() {
       </motion.div>
 
       {/* Header */}
-      <header className="border-b border-white/5 sticky top-0 z-50 bg-[#050505]/80 backdrop-blur-xl">
+      <header className="border-b border-white/5 sticky top-0 z-50 bg-[#050505]/80 backdrop-blur-xl pt-safe">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 sm:h-20 flex items-center justify-between">
           <div className="flex items-center gap-3 sm:gap-4">
             <div 
