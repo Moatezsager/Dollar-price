@@ -977,8 +977,8 @@ let appConfig: AppConfig = {
     { id: "EUR", name: "يورو", regex: "(?:EUR|eur|يورو|اليورو|💶|🇪🇺)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "eu" },
     { id: "GBP", name: "جنيه إسترليني", regex: "(?:GBP|gbp|باوند|استرليني|الباوند|💷|🇬🇧)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "gb" },
     { id: "TND", name: "دينار تونسي", regex: "(?:TND|tnd|تونسي|تونس(?![ا-ي])|🇹🇳)[^\\d]{0,40}?(?:100|1)?\\s*(?:=|ب|\\-)?\\s*(?<!\\d)((?!(?:100|1)\\s*(?:=|ب|دينار|ليبي|\\-))\\d{1,3}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,30}(?<!\\d)((?!(?:100|1)\\s*(?:=|ب|دينار|ليبي|\\-))\\d{1,3}(?:[\\.,]\\d{1,4})?))?", min: 0.1, max: 400.0, isInverse: false, flag: "tn" },
-    { id: "EGP", name: "جنيه مصري", regex: "(?:EGP|egp|مصري|مصر(?![ا-ي])|🇪🇬)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 0.01, max: 5.0, isInverse: false, flag: "eg" },
-    { id: "TRY", name: "ليرة تركية", regex: "(?:TRY|try|ليرة(?!\\s*ذهب)|(?<!حوالة\\s*)(?<!حوالات\\s*)تركي(?![ا-ي])|🇹🇷)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 0.01, max: 5.0, isInverse: false, flag: "tr" },
+    { id: "EGP", name: "جنيه مصري", regex: "(?:EGP|egp|مصري|مصر(?![ا-ي])|🇪🇬)[^\\d]{0,40}?(?:100|1)?\\s*(?:=|ب|\\-)?\\s*(?<!\\d)((?!(?:100|1)\\s*(?:=|ب|دينار|ليبي|\\-))\\d{1,3}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,30}(?<!\\d)((?!(?:100|1)\\s*(?:=|ب|دينار|ليبي|\\-))\\d{1,3}(?:[\\.,]\\d{1,4})?))?", min: 0.01, max: 5.0, isInverse: false, flag: "eg" },
+    { id: "TRY", name: "ليرة تركية", regex: "(?:TRY|try|ليرة(?!\\s*ذهب)|(?<!حوالة\\s*)(?<!حوالات\\s*)تركي(?![ا-ي])|🇹🇷)[^\\d]{0,40}?(?:100|1)?\\s*(?:=|ب|\\-)?\\s*(?<!\\d)((?!(?:100|1)\\s*(?:=|ب|دينار|ليبي|\\-))\\d{1,3}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,30}(?<!\\d)((?!(?:100|1)\\s*(?:=|ب|دينار|ليبي|\\-))\\d{1,3}(?:[\\.,]\\d{1,4})?))?", min: 0.01, max: 5.0, isInverse: false, flag: "tr" },
     { id: "JOD", name: "دينار أردني", regex: "(?:JOD|jod|أردني|🇯🇴)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 30.0, isInverse: false, flag: "jo" },
     { id: "BHD", name: "دينار بحريني", regex: "(?:BHD|bhd|بحريني|🇧🇭)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 10.0, max: 50.0, isInverse: false, flag: "bh" },
     { id: "KWD", name: "دينار كويتي", regex: "(?:KWD|kwd|كويتي|🇰🇼)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 10.0, max: 60.0, isInverse: false, flag: "kw" },
@@ -1179,14 +1179,28 @@ const extractRatesFromText = (cleanText: string) => {
       
       // Smart extraction for EGP
       if (term.id === 'EGP') {
-        if (val >= 2.0 && val <= 10.0) {
-          val = 1 / val; // e.g., 1 LYD = 6.66 EGP -> 0.15 LYD
-        } else if (val > 10.0 && val <= 100.0) {
+        if (valStr.includes(',')) {
+          val = parseFloat(valStr.replace(/,/g, '.'));
+        }
+        if (val >= 10.0 && val <= 100.0) {
           val = val / 100; // e.g., 100 EGP = 15 LYD -> 0.15 LYD
+        } else if (val >= 2.0 && val < 10.0) {
+          val = 1 / val; // e.g., 1 LYD = 6.35 EGP -> 0.157 LYD
         }
       }
       
-      if (term.id === 'TRY' && val > 1.0) val = 1 / val;
+      // Smart extraction for TRY
+      if (term.id === 'TRY') {
+        if (valStr.includes(',')) {
+          val = parseFloat(valStr.replace(/,/g, '.'));
+        }
+        if (val >= 10.0 && val <= 100.0) {
+          val = val / 100; // e.g., 100 TRY = 20 LYD -> 0.20 LYD
+        } else if (val >= 2.0 && val < 10.0) {
+          val = 1 / val; // e.g., 1 LYD = 5 TRY -> 0.20 LYD
+        }
+      }
+      
       if (term.isInverse && val > 0) val = 1 / val;
       
       if (!isNaN(val) && val >= term.min && val <= term.max) {
@@ -2626,14 +2640,27 @@ async function startServer() {
             
             // Smart extraction for EGP
             if (term.id === 'EGP') {
-              if (val >= 2.0 && val <= 10.0) {
-                val = 1 / val; // e.g., 1 LYD = 6.66 EGP -> 0.15 LYD
-              } else if (val > 10.0 && val <= 100.0) {
+              if (valStr.includes(',')) {
+                val = parseFloat(valStr.replace(/,/g, '.'));
+              }
+              if (val >= 10.0 && val <= 100.0) {
                 val = val / 100; // e.g., 100 EGP = 15 LYD -> 0.15 LYD
+              } else if (val >= 2.0 && val < 10.0) {
+                val = 1 / val; // e.g., 1 LYD = 6.35 EGP -> 0.157 LYD
               }
             }
 
-            if (term.id === 'TRY' && val > 1.0) val = 1 / val;
+            // Smart extraction for TRY
+            if (term.id === 'TRY') {
+              if (valStr.includes(',')) {
+                val = parseFloat(valStr.replace(/,/g, '.'));
+              }
+              if (val >= 10.0 && val <= 100.0) {
+                val = val / 100; // e.g., 100 TRY = 20 LYD -> 0.20 LYD
+              } else if (val >= 2.0 && val < 10.0) {
+                val = 1 / val; // e.g., 1 LYD = 5 TRY -> 0.20 LYD
+              }
+            }
             
             if (term.isInverse && val > 0) val = 1 / val;
             if (!isNaN(val) && val >= term.min && val <= term.max) {
