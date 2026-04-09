@@ -2304,6 +2304,26 @@ export default function Admin() {
                     <button 
                       onClick={async () => {
                         try {
+                          const res = await fetch("/api/admin/tracking/clear", {
+                            method: "POST",
+                            headers: { Authorization: `Bearer ${token}` }
+                          });
+                          if (res.ok) {
+                            setUserLogs([]);
+                            setSuccess("تم مسح السجل بنجاح");
+                          }
+                        } catch (err) {
+                          console.error("Clear logs failed:", err);
+                        }
+                      }}
+                      className="p-3 rounded-xl bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 transition-all border border-rose-500/10"
+                      title="مسح السجل"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </button>
+                    <button 
+                      onClick={async () => {
+                        try {
                           const res = await fetch("/api/admin/tracking/logs", {
                             headers: { Authorization: `Bearer ${token}` }
                           });
@@ -2354,7 +2374,7 @@ export default function Admin() {
                                 }`}>
                                   {log.deviceType === 'Mobile' ? <Cpu className="w-4 h-4" /> : <Globe className="w-4 h-4" />}
                                 </div>
-                                <span className="text-sm font-bold text-white">{log.deviceType}</span>
+                                <span className="text-sm font-bold text-white">{log.deviceName || log.deviceType}</span>
                               </div>
                             </td>
                             <td className="px-6 py-4">

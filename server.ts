@@ -1700,6 +1700,9 @@ const cleanupOldData = async () => {
     }
 
     console.log(`Database cleanup completed. Removed ${removedRates} rates, ${removedLogs} logs, and ${removedChanges} price changes older than 7 days.`);
+    
+    // Also cleanup in-memory user logs
+    cleanupUserLogs();
   } catch (error) {
     console.error("Failed to run database cleanup:", error);
   }
@@ -1757,9 +1760,22 @@ interface DeviceLogEntry {
   userAgent: string;
   timestamp: string;
   deviceType: string;
+  deviceName: string;
 }
 
 let userLogs: DeviceLogEntry[] = [];
+
+const cleanupUserLogs = () => {
+  const twentyFourHoursAgo = Date.now() - (24 * 60 * 60 * 1000);
+  const initialCount = userLogs.length;
+  userLogs = userLogs.filter(log => new Date(log.timestamp).getTime() > twentyFourHoursAgo);
+  if (userLogs.length !== initialCount) {
+    console.log(`[Cleanup] Removed ${initialCount - userLogs.length} old user logs.`);
+  }
+};
+
+// Run memory cleanup every hour
+setInterval(cleanupUserLogs, 60 * 60 * 1000);
 
 async function startServer() {
   const app = express();
@@ -1787,16 +1803,29 @@ async function startServer() {
     const ua = req.headers['user-agent'] || 'Unknown';
     
     let deviceType = "Desktop";
+    let deviceName = "Unknown Device";
+
     if (/mobile/i.test(ua)) deviceType = "Mobile";
     if (/tablet/i.test(ua)) deviceType = "Tablet";
     if (/bot|crawler|spider/i.test(ua)) deviceType = "Bot";
+
+    // Detect specific names
+    if (/iPhone/i.test(ua)) deviceName = "iPhone";
+    else if (/iPad/i.test(ua)) deviceName = "iPad";
+    else if (/Samsung|SM-|GT-/i.test(ua)) deviceName = "Samsung";
+    else if (/Android/i.test(ua)) deviceName = "Android";
+    else if (/Windows/i.test(ua)) deviceName = "Windows PC";
+    else if (/Macintosh/i.test(ua)) deviceName = "MacBook/iMac";
+    else if (/Linux/i.test(ua)) deviceName = "Linux PC";
+    else deviceName = deviceType;
 
     const newLog: DeviceLogEntry = {
       id: Math.random().toString(36).substring(2, 11),
       ip: ip,
       userAgent: ua,
       timestamp: new Date().toISOString(),
-      deviceType: deviceType
+      deviceType: deviceType,
+      deviceName: deviceName
     };
 
     userLogs.unshift(newLog);
@@ -2166,6 +2195,12 @@ async function startServer() {
     await saveConfigToSupabase(appConfig);
     broadcastConfigUpdate();
     res.json({ success: true, enabled: appConfig.enableUserTracking });
+  });
+
+  app.post("/api/admin/tracking/clear", requireAdmin, (req: express.Request, res: express.Response) => {
+    userLogs = [];
+    broadcastUserLogs();
+    res.json({ success: true, message: "تم مسح سجل المتصلين بنجاح" });
   });
 
   // --- Telegram MTProto Auth Endpoints ---
