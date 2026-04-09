@@ -47,6 +47,7 @@ import { format, formatDistanceToNow } from "date-fns";
 import { ar } from "date-fns/locale";
 import { logErrorToServer } from "./utils/logger";
 import { FlagIcon } from "./components/FlagIcon";
+import { Developers } from "./Developers";
 
 
 interface Rates {
@@ -1520,12 +1521,16 @@ export default function App() {
           <div className="flex items-center gap-3 sm:gap-4">
             <div 
               className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-emerald-500/20 to-emerald-500/5 border border-emerald-500/20 flex items-center justify-center shadow-[0_0_15px_rgba(16,185,129,0.1)] cursor-pointer"
+              onClick={() => setCurrentPage('dashboard')}
               onDoubleClick={() => window.location.href = '/admin-panel-secure'}
               title="لوحة التحكم (انقر مرتين)"
             >
               <Activity className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400" />
             </div>
-            <div className="flex flex-col">
+            <div 
+              className="flex flex-col cursor-pointer"
+              onClick={() => setCurrentPage('dashboard')}
+            >
               <h1 className="text-sm sm:text-lg font-black tracking-tight text-white">المؤشر</h1>
               <p className="text-[9px] sm:text-[10px] text-emerald-500/70 font-mono uppercase tracking-[0.2em] mt-0.5">Al-Moasher</p>
             </div>
@@ -1635,6 +1640,18 @@ export default function App() {
                         <span className="font-medium">مشاركة التطبيق</span>
                       </button>
 
+                      <button
+                        onClick={() => {
+                          triggerHaptic(10);
+                          setShowMoreMenu(false);
+                          setCurrentPage('api');
+                        }}
+                        className="flex items-center gap-3 px-4 py-3 text-sm text-zinc-300 hover:text-white hover:bg-white/5 transition-colors w-full text-right"
+                      >
+                        <Code2 className="w-4 h-4 text-purple-400" />
+                        <span className="font-medium">بوابة المطورين</span>
+                      </button>
+
                       <div className="h-[1px] bg-white/10 my-1"></div>
 
                       <button
@@ -1661,15 +1678,23 @@ export default function App() {
         </div>
       </header>
 
-      <motion.main 
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        style={{ y: pullY }}
-        data-compact={compactMode}
-        data-animations={animationsEnabled}
-        className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-16 space-y-16 sm:space-y-24 relative z-10"
-      >
+      <AnimatePresence mode="wait">
+        {currentPage === 'api' ? (
+          <Developers key="api" />
+        ) : (
+          <motion.main 
+            key="dashboard"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            style={{ y: pullY }}
+            data-compact={compactMode}
+            data-animations={animationsEnabled}
+            className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-16 space-y-16 sm:space-y-24 relative z-10"
+          >
 
         {/* Hero Section: Parallel USD */}
         <section className="flex flex-col lg:flex-row items-start lg:items-end justify-between gap-8 lg:gap-12">
@@ -2335,7 +2360,9 @@ export default function App() {
             </div>
           </div>
         </footer>
-      </motion.main>
+          </motion.main>
+        )}
+      </AnimatePresence>
 
       {/* In-App Toasts */}
       <div className="fixed bottom-6 left-6 z-[200] flex flex-col gap-3 w-full max-w-sm pointer-events-none">

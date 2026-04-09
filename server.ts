@@ -976,7 +976,7 @@ let appConfig: AppConfig = {
     { id: "USD", name: "دولار أمريكي", regex: "(?:USD|usd|الدولار|دولار|الخضراء|خضراء|كاش|💵|🇺🇸)(?!\\s*صكوك|\\s*بصك|\\s*شيك)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
     { id: "EUR", name: "يورو", regex: "(?:EUR|eur|يورو|اليورو|💶|🇪🇺)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "eu" },
     { id: "GBP", name: "جنيه إسترليني", regex: "(?:GBP|gbp|باوند|استرليني|الباوند|💷|🇬🇧)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "gb" },
-    { id: "TND", name: "دينار تونسي", regex: "(?:TND|tnd|تونسي|تونس(?![ا-ي])|🇹🇳)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 0.1, max: 10.0, isInverse: false, flag: "tn" },
+    { id: "TND", name: "دينار تونسي", regex: "(?:TND|tnd|تونسي|تونس(?![ا-ي])|🇹🇳)[^\\d]{0,40}?(?:100|1)?\\s*(?:=|ب|\\-)?\\s*(?<!\\d)((?!(?:100|1)\\s*(?:=|ب|دينار|ليبي|\\-))\\d{1,3}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,30}(?<!\\d)((?!(?:100|1)\\s*(?:=|ب|دينار|ليبي|\\-))\\d{1,3}(?:[\\.,]\\d{1,4})?))?", min: 0.1, max: 400.0, isInverse: false, flag: "tn" },
     { id: "EGP", name: "جنيه مصري", regex: "(?:EGP|egp|مصري|مصر(?![ا-ي])|🇪🇬)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 0.01, max: 5.0, isInverse: false, flag: "eg" },
     { id: "TRY", name: "ليرة تركية", regex: "(?:TRY|try|ليرة(?!\\s*ذهب)|(?<!حوالة\\s*)(?<!حوالات\\s*)تركي(?![ا-ي])|🇹🇷)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 0.01, max: 5.0, isInverse: false, flag: "tr" },
     { id: "JOD", name: "دينار أردني", regex: "(?:JOD|jod|أردني|🇯🇴)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 30.0, isInverse: false, flag: "jo" },
@@ -1160,8 +1160,20 @@ const extractRatesFromText = (cleanText: string) => {
       
       // Smart extraction for TND
       if (term.id === 'TND') {
-        if (val < 1.0 && val > 0) {
-          val = 1 / val; // e.g., 0.39 -> 2.56
+        // Fix comma decimal separator for TND
+        if (valStr.includes(',')) {
+          val = parseFloat(valStr.replace(/,/g, '.'));
+        }
+        
+        if (val >= 100 && val <= 400) {
+          // e.g., 272 means 100 TND = 272 LYD -> 2.72
+          val = val / 100;
+        } else if (val >= 20 && val <= 50) {
+          // e.g., 37 means 100 TND = 37 LYD -> 0.37 -> 1 / 0.37 = 2.70
+          val = 100 / val;
+        } else if (val < 1.0 && val > 0) {
+          // e.g., 0.37 means 1 LYD = 0.37 TND -> 1 / 0.37 = 2.70
+          val = 1 / val;
         }
       }
       
@@ -2595,8 +2607,20 @@ async function startServer() {
 
             // Smart extraction for TND
             if (term.id === 'TND') {
-              if (val < 1.0 && val > 0) {
-                val = 1 / val; // e.g., 0.39 -> 2.56
+              // Fix comma decimal separator for TND
+              if (valStr.includes(',')) {
+                val = parseFloat(valStr.replace(/,/g, '.'));
+              }
+              
+              if (val >= 100 && val <= 400) {
+                // e.g., 272 means 100 TND = 272 LYD -> 2.72
+                val = val / 100;
+              } else if (val >= 20 && val <= 50) {
+                // e.g., 37 means 100 TND = 37 LYD -> 0.37 -> 1 / 0.37 = 2.70
+                val = 100 / val;
+              } else if (val < 1.0 && val > 0) {
+                // e.g., 0.37 means 1 LYD = 0.37 TND -> 1 / 0.37 = 2.70
+                val = 1 / val;
               }
             }
             
@@ -2967,6 +2991,68 @@ async function startServer() {
       console.error("Error in /api/public/rates:", err);
       if (!res.headersSent) {
         logRequest(500);
+        res.status(500).json({ success: false, error: "Internal Server Error" });
+      }
+    }
+  });
+
+  // Premium API Limiter (e.g., 1000 requests per 15 minutes)
+  const premiumApiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 1000,
+    handler: (req, res, next, options) => {
+      res.status(options.statusCode).json({ success: false, error: `Too many requests. Please try again later.` });
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
+  app.all("/api/premium/rates", premiumApiLimiter, async (req: express.Request, res: express.Response) => {
+    // CORS Policy: Allow all origins, but only GET method
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET');
+    res.setHeader('Access-Control-Allow-Headers', 'Authorization');
+    
+    // Handle preflight OPTIONS request
+    if (req.method === 'OPTIONS') {
+      res.status(204).end();
+      return;
+    }
+
+    // Restrict to GET method
+    if (req.method !== 'GET') {
+      res.status(405).json({ success: false, error: "Method Not Allowed. Only GET is supported." });
+      return;
+    }
+
+    // Check API Key
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      res.status(401).json({ success: false, error: "Unauthorized. Missing or invalid API key." });
+      return;
+    }
+
+    const apiKey = authHeader.split(' ')[1];
+    
+    // Validate API Key (For now, we accept a hardcoded key or one from env)
+    // In a real app, you'd check this against a database of subscribers
+    const validKeys = [process.env.PREMIUM_API_KEY || 'premium-test-key-12345'];
+    if (!validKeys.includes(apiKey)) {
+      res.status(403).json({ success: false, error: "Forbidden. Invalid API key." });
+      return;
+    }
+
+    try {
+      await initializeRatesFromDB(false);
+      res.setHeader('Cache-Control', 'public, max-age=30'); // Cache for 30 seconds
+      res.json({
+        success: true,
+        data: rates,
+        lastUpdated: rates.lastUpdated
+      });
+    } catch (err) {
+      console.error("Error in /api/premium/rates:", err);
+      if (!res.headersSent) {
         res.status(500).json({ success: false, error: "Internal Server Error" });
       }
     }

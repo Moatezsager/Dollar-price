@@ -1320,25 +1320,50 @@ export default function Admin() {
                         </div>
                       </div>
                       
-                      <div className="mt-6 p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl">
-                        <h4 className="text-blue-400 font-bold mb-2 flex items-center gap-2">
-                          <Link className="w-4 h-4" />
-                          رابط API للمطورين
-                        </h4>
-                        <div className="flex items-center gap-2 mt-2">
-                          <code className="flex-1 bg-black/40 p-3 rounded-lg text-xs text-blue-300 font-mono text-left" dir="ltr">
-                            {window.location.origin}/api/public/rates
-                          </code>
-                          <button 
-                            onClick={() => {
-                              navigator.clipboard.writeText(`${window.location.origin}/api/public/rates`);
-                              setSuccess("تم نسخ الرابط");
-                              setTimeout(() => setSuccess(""), 2000);
-                            }}
-                            className="p-3 bg-white/5 hover:bg-white/10 rounded-lg text-zinc-400 transition-colors"
-                          >
-                            <Copy className="w-4 h-4" />
-                          </button>
+                      <div className="mt-6 space-y-4">
+                        <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl">
+                          <h4 className="text-blue-400 font-bold mb-2 flex items-center gap-2">
+                            <Link className="w-4 h-4" />
+                            رابط API المجاني (دولار ويورو فقط)
+                          </h4>
+                          <div className="flex items-center gap-2 mt-2">
+                            <code className="flex-1 bg-black/40 p-3 rounded-lg text-xs text-blue-300 font-mono text-left" dir="ltr">
+                              {window.location.origin}/api/public/rates
+                            </code>
+                            <button 
+                              onClick={() => {
+                                navigator.clipboard.writeText(`${window.location.origin}/api/public/rates`);
+                                setSuccess("تم نسخ الرابط");
+                                setTimeout(() => setSuccess(""), 2000);
+                              }}
+                              className="p-3 bg-white/5 hover:bg-white/10 rounded-lg text-zinc-400 transition-colors"
+                            >
+                              <Copy className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl">
+                          <h4 className="text-amber-400 font-bold mb-2 flex items-center gap-2">
+                            <Zap className="w-4 h-4" />
+                            رابط API المدفوع (جميع الأسعار والعمولات)
+                          </h4>
+                          <p className="text-xs text-amber-500/80 mb-3">يتطلب إرسال مفتاح API في ترويسة Authorization: Bearer KEY</p>
+                          <div className="flex items-center gap-2 mt-2">
+                            <code className="flex-1 bg-black/40 p-3 rounded-lg text-xs text-amber-300 font-mono text-left" dir="ltr">
+                              {window.location.origin}/api/premium/rates
+                            </code>
+                            <button 
+                              onClick={() => {
+                                navigator.clipboard.writeText(`${window.location.origin}/api/premium/rates`);
+                                setSuccess("تم نسخ الرابط");
+                                setTimeout(() => setSuccess(""), 2000);
+                              }}
+                              className="p-3 bg-white/5 hover:bg-white/10 rounded-lg text-zinc-400 transition-colors"
+                            >
+                              <Copy className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>
