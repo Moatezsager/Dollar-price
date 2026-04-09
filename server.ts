@@ -11,6 +11,23 @@ import rateLimit from "express-rate-limit";
 import { TelegramClient, Api } from "telegram";
 import { StringSession } from "telegram/sessions";
 import { getTelegramClient, fetchChannelMessages, initializeTelegram, activeClient, TelegramManager, getTelegramManager } from "./telegramClient";
+import Database from 'better-sqlite3';
+
+// Initialize SQLite for local messages
+const db = new Database('messages.db');
+db.pragma('journal_mode = WAL');
+
+// Create messages table if not exists
+db.exec(`
+  CREATE TABLE IF NOT EXISTS messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT NOT NULL,
+    phone TEXT NOT NULL,
+    message TEXT NOT NULL,
+    status TEXT DEFAULT 'new',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )
+`);
 
 // Initialize Supabase client for server
 const supabaseUrl = process.env.VITE_SUPABASE_URL;
@@ -2034,15 +2051,6 @@ async function startServer() {
 
   let adminToken = Math.random().toString(36).substring(2) + Date.now().toString(36);
 
-  app.post("/api/admin/login", (req: express.Request, res: express.Response) => {
-    const { password } = req.body;
-    if (password === effectiveAdminPassword) {
-      res.json({ success: true, token: adminToken });
-    } else {
-      res.status(401).json({ success: false, message: "كلمة المرور غير صحيحة" });
-    }
-  });
-
   const requireAdmin = (req: express.Request, res: express.Response, next: express.NextFunction) => {
     const authHeader = req.headers.authorization;
     if (authHeader === `Bearer ${adminToken}`) {
@@ -2051,6 +2059,92 @@ async function startServer() {
       res.status(401).json({ success: false, message: "غير مصرح" });
     }
   };
+
+  // Spam protection words
+  const spamKeywords = ['casino', 'viagra', 'crypto', 'bitcoin', 'investment', 'lottery', 'winner', 'sex', 'porn', 'nude', 'http://', 'https://'];
+
+  const messageRateLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 3, // limit each IP to 3 messages per windowMs
+    message: { error: "لقد تجاوزت الحد المسموح به من الرسائل. يرجى المحاولة لاحقاً." }
+  });
+
+  app.post("/api/messages", messageRateLimiter, (req: express.Request, res: express.Response) => {
+    try {
+      const { email, phone, message } = req.body;
+      
+      if (!email || !phone || !message) {
+        return res.status(400).json({ error: "جميع الحقول مطلوبة" });
+      }
+
+      // Basic spam protection
+      const messageLower = message.toLowerCase();
+      const isSpam = spamKeywords.some(keyword => messageLower.includes(keyword));
+      
+      if (isSpam || message.length > 1000) {
+        return res.status(400).json({ error: "تم رفض الرسالة بسبب محتواها أو طولها." });
+      }
+
+      const stmt = db.prepare('INSERT INTO messages (email, phone, message) VALUES (?, ?, ?)');
+      stmt.run(email, phone, message);
+      
+      res.json({ success: true, message: "تم إرسال رسالتك بنجاح. سيتم الرد عليك في أقل من 24 ساعة." });
+    } catch (error) {
+      console.error("Error saving message:", error);
+      res.status(500).json({ error: "حدث خطأ أثناء حفظ الرسالة" });
+    }
+  });
+
+  app.get("/api/admin/messages", requireAdmin, (req: express.Request, res: express.Response) => {
+    try {
+      const stmt = db.prepare('SELECT * FROM messages ORDER BY created_at DESC');
+      const messages = stmt.all();
+      res.json(messages);
+    } catch (error) {
+      console.error("Error fetching messages:", error);
+      res.status(500).json({ error: "حدث خطأ أثناء جلب الرسائل" });
+    }
+  });
+
+  app.put("/api/admin/messages/:id/status", requireAdmin, (req: express.Request, res: express.Response) => {
+    try {
+      const { id } = req.params;
+      const { status } = req.body;
+      
+      if (!['new', 'read', 'replied'].includes(status)) {
+        return res.status(400).json({ error: "حالة غير صالحة" });
+      }
+
+      const stmt = db.prepare('UPDATE messages SET status = ? WHERE id = ?');
+      stmt.run(status, id);
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error updating message status:", error);
+      res.status(500).json({ error: "حدث خطأ أثناء تحديث حالة الرسالة" });
+    }
+  });
+
+  app.delete("/api/admin/messages/:id", requireAdmin, (req: express.Request, res: express.Response) => {
+    try {
+      const { id } = req.params;
+      const stmt = db.prepare('DELETE FROM messages WHERE id = ?');
+      stmt.run(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting message:", error);
+      res.status(500).json({ error: "حدث خطأ أثناء حذف الرسالة" });
+    }
+  });
+
+  app.post("/api/admin/login", (req: express.Request, res: express.Response) => {
+    const { password } = req.body;
+    if (password === effectiveAdminPassword) {
+      res.json({ success: true, token: adminToken });
+    } else {
+      res.status(401).json({ success: false, message: "كلمة المرور غير صحيحة" });
+    }
+  });
 
 
   app.get("/api/ping", (req, res) => {

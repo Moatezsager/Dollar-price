@@ -32,7 +32,8 @@ import {
   ArrowUp,
   MoreVertical,
   ChevronDown,
-  Code2
+  Code2,
+  Mail
 } from "lucide-react";
 import {
   AreaChart,
@@ -48,6 +49,7 @@ import { ar } from "date-fns/locale";
 import { logErrorToServer } from "./utils/logger";
 import { FlagIcon } from "./components/FlagIcon";
 import { Developers } from "./Developers";
+import { Contact } from "./Contact";
 
 
 interface Rates {
@@ -269,7 +271,7 @@ export default function App() {
   const [isIOS, setIsIOS] = useState(false);
   const [showIOSPrompt, setShowIOSPrompt] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
-  const [currentPage, setCurrentPage] = useState<'dashboard' | 'api'>('dashboard');
+  const [currentPage, setCurrentPage] = useState<'dashboard' | 'api' | 'contact'>('dashboard');
   const [hapticEnabled, setHapticEnabled] = useState(() => {
     const saved = localStorage.getItem('hapticEnabled');
     return saved !== null ? saved === 'true' : true;
@@ -1652,6 +1654,18 @@ export default function App() {
                         <span className="font-medium">بوابة المطورين</span>
                       </button>
 
+                      <button
+                        onClick={() => {
+                          triggerHaptic(10);
+                          setShowMoreMenu(false);
+                          setCurrentPage('contact');
+                        }}
+                        className="flex items-center gap-3 px-4 py-3 text-sm text-zinc-300 hover:text-white hover:bg-white/5 transition-colors w-full text-right"
+                      >
+                        <Mail className="w-4 h-4 text-emerald-400" />
+                        <span className="font-medium">اتصل بنا</span>
+                      </button>
+
                       <div className="h-[1px] bg-white/10 my-1"></div>
 
                       <button
@@ -1681,6 +1695,8 @@ export default function App() {
       <AnimatePresence mode="wait">
         {currentPage === 'api' ? (
           <Developers key="api" />
+        ) : currentPage === 'contact' ? (
+          <Contact key="contact" />
         ) : (
           <motion.main 
             key="dashboard"
