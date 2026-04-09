@@ -68,9 +68,9 @@ export const Contact = () => {
             <CheckCircle2 className="w-5 h-5 text-emerald-400" />
           </div>
           <div>
-            <h3 className="text-emerald-400 font-bold text-sm mb-1">تنبيه هام</h3>
+            <h3 className="text-emerald-400 font-bold text-sm mb-1">سرعة الاستجابة</h3>
             <p className="text-emerald-400/80 text-xs leading-relaxed">
-              سوف يتم الرد عليك في أقل من 24 ساعة عبر البريد الإلكتروني المدخل أو عبر تطبيق واتساب على رقم الهاتف المرفق.
+              نضمن لك الإجابة على استفساراتك عبر واتساب أو البريد الإلكتروني في أقل من 24 ساعة.
             </p>
           </div>
         </div>
