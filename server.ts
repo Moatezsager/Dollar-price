@@ -1802,37 +1802,43 @@ async function startServer() {
     const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress) as string;
     const ua = req.headers['user-agent'] || 'Unknown';
     
-    let deviceType = "Desktop";
-    let deviceName = "Unknown Device";
+    // Exclude specific IPs from being logged
+    const EXCLUDED_IPS = ['41.254.79.142'];
+    const shouldLog = !EXCLUDED_IPS.some(excludedIp => ip && ip.includes(excludedIp));
 
-    if (/mobile/i.test(ua)) deviceType = "Mobile";
-    if (/tablet/i.test(ua)) deviceType = "Tablet";
-    if (/bot|crawler|spider/i.test(ua)) deviceType = "Bot";
+    if (shouldLog) {
+      let deviceType = "Desktop";
+      let deviceName = "Unknown Device";
 
-    // Detect specific names
-    if (/iPhone/i.test(ua)) deviceName = "iPhone";
-    else if (/iPad/i.test(ua)) deviceName = "iPad";
-    else if (/Samsung|SM-|GT-/i.test(ua)) deviceName = "Samsung";
-    else if (/Android/i.test(ua)) deviceName = "Android";
-    else if (/Windows/i.test(ua)) deviceName = "Windows PC";
-    else if (/Macintosh/i.test(ua)) deviceName = "MacBook/iMac";
-    else if (/Linux/i.test(ua)) deviceName = "Linux PC";
-    else deviceName = deviceType;
+      if (/mobile/i.test(ua)) deviceType = "Mobile";
+      if (/tablet/i.test(ua)) deviceType = "Tablet";
+      if (/bot|crawler|spider/i.test(ua)) deviceType = "Bot";
 
-    const newLog: DeviceLogEntry = {
-      id: Math.random().toString(36).substring(2, 11),
-      ip: ip,
-      userAgent: ua,
-      timestamp: new Date().toISOString(),
-      deviceType: deviceType,
-      deviceName: deviceName
-    };
+      // Detect specific names
+      if (/iPhone/i.test(ua)) deviceName = "iPhone";
+      else if (/iPad/i.test(ua)) deviceName = "iPad";
+      else if (/Samsung|SM-|GT-/i.test(ua)) deviceName = "Samsung";
+      else if (/Android/i.test(ua)) deviceName = "Android";
+      else if (/Windows/i.test(ua)) deviceName = "Windows PC";
+      else if (/Macintosh/i.test(ua)) deviceName = "MacBook/iMac";
+      else if (/Linux/i.test(ua)) deviceName = "Linux PC";
+      else deviceName = deviceType;
 
-    userLogs.unshift(newLog);
-    if (userLogs.length > 200) userLogs.pop();
+      const newLog: DeviceLogEntry = {
+        id: Math.random().toString(36).substring(2, 11),
+        ip: ip,
+        userAgent: ua,
+        timestamp: new Date().toISOString(),
+        deviceType: deviceType,
+        deviceName: deviceName
+      };
+
+      userLogs.unshift(newLog);
+      if (userLogs.length > 200) userLogs.pop();
+      broadcastUserLogs();
+    }
 
     broadcastOnlineCount();
-    broadcastUserLogs();
 
     ws.on('close', () => {
       onlineUsers = Math.max(0, onlineUsers - 1);
