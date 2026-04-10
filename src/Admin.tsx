@@ -1084,7 +1084,7 @@ export default function Admin() {
   return (
     <div className="min-h-screen bg-[#050505] text-white flex font-sans selection:bg-emerald-500/30 overflow-hidden" dir="rtl">
       {/* Sidebar - Desktop */}
-      <aside className="hidden lg:flex flex-col w-72 bg-[#080808] border-l border-white/5 relative z-[60] pt-safe pb-safe">
+      <aside className="hidden lg:flex flex-col w-72 bg-[#080808] border-l border-white/5 relative z-[60] pt-safe pb-safe overflow-y-auto">
         <div className="p-8">
           <div className="flex items-center gap-4 mb-10">
             <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-blue-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
@@ -1199,7 +1199,7 @@ export default function Admin() {
                 initial={{ x: '100%' }}
                 animate={{ x: 0 }}
                 exit={{ x: '100%' }}
-                className="fixed top-0 right-0 bottom-0 w-80 bg-[#080808] z-[110] lg:hidden p-8 flex flex-col shadow-2xl pt-safe pb-safe"
+                className="fixed top-0 right-0 bottom-0 w-80 bg-[#080808] z-[110] lg:hidden p-8 flex flex-col shadow-2xl pt-safe pb-safe overflow-y-auto"
               >
                 <div className="flex items-center justify-between mb-10">
                   <div className="flex items-center gap-3">
