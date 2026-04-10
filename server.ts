@@ -1236,18 +1236,17 @@ const extractRatesFromText = (cleanText: string) => {
       
       if (term.id === 'GOLD_LIRA' && val < 500) continue;
       
-      // Smart extraction for TND
+      // Smart extraction for TND (Ensure 1 TND = X LYD format)
       if (term.id === 'TND') {
-        // Fix comma decimal separator for TND
         if (valStr.includes(',')) {
           val = parseFloat(valStr.replace(/,/g, '.'));
         }
         
-        if (val >= 100 && val <= 400) {
+        if (val >= 100 && val <= 500) {
           // e.g., 272 means 100 TND = 272 LYD -> 2.72
           val = val / 100;
-        } else if (val >= 20 && val <= 50) {
-          // e.g., 37 means 100 TND = 37 LYD -> 0.37 -> 1 / 0.37 = 2.70
+        } else if (val >= 20 && val < 100) {
+          // e.g., 37 means 100 LYD = 37 TND -> 100 / 37 = 2.70
           val = 100 / val;
         } else if (val < 1.0 && val > 0) {
           // e.g., 0.37 means 1 LYD = 0.37 TND -> 1 / 0.37 = 2.70
@@ -2777,18 +2776,17 @@ async function startServer() {
                continue;
             }
 
-            // Smart extraction for TND
+            // Smart extraction for TND (Ensure 1 TND = X LYD format)
             if (term.id === 'TND') {
-              // Fix comma decimal separator for TND
               if (valStr.includes(',')) {
                 val = parseFloat(valStr.replace(/,/g, '.'));
               }
               
-              if (val >= 100 && val <= 400) {
+              if (val >= 100 && val <= 500) {
                 // e.g., 272 means 100 TND = 272 LYD -> 2.72
                 val = val / 100;
-              } else if (val >= 20 && val <= 50) {
-                // e.g., 37 means 100 TND = 37 LYD -> 0.37 -> 1 / 0.37 = 2.70
+              } else if (val >= 20 && val < 100) {
+                // e.g., 37 means 100 LYD = 37 TND -> 100 / 37 = 2.70
                 val = 100 / val;
               } else if (val < 1.0 && val > 0) {
                 // e.g., 0.37 means 1 LYD = 0.37 TND -> 1 / 0.37 = 2.70
