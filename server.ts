@@ -96,6 +96,67 @@ interface AppConfig {
   };
 }
 
+// Security Layer Functions
+const getSecurityKey = () => {
+  const d = new Date();
+  return `DI_SECURE_${d.getUTCFullYear()}${d.getUTCMonth() + 1}${d.getUTCDate()}`;
+};
+
+const xorData = (str: string, key: string) => {
+  let result = '';
+  for (let i = 0; i < str.length; i++) {
+    result += String.fromCharCode(str.charCodeAt(i) ^ key.charCodeAt(i % key.length));
+  }
+  return result;
+};
+
+const obfuscateData = (data: any) => {
+  try {
+    // 1. Key Mapping (Obfuscate main keys)
+    const mapping: any = {
+      'official': '_o',
+      'parallel': '_p',
+      'previousOfficial': '_po',
+      'previousParallel': '_pp',
+      'lastUpdated': '_t',
+      'lastChanged': '_lc',
+      'USD': 'u1',
+      'EUR': 'e2',
+      'GBP': 'g3',
+      'TRY': 't4',
+      'GOLD': 'g5',
+      'USD_CHECKS': 'uc6',
+      'USD_JBANK': 'uj7'
+    };
+
+    const processObject = (obj: any): any => {
+      if (Array.isArray(obj)) return obj.map(processObject);
+      if (obj !== null && typeof obj === 'object') {
+        const newObj: any = {};
+        for (const key in obj) {
+          const mappedKey = mapping[key] || key;
+          newObj[mappedKey] = processObject(obj[key]);
+        }
+        return newObj;
+      }
+      return obj;
+    };
+
+    const obfuscated = {
+      _m: mapping,
+      _d: processObject(data)
+    };
+
+    // 2. Stringify -> XOR -> Base64
+    const json = JSON.stringify(obfuscated);
+    const encrypted = xorData(json, getSecurityKey());
+    return Buffer.from(encrypted).toString('base64');
+  } catch (e) {
+    console.error("Obfuscation error:", e);
+    return data;
+  }
+};
+
 // Arabic Logging Utility
 async function logErrorArabic(message: string, context = "النظام", stack?: string, url?: string) {
   if (!supabase || !supabaseAnonKey || supabaseAnonKey.includes('dummy')) {
@@ -1917,7 +1978,10 @@ async function startServer() {
   }
 
   function broadcastRatesUpdate(updatedRates: Rates) {
-    const data = JSON.stringify({ type: 'rates_update', rates: updatedRates });
+    const data = JSON.stringify({ 
+      type: 'rates_update', 
+      rates: obfuscateData(updatedRates) 
+    });
     wss.clients.forEach((client: any) => {
       if (client.readyState === 1) {
         client.send(data);
@@ -2990,11 +3054,11 @@ async function startServer() {
     try {
       const force = req.query.refresh === 'true';
       await initializeRatesFromDB(force);
-      res.json(rates);
+      res.json(obfuscateData(rates));
     } catch (err) {
       console.error("Error in /api/rates:", err);
       if (!res.headersSent) {
-        res.json(rates);
+        res.json(obfuscateData(rates));
       }
     }
   });
@@ -3008,11 +3072,19 @@ async function startServer() {
   }
 
   let apiStats = {
-    totalRequests: 0,
-    successfulRequests: 0,
-    failedRequests: 0,
-    bannedIPsCount: 0,
-    recentRequests: [] as ApiStat[]
+    public: {
+      totalRequests: 0,
+      successfulRequests: 0,
+      failedRequests: 0,
+      recentRequests: [] as ApiStat[]
+    },
+    premium: {
+      totalRequests: 0,
+      successfulRequests: 0,
+      failedRequests: 0,
+      recentRequests: [] as ApiStat[]
+    },
+    bannedIPsCount: 0
   };
 
   const publicApiLimiter = rateLimit({
@@ -3026,7 +3098,7 @@ async function startServer() {
         console.warn(`[Security] Banned IP ${ip} for ${banDuration} minutes due to rate limit exceeded.`);
         apiStats.bannedIPsCount++;
       }
-      apiStats.failedRequests++;
+      apiStats.public.failedRequests++;
       res.status(options.statusCode).json({ success: false, error: `Too many requests. Your IP is temporarily banned.` });
     },
     standardHeaders: true,
@@ -3037,23 +3109,23 @@ async function startServer() {
     const startTime = Date.now();
     const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress) as string || 'Unknown';
     const userAgent = req.headers['user-agent'] || 'Unknown';
-    apiStats.totalRequests++;
+    apiStats.public.totalRequests++;
 
     const logRequest = (status: number) => {
       if (status >= 200 && status < 300) {
-        apiStats.successfulRequests++;
+        apiStats.public.successfulRequests++;
       } else {
-        apiStats.failedRequests++;
+        apiStats.public.failedRequests++;
       }
-      apiStats.recentRequests.unshift({
+      apiStats.public.recentRequests.unshift({
         timestamp: new Date().toISOString(),
         ip,
         userAgent,
         status,
         responseTime: Date.now() - startTime
       });
-      if (apiStats.recentRequests.length > 100) {
-        apiStats.recentRequests.pop();
+      if (apiStats.public.recentRequests.length > 100) {
+        apiStats.public.recentRequests.pop();
       }
     };
 
@@ -3107,7 +3179,7 @@ async function startServer() {
       }
       
       logRequest(200);
-      res.json(publicData);
+      res.json(obfuscateData(publicData));
     } catch (err) {
       console.error("Error in /api/public/rates:", err);
       if (!res.headersSent) {
@@ -3147,8 +3219,32 @@ async function startServer() {
     }
 
     // Check API Key
+    const startTime = Date.now();
+    const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress) as string || 'Unknown';
+    const userAgent = req.headers['user-agent'] || 'Unknown';
+    apiStats.premium.totalRequests++;
+
+    const logRequest = (status: number) => {
+      if (status >= 200 && status < 300) {
+        apiStats.premium.successfulRequests++;
+      } else {
+        apiStats.premium.failedRequests++;
+      }
+      apiStats.premium.recentRequests.unshift({
+        timestamp: new Date().toISOString(),
+        ip,
+        userAgent,
+        status,
+        responseTime: Date.now() - startTime
+      });
+      if (apiStats.premium.recentRequests.length > 100) {
+        apiStats.premium.recentRequests.pop();
+      }
+    };
+
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      logRequest(401);
       res.status(401).json({ success: false, error: "Unauthorized. Missing or invalid API key." });
       return;
     }
@@ -3159,6 +3255,7 @@ async function startServer() {
     // In a real app, you'd check this against a database of subscribers
     const validKeys = [process.env.PREMIUM_API_KEY || 'premium-test-key-12345'];
     if (!validKeys.includes(apiKey)) {
+      logRequest(403);
       res.status(403).json({ success: false, error: "Forbidden. Invalid API key." });
       return;
     }
@@ -3166,6 +3263,7 @@ async function startServer() {
     try {
       await initializeRatesFromDB(false);
       res.setHeader('Cache-Control', 'public, max-age=30'); // Cache for 30 seconds
+      logRequest(200);
       res.json({
         success: true,
         data: rates,
@@ -3174,6 +3272,7 @@ async function startServer() {
     } catch (err) {
       console.error("Error in /api/premium/rates:", err);
       if (!res.headersSent) {
+        logRequest(500);
         res.status(500).json({ success: false, error: "Internal Server Error" });
       }
     }
@@ -3402,10 +3501,10 @@ async function startServer() {
   app.get("/api/history", async (req: express.Request, res: express.Response) => {
     try {
       const dbHistory = await fetchHistoryFromSupabase();
-      res.json(dbHistory);
+      res.json(obfuscateData(dbHistory));
     } catch (err) {
       if (!res.headersSent) {
-        res.json(history);
+        res.json(obfuscateData(history));
       }
     }
   });

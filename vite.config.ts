@@ -12,6 +12,7 @@ export default defineConfig(({mode}) => {
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
+        includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
         manifest: {
           name: 'مؤشر الدينار | أسعار العملات في ليبيا',
           short_name: 'مؤشر الدينار',
@@ -23,6 +24,9 @@ export default defineConfig(({mode}) => {
           orientation: 'portrait',
           dir: 'rtl',
           lang: 'ar',
+          start_url: '/',
+          scope: '/',
+          id: '/',
           categories: ['finance', 'business', 'utilities'],
           shortcuts: [
             {
@@ -45,13 +49,25 @@ export default defineConfig(({mode}) => {
               src: 'https://hatscripts.github.io/circle-flags/flags/ly.svg',
               sizes: '192x192',
               type: 'image/svg+xml',
-              purpose: 'any maskable'
+              purpose: 'any'
+            },
+            {
+              src: 'https://hatscripts.github.io/circle-flags/flags/ly.svg',
+              sizes: '192x192',
+              type: 'image/svg+xml',
+              purpose: 'maskable'
             },
             {
               src: 'https://hatscripts.github.io/circle-flags/flags/ly.svg',
               sizes: '512x512',
               type: 'image/svg+xml',
-              purpose: 'any maskable'
+              purpose: 'any'
+            },
+            {
+              src: 'https://hatscripts.github.io/circle-flags/flags/ly.svg',
+              sizes: '512x512',
+              type: 'image/svg+xml',
+              purpose: 'maskable'
             }
           ],
           screenshots: [
@@ -73,7 +89,24 @@ export default defineConfig(({mode}) => {
         },
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+          cleanupOutdatedCaches: true,
+          clientsClaim: true,
+          skipWaiting: true,
           runtimeCaching: [
+            {
+              urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'google-fonts-cache',
+                expiration: {
+                  maxEntries: 10,
+                  maxAgeSeconds: 60 * 60 * 24 * 365 // 1 year
+                },
+                cacheableResponse: {
+                  statuses: [0, 200]
+                }
+              }
+            },
             {
               urlPattern: /^https:\/\/hatscripts\.github\.io\/.*/i,
               handler: 'CacheFirst',

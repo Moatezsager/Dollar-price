@@ -28,6 +28,7 @@ import {
   Share2,
   Download,
   Smartphone,
+  PlusSquare,
   Disc,
   ArrowUp,
   MoreVertical,
@@ -50,6 +51,7 @@ import { logErrorToServer } from "./utils/logger";
 import { FlagIcon } from "./components/FlagIcon";
 import { Developers } from "./Developers";
 import { Contact } from "./Contact";
+import { decodeData } from "./utils/security";
 
 
 interface Rates {
@@ -338,14 +340,36 @@ export default function App() {
 
     // Check iOS prompt
     const iosPromptDismissed = localStorage.getItem('iosPromptDismissed');
-    if (/iphone|ipad|ipod/.test(userAgent) && !iosPromptDismissed && !window.matchMedia('(display-mode: standalone)').matches) {
-      setTimeout(() => setShowIOSPrompt(true), 5000);
+    const isIOSDevice = /iphone|ipad|ipod/.test(userAgent);
+    setIsIOS(isIOSDevice);
+
+    if (isIOSDevice && !iosPromptDismissed && !window.matchMedia('(display-mode: standalone)').matches && !(window.navigator as any).standalone) {
+      setTimeout(() => setShowIOSPrompt(true), 3000);
     }
+
+    // Handle app installed event
+    const handleAppInstalled = () => {
+      setDeferredPrompt(null);
+      setShowInstallBanner(false);
+      setShowPostInstall(true);
+      triggerHaptic([50, 30, 50]);
+    };
+
+    window.addEventListener('appinstalled', handleAppInstalled);
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
     };
   }, []);
+
+  // Dynamic Theme Color for Mobile Status Bar
+  useEffect(() => {
+    const metaThemeColor = document.querySelector('meta[name="theme-color"]');
+    if (metaThemeColor) {
+      metaThemeColor.setAttribute('content', isOffline ? '#f43f5e' : '#050505');
+    }
+  }, [isOffline]);
 
   const handleInstall = async () => {
     triggerHaptic(20);
@@ -887,7 +911,10 @@ export default function App() {
             if (data.type === 'online_count') {
               setOnlineCount(data.count);
             } else if (data.type === 'rates_update') {
-              setRates(data.rates);
+              const decodedRates = decodeData(data.rates);
+              if (decodedRates) {
+                setRates(decodedRates);
+              }
             }
           } catch (err) {
             console.error('WebSocket message error:', err);
@@ -985,8 +1012,17 @@ export default function App() {
         return;
       }
 
-      const newRates: Rates = await ratesRes.json();
-      const newHistory = await historyRes.json();
+      const ratesJson = await ratesRes.json();
+      const historyJson = await historyRes.json();
+      
+      const newRates: Rates | null = typeof ratesJson === 'string' ? decodeData(ratesJson) : ratesJson;
+      const newHistory = typeof historyJson === 'string' ? decodeData(historyJson) : historyJson;
+      
+      if (!newRates || !newHistory) {
+        console.error("Failed to decode rates or history");
+        setIsRefreshing(false);
+        return;
+      }
       
       // Check for price changes to notify using the ref to get the latest state
       let hasChanges = false;
@@ -1454,17 +1490,31 @@ export default function App() {
             initial={{ y: 100, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 100, opacity: 0 }}
-            className="fixed bottom-24 left-4 right-4 z-[100] bg-zinc-900/95 border border-white/10 p-4 rounded-3xl shadow-2xl backdrop-blur-xl"
+            className="fixed bottom-6 left-4 right-4 z-[100] bg-zinc-900/98 border border-white/10 p-5 rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.5)] backdrop-blur-2xl"
           >
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 flex items-center justify-center border border-emerald-500/20">
-                <Smartphone className="w-6 h-6 text-emerald-400" />
+            <div className="flex items-start gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-blue-500/20 flex items-center justify-center border border-white/10 shrink-0">
+                <img src="https://hatscripts.github.io/circle-flags/flags/ly.svg" alt="App Icon" className="w-10 h-10 rounded-full shadow-lg" />
               </div>
               <div className="flex-1">
-                <h4 className="text-white font-bold text-sm">تثبيت التطبيق على آيفون</h4>
-                <p className="text-zinc-400 text-[11px] mt-1 leading-relaxed">
-                  اضغط على أيقونة المشاركة <Share2 className="w-3 h-3 inline mx-1 text-blue-400" /> في متصفح سفاري، ثم اختر <span className="text-white font-bold">"إضافة إلى الشاشة الرئيسية"</span>.
+                <h4 className="text-white font-bold text-base">ثبّت "مؤشر الدينار" على هاتفك</h4>
+                <p className="text-zinc-400 text-xs mt-1.5 leading-relaxed">
+                  للوصول السريع ومتابعة الأسعار حتى بدون إنترنت:
                 </p>
+                <div className="mt-3 flex flex-col gap-2">
+                  <div className="flex items-center gap-2 text-xs text-zinc-300 bg-white/5 p-2 rounded-xl">
+                    <div className="w-6 h-6 rounded-lg bg-white/10 flex items-center justify-center">
+                      <Share2 className="w-3.5 h-3.5 text-blue-400" />
+                    </div>
+                    <span>اضغط على زر المشاركة في متصفح سفاري</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-zinc-300 bg-white/5 p-2 rounded-xl">
+                    <div className="w-6 h-6 rounded-lg bg-white/10 flex items-center justify-center">
+                      <PlusSquare className="w-3.5 h-3.5 text-emerald-400" />
+                    </div>
+                    <span>اختر "إضافة إلى الشاشة الرئيسية"</span>
+                  </div>
+                </div>
               </div>
               <button 
                 onClick={() => {
@@ -1472,9 +1522,38 @@ export default function App() {
                   setShowIOSPrompt(false);
                   localStorage.setItem('iosPromptDismissed', 'true');
                 }}
-                className="p-2 text-zinc-500 hover:text-white transition-colors"
+                className="p-2 -mr-2 text-zinc-500 hover:text-white transition-colors"
               >
                 <X className="w-5 h-5" />
+              </button>
+            </div>
+            {/* Indicator Arrow for Safari Share Button */}
+            <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-zinc-900 rotate-45 border-r border-b border-white/10"></div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Post-Install Welcome */}
+      <AnimatePresence>
+        {showPostInstall && (
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-black/80 backdrop-blur-sm"
+          >
+            <div className="bg-zinc-900 border border-white/10 p-8 rounded-[2.5rem] max-w-sm w-full text-center shadow-2xl">
+              <div className="w-20 h-20 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-6 border border-emerald-500/20">
+                <CheckCircle2 className="w-10 h-10 text-emerald-400" />
+              </div>
+              <h3 className="text-2xl font-bold text-white mb-3">تم التثبيت بنجاح!</h3>
+              <p className="text-zinc-400 text-sm leading-relaxed mb-8">
+                شكراً لتثبيت تطبيق مؤشر الدينار. يمكنك الآن متابعة الأسعار مباشرة من شاشتك الرئيسية في أي وقت.
+              </p>
+              <button
+                onClick={() => setShowPostInstall(false)}
+                className="w-full py-4 bg-emerald-500 hover:bg-emerald-600 text-black font-bold rounded-2xl transition-all"
+              >
+                ابدأ الاستخدام
               </button>
             </div>
           </motion.div>

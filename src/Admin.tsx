@@ -13,6 +13,7 @@ import { ar } from "date-fns/locale";
 import { logErrorToServer } from "./utils/logger";
 import { FlagIcon } from "./components/FlagIcon";
 import { TelegramStatus } from "./components/TelegramStatus";
+import { decodeData } from "./utils/security";
 
 interface Stats {
   onlineUsers: number;
@@ -830,8 +831,11 @@ export default function Admin() {
     try {
       const res = await fetch("/api/rates");
       if (res.ok) {
-        const data = await res.json();
-        setCurrentRates(data.parallel || {});
+        const json = await res.json();
+        const data = typeof json === 'string' ? decodeData(json) : json;
+        if (data) {
+          setCurrentRates(data.parallel || {});
+        }
       }
     } catch (err) {
       console.error("Failed to fetch current rates", err);
@@ -1271,40 +1275,88 @@ export default function Admin() {
                   </button>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <div className="bg-zinc-900/50 border border-white/5 p-6 rounded-2xl">
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="p-2 bg-emerald-500/10 rounded-lg">
-                        <Activity className="w-5 h-5 text-emerald-400" />
+                <div className="space-y-8">
+                  {/* Public API Stats */}
+                  <div className="space-y-4">
+                    <h3 className="text-xl font-bold text-blue-400 flex items-center gap-2">
+                      <Zap className="w-5 h-5" />
+                      إحصائيات الرابط المجاني (Public API)
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="bg-zinc-900/50 border border-white/5 p-6 rounded-2xl">
+                        <div className="flex items-center gap-3 mb-4">
+                          <div className="p-2 bg-emerald-500/10 rounded-lg">
+                            <Activity className="w-5 h-5 text-emerald-400" />
+                          </div>
+                          <h3 className="text-zinc-400 font-medium">إجمالي الطلبات</h3>
+                        </div>
+                        <p className="text-3xl font-black text-white">{apiStatsData?.public?.totalRequests || 0}</p>
                       </div>
-                      <h3 className="text-zinc-400 font-medium">إجمالي الطلبات</h3>
-                    </div>
-                    <p className="text-3xl font-black text-white">{apiStatsData?.totalRequests || 0}</p>
-                  </div>
-                  <div className="bg-zinc-900/50 border border-white/5 p-6 rounded-2xl">
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="p-2 bg-blue-500/10 rounded-lg">
-                        <CheckCircle2 className="w-5 h-5 text-blue-400" />
+                      <div className="bg-zinc-900/50 border border-white/5 p-6 rounded-2xl">
+                        <div className="flex items-center gap-3 mb-4">
+                          <div className="p-2 bg-blue-500/10 rounded-lg">
+                            <CheckCircle2 className="w-5 h-5 text-blue-400" />
+                          </div>
+                          <h3 className="text-zinc-400 font-medium">الطلبات الناجحة</h3>
+                        </div>
+                        <p className="text-3xl font-black text-white">{apiStatsData?.public?.successfulRequests || 0}</p>
                       </div>
-                      <h3 className="text-zinc-400 font-medium">الطلبات الناجحة</h3>
-                    </div>
-                    <p className="text-3xl font-black text-white">{apiStatsData?.successfulRequests || 0}</p>
-                  </div>
-                  <div className="bg-zinc-900/50 border border-white/5 p-6 rounded-2xl">
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="p-2 bg-rose-500/10 rounded-lg">
-                        <AlertTriangle className="w-5 h-5 text-rose-400" />
+                      <div className="bg-zinc-900/50 border border-white/5 p-6 rounded-2xl">
+                        <div className="flex items-center gap-3 mb-4">
+                          <div className="p-2 bg-rose-500/10 rounded-lg">
+                            <AlertTriangle className="w-5 h-5 text-rose-400" />
+                          </div>
+                          <h3 className="text-zinc-400 font-medium">الطلبات الفاشلة</h3>
+                        </div>
+                        <p className="text-3xl font-black text-white">{apiStatsData?.public?.failedRequests || 0}</p>
                       </div>
-                      <h3 className="text-zinc-400 font-medium">الطلبات الفاشلة</h3>
                     </div>
-                    <p className="text-3xl font-black text-white">{apiStatsData?.failedRequests || 0}</p>
                   </div>
+
+                  {/* Premium API Stats */}
+                  <div className="space-y-4">
+                    <h3 className="text-xl font-bold text-amber-400 flex items-center gap-2">
+                      <Shield className="w-5 h-5" />
+                      إحصائيات رابط الاشتراك (Premium API)
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="bg-zinc-900/50 border border-white/5 p-6 rounded-2xl">
+                        <div className="flex items-center gap-3 mb-4">
+                          <div className="p-2 bg-emerald-500/10 rounded-lg">
+                            <Activity className="w-5 h-5 text-emerald-400" />
+                          </div>
+                          <h3 className="text-zinc-400 font-medium">إجمالي الطلبات</h3>
+                        </div>
+                        <p className="text-3xl font-black text-white">{apiStatsData?.premium?.totalRequests || 0}</p>
+                      </div>
+                      <div className="bg-zinc-900/50 border border-white/5 p-6 rounded-2xl">
+                        <div className="flex items-center gap-3 mb-4">
+                          <div className="p-2 bg-blue-500/10 rounded-lg">
+                            <CheckCircle2 className="w-5 h-5 text-blue-400" />
+                          </div>
+                          <h3 className="text-zinc-400 font-medium">الطلبات الناجحة</h3>
+                        </div>
+                        <p className="text-3xl font-black text-white">{apiStatsData?.premium?.successfulRequests || 0}</p>
+                      </div>
+                      <div className="bg-zinc-900/50 border border-white/5 p-6 rounded-2xl">
+                        <div className="flex items-center gap-3 mb-4">
+                          <div className="p-2 bg-rose-500/10 rounded-lg">
+                            <AlertTriangle className="w-5 h-5 text-rose-400" />
+                          </div>
+                          <h3 className="text-zinc-400 font-medium">الطلبات الفاشلة</h3>
+                        </div>
+                        <p className="text-3xl font-black text-white">{apiStatsData?.premium?.failedRequests || 0}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Security Stats */}
                   <div className="bg-zinc-900/50 border border-white/5 p-6 rounded-2xl">
                     <div className="flex items-center gap-3 mb-4">
                       <div className="p-2 bg-orange-500/10 rounded-lg">
                         <Shield className="w-5 h-5 text-orange-400" />
                       </div>
-                      <h3 className="text-zinc-400 font-medium">عناوين IP المحظورة</h3>
+                      <h3 className="text-zinc-400 font-medium">عناوين IP المحظورة (Rate Limit)</h3>
                     </div>
                     <p className="text-3xl font-black text-white">{apiStatsData?.bannedIPsCount || 0}</p>
                   </div>
@@ -1437,36 +1489,74 @@ export default function Admin() {
                       <HistoryIcon className="w-5 h-5 text-zinc-400" />
                       <h3 className="text-lg font-bold text-white">سجل الطلبات الأخيرة</h3>
                     </div>
-                    <div className="flex-1 overflow-y-auto max-h-[500px] p-0">
-                      {apiStatsData?.recentRequests?.length > 0 ? (
-                        <div className="divide-y divide-white/5">
-                          {apiStatsData.recentRequests.map((req: any, i: number) => (
-                            <div key={i} className="p-4 hover:bg-white/[0.02] transition-colors flex items-center justify-between">
-                              <div className="flex items-center gap-4">
-                                <div className={`w-2 h-2 rounded-full ${req.status >= 200 && req.status < 300 ? 'bg-emerald-500' : 'bg-rose-500'}`} />
-                                <div>
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-sm font-mono text-white" dir="ltr">{req.ip}</span>
-                                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono ${req.status >= 200 && req.status < 300 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
-                                      {req.status}
-                                    </span>
+                    <div className="flex-1 overflow-y-auto max-h-[600px] p-0">
+                      <div className="grid grid-cols-1 lg:grid-cols-2 divide-x divide-white/5 rtl:divide-x-reverse">
+                        {/* Public Requests */}
+                        <div className="flex flex-col">
+                          <div className="p-4 bg-blue-500/5 border-b border-white/5">
+                            <h4 className="text-sm font-bold text-blue-400">الطلبات المجانية الأخيرة</h4>
+                          </div>
+                          {apiStatsData?.public?.recentRequests?.length > 0 ? (
+                            <div className="divide-y divide-white/5">
+                              {apiStatsData.public.recentRequests.map((req: any, i: number) => (
+                                <div key={i} className="p-4 hover:bg-white/[0.02] transition-colors flex items-center justify-between">
+                                  <div className="flex items-center gap-4">
+                                    <div className={`w-2 h-2 rounded-full ${req.status >= 200 && req.status < 300 ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                                    <div>
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-sm font-mono text-white" dir="ltr">{req.ip}</span>
+                                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono ${req.status >= 200 && req.status < 300 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
+                                          {req.status}
+                                        </span>
+                                      </div>
+                                      <p className="text-xs text-zinc-500 mt-1 max-w-[150px] truncate" title={req.userAgent}>{req.userAgent}</p>
+                                    </div>
                                   </div>
-                                  <p className="text-xs text-zinc-500 mt-1 max-w-[200px] truncate" title={req.userAgent}>{req.userAgent}</p>
+                                  <div className="text-left">
+                                    <p className="text-[10px] text-zinc-400">{formatDistanceToNow(new Date(req.timestamp), { addSuffix: true, locale: ar })}</p>
+                                    <p className="text-[10px] text-zinc-500 font-mono mt-1">{req.responseTime}ms</p>
+                                  </div>
                                 </div>
-                              </div>
-                              <div className="text-left">
-                                <p className="text-xs text-zinc-400">{formatDistanceToNow(new Date(req.timestamp), { addSuffix: true, locale: ar })}</p>
-                                <p className="text-[10px] text-zinc-500 font-mono mt-1">{req.responseTime}ms</p>
-                              </div>
+                              ))}
                             </div>
-                          ))}
+                          ) : (
+                            <div className="p-8 text-center text-zinc-500">لا توجد طلبات</div>
+                          )}
                         </div>
-                      ) : (
-                        <div className="p-8 text-center text-zinc-500 flex flex-col items-center justify-center h-full">
-                          <Activity className="w-8 h-8 mb-3 opacity-20" />
-                          <p>لا توجد طلبات حديثة</p>
+
+                        {/* Premium Requests */}
+                        <div className="flex flex-col">
+                          <div className="p-4 bg-amber-500/5 border-b border-white/5">
+                            <h4 className="text-sm font-bold text-amber-400">طلبات الاشتراك الأخيرة</h4>
+                          </div>
+                          {apiStatsData?.premium?.recentRequests?.length > 0 ? (
+                            <div className="divide-y divide-white/5">
+                              {apiStatsData.premium.recentRequests.map((req: any, i: number) => (
+                                <div key={i} className="p-4 hover:bg-white/[0.02] transition-colors flex items-center justify-between">
+                                  <div className="flex items-center gap-4">
+                                    <div className={`w-2 h-2 rounded-full ${req.status >= 200 && req.status < 300 ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                                    <div>
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-sm font-mono text-white" dir="ltr">{req.ip}</span>
+                                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono ${req.status >= 200 && req.status < 300 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
+                                          {req.status}
+                                        </span>
+                                      </div>
+                                      <p className="text-xs text-zinc-500 mt-1 max-w-[150px] truncate" title={req.userAgent}>{req.userAgent}</p>
+                                    </div>
+                                  </div>
+                                  <div className="text-left">
+                                    <p className="text-[10px] text-zinc-400">{formatDistanceToNow(new Date(req.timestamp), { addSuffix: true, locale: ar })}</p>
+                                    <p className="text-[10px] text-zinc-500 font-mono mt-1">{req.responseTime}ms</p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="p-8 text-center text-zinc-500">لا توجد طلبات</div>
+                          )}
                         </div>
-                      )}
+                      </div>
                     </div>
                   </div>
                 </div>

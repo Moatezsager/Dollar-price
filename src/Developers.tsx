@@ -12,15 +12,15 @@ export const Developers = () => {
   };
 
   const codeExamples = {
-    curl: `curl -X GET "https://${window.location.host}/api/public/rates" \\
+    curl: `curl -X GET "https://dollar-price-qp14.onrender.com/api/public/rates" \\
   -H "Accept: application/json"`,
-    js: `fetch("https://${window.location.host}/api/public/rates")
+    js: `fetch("https://dollar-price-qp14.onrender.com/api/public/rates")
   .then(response => response.json())
   .then(data => console.log(data))
   .catch(error => console.error('Error:', error));`,
     python: `import requests
 
-url = "https://${window.location.host}/api/public/rates"
+url = "https://dollar-price-qp14.onrender.com/api/public/rates"
 response = requests.get(url)
 
 if response.status_code == 200:
@@ -28,7 +28,7 @@ if response.status_code == 200:
 else:
     print("Error:", response.status_code)`,
     php: `<?php
-$url = "https://${window.location.host}/api/public/rates";
+$url = "https://dollar-price-qp14.onrender.com/api/public/rates";
 
 $ch = curl_init($url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -67,7 +67,7 @@ print_r($data);
           </div>
           <h3 className="text-lg font-bold text-white mb-2">سريع ومجاني</h3>
           <p className="text-sm text-zinc-400 leading-relaxed">
-            وصول مجاني لأسعار الدولار واليورو مع تحديثات مستمرة واستجابة سريعة.
+            وصول مجاني لأسعار الدولار واليورو (كاش) في السوق الموازي مع تحديثات مستمرة.
           </p>
         </div>
         <div className="bg-zinc-900/50 border border-white/5 p-6 rounded-2xl">
@@ -79,13 +79,13 @@ print_r($data);
             خوادم مستقرة مع نظام تخزين مؤقت (Caching) لضمان توفر الخدمة 99.9%.
           </p>
         </div>
-        <div className="bg-zinc-900/50 border border-white/5 p-6 rounded-2xl">
+        <div className="bg-zinc-900/50 border border-white/5 p-6 rounded-2xl border-emerald-500/20">
           <div className="p-3 bg-rose-500/10 rounded-xl w-fit mb-4">
             <Shield className="w-6 h-6 text-rose-400" />
           </div>
-          <h3 className="text-lg font-bold text-white mb-2">حماية متقدمة</h3>
+          <h3 className="text-lg font-bold text-white mb-2">بيانات مشفرة</h3>
           <p className="text-sm text-zinc-400 leading-relaxed">
-            نظام حماية من الطلبات الوهمية (Rate Limiting) لضمان جودة الخدمة للجميع.
+            يتم تشفير مخرجات الـ API لضمان أمان البيانات ومنع الكشط الآلي غير المصرح به.
           </p>
         </div>
       </div>
@@ -101,10 +101,10 @@ print_r($data);
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 bg-black/50 p-4 rounded-2xl border border-white/5">
             <span className="px-3 py-1 bg-emerald-500/20 text-emerald-400 font-bold rounded-lg text-sm w-fit">GET</span>
             <code className="flex-1 text-zinc-300 font-mono text-sm sm:text-base text-left" dir="ltr">
-              https://{window.location.host}/api/public/rates
+              https://dollar-price-qp14.onrender.com/api/public/rates
             </code>
             <button 
-              onClick={() => handleCopy(`https://${window.location.host}/api/public/rates`, 'endpoint')}
+              onClick={() => handleCopy(`https://dollar-price-qp14.onrender.com/api/public/rates`, 'endpoint')}
               className="flex items-center justify-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-zinc-300 transition-colors"
             >
               {copiedId === 'endpoint' ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
@@ -115,6 +115,15 @@ print_r($data);
 
         {/* Code Examples */}
         <div className="p-6 sm:p-8 bg-black/20">
+          <div className="mb-8 p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-start gap-4 text-right">
+            <Shield className="w-6 h-6 text-amber-400 shrink-0 mt-1" />
+            <div>
+              <h4 className="text-amber-400 font-bold mb-1">تنبيه أمني للمطورين</h4>
+              <p className="text-zinc-400 text-sm leading-relaxed">
+                يتم إرجاع البيانات بتنسيق مشفر (Encoded) لمنع الكشط غير القانوني. لاستخدام البيانات برمجياً، يجب فك التشفير باستخدام مفتاح الأمان اليومي. يرجى التواصل مع الإدارة للحصول على مكتبة فك التشفير الجاهزة.
+              </p>
+            </div>
+          </div>
           <h3 className="text-lg font-bold text-white mb-6">أمثلة برمجية</h3>
           
           <div className="space-y-8">
