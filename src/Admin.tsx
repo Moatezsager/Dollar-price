@@ -1964,6 +1964,14 @@ export default function Admin() {
                         const match = testText.match(regex);
                         if (match && match[1]) {
                           let val = parseFloat(match[1].replace(',', '.'));
+                          
+                          // Smart TND logic for preview (Ensure 1 TND = X LYD format)
+                          if (term.id === 'TND') {
+                            if (val >= 100 && val <= 500) val = val / 100;
+                            else if (val >= 20 && val < 100) val = 100 / val;
+                            else if (val < 1.0 && val > 0) val = 1 / val;
+                          }
+
                           if (term.isInverse && val > 0) val = 1 / val;
                           if (!isNaN(val) && val >= term.min && val <= term.max) {
                             testResult = `✅ تم الاستخراج: ${val.toFixed(4)}`;

@@ -1147,6 +1147,14 @@ async function loadConfigFromSupabase() {
         console.log("[Migration] Initialized enableHttpScraper to true");
       }
 
+      // 5. Force isInverse to false for currencies handled by Smart Extraction
+      dbConfig.terms = dbConfig.terms.map(t => {
+        if (['TND', 'EGP', 'TRY'].includes(t.id)) {
+          return { ...t, isInverse: false };
+        }
+        return t;
+      });
+
       appConfig = dbConfig;
       console.log(`[Startup] Initializing TelegramManager. Session length: ${(process.env.TELEGRAM_SESSION || process.env.TG_SESSION_V2 || appConfig.telegramSessionString)?.length || 0}`);
       telegramManager = getTelegramManager(
@@ -2739,91 +2747,11 @@ async function startServer() {
       }
       
       const extractedRates: Record<string, number> = {};
-      const lines = text.split('\n');
+      const results = extractRatesFromText(text);
       
-      for (const line of lines) {
-        const cleanText = line.trim().replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ');
-        if (!cleanText) continue;
-
-        for (const term of appConfig.terms) {
-          const regex = new RegExp(term.regex, 'i');
-          const match = cleanText.match(regex);
-          if (!match) continue;
-
-          let valStr = null;
-          const firstCapturedNum = match[1] || match[3];
-          const secondCapturedNum = match[2] || match[4];
-          
-          if (firstCapturedNum) {
-            if (secondCapturedNum) {
-              const secondIndex = match.index! + match[0].indexOf(secondCapturedNum);
-              if (isProbablyDateOrTime(cleanText, secondIndex, secondCapturedNum)) {
-                valStr = firstCapturedNum;
-              } else {
-                valStr = secondCapturedNum;
-              }
-            } else {
-               valStr = firstCapturedNum;
-            }
-          }
-          
-          if (valStr) {
-            let cleanValStr = valStr.replace(/,/g, ''); 
-            let val = parseFloat(cleanValStr);
-            
-            // Special handling for Lira Gold to avoid confusion with Turkish Lira
-            if (term.id === 'GOLD_LIRA' && val < 500) {
-               continue;
-            }
-
-            // Smart extraction for TND (Ensure 1 TND = X LYD format)
-            if (term.id === 'TND') {
-              if (valStr.includes(',')) {
-                val = parseFloat(valStr.replace(/,/g, '.'));
-              }
-              
-              if (val >= 100 && val <= 500) {
-                // e.g., 272 means 100 TND = 272 LYD -> 2.72
-                val = val / 100;
-              } else if (val >= 20 && val < 100) {
-                // e.g., 37 means 100 LYD = 37 TND -> 100 / 37 = 2.70
-                val = 100 / val;
-              } else if (val < 1.0 && val > 0) {
-                // e.g., 0.37 means 1 LYD = 0.37 TND -> 1 / 0.37 = 2.70
-                val = 1 / val;
-              }
-            }
-            
-            // Smart extraction for EGP
-            if (term.id === 'EGP') {
-              if (valStr.includes(',')) {
-                val = parseFloat(valStr.replace(/,/g, '.'));
-              }
-              if (val >= 10.0 && val <= 100.0) {
-                val = val / 100; // e.g., 100 EGP = 15 LYD -> 0.15 LYD
-              } else if (val >= 2.0 && val < 10.0) {
-                val = 1 / val; // e.g., 1 LYD = 6.35 EGP -> 0.157 LYD
-              }
-            }
-
-            // Smart extraction for TRY
-            if (term.id === 'TRY') {
-              if (valStr.includes(',')) {
-                val = parseFloat(valStr.replace(/,/g, '.'));
-              }
-              if (val >= 10.0 && val <= 100.0) {
-                val = val / 100; // e.g., 100 TRY = 20 LYD -> 0.20 LYD
-              } else if (val >= 2.0 && val < 10.0) {
-                val = 1 / val; // e.g., 1 LYD = 5 TRY -> 0.20 LYD
-              }
-            }
-            
-            if (term.isInverse && val > 0) val = 1 / val;
-            if (!isNaN(val) && val >= term.min && val <= term.max) {
-              extractedRates[term.id] = val;
-            }
-          }
-        }
+      for (const item of results) {
+        // If multiple matches for same currency, keep the last one (usually most recent in text)
+        extractedRates[item.code] = item.value;
       }
 
       if (Object.keys(extractedRates).length > 0) {
