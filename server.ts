@@ -677,12 +677,13 @@ async function saveToSupabase(type: 'parallel' | 'official' | 'both' = 'both') {
     // Cleanup old records from ALL tables (maintenance)
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const cutoff = thirtyDaysAgo.toISOString();
+    const cutoff30 = thirtyDaysAgo.toISOString();
     
     await Promise.allSettled([
-      supabase.from('parallel_rates').delete().lt('recorded_at', cutoff),
-      supabase.from('official_rates').delete().lt('recorded_at', cutoff),
-      supabase.from('exchange_rates').delete().lt('recorded_at', cutoff)
+      supabase.from('parallel_rates').delete().lt('recorded_at', cutoff30),
+      supabase.from('official_rates').delete().lt('recorded_at', cutoff30),
+      supabase.from('exchange_rates').delete().lt('recorded_at', cutoff30),
+      supabase.from('metal_rates').delete().lt('recorded_at', cutoff30)
     ]);
         
     // Invalidate caches
@@ -1787,25 +1788,32 @@ const cleanupOldData = async () => {
   try {
     console.log("Running scheduled database cleanup...");
     
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    const cutoff = sevenDaysAgo.toISOString();
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const cutoff30 = thirtyDaysAgo.toISOString();
+
+    const oneDayAgo = new Date();
+    oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+    const cutoff1 = oneDayAgo.toISOString();
 
     // Perform all deletions in parallel for better performance
-    const [legacyRes, parallelRes, officialRes, logsRes, changesRes] = await Promise.all([
-      supabase.from('exchange_rates').delete({ count: 'exact' }).lt('recorded_at', cutoff),
-      supabase.from('parallel_rates').delete({ count: 'exact' }).lt('recorded_at', cutoff),
-      supabase.from('official_rates').delete({ count: 'exact' }).lt('recorded_at', cutoff),
-      supabase.from('error_logs').delete({ count: 'exact' }).lt('created_at', cutoff),
-      supabase.from('price_changes_log').delete({ count: 'exact' }).lt('created_at', cutoff)
+    const [legacyRes, parallelRes, officialRes, metalRes, logsRes, changesRes] = await Promise.all([
+      // Keep historical prices for 30 days
+      supabase.from('exchange_rates').delete({ count: 'exact' }).lt('recorded_at', cutoff30),
+      supabase.from('parallel_rates').delete({ count: 'exact' }).lt('recorded_at', cutoff30),
+      supabase.from('official_rates').delete({ count: 'exact' }).lt('recorded_at', cutoff30),
+      supabase.from('metal_rates').delete({ count: 'exact' }).lt('recorded_at', cutoff30),
+      // Clean up logs and temporary data after 24 hours
+      supabase.from('error_logs').delete({ count: 'exact' }).lt('created_at', cutoff1),
+      supabase.from('price_changes_log').delete({ count: 'exact' }).lt('created_at', cutoff1)
     ]);
 
-    const removedRates = (legacyRes.count || 0) + (parallelRes.count || 0) + (officialRes.count || 0);
+    const removedRates = (legacyRes.count || 0) + (parallelRes.count || 0) + (officialRes.count || 0) + (metalRes.count || 0);
     const removedLogs = logsRes.count || 0;
     const removedChanges = changesRes.count || 0;
 
     // Log any errors that occurred during parallel deletion, ignoring missing tables
-    const errors = [legacyRes.error, parallelRes.error, officialRes.error, logsRes.error, changesRes.error]
+    const errors = [legacyRes.error, parallelRes.error, officialRes.error, metalRes.error, logsRes.error, changesRes.error]
       .filter(err => err && err.code !== '42P01');
 
     if (errors.length > 0) {
@@ -1813,12 +1821,13 @@ const cleanupOldData = async () => {
         legacy: legacyRes.error?.message, 
         parallel: parallelRes.error?.message, 
         official: officialRes.error?.message, 
+        metal: metalRes.error?.message,
         logs: logsRes.error?.message,
         changes: changesRes.error?.message
       });
     }
 
-    console.log(`Database cleanup completed. Removed ${removedRates} rates, ${removedLogs} logs, and ${removedChanges} price changes older than 7 days.`);
+    console.log(`Database cleanup completed. Removed ${removedRates} rates (older than 30 days), ${removedLogs} logs, and ${removedChanges} price changes (older than 1 day).`);
     
     // Also cleanup in-memory user logs
     cleanupUserLogs();
@@ -1849,8 +1858,8 @@ const monitorMemory = () => {
   }
 };
 
-// Run memory watchdog every 30 minutes
-setInterval(monitorMemory, 30 * 60 * 1000);
+// Run memory watchdog every 15 minutes
+setInterval(monitorMemory, 15 * 60 * 1000);
 
 // Run cleanup once on startup, then every 24 hours
 cleanupOldData();
@@ -1893,8 +1902,8 @@ const cleanupUserLogs = () => {
   }
 };
 
-// Run memory cleanup every hour
-setInterval(cleanupUserLogs, 60 * 60 * 1000);
+// Run memory cleanup every 15 minutes
+setInterval(cleanupUserLogs, 15 * 60 * 1000);
 
 async function startServer() {
   const app = express();
@@ -3336,42 +3345,54 @@ async function startServer() {
     }
 
     try {
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      const cutoff = sevenDaysAgo.toISOString();
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const cutoff30 = thirtyDaysAgo.toISOString();
 
-      console.log(`[Maintenance] Manual cleanup triggered. Removing records older than ${cutoff}`);
+      const oneDayAgo = new Date();
+      oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+      const cutoff1 = oneDayAgo.toISOString();
+
+      console.log(`[Maintenance] Manual cleanup triggered. Removing logs older than ${cutoff1} and rates older than ${cutoff30}`);
 
       // Perform all deletions in parallel
-      const [legacyRes, parallelRes, officialRes, logsRes] = await Promise.all([
-        supabase.from('exchange_rates').delete({ count: 'exact' }).lt('recorded_at', cutoff),
-        supabase.from('parallel_rates').delete({ count: 'exact' }).lt('recorded_at', cutoff),
-        supabase.from('official_rates').delete({ count: 'exact' }).lt('recorded_at', cutoff),
-        supabase.from('error_logs').delete({ count: 'exact' }).lt('created_at', cutoff)
+      const [legacyRes, parallelRes, officialRes, metalRes, logsRes, changesRes] = await Promise.all([
+        supabase.from('exchange_rates').delete({ count: 'exact' }).lt('recorded_at', cutoff30),
+        supabase.from('parallel_rates').delete({ count: 'exact' }).lt('recorded_at', cutoff30),
+        supabase.from('official_rates').delete({ count: 'exact' }).lt('recorded_at', cutoff30),
+        supabase.from('metal_rates').delete({ count: 'exact' }).lt('recorded_at', cutoff30),
+        supabase.from('error_logs').delete({ count: 'exact' }).lt('created_at', cutoff1),
+        supabase.from('price_changes_log').delete({ count: 'exact' }).lt('created_at', cutoff1)
       ]);
 
-      const removedRates = (legacyRes.count || 0) + (parallelRes.count || 0) + (officialRes.count || 0);
+      const removedRates = (legacyRes.count || 0) + (parallelRes.count || 0) + (officialRes.count || 0) + (metalRes.count || 0);
       const removedLogs = logsRes.count || 0;
+      const removedChanges = changesRes.count || 0;
 
-      if (legacyRes.error || parallelRes.error || officialRes.error || logsRes.error) {
+      if (legacyRes.error || parallelRes.error || officialRes.error || metalRes.error || logsRes.error || changesRes.error) {
         console.error("Cleanup partial error:", { 
           legacy: legacyRes.error, 
           parallel: parallelRes.error, 
           official: officialRes.error, 
-          logs: logsRes.error 
+          metal: metalRes.error,
+          logs: logsRes.error,
+          changes: changesRes.error
         });
       }
 
       res.json({
         success: true,
-        message: "تم تنظيف كافة جداول قاعدة البيانات بنجاح (سجلات أقدم من أسبوع)",
+        message: "تم تنظيف كافة جداول قاعدة البيانات بنجاح (السجلات أقدم من يوم، والأسعار أقدم من 30 يوم)",
         details: {
           removed_exchange_rates: legacyRes.count || 0,
           removed_parallel_rates: parallelRes.count || 0,
           removed_official_rates: officialRes.count || 0,
+          removed_metal_rates: metalRes.count || 0,
           total_removed_rates: removedRates,
           removed_logs: removedLogs,
-          cutoff_date: cutoff
+          removed_changes: removedChanges,
+          cutoff_rates_date: cutoff30,
+          cutoff_logs_date: cutoff1
         }
       });
     } catch (err) {
