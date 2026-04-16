@@ -2756,6 +2756,48 @@ async function startServer() {
     res.json(appConfig);
   });
 
+  app.post("/api/admin/fetch-essale", requireAdmin, async (req: express.Request, res: express.Response) => {
+    try {
+      const response = await fetch("https://essale.ly/api/tick?fbclid=IwZXh0bgNhZW0CMTEAc3J0YwZhcHBfaWQPMjc1MjU0NjkyNTk4Mjc5AAEewyFcX9XSJyGppLrX8mTzJ93xM3OWsx5NXnMmXZIKhCsJGfiW1pNkKU2kwnk_aem_5dOdrJMZDqyD8p_DDrntEw");
+      const data = await response.json();
+      
+      const mapping: Record<string, string> = {
+        "USD": "USD",
+        "CJM": "USD_AE",
+        "TUR": "TRY",
+        "TUN": "TND",
+        "EUR": "EUR",
+        "GBP": "GBP",
+        "EGP": "EGP",
+        "CTT": "JOD",
+        "GOLD": "GOLD_SCRAP_18",
+        "SLVR": "SILVER_SCRAP"
+      };
+
+      const extractedRates: Record<string, number> = {};
+      
+      if (Array.isArray(data)) {
+        data.forEach((item: any) => {
+          const internalCode = mapping[item.n];
+          if (internalCode && item.v) {
+            extractedRates[internalCode] = parseFloat(item.v);
+          }
+        });
+      }
+
+      if (Object.keys(extractedRates).length > 0) {
+        res.json({ success: true, extractedRates });
+      } else {
+        res.json({ success: false, message: "لم يتم العثور على أسعار مطابقة" });
+      }
+    } catch (err: any) {
+      console.error("Essale fetch failed:", err);
+      if (!res.headersSent) {
+        res.status(500).json({ success: false, message: `خطأ في جلب البيانات: ${err.message || 'فشل العملية'}` });
+      }
+    }
+  });
+
   app.post("/api/admin/extract", requireAdmin, async (req: express.Request, res: express.Response) => {
     try {
       const { text } = req.body;
@@ -3097,14 +3139,12 @@ async function startServer() {
     }
 
     try {
-      await initializeRatesFromDB(false);
-      
       // Check for stale data (older than 12 hours)
       const lastUpdatedTime = new Date(rates.lastUpdated).getTime();
       const isStale = (Date.now() - lastUpdatedTime) > (12 * 60 * 60 * 1000);
       
-      // Set cache control headers to force caching for 1 minute
-      res.setHeader('Cache-Control', 'public, max-age=60');
+      // Set cache control headers to force caching for 5 minutes
+      res.setHeader('Cache-Control', 'public, max-age=300');
       
       const publicData = {
         success: !isStale,
@@ -3122,7 +3162,7 @@ async function startServer() {
       }
       
       logRequest(200);
-      res.json(obfuscateData(publicData));
+      res.json(publicData);
     } catch (err) {
       console.error("Error in /api/public/rates:", err);
       if (!res.headersSent) {

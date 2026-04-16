@@ -55,7 +55,7 @@ print_r($data);
         </div>
         <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight">بوابة المطورين</h1>
         <p className="text-lg text-zinc-400 max-w-2xl mx-auto leading-relaxed">
-          واجهة برمجة التطبيقات (API) المجانية للحصول على أسعار الدولار واليورو في السوق الموازي.
+          وفرنا لك واجهة برمجية (API) مجانية وبسيطة جداً للحصول على أسعار الدولار واليورو (كاش) في السوق الموازي، لتتمكن من عرضها في موقعك أو تطبيقك بكل سهولة.
         </p>
       </div>
 
@@ -83,9 +83,9 @@ print_r($data);
           <div className="p-3 bg-rose-500/10 rounded-xl w-fit mb-4">
             <Shield className="w-6 h-6 text-rose-400" />
           </div>
-          <h3 className="text-lg font-bold text-white mb-2">بيانات مشفرة</h3>
+          <h3 className="text-lg font-bold text-white mb-2">سهولة الاستخدام</h3>
           <p className="text-sm text-zinc-400 leading-relaxed">
-            يتم تشفير مخرجات الـ API لضمان أمان البيانات ومنع الكشط الآلي غير المصرح به.
+            بيانات بتنسيق JSON بسيط وواضح، جاهزة للاستخدام المباشر في أي تطبيق أو موقع إلكتروني.
           </p>
         </div>
       </div>
@@ -115,15 +115,6 @@ print_r($data);
 
         {/* Code Examples */}
         <div className="p-6 sm:p-8 bg-black/20">
-          <div className="mb-8 p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-start gap-4 text-right">
-            <Shield className="w-6 h-6 text-amber-400 shrink-0 mt-1" />
-            <div>
-              <h4 className="text-amber-400 font-bold mb-1">تنبيه أمني للمطورين</h4>
-              <p className="text-zinc-400 text-sm leading-relaxed">
-                يتم إرجاع البيانات بتنسيق مشفر (Encoded) لمنع الكشط غير القانوني. لاستخدام البيانات برمجياً، يجب فك التشفير باستخدام مفتاح الأمان اليومي. يرجى التواصل مع الإدارة للحصول على مكتبة فك التشفير الجاهزة.
-              </p>
-            </div>
-          </div>
           <h3 className="text-lg font-bold text-white mb-6">أمثلة برمجية</h3>
           
           <div className="space-y-8">

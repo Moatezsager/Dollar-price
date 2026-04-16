@@ -6,7 +6,7 @@ import {
   ArrowLeftRight, ArrowUpRight, ArrowDownRight, CheckCircle2, RefreshCw, Layers, Globe, Zap, Search,
   ChevronDown, ChevronUp, Clock, Info, Building2, Coins, Send, Building, TrendingUp,
   Stethoscope, ListX, Trash, LayoutDashboard, Menu, BarChart3, Bell, Shield, Database, Link, Copy, Code2,
-  Download, Pause, Play, Filter, XCircle, AlertCircle, Mail, MessageSquare
+  Download, Pause, Play, Filter, XCircle, AlertCircle, Mail, MessageSquare, DownloadCloud
 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { ar } from "date-fns/locale";
@@ -866,6 +866,32 @@ export default function Admin() {
       }
     } catch (err) {
       setError("خطأ في الاتصال بخادم الاستخراج");
+    }
+    setAiLoading(false);
+  };
+
+  const handleEssaleExtract = async () => {
+    setAiLoading(true);
+    setError("");
+    setSuccess("");
+    try {
+      await fetchCurrentRates();
+      const res = await fetch("/api/admin/fetch-essale", {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        }
+      });
+      const data = await res.json();
+      if (data.success && data.extractedRates) {
+        setExtractedRates(data.extractedRates);
+        setSuccess("تم جلب الأسعار من تطبيق الصراف بنجاح");
+      } else {
+        setError(data.message || "فشل جلب الأسعار");
+      }
+    } catch (err) {
+      setError("خطأ في الاتصال بخادم الصراف");
     }
     setAiLoading(false);
   };
@@ -2801,24 +2827,44 @@ export default function Admin() {
                   )}
                 </div>
 
-                {/* Extract Button */}
-                <button
-                  onClick={handleAIExtract}
-                  disabled={aiLoading || !aiText.trim()}
-                  className="w-full mt-4 py-4 rounded-2xl bg-gradient-to-l from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 disabled:from-zinc-800 disabled:to-zinc-800 disabled:text-zinc-600 text-black font-black transition-all flex items-center justify-center gap-3 shadow-lg shadow-emerald-900/30 disabled:shadow-none active:scale-[0.98]"
-                >
-                  {aiLoading && !extractedRates ? (
-                    <>
-                      <RefreshCw className="w-5 h-5 animate-spin" />
-                      <span>جاري التحليل والاستخراج...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Zap className="w-5 h-5" />
-                      <span>استخراج الأسعار ذكياً</span>
-                    </>
-                  )}
-                </button>
+                {/* Extract Buttons */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                  <button
+                    onClick={handleAIExtract}
+                    disabled={aiLoading || !aiText.trim()}
+                    className="w-full py-4 rounded-2xl bg-gradient-to-l from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 disabled:from-zinc-800 disabled:to-zinc-800 disabled:text-zinc-600 text-black font-black transition-all flex items-center justify-center gap-3 shadow-lg shadow-emerald-900/30 disabled:shadow-none active:scale-[0.98]"
+                  >
+                    {aiLoading && !extractedRates ? (
+                      <>
+                        <RefreshCw className="w-5 h-5 animate-spin" />
+                        <span>جاري التحليل والاستخراج...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Zap className="w-5 h-5" />
+                        <span>استخراج الأسعار من النص</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    onClick={handleEssaleExtract}
+                    disabled={aiLoading}
+                    className="w-full py-4 rounded-2xl bg-gradient-to-l from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 disabled:from-zinc-800 disabled:to-zinc-800 disabled:text-zinc-600 text-white font-black transition-all flex items-center justify-center gap-3 shadow-lg shadow-blue-900/30 disabled:shadow-none active:scale-[0.98]"
+                  >
+                    {aiLoading && !extractedRates ? (
+                      <>
+                        <RefreshCw className="w-5 h-5 animate-spin" />
+                        <span>جاري الجلب...</span>
+                      </>
+                    ) : (
+                      <>
+                        <DownloadCloud className="w-5 h-5" />
+                        <span>جلب الأسعار من تطبيق الصراف</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </section>
 
               {/* Results Table */}
