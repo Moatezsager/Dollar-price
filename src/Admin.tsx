@@ -373,6 +373,7 @@ export default function Admin() {
   const [extractedRates, setExtractedRates] = useState<Record<string, number> | null>(null);
   const [extractedDates, setExtractedDates] = useState<Record<string, string> | null>(null);
   const [currentRates, setCurrentRates] = useState<Record<string, number>>({});
+  const [filterTodayOnly, setFilterTodayOnly] = useState(false);
 
   useEffect(() => {
     let deviceToken = null;
@@ -843,6 +844,42 @@ export default function Admin() {
     }
   };
 
+  const processExtractedData = (rates: Record<string, number>, dates: Record<string, string> | undefined) => {
+    if (!filterTodayOnly) {
+      setExtractedRates(rates);
+      if (dates) setExtractedDates(dates);
+      return true;
+    }
+
+    const filteredRates: Record<string, number> = {};
+    const filteredDates: Record<string, string> = {};
+    let hasAny = false;
+
+    const today = new Date();
+    
+    Object.keys(rates).forEach(key => {
+      const dateStr = dates?.[key];
+      if (dateStr) {
+        const date = new Date(dateStr);
+        if (date.getDate() === today.getDate() &&
+            date.getMonth() === today.getMonth() &&
+            date.getFullYear() === today.getFullYear()) {
+          filteredRates[key] = rates[key];
+          filteredDates[key] = dateStr;
+          hasAny = true;
+        }
+      }
+    });
+
+    if (!hasAny) {
+      return false;
+    }
+
+    setExtractedRates(filteredRates);
+    setExtractedDates(filteredDates);
+    return true;
+  };
+
   const handleAIExtract = async () => {
     if (!aiText.trim()) return;
     setAiLoading(true);
@@ -860,11 +897,12 @@ export default function Admin() {
       });
       const data = await res.json();
       if (data.success && data.extractedRates) {
-        setExtractedRates(data.extractedRates);
-        if (data.extractedDates) {
-          setExtractedDates(data.extractedDates);
+        const hasData = processExtractedData(data.extractedRates, data.extractedDates);
+        if (hasData) {
+          setSuccess("تم استخراج الأسعار بنجاح");
+        } else {
+          setError("لم يتم العثور على أسعار بتاريخ اليوم");
         }
-        setSuccess("تم استخراج الأسعار بنجاح");
       } else {
         setError(data.message || "فشل استخراج الأسعار");
       }
@@ -889,11 +927,12 @@ export default function Admin() {
       });
       const data = await res.json();
       if (data.success && data.extractedRates) {
-        setExtractedRates(data.extractedRates);
-        if (data.extractedDates) {
-          setExtractedDates(data.extractedDates);
+        const hasData = processExtractedData(data.extractedRates, data.extractedDates);
+        if (hasData) {
+          setSuccess("تم جلب الأسعار من تطبيق الصراف بنجاح");
+        } else {
+          setError("لم يتم العثور على أسعار بتاريخ اليوم");
         }
-        setSuccess("تم جلب الأسعار من تطبيق الصراف بنجاح");
       } else {
         setError(data.message || "فشل جلب الأسعار");
       }
@@ -2886,6 +2925,16 @@ export default function Admin() {
                     )}
                   </button>
                 </div>
+                
+                <label className="flex items-center gap-2 cursor-pointer text-sm text-zinc-300 hover:text-white transition-colors mt-4">
+                  <input
+                    type="checkbox"
+                    className="w-4 h-4 rounded accent-emerald-500"
+                    checked={filterTodayOnly}
+                    onChange={(e) => setFilterTodayOnly(e.target.checked)}
+                  />
+                  استخراج وجلب أسعار اليوم فقط
+                </label>
               </section>
 
               {/* Results Table */}
