@@ -371,6 +371,7 @@ export default function Admin() {
   const [aiText, setAiText] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const [extractedRates, setExtractedRates] = useState<Record<string, number> | null>(null);
+  const [extractedDates, setExtractedDates] = useState<Record<string, string> | null>(null);
   const [currentRates, setCurrentRates] = useState<Record<string, number>>({});
 
   useEffect(() => {
@@ -886,6 +887,9 @@ export default function Admin() {
       const data = await res.json();
       if (data.success && data.extractedRates) {
         setExtractedRates(data.extractedRates);
+        if (data.extractedDates) {
+          setExtractedDates(data.extractedDates);
+        }
         setSuccess("تم جلب الأسعار من تطبيق الصراف بنجاح");
       } else {
         setError(data.message || "فشل جلب الأسعار");
@@ -898,6 +902,19 @@ export default function Admin() {
 
   const handleAISave = async () => {
     if (!extractedRates) return;
+    
+    const updatesToSend: Record<string, number> = {};
+    Object.entries(extractedRates).forEach(([k, v]) => {
+      if (!k.startsWith('_') && !(extractedRates as any)[`_skip_${k}`]) {
+        updatesToSend[k] = v as number;
+      }
+    });
+
+    if (Object.keys(updatesToSend).length === 0) {
+      setError("لم يتم تحديد أي أسعار للتحديث");
+      return;
+    }
+
     setAiLoading(true);
     setError("");
     setSuccess("");
@@ -908,12 +925,13 @@ export default function Admin() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ updates: extractedRates })
+        body: JSON.stringify({ updates: updatesToSend })
       });
       const data = await res.json();
       if (data.success) {
         setSuccess("تم تحديث الأسعار بنجاح");
         setExtractedRates(null);
+        setExtractedDates(null);
         setAiText("");
         triggerRefresh();
       } else {
@@ -2919,6 +2937,7 @@ export default function Admin() {
                             <th className="p-4 text-right">العملة</th>
                             <th className="p-4 text-center">السعر الحالي (ق.البيانات)</th>
                             <th className="p-4 text-center">سعر البيع الجديد ✏️</th>
+                            <th className="p-4 text-center">آخر تحديث</th>
                             <th className="p-4 text-center">التغيير</th>
                           </tr>
                         </thead>
@@ -2988,6 +3007,13 @@ export default function Admin() {
                                       className="w-28 bg-emerald-500/5 border border-emerald-500/20 rounded-xl px-3 py-2 text-sm text-center font-mono text-emerald-400 font-bold focus:outline-none focus:border-emerald-500/50 focus:bg-emerald-500/10 transition-all disabled:opacity-40"
                                       dir="ltr"
                                     />
+                                  </td>
+
+                                  {/* Last Update Date */}
+                                  <td className="p-4 text-center">
+                                    <span className="text-xs text-zinc-500 font-mono">
+                                      {extractedDates && extractedDates[key] ? format(new Date(extractedDates[key]), "yyyy-MM-dd HH:mm") : <span className="text-zinc-700">—</span>}
+                                    </span>
                                   </td>
 
                                   {/* Change Indicator */}

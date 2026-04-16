@@ -2775,18 +2775,22 @@ async function startServer() {
       };
 
       const extractedRates: Record<string, number> = {};
+      const extractedDates: Record<string, string> = {};
       
       if (Array.isArray(data)) {
         data.forEach((item: any) => {
           const internalCode = mapping[item.n];
           if (internalCode && item.v) {
             extractedRates[internalCode] = parseFloat(item.v);
+            if (item.d) {
+              extractedDates[internalCode] = item.d;
+            }
           }
         });
       }
 
       if (Object.keys(extractedRates).length > 0) {
-        res.json({ success: true, extractedRates });
+        res.json({ success: true, extractedRates, extractedDates });
       } else {
         res.json({ success: false, message: "لم يتم العثور على أسعار مطابقة" });
       }
