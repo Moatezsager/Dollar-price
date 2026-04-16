@@ -1210,7 +1210,7 @@ let liveFeed: LiveFeedMessage[] = [];
  * Returns an array of extracted rates.
  */
 const extractRatesFromText = (cleanText: string) => {
-  const results: { code: string, value: number }[] = [];
+  const results: { code: string, value: number, date?: string }[] = [];
   
   // Pre-compile regexes for performance
   const compiledTerms = appConfig.terms.map(t => ({
@@ -1298,7 +1298,17 @@ const extractRatesFromText = (cleanText: string) => {
       if (term.isInverse && val > 0) val = 1 / val;
       
       if (!isNaN(val) && val >= term.min && val <= term.max) {
-        results.push({ code: term.id, value: val });
+        // Find date in the same line
+        const matchIndex = match.index!;
+        const lineStart = cleanText.lastIndexOf('\n', matchIndex) + 1;
+        let lineEnd = cleanText.indexOf('\n', matchIndex);
+        if (lineEnd === -1) lineEnd = cleanText.length;
+        const lineText = cleanText.substring(lineStart, lineEnd);
+        
+        const dateMatch = lineText.match(/\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}/);
+        const extractedDate = dateMatch ? dateMatch[0] : undefined;
+
+        results.push({ code: term.id, value: val, date: extractedDate });
       }
     }
   }
@@ -2810,15 +2820,19 @@ async function startServer() {
       }
       
       const extractedRates: Record<string, number> = {};
+      const extractedDates: Record<string, string> = {};
       const results = extractRatesFromText(text);
       
       for (const item of results) {
         // If multiple matches for same currency, keep the last one (usually most recent in text)
         extractedRates[item.code] = item.value;
+        if (item.date) {
+          extractedDates[item.code] = item.date;
+        }
       }
 
       if (Object.keys(extractedRates).length > 0) {
-        res.json({ success: true, extractedRates });
+        res.json({ success: true, extractedRates, extractedDates });
       } else {
         res.json({ success: false, message: "لم يتمكن النظام من استخراج أي أسعار من النص المدخل" });
       }

@@ -861,6 +861,9 @@ export default function Admin() {
       const data = await res.json();
       if (data.success && data.extractedRates) {
         setExtractedRates(data.extractedRates);
+        if (data.extractedDates) {
+          setExtractedDates(data.extractedDates);
+        }
         setSuccess("تم استخراج الأسعار بنجاح");
       } else {
         setError(data.message || "فشل استخراج الأسعار");
