@@ -571,39 +571,39 @@ export default function App() {
     return (
       <div 
         {...tooltipProps} 
-        className="relative bg-zinc-900/95 backdrop-blur-xl border border-white/10 rounded-3xl p-6 w-[360px] max-w-[90vw] shadow-[0_30px_60px_-15px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(255,255,255,0.1)] overflow-hidden" 
+        className="relative bg-zinc-900/95 backdrop-blur-xl border border-white/10 rounded-2xl sm:rounded-3xl p-4 sm:p-6 w-[360px] max-w-[92vw] shadow-[0_30px_60px_-15px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(255,255,255,0.1)] overflow-hidden" 
         dir="rtl"
       >
         {/* Glow effect */}
-        <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-500/10 blur-[60px] rounded-full pointer-events-none -translate-y-1/2 translate-x-1/2"></div>
-        <div className="absolute bottom-0 left-0 w-48 h-48 bg-blue-500/10 blur-[60px] rounded-full pointer-events-none translate-y-1/2 -translate-x-1/2"></div>
+        <div className="absolute top-0 right-0 w-32 h-32 sm:w-48 sm:h-48 bg-emerald-500/10 blur-[60px] rounded-full pointer-events-none -translate-y-1/2 translate-x-1/2"></div>
+        <div className="absolute bottom-0 left-0 w-32 h-32 sm:w-48 sm:h-48 bg-blue-500/10 blur-[60px] rounded-full pointer-events-none translate-y-1/2 -translate-x-1/2"></div>
 
         {/* Header */}
-        <div className="flex items-start justify-between mb-4 relative z-10">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-blue-500/20 flex items-center justify-center border border-emerald-500/20 shrink-0">
-              <span className="text-emerald-400 font-black text-lg">{index + 1}</span>
+        <div className="flex items-start justify-between mb-3 sm:mb-4 relative z-10">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-gradient-to-br from-emerald-500/20 to-blue-500/20 flex items-center justify-center border border-emerald-500/20 shrink-0">
+              <span className="text-emerald-400 font-black text-base sm:text-lg">{index + 1}</span>
             </div>
-            <h3 className="text-white font-black text-lg tracking-tight bg-clip-text text-transparent bg-gradient-to-l from-white to-zinc-400">
+            <h3 className="text-white font-black text-base sm:text-lg tracking-tight bg-clip-text text-transparent bg-gradient-to-l from-white to-zinc-400">
               {step.title}
             </h3>
           </div>
           
           <button 
             {...closeProps} 
-            className="text-zinc-500 hover:text-white hover:bg-white/10 transition-all p-1.5 rounded-full shrink-0 group"
+            className="text-zinc-500 hover:text-white hover:bg-white/10 transition-all p-1 sm:p-1.5 rounded-full shrink-0 group -mr-1"
             onClick={(e) => {
               if (closeProps.onClick) closeProps.onClick(e);
               setRunTour(false);
               localStorage.setItem('tourCompleted', 'true');
             }}
           >
-            <X className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
+            <X className="w-4 h-4 sm:w-5 sm:h-5 group-hover:rotate-90 transition-transform duration-300" />
           </button>
         </div>
 
         {/* Content */}
-        <div className="text-zinc-400 text-sm leading-relaxed mb-8 font-medium relative z-10 pl-2 pr-2">
+        <div className="text-zinc-400 text-sm leading-relaxed mb-6 sm:mb-8 font-medium relative z-10 px-1 sm:px-2">
           {step.content}
         </div>
 
@@ -620,26 +620,26 @@ export default function App() {
           </div>
 
           {/* Buttons */}
-          <div className="flex items-center justify-between mt-2">
-            <div className="flex items-center gap-2">
+          <div className="flex flex-row items-center justify-between mt-1 sm:mt-2">
+            <div className="flex items-center gap-1 sm:gap-2">
               {!isFirstStep && (
-                <button {...backProps} className="px-3 py-2 text-xs font-bold text-zinc-500 hover:text-white hover:bg-white/5 rounded-xl transition-all uppercase tracking-widest">
+                <button {...backProps} className="px-2 sm:px-3 py-2 text-[10px] sm:text-xs font-bold text-zinc-500 hover:text-white hover:bg-white/5 rounded-lg sm:rounded-xl transition-all uppercase tracking-widest">
                   السابق
                 </button>
               )}
               {isFirstStep && (
-                <button {...skipProps} className="px-3 py-2 text-xs font-bold text-zinc-500 hover:text-white hover:bg-white/5 rounded-xl transition-all uppercase tracking-widest">
-                  تخطي الجولة
+                <button {...skipProps} className="px-2 sm:px-3 py-2 text-[10px] sm:text-xs font-bold text-zinc-500 hover:text-white hover:bg-white/5 rounded-lg sm:rounded-xl transition-all uppercase tracking-widest">
+                  تخطي
                 </button>
               )}
             </div>
             
             <button 
               {...primaryProps} 
-              className="group px-6 py-2.5 text-xs font-black bg-gradient-to-l from-emerald-500 to-emerald-400 text-[#050505] rounded-xl hover:from-emerald-400 hover:to-emerald-300 transition-all shadow-[0_8px_20px_-6px_rgba(16,185,129,0.5)] active:scale-95 uppercase tracking-widest flex items-center gap-2"
+              className="group px-4 sm:px-6 py-2 sm:py-2.5 text-[10px] sm:text-xs font-black bg-gradient-to-l from-emerald-500 to-emerald-400 text-[#050505] rounded-lg sm:rounded-xl hover:from-emerald-400 hover:to-emerald-300 transition-all shadow-[0_8px_20px_-6px_rgba(16,185,129,0.5)] active:scale-95 uppercase tracking-widest flex items-center gap-1.5 sm:gap-2"
             >
-              {isLastStep ? 'إنهاء الجولة' : 'التالي'}
-              {!isLastStep && <ArrowRight className="w-3.5 h-3.5 -scale-x-100 group-hover:translate-x-1 transition-transform" />}
+              {isLastStep ? 'إنهاء' : 'التالي'}
+              {!isLastStep && <ArrowRight className="w-3 h-3 sm:w-3.5 sm:h-3.5 -scale-x-100 group-hover:translate-x-1 transition-transform" />}
             </button>
           </div>
         </div>
@@ -2322,7 +2322,7 @@ export default function App() {
 
               <div className="flex flex-col gap-6">
                 {/* Smart Input Area */}
-                <div className="flex flex-col sm:flex-row items-center gap-4 bg-white/[0.02] p-4 sm:p-6 rounded-3xl border border-white/5 relative z-20">
+                <div id="converter-input" className="flex flex-col sm:flex-row items-center gap-4 bg-white/[0.02] p-4 sm:p-6 rounded-3xl border border-white/5 relative z-20">
                   <div className="flex-1 w-full">
                     <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-2 block">
                       المبلغ (اكتب الرقم أو العملة، مثال: 100$ أو 50 دينار)
