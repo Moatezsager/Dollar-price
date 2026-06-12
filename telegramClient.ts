@@ -76,12 +76,13 @@ export class TelegramManager {
       }
 
       const stringSession = new StringSession(this.sessionString || "");
+      const instanceId = Math.random().toString(36).substring(7);
       this.client = new TelegramClient(stringSession, this.apiId, this.apiHash, {
         connectionRetries: 10,
         useWSS: false,
         autoReconnect: true,
         floodSleepThreshold: 120,
-        deviceModel: "PriceScraperServer",
+        deviceModel: `PriceScraperServer-${instanceId}`,
         systemVersion: "1.0.0",
         appVersion: "1.0.0",
       });

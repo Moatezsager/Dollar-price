@@ -34,7 +34,8 @@ import {
   MoreVertical,
   ChevronDown,
   Code2,
-  Mail
+  Mail,
+  Minus
 } from "lucide-react";
 import {
   AreaChart,
@@ -1247,6 +1248,39 @@ export default function App() {
     };
   }, [chartData]);
 
+  const advancedStats = useMemo(() => {
+    const targetRate = selectedRate || { code: 'USD', name: 'دولار أمريكي', market: 'parallel' as const };
+    if (!history.length) return { ma30: 0, support: 0, resistance: 0 };
+    
+    const now = new Date();
+    const cutoff30d = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    
+    const elements30d = history.filter(h => new Date(h.time) >= cutoff30d).map(h => {
+      const rateObj = targetRate.market === 'parallel' ? h.ratesParallel : h.ratesOfficial;
+      let value = 0;
+      if (rateObj && rateObj[targetRate.code] !== undefined && rateObj[targetRate.code] !== null) {
+        value = Number(rateObj[targetRate.code]);
+      } 
+      if (value === 0 && targetRate.code === 'USD') {
+        value = targetRate.market === 'parallel' ? h.usdParallel : h.usdOfficial;
+      }
+      return value;
+    }).filter(v => typeof v === 'number' && !isNaN(v) && v > 0);
+    
+    if (elements30d.length === 0) return { ma30: 0, support: 0, resistance: 0 };
+    
+    const sum = elements30d.reduce((a, b) => a + b, 0);
+    const avg = sum / elements30d.length;
+    const support = Math.min(...elements30d);
+    const resistance = Math.max(...elements30d);
+    
+    return {
+      ma30: avg,
+      support,
+      resistance
+    };
+  }, [history, selectedRate]);
+
   // حساب التغير خلال 24 ساعة لجميع العملات
   const trends24h = useMemo(() => {
     if (!history.length || !rates) return {};
@@ -1280,6 +1314,40 @@ export default function App() {
 
     return trends;
   }, [history, rates]);
+
+  const marketStatus = useMemo(() => {
+    const usdTrend = trends24h['USD']?.parallel || 0;
+    const absChange = Math.abs(usdTrend);
+    
+    if (absChange < 0.5) {
+      return { 
+        label: 'مستقر', 
+        description: 'السوق يشهد استقراراً نسبياً',
+        color: 'text-emerald-400',
+        bg: 'bg-emerald-500/10',
+        border: 'border-emerald-500/20',
+        icon: Minus
+      };
+    } else if (absChange <= 2) {
+      return { 
+        label: 'متذبذب', 
+        description: 'تغيرات ملحوظة في أسعار الصرف',
+        color: 'text-amber-400',
+        bg: 'bg-amber-500/10',
+        border: 'border-amber-500/20',
+        icon: Activity
+      };
+    } else {
+      return { 
+        label: 'شديد التقلب', 
+        description: 'تقلبات حادة في السوق اليوم',
+        color: 'text-rose-400',
+        bg: 'bg-rose-500/10',
+        border: 'border-rose-500/20',
+        icon: TrendingUp
+      };
+    }
+  }, [trends24h]);
 
   // منطق محول العملات الذكي
   const [convActiveField, setConvActiveField] = useState<'top' | 'parallel' | 'official'>('top');
@@ -1791,6 +1859,19 @@ export default function App() {
             className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-16 space-y-16 sm:space-y-24 relative z-10"
           >
 
+        {/* Market Status Alert */}
+        <div className={`flex items-center gap-3 p-3 sm:p-4 rounded-2xl border ${marketStatus.bg} ${marketStatus.border}`}>
+          <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border ${marketStatus.bg} ${marketStatus.border}`}>
+            <marketStatus.icon className={`w-4 h-4 ${marketStatus.color}`} />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className={`text-xs sm:text-sm font-bold ${marketStatus.color}`}>حالة السوق: {marketStatus.label}</h3>
+            </div>
+            <p className="text-[10px] sm:text-xs text-zinc-400 mt-0.5">{marketStatus.description}</p>
+          </div>
+        </div>
+
         {/* Hero Section: Parallel USD */}
         <section className="flex flex-col lg:flex-row items-start lg:items-end justify-between gap-8 lg:gap-12">
           <div className="w-full lg:w-auto">
@@ -1960,6 +2041,22 @@ export default function App() {
                     />
                   </AreaChart>
                 </ResponsiveContainer>
+              </div>
+
+              {/* Advanced Stats Dashboard */}
+              <div className="mt-4 grid grid-cols-3 gap-2 w-full lg:w-[400px]">
+                <div className="bg-white/5 rounded-2xl p-3 text-center border border-white/5 flex flex-col justify-center">
+                  <p className="text-[10px] text-zinc-400 font-medium mb-1">متوسط 30 يوم</p>
+                  <p className="text-sm font-mono font-bold text-white">{advancedStats.ma30 > 0 ? advancedStats.ma30.toFixed(4) : '-'}</p>
+                </div>
+                <div className="bg-emerald-500/5 rounded-2xl p-3 text-center border border-emerald-500/10 flex flex-col justify-center">
+                  <p className="text-[10px] text-zinc-400 font-medium mb-1">مقاومة (أعلى سعر)</p>
+                  <p className="text-sm font-mono font-bold text-emerald-400">{advancedStats.resistance > 0 ? advancedStats.resistance.toFixed(4) : '-'}</p>
+                </div>
+                <div className="bg-rose-500/5 rounded-2xl p-3 text-center border border-rose-500/10 flex flex-col justify-center">
+                  <p className="text-[10px] text-zinc-400 font-medium mb-1">دعم (أدنى سعر)</p>
+                  <p className="text-sm font-mono font-bold text-rose-400">{advancedStats.support > 0 ? advancedStats.support.toFixed(4) : '-'}</p>
+                </div>
               </div>
             </div>
           )}
@@ -2972,6 +3069,28 @@ export default function App() {
                     <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-2">المتوسط</p>
                     <p className="text-lg sm:text-xl font-mono font-bold text-white">
                       {chartStats.avg.toFixed(2)}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Advanced Tech Analysis (30 Days) */}
+                <div className="mt-4 grid grid-cols-3 gap-3 sm:gap-4">
+                  <div className="p-4 rounded-2xl bg-emerald-500/5 border border-emerald-500/10 flex flex-col items-center text-center">
+                    <p className="text-[10px] text-emerald-500/70 font-medium mb-1 line-clamp-1">مقاومة (30 يوم)</p>
+                    <p className="text-sm sm:text-base font-mono font-bold text-emerald-400">
+                      {advancedStats.resistance > 0 ? advancedStats.resistance.toFixed(4) : '-'}
+                    </p>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-rose-500/5 border border-rose-500/10 flex flex-col items-center text-center">
+                    <p className="text-[10px] text-rose-500/70 font-medium mb-1 line-clamp-1">دعم (30 يوم)</p>
+                    <p className="text-sm sm:text-base font-mono font-bold text-rose-400">
+                      {advancedStats.support > 0 ? advancedStats.support.toFixed(4) : '-'}
+                    </p>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-white/5 border border-white/10 flex flex-col items-center text-center">
+                    <p className="text-[10px] text-zinc-400 font-medium mb-1 line-clamp-1">متوسط (30 يوم)</p>
+                    <p className="text-sm sm:text-base font-mono font-bold text-white">
+                      {advancedStats.ma30 > 0 ? advancedStats.ma30.toFixed(4) : '-'}
                     </p>
                   </div>
                 </div>

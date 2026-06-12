@@ -1376,30 +1376,7 @@ async function fetchParallelRatesFromTelegram(): Promise<boolean | null> {
     let usedGramJs = false;
     let forceHttpScraper = false;
 
-    // 1. Try environment variables first (Render priority)
-    console.log("[Scraper] Attempting to initialize Telegram via environment variables...");
-    let client = null;
-    try {
-      client = await initializeTelegram();
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : String(err);
-      console.error("[Scraper] GramJS initialization via environment variables failed:", errorMsg);
-      await logErrorArabic(`فشل تهيئة تيليجرام عبر متغيرات البيئة: ${errorMsg}`, "الكاشط");
-    }
-
-    // 2. Fallback to appConfig if environment variables are missing or failed
-    if (!client && appConfig.telegramApiId && appConfig.telegramApiHash && appConfig.telegramSessionString) {
-      console.log("[Scraper] Environment variables missing or failed. Attempting via appConfig...");
-      try {
-        client = await getTelegramClient(Number(appConfig.telegramApiId), appConfig.telegramApiHash, appConfig.telegramSessionString);
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        console.error("[Scraper] GramJS client failed via appConfig:", errorMsg);
-        await logErrorArabic(`فشل الاتصال بحساب تيليجرام (appConfig): ${errorMsg}`, "الكاشط");
-      }
-    }
-
-    // 3. TelegramManager handled by singleton
+    // TelegramManager handled by singleton
     if (telegramManager) {
       usedGramJs = true;
       console.log("[Scraper] TelegramManager ready. Fetching channels in parallel...");
