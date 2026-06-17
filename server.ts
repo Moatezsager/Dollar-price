@@ -4,7 +4,7 @@ import { createServer as createViteServer } from "vite";
 import path from "path";
 import fs from "fs";
 import { createClient } from '@supabase/supabase-js';
-import { WebSocketServer } from 'ws';
+import { Server as SocketIOServer } from 'socket.io';
 import { createServer } from 'http';
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
@@ -1898,14 +1898,20 @@ async function startServer() {
   const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
   // Online Users Tracking
-  const wss = new WebSocketServer({ server });
+  const io = new SocketIOServer(server, {
+    cors: {
+      origin: "*",
+      methods: ["GET", "POST"]
+    }
+  });
   let onlineUsers = 0;
 
-  wss.on('connection', (ws: any, req: any) => {
+  io.on('connection', (socket: any) => {
+    const req = socket.request;
     if (!appConfig.enableUserTracking) {
       onlineUsers++;
       broadcastOnlineCount();
-      ws.on('close', () => {
+      socket.on('disconnect', () => {
         onlineUsers = Math.max(0, onlineUsers - 1);
         broadcastOnlineCount();
       });
@@ -1914,7 +1920,7 @@ async function startServer() {
 
     onlineUsers++;
     
-    const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress) as string;
+    const ip = (req.headers['x-forwarded-for'] || req.connection.remoteAddress) as string;
     const ua = req.headers['user-agent'] || 'Unknown';
     
     // Exclude specific IPs from being logged
@@ -1955,49 +1961,26 @@ async function startServer() {
 
     broadcastOnlineCount();
 
-    ws.on('close', () => {
+    socket.on('disconnect', () => {
       onlineUsers = Math.max(0, onlineUsers - 1);
       broadcastOnlineCount();
     });
   });
 
   function broadcastOnlineCount() {
-    const data = JSON.stringify({ type: 'online_count', count: onlineUsers });
-    wss.clients.forEach((client: any) => {
-      if (client.readyState === 1) {
-        client.send(data);
-      }
-    });
+    io.emit('online_count', { count: onlineUsers });
   }
 
   function broadcastUserLogs() {
-    const data = JSON.stringify({ type: 'user_logs', logs: userLogs });
-    wss.clients.forEach((client: any) => {
-      if (client.readyState === 1) {
-        client.send(data);
-      }
-    });
+    io.emit('user_logs', { logs: userLogs });
   }
 
   function broadcastConfigUpdate() {
-    const data = JSON.stringify({ type: 'config_update', config: appConfig });
-    wss.clients.forEach((client: any) => {
-      if (client.readyState === 1) {
-        client.send(data);
-      }
-    });
+    io.emit('config_update', { config: appConfig });
   }
 
   function broadcastRatesUpdate(updatedRates: Rates) {
-    const data = JSON.stringify({ 
-      type: 'rates_update', 
-      rates: obfuscateData(updatedRates) 
-    });
-    wss.clients.forEach((client: any) => {
-      if (client.readyState === 1) {
-        client.send(data);
-      }
-    });
+    io.emit('rates_update', { rates: obfuscateData(updatedRates) });
   }
 
   // Global Error Handlers
@@ -2420,6 +2403,9 @@ async function startServer() {
       const client = new TelegramClient(stringSession, Number(apiId), apiHash, {
         connectionRetries: 5,
         useWSS: false,
+        deviceModel: "PriceScraperServer",
+        systemVersion: "1.0.0",
+        appVersion: "1.0",
       });
 
       await client.connect();

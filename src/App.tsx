@@ -53,6 +53,9 @@ import { FlagIcon } from "./components/FlagIcon";
 import { Developers } from "./Developers";
 import { Contact } from "./Contact";
 import { decodeData } from "./utils/security";
+import { io } from "socket.io-client";
+import { RateCell } from "./components/RateCell";
+import { usePriceFlash } from "./hooks/usePriceFlash";
 
 
 interface Rates {
@@ -897,41 +900,28 @@ export default function App() {
   };
 
   useEffect(() => {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}`;
-    let socket: WebSocket | null = null;
-    let reconnectTimeout: any = null;
+    let socket: any = null;
 
     const connect = () => {
       try {
-        socket = new WebSocket(wsUrl);
+        socket = io();
 
-        socket.onmessage = (event) => {
-          try {
-            const data = JSON.parse(event.data);
-            if (data.type === 'online_count') {
-              setOnlineCount(data.count);
-            } else if (data.type === 'rates_update') {
-              const decodedRates = decodeData(data.rates);
-              if (decodedRates) {
-                setRates(decodedRates);
-              }
-            }
-          } catch (err) {
-            console.error('WebSocket message error:', err);
+        socket.on('online_count', (data: any) => {
+          setOnlineCount(data.count);
+        });
+
+        socket.on('rates_update', (data: any) => {
+          const decodedRates = decodeData(data.rates);
+          if (decodedRates) {
+            setRates(decodedRates);
           }
-        };
+        });
 
-        socket.onclose = () => {
-          reconnectTimeout = setTimeout(connect, 3000);
-        };
-
-        socket.onerror = () => {
-          socket?.close();
-        };
+        socket.on('connect_error', (err: any) => {
+          console.error('Socket.io connection error:', err);
+        });
       } catch (err) {
-        console.error('WebSocket connection error:', err);
-        reconnectTimeout = setTimeout(connect, 5000);
+        console.error('Socket.io initialization error:', err);
       }
     };
 
@@ -952,8 +942,9 @@ export default function App() {
     }, 30000);
 
     return () => {
-      socket?.close();
-      clearTimeout(reconnectTimeout);
+      if (socket) {
+        socket.disconnect();
+      }
       clearInterval(pollInterval);
     };
   }, []);
@@ -1169,13 +1160,8 @@ export default function App() {
 
   useEffect(() => {
     fetchData().catch(() => {});
-    if (!autoRefreshEnabled) return;
-    const intervalTime = dataSaver ? 60000 : 10000;
-    const interval = setInterval(() => {
-      fetchData().catch(() => {});
-    }, intervalTime);
-    return () => clearInterval(interval);
-  }, [autoRefreshEnabled, dataSaver]);
+    // Polling removed in favor of Socket.io real-time updates
+  }, []);
 
   const filteredHistory = useMemo(() => {
     if (!history.length) return [];
@@ -1315,6 +1301,59 @@ export default function App() {
     return trends;
   }, [history, rates]);
 
+  // الأسعار التي لم تتغير منذ أكثر من 7 أيام
+  const staleCurrencies = useMemo(() => {
+    const result = new Set<string>();
+    if (!history.length || configTerms.length === 0) return result;
+    
+    const now = new Date();
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    
+    configTerms.forEach(term => {
+      if (term.id === "USD" || term.id === "OFFICIAL_USD") return;
+
+      const termPoints = history.map(h => ({
+        time: new Date(h.time),
+        value: h.ratesParallel ? (h.ratesParallel[term.id] || 0) : 0
+      })).filter(h => h.value > 0);
+      
+      if (termPoints.length === 0) {
+        result.add(term.id);
+        return;
+      }
+      
+      termPoints.sort((a, b) => a.time.getTime() - b.time.getTime());
+      
+      const latestValue = termPoints[termPoints.length - 1].value;
+      const latestTime = termPoints[termPoints.length - 1].time;
+      
+      if (latestTime.getTime() < sevenDaysAgo.getTime()) {
+        result.add(term.id);
+        return;
+      }
+      
+      let lastDifferentTime = null;
+      for (let i = termPoints.length - 2; i >= 0; i--) {
+        if (termPoints[i].value !== latestValue) {
+          lastDifferentTime = termPoints[i].time;
+          break;
+        }
+      }
+      
+      if (!lastDifferentTime) {
+         if (termPoints[0].time.getTime() < sevenDaysAgo.getTime()) {
+             result.add(term.id);
+         }
+      } else {
+         if (lastDifferentTime.getTime() < sevenDaysAgo.getTime()) {
+             result.add(term.id);
+         }
+      }
+    });
+
+    return result;
+  }, [history, configTerms]);
+
   const marketStatus = useMemo(() => {
     const usdTrend = trends24h['USD']?.parallel || 0;
     const absChange = Math.abs(usdTrend);
@@ -1411,6 +1450,7 @@ export default function App() {
   }, [convActiveField, convInputValue, convCurrency, rates]);
 
   const usdRate = rates?.parallel["USD"] || 0;
+  const usdFlash = usePriceFlash(usdRate);
   const prevUsdRate = rates?.previousParallel?.["USD"] || usdRate;
   const usdIsUp = usdRate > prevUsdRate;
   const usdIsDown = usdRate < prevUsdRate;
@@ -1904,7 +1944,11 @@ export default function App() {
                     initial={{ opacity: 0, y: -20 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: 20 }}
-                    className="text-6xl sm:text-8xl lg:text-[140px] font-light text-white tracking-tighter font-mono leading-none group-hover:text-emerald-400 transition-colors relative z-10"
+                    className={`text-6xl sm:text-8xl lg:text-[140px] font-light tracking-tighter font-mono leading-none transition-colors relative z-10 ${
+                      usdFlash === 'up' ? 'text-rose-400 font-bold drop-shadow-[0_0_15px_rgba(244,63,94,0.8)]' : 
+                      usdFlash === 'down' ? 'text-emerald-400 font-bold drop-shadow-[0_0_15px_rgba(16,185,129,0.8)]' : 
+                      'text-white group-hover:text-emerald-400'
+                    }`}
                   >
                     {usdRate.toFixed(2)}
                   </motion.span>
@@ -2085,7 +2129,7 @@ export default function App() {
               {(!rates || configTerms.length === 0) ? (
                 Array(5).fill(0).map((_, i) => <RateSkeleton key={i} />)
               ) : (
-                configTerms.filter(t => t.id !== "USD" && t.id !== "OFFICIAL_USD" && !t.id.startsWith("USD_") && !METAL_IDS.includes(t.id))
+                configTerms.filter(t => t.id !== "USD" && t.id !== "OFFICIAL_USD" && !t.id.startsWith("USD_") && !METAL_IDS.includes(t.id) && !staleCurrencies.has(t.id))
                   .slice(0, expandedSections.foreign ? undefined : 5)
                   .map(term => {
                   const rate = rates?.parallel[term.id] || 0;
@@ -2094,33 +2138,15 @@ export default function App() {
                   const isDown = rate < prevRate;
 
                   return (
-                    <div 
-                      key={`parallel-${term.id}`} 
+                    <RateCell
+                      key={`parallel-${term.id}`}
+                      term={term}
+                      rate={rate}
+                      prevRate={prevRate}
+                      trend={trends24h[term.id]?.parallel}
+                      lastChangedDate={rates?.lastChanged?.parallel[term.id]}
                       onClick={() => setSelectedRate({ code: term.id, name: term.name, market: 'parallel' })}
-                      className="flex flex-col group p-2.5 rounded-2xl hover:bg-white/[0.02] transition-colors -m-2.5 cursor-pointer relative"
-                    >
-                      <div className="flex items-center justify-between mb-3 sm:mb-4">
-                        <div className="flex items-center gap-2">
-                          <FlagIcon flagCode={term.flag} name={term.name} fallbackType="coins" />
-                          <span className="text-[11px] font-medium text-zinc-400">{term.name}</span>
-                        </div>
-                        {trends24h[term.id]?.parallel !== undefined && (
-                          <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-md ${
-                            trends24h[term.id].parallel! > 0 ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'
-                          }`}>
-                            {trends24h[term.id].parallel! > 0 ? '+' : ''}{trends24h[term.id].parallel!.toFixed(1)}%
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-2xl font-light text-white font-mono tracking-tight group-hover:text-emerald-400 transition-colors">{rate.toFixed(2)}</span>
-                        {isUp ? <ArrowUpRight className="w-3 h-3 text-rose-400" /> : isDown ? <ArrowDownRight className="w-3 h-3 text-emerald-400" /> : null}
-                      </div>
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[9px] text-zinc-700 font-mono" dir="ltr">السابق: {prevRate.toFixed(2)}</span>
-                        <LastChangedBadge date={rates?.lastChanged?.parallel[term.id]} />
-                      </div>
-                    </div>
+                    />
                   );
                 })
               )}
@@ -2147,7 +2173,7 @@ export default function App() {
               {(!rates || configTerms.length === 0) ? (
                 Array(5).fill(0).map((_, i) => <RateSkeleton key={i} />)
               ) : (
-                configTerms.filter(t => t.id.startsWith("USD_") && !["USD_AE", "USD_TR", "USD_CN"].includes(t.id))
+                configTerms.filter(t => t.id.startsWith("USD_") && !["USD_AE", "USD_TR", "USD_CN"].includes(t.id) && !staleCurrencies.has(t.id))
                   .slice(0, expandedSections.checks ? undefined : 5)
                   .map(term => {
                   const rate = rates?.parallel[term.id] || 0;
@@ -2156,33 +2182,15 @@ export default function App() {
                   const isDown = rate < prevRate;
 
                   return (
-                    <div 
-                      key={`parallel-${term.id}`} 
+                    <RateCell
+                      key={`parallel-${term.id}`}
+                      term={term}
+                      rate={rate}
+                      prevRate={prevRate}
+                      trend={trends24h[term.id]?.parallel}
+                      lastChangedDate={rates?.lastChanged?.parallel[term.id]}
                       onClick={() => setSelectedRate({ code: term.id, name: term.name, market: 'parallel' })}
-                      className="flex flex-col group p-2.5 rounded-2xl hover:bg-white/[0.02] transition-colors -m-2.5 cursor-pointer relative"
-                    >
-                      <div className="flex items-center justify-between mb-3 sm:mb-4">
-                        <div className="flex items-center gap-2">
-                          <FlagIcon flagCode={term.flag} name={term.name} fallbackType="building" />
-                          <span className="text-[11px] font-medium text-zinc-400">{term.name}</span>
-                        </div>
-                        {trends24h[term.id]?.parallel !== undefined && (
-                          <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-md ${
-                            trends24h[term.id].parallel! > 0 ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'
-                          }`}>
-                            {trends24h[term.id].parallel! > 0 ? '+' : ''}{trends24h[term.id].parallel!.toFixed(1)}%
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-2xl font-light text-white font-mono tracking-tight group-hover:text-blue-400 transition-colors">{rate.toFixed(2)}</span>
-                        {isUp ? <ArrowUpRight className="w-3 h-3 text-rose-400" /> : isDown ? <ArrowDownRight className="w-3 h-3 text-emerald-400" /> : null}
-                      </div>
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[9px] text-zinc-700 font-mono" dir="ltr">السابق: {prevRate.toFixed(2)}</span>
-                        <LastChangedBadge date={rates?.lastChanged?.parallel[term.id]} />
-                      </div>
-                    </div>
+                    />
                   );
                 })
               )}
@@ -2209,7 +2217,7 @@ export default function App() {
               {(!rates || configTerms.length === 0) ? (
                 Array(5).fill(0).map((_, i) => <RateSkeleton key={i} />)
               ) : (
-                configTerms.filter(t => METAL_IDS.includes(t.id))
+                configTerms.filter(t => METAL_IDS.includes(t.id) && !staleCurrencies.has(t.id))
                   .slice(0, expandedSections.metals ? undefined : 5)
                   .map(term => {
                   const rate = rates?.parallel[term.id] || 0;
@@ -2219,47 +2227,16 @@ export default function App() {
                   const isSilver = term.id.includes('SILVER');
 
                   return (
-                    <div 
-                      key={`parallel-${term.id}`} 
+                    <RateCell
+                      key={`parallel-${term.id}`}
+                      term={term}
+                      rate={rate}
+                      prevRate={prevRate}
+                      trend={trends24h[term.id]?.parallel}
+                      lastChangedDate={rates?.lastChanged?.parallel[term.id]}
+                      decimals={isSilver ? 2 : 0}
                       onClick={() => setSelectedRate({ code: term.id, name: term.name, market: 'parallel' })}
-                      className="flex flex-col group p-2.5 rounded-2xl hover:bg-white/[0.02] transition-colors -m-2.5 cursor-pointer relative"
-                    >
-                      <div className="flex items-center justify-between mb-3 sm:mb-4">
-                        <div className="flex items-center gap-2">
-                          <div className={`w-8 h-8 rounded-xl flex items-center justify-center border ${
-                            isSilver 
-                              ? 'bg-zinc-500/10 border-zinc-500/20' 
-                              : 'bg-amber-500/10 border-amber-500/20'
-                          }`}>
-                            {isSilver ? (
-                              <Disc className="w-4 h-4 text-zinc-400" />
-                            ) : (
-                              <Coins className="w-4 h-4 text-amber-500" />
-                            )}
-                          </div>
-                          <span className="text-[11px] font-medium text-zinc-400">{term.name}</span>
-                        </div>
-                        {trends24h[term.id]?.parallel !== undefined && (
-                          <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-md ${
-                            trends24h[term.id].parallel! > 0 ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'
-                          }`}>
-                            {trends24h[term.id].parallel! > 0 ? '+' : ''}{trends24h[term.id].parallel!.toFixed(1)}%
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className={`text-2xl font-light text-white font-mono tracking-tight transition-colors ${
-                          isSilver ? 'group-hover:text-zinc-300' : 'group-hover:text-amber-400'
-                        }`}>
-                          {isSilver ? rate.toFixed(2) : Math.round(rate)}
-                        </span>
-                        {isUp ? <ArrowUpRight className="w-3 h-3 text-rose-400" /> : isDown ? <ArrowDownRight className="w-3 h-3 text-emerald-400" /> : null}
-                      </div>
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[9px] text-zinc-700 font-mono" dir="ltr">السابق: {isSilver ? prevRate.toFixed(2) : Math.round(prevRate)}</span>
-                        <LastChangedBadge date={rates?.lastChanged?.parallel[term.id]} />
-                      </div>
-                    </div>
+                    />
                   );
                 })
               )}
@@ -2286,7 +2263,7 @@ export default function App() {
               {(!rates || configTerms.length === 0) ? (
                 Array(5).fill(0).map((_, i) => <RateSkeleton key={i} />)
               ) : (
-                configTerms.filter(t => ["USD_AE", "USD_TR", "USD_CN"].includes(t.id))
+                configTerms.filter(t => ["USD_AE", "USD_TR", "USD_CN"].includes(t.id) && !staleCurrencies.has(t.id))
                   .slice(0, expandedSections.transfers ? undefined : 5)
                   .map(term => {
                   const rate = rates?.parallel[term.id] || 0;
@@ -2295,36 +2272,16 @@ export default function App() {
                   const isDown = rate < prevRate;
 
                   return (
-                    <div 
-                      key={`parallel-${term.id}`} 
+                    <RateCell
+                      key={`parallel-${term.id}`}
+                      term={term}
+                      rate={rate}
+                      prevRate={prevRate}
+                      trend={trends24h[term.id]?.parallel}
+                      lastChangedDate={rates?.lastChanged?.parallel[term.id]}
+                      fallbackType="send"
                       onClick={() => setSelectedRate({ code: term.id, name: term.name, market: 'parallel' })}
-                      className="flex flex-col group p-2.5 rounded-2xl hover:bg-white/[0.02] transition-colors -m-2.5 cursor-pointer relative"
-                    >
-                      <div className="flex items-center justify-between mb-3 sm:mb-4">
-                        <div className="flex items-center gap-2">
-                          <FlagIcon flagCode={term.flag} name={term.name} fallbackType="send" />
-                          <span className="text-[11px] font-medium text-zinc-400">{term.name}</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-2xl font-light text-white font-mono tracking-tight group-hover:text-indigo-400 transition-colors">{rate.toFixed(2)}</span>
-                        {trends24h[term.id]?.parallel !== undefined && (
-                          <span className={`text-[10px] font-mono font-medium px-1.5 py-0.5 rounded-md flex items-center gap-0.5 ${
-                            trends24h[term.id].parallel! > 0 ? 'bg-rose-500/10 text-rose-500' : 
-                            trends24h[term.id].parallel! < 0 ? 'bg-emerald-500/10 text-emerald-500' : 
-                            'bg-zinc-500/10 text-zinc-400'
-                          }`}>
-                            {trends24h[term.id].parallel! > 0 ? <ArrowUpRight className="w-3 h-3" /> : 
-                             trends24h[term.id].parallel! < 0 ? <ArrowDownRight className="w-3 h-3" /> : null}
-                            <span dir="ltr">{Math.abs(trends24h[term.id].parallel!).toFixed(1)}%</span>
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[9px] text-zinc-700 font-mono" dir="ltr">السابق: {prevRate.toFixed(2)}</span>
-                        <LastChangedBadge date={rates?.lastChanged?.parallel[term.id]} />
-                      </div>
-                    </div>
+                    />
                   );
                 })
               )}
@@ -2361,35 +2318,15 @@ export default function App() {
                 const isDown = rate < prevRate;
 
                 return (
-                  <div 
-                    key={`official-${currency.code}`} 
+                  <RateCell
+                    key={`official-${currency.code}`}
+                    term={{ id: currency.code, name: currency.code, flag: currency.flag }}
+                    rate={rate}
+                    prevRate={prevRate}
+                    trend={trends24h[currency.code]?.official}
+                    lastChangedDate={rates?.lastChanged?.official[currency.code]}
                     onClick={() => setSelectedRate({ code: currency.code, name: currency.name, market: 'official' })}
-                    className="flex flex-col group p-3 rounded-2xl hover:bg-white/[0.02] transition-colors -m-3 cursor-pointer"
-                  >
-                    <div className="flex items-center justify-between mb-3 sm:mb-4">
-                      <div className="flex items-center gap-2 sm:gap-3">
-                        <FlagIcon flagCode={currency.flag} name={currency.name} className="w-4 h-4 sm:w-5 sm:h-5" fallbackType="coins" />
-                        <span className="text-[11px] sm:text-xs font-medium text-zinc-400">{currency.code}</span>
-                      </div>
-
-                      {/* 24h Trend Badge */}
-                      {trends24h[currency.code]?.official !== undefined && (
-                        <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-md ${
-                          trends24h[currency.code].official! > 0 ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'
-                        }`}>
-                          {trends24h[currency.code].official! > 0 ? '+' : ''}{trends24h[currency.code].official!.toFixed(1)}%
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xl font-light text-zinc-300 font-mono tracking-tight group-hover:text-emerald-400 transition-colors">{rate.toFixed(2)}</span>
-                      {isUp ? <ArrowUpRight className="w-3 h-3 text-rose-400 opacity-70" /> : isDown ? <ArrowDownRight className="w-3 h-3 text-emerald-400 opacity-70" /> : null}
-                    </div>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[9px] text-zinc-800 font-mono" dir="ltr">Prev: {prevRate.toFixed(2)}</span>
-                      <LastChangedBadge date={rates?.lastChanged?.official[currency.code]} />
-                    </div>
-                  </div>
+                  />
                 );
               })
             )}
@@ -3127,7 +3064,7 @@ export default function App() {
               <p className="text-sm text-zinc-400 mb-6 text-right">اختر العملات التي ترغب في تضمينها في التقرير:</p>
               
               <div className="grid grid-cols-2 gap-3 mb-8 max-h-[300px] overflow-y-auto pr-2">
-                {configTerms.filter(c => c.id !== 'OFFICIAL_USD').map(c => (
+                {configTerms.filter(c => c.id !== 'OFFICIAL_USD' && !staleCurrencies.has(c.id)).map(c => (
                   <button
                     key={c.id}
                     onClick={() => {
@@ -3291,7 +3228,7 @@ export default function App() {
                   </tr>
                 </thead>
                 <tbody>
-                  {configTerms.filter(c => c.id !== 'OFFICIAL_USD' && selectedCurrencies.includes(c.id)).map((c, idx) => {
+                  {configTerms.filter(c => c.id !== 'OFFICIAL_USD' && selectedCurrencies.includes(c.id) && !staleCurrencies.has(c.id)).map((c, idx) => {
                     const rate = rates?.parallel[c.id] || 0;
                     if (rate === 0) return null; // Skip empty rates
                     const prev = rates?.previousParallel?.[c.id] || rate;

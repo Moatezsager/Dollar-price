@@ -76,15 +76,14 @@ export class TelegramManager {
       }
 
       const stringSession = new StringSession(this.sessionString || "");
-      const instanceId = Math.random().toString(36).substring(7);
       this.client = new TelegramClient(stringSession, this.apiId, this.apiHash, {
-        connectionRetries: 10,
+        connectionRetries: 3,
         useWSS: false,
         autoReconnect: true,
         floodSleepThreshold: 120,
-        deviceModel: `PriceScraperServer-${instanceId}`,
+        deviceModel: "PriceScraperServer",
         systemVersion: "1.0.0",
-        appVersion: "1.0.0",
+        appVersion: "1.0",
       });
 
       // Set up event listeners for stability
@@ -106,9 +105,10 @@ export class TelegramManager {
       const errorMsg = error.message || String(error);
       console.error("[TelegramManager] Connection failed:", errorMsg);
       
+      let cooldownExtra = 0;
       if (errorMsg.includes("AUTH_KEY_DUPLICATED")) {
-        console.error("[TelegramManager] CRITICAL: Auth key is duplicated. This session is being used by another client. Waiting 10s before cleanup...");
-        await new Promise(resolve => setTimeout(resolve, 10000));
+        console.error("[TelegramManager] CRITICAL: Auth key is duplicated. This session is being used by another client. Entering 5-minute cooldown...");
+        cooldownExtra = 300000; // 5 minutes extra cooldown
       }
       
       if (this.client) {
@@ -116,7 +116,7 @@ export class TelegramManager {
       }
       this.client = null;
       activeClient = null;
-      this.lastFailureTime = Date.now();
+      this.lastFailureTime = Date.now() + cooldownExtra;
       return null;
     } finally {
       this.isConnecting = false;
