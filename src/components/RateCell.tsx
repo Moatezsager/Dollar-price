@@ -2,6 +2,8 @@ import React from 'react';
 import { ArrowDownRight, ArrowUpRight } from 'lucide-react';
 import { FlagIcon } from './FlagIcon';
 import { usePriceFlash } from '../hooks/usePriceFlash';
+import { formatDistanceToNow } from 'date-fns';
+import { ar } from 'date-fns/locale';
 
 interface RateCellProps {
   term: { id: string; name: string; flag: string };
@@ -48,7 +50,13 @@ export const RateCell = ({ term, rate, prevRate, trend, lastChangedDate, fallbac
       <div className="flex items-center justify-between gap-2">
         <span className="text-[9px] text-zinc-700 font-mono" dir="ltr">السابق: {prevRate.toFixed(decimals)}</span>
         {lastChangedDate && <div className="text-[9px] text-zinc-600 bg-white/5 rounded px-1.5 py-0.5 whitespace-nowrap">
-          {new Date(lastChangedDate).toLocaleTimeString('ar-LY', { hour: '2-digit', minute: '2-digit' })}
+          {(() => {
+            try {
+              return formatDistanceToNow(new Date(lastChangedDate), { addSuffix: true, locale: ar });
+            } catch (e) {
+              return lastChangedDate;
+            }
+          })()}
         </div>}
       </div>
     </div>
