@@ -6,7 +6,7 @@ import {
   ArrowLeftRight, ArrowUpRight, ArrowDownRight, CheckCircle2, RefreshCw, Layers, Globe, Zap, Search,
   ChevronDown, ChevronUp, Clock, Info, Building2, Coins, Send, Building, TrendingUp,
   Stethoscope, ListX, Trash, LayoutDashboard, Menu, BarChart3, Bell, Shield, Database, Link, Copy, Code2,
-  Download, Pause, Play, Filter, XCircle, AlertCircle, Mail, MessageSquare, DownloadCloud
+  Download, Pause, Play, Filter, XCircle, AlertCircle, Mail, MessageSquare, DownloadCloud, Sparkles
 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { ar } from "date-fns/locale";
@@ -3233,6 +3233,32 @@ export default function Admin() {
                     </div>
                     
                     <div className="flex justify-end gap-3 pt-2 border-t border-white/5">
+                      <button
+                        onClick={async () => {
+                          try {
+                            const res = await fetch("/api/admin/telegram/publish-analysis", {
+                              method: "POST",
+                              headers: { 
+                                Authorization: `Bearer ${token}`,
+                                "Content-Type": "application/json"
+                              },
+                              body: JSON.stringify({ channel: config?.telegramPostChannel })
+                            });
+                            const data = await res.json();
+                            if (data.success) {
+                              setSuccess("تم إرسال ونشر رؤية السوق بنجاح!");
+                            } else {
+                              setError(data.error || "فشل إرسال رؤية السوق");
+                            }
+                          } catch (err: any) {
+                            setError("فشل في الاتصال بالخادم");
+                          }
+                        }}
+                        className="px-6 py-2 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-400 font-bold transition-colors flex items-center gap-2"
+                      >
+                        <Sparkles className="w-4 h-4" />
+                        نشر رؤية السوق ذكية
+                      </button>
                       <button
                         onClick={async () => {
                           try {

@@ -1146,7 +1146,8 @@ async function broadcastRateChanges(updates: {name: string, oldVal: number, newV
   }
   
   message += `━━━━━━━━━━━━━━━━━\n`;
-  message += `📱 المصدر: شبكة مراسلي مؤشر الدينار`;
+  message += `🔗 تابع التحديثات الحية على منصتنا:\n🌐 https://h1.nu/1rWaV\n\n`;
+  message += `📱 المصدر: شبكة مراسلي مؤشر الدينار | الدقة والسرعة`;
   
   try {
     const success = await telegramManager.sendMessage(appConfig.telegramPostChannel, message);
@@ -1209,8 +1210,15 @@ async function loadConfigFromSupabase() {
 
       // 3. Ensure channels is a valid array
       if (!Array.isArray(dbConfig.channels) || dbConfig.channels.length === 0) {
-        dbConfig.channels = ["dollarr_ly", "musheermarket", "lydollar", "djheih2026", "suqalmushir"];
+        dbConfig.channels = ["dollarr_ly", "musheermarket", "lydollar", "suqalmushir"];
         console.warn("[Migration] Channels list was empty or invalid, restored defaults.");
+      }
+
+      // If user had djheih2026 set as post channel, but deleted it from sources, better reset it to lydollar 
+      // or clear it if that was the one causing failures
+      if (dbConfig.telegramPostChannel === "https://t.me/djheih2026" || dbConfig.telegramPostChannel === "djheih2026") {
+         dbConfig.telegramPostChannel = "";
+         console.warn("[Migration] Removed deleted channel djheih2026 from post configuration.");
       }
 
       // 4. Ensure enableHttpScraper is explicitly set (defaults to true for existing users)
@@ -1689,8 +1697,8 @@ async function fetchParallelRatesFromTelegram(): Promise<boolean | null> {
       const historyArr = priceHistory[key].sort((a, b) => {
         if (b.time !== a.time) return b.time - a.time;
         // If times are exactly equal (rare), prefer our owner channel
-        if (b.channel === "djheih2026") return 1;
-        if (a.channel === "djheih2026") return -1;
+        if (b.channel === appConfig.telegramPostChannel) return 1;
+        if (a.channel === appConfig.telegramPostChannel) return -1;
         return 0;
       });
       
@@ -3118,11 +3126,80 @@ ${updates.join('\n')}
       finalMessage += `━━━━━━━━━━━━━━━━━\n`;
       finalMessage += `${text?.trim()}\n`;
       finalMessage += `━━━━━━━━━━━━━━━━━\n`;
-      finalMessage += `📱 المصدر: شبكة مراسلي مؤشر الدينار`;
+      finalMessage += `🔗 تابع التحديثات الحية على منصتنا:\n🌐 https://h1.nu/1rWaV\n\n`;
+      finalMessage += `📱 المصدر: شبكة مراسلي مؤشر الدينار | الدقة والسرعة`;
 
       res.json({ success: true, message: finalMessage });
     } catch (err: any) {
       console.error('Error generating analysis:', err);
+      res.status(500).json({ success: false, error: err.message || "Failed to generate analysis" });
+    }
+  });
+
+  // Generate Market Analysis and Publish
+  app.post("/api/admin/telegram/publish-analysis", requireAdmin, async (req: express.Request, res: express.Response) => {
+    try {
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        return res.status(503).json({ success: false, error: "Gemini API Key is not configured." });
+      }
+      
+      const { channel } = req.body;
+      const targetChannel = channel || appConfig.telegramPostChannel;
+      
+      if (!targetChannel) {
+         return res.status(400).json({ success: false, error: "لا يوجد قناة محددة للنشر." });
+      }
+      
+      if (!telegramManager) {
+        return res.status(503).json({ success: false, error: "Telegram client is not properly initialized" });
+      }
+
+      const ai = new GoogleGenAI({ apiKey });
+      
+      const updates = [];
+      const termsToInclude = ["USD", "EUR", "GBP", "TND", "EGP"];
+      for (const t of appConfig.terms) {
+        if (termsToInclude.includes(t.id)) {
+           const currentR = rates.parallel[t.id];
+           const prevR = rates.previousParallel[t.id];
+           if (currentR) {
+              updates.push(`- ${t.name}: السعر الحالي ${currentR.toFixed(3)} ${prevR && currentR !== prevR ? '(كان '+prevR.toFixed(3)+')' : ''}`);
+           }
+        }
+      }
+
+      const prompt = `أنت خبير اقتصادي ومحلل مالي ليبي متخصص في سوق العملات ومؤشر الدينار الليبي. 
+بناءً على التغيرات التالية في أسعار الصرف في السوق الموازي:
+${updates.join('\n')}
+
+قم بكتابة نبذة أو تعليق مختصر (بحد أقصى 3-4 أسطر) يصف حالة السوق (استقرار، صعود، أو هبوط) بلهجة ليبية عامية محترفة ولبقة.
+يجب أن تكون جذابة وصالحة للنشر بقناة تيليجرام كتقرير موجز للسوق.
+لا تستخدم أي مقدمات أو خاتمات زائدة من قبيل "حسنا سأقوم بذلك"، فقط الجملة التحليلية المطلوبة. ولا تذكر الأسعار مرة أخرى بالتفصيل بل تحدث عن الاتجاه العام (مثلا السوق راكد، الدولار طاير، اليورو طايح، وهكذا).`;
+
+      const response = await ai.models.generateContent({
+          model: 'gemini-2.5-flash',
+          contents: prompt
+      });
+      
+      const text = response.text;
+      
+      let finalMessage = `📊 *رؤية السوق* 📊\n`;
+      finalMessage += `━━━━━━━━━━━━━━━━━\n`;
+      finalMessage += `${text?.trim()}\n`;
+      finalMessage += `━━━━━━━━━━━━━━━━━\n`;
+      finalMessage += `🔗 تابع التحديثات الحية على منصتنا:\n🌐 https://h1.nu/1rWaV\n\n`;
+      finalMessage += `📱 المصدر: شبكة مراسلي مؤشر الدينار | الدقة والسرعة`;
+
+      const success = await telegramManager.sendMessage(targetChannel, finalMessage);
+      
+      if (success) {
+        res.json({ success: true, message: "تم نشر رؤية السوق بنجاح" });
+      } else {
+        res.status(500).json({ success: false, error: "فشل نشر رؤية السوق على تيليجرام" });
+      }
+    } catch (err: any) {
+      console.error('Error generating and publishing analysis:', err);
       res.status(500).json({ success: false, error: err.message || "Failed to generate analysis" });
     }
   });
