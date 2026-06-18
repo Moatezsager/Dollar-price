@@ -134,7 +134,11 @@ export class TelegramManager {
     }
 
     try {
-      const username = channelUsername.replace('@', '').trim();
+      let username = channelUsername.trim();
+      if (username.includes('t.me/')) {
+        username = username.split('t.me/')[1].split('/')[0].split('?')[0];
+      }
+      username = username.replace('@', '').trim();
       let entity;
       
       // Try to get entity from cache/username
@@ -171,6 +175,48 @@ export class TelegramManager {
       }
       
       return [];
+    }
+  }
+
+  /**
+   * Sends a message to a channel.
+   */
+  public async sendMessage(channelUsername: string, message: string): Promise<boolean> {
+    const client = await this.getClient();
+    if (!client) {
+      console.error(`[TelegramManager] Cannot send message to ${channelUsername}: Client not ready.`);
+      return false;
+    }
+
+    try {
+      let username = channelUsername.trim();
+      if (username.includes('t.me/')) {
+        username = username.split('t.me/')[1].split('/')[0].split('?')[0];
+      }
+      username = username.replace('@', '').trim();
+      let entity;
+      
+      // Try to get entity from cache/username
+      try {
+        entity = await client.getEntity(username);
+      } catch (e) {
+        console.log(`[TelegramManager] Entity not found for ${username}, resolving to send message...`);
+        const resolved = await client.invoke(new Api.contacts.ResolveUsername({ username }));
+        if (resolved.chats && resolved.chats.length > 0) {
+          entity = resolved.chats[0];
+        } else if (resolved.users && resolved.users.length > 0) {
+          entity = resolved.users[0];
+        } else {
+          entity = username;
+        }
+      }
+
+      await client.sendMessage(entity, { message });
+      console.log(`[TelegramManager] Successfully sent message to ${channelUsername}`);
+      return true;
+    } catch (error: any) {
+      console.error(`[TelegramManager] Error sending message to ${channelUsername}:`, error.message || error);
+      return false;
     }
   }
 

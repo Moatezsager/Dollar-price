@@ -86,6 +86,8 @@ interface AppConfig {
   telegramApiId?: number;
   telegramApiHash?: string;
   telegramSessionString?: string;
+  telegramPostChannel?: string;
+  telegramAutoPost?: boolean;
   enableHttpScraper?: boolean;
   enableUserTracking?: boolean;
   apiConfig?: {
@@ -1043,6 +1045,8 @@ async function fetchOfficialRates(): Promise<boolean> {
 // Dynamic Configuration
 let appConfig: AppConfig = {
   channels: ["dollarr_ly", "musheermarket", "lydollar", "djheih2026", "suqalmushir"],
+  telegramPostChannel: "djheih2026",
+  telegramAutoPost: false,
   enableHttpScraper: true,
   enableUserTracking: true,
   apiConfig: {
@@ -1088,6 +1092,57 @@ let appConfig: AppConfig = {
   ]
 };
 let telegramManager: TelegramManager | null = null;
+
+async function broadcastRateChanges(updates: {name: string, oldVal: number, newVal: number, flag: string}[]) {
+  if (!appConfig.telegramAutoPost || !appConfig.telegramPostChannel || !telegramManager || !telegramManager.isConnected()) return;
+  
+  if (updates.length === 0) return;
+  
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('ar-LY', { timeZone: 'Africa/Tripoli' });
+  const timeStr = now.toLocaleTimeString('ar-LY', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit' });
+  
+  let message = `📊 تحديث أسعار الصرف\n`;
+  message += `🗓️ التاريخ: ${dateStr}\n`;
+  message += `⏰ الوقت: ${timeStr}\n\n`;
+  
+  for (const u of updates) {
+    const isUp = u.newVal > u.oldVal;
+    const isDown = u.newVal < u.oldVal;
+    let emoji = '➖';
+    if (isUp) emoji = '📈';
+    if (isDown) emoji = '📉';
+    
+    const flagMap: Record<string, string> = {
+      'us': '🇺🇸', 'eu': '🇪🇺', 'gb': '🇬🇧', 'tn': '🇹🇳', 'eg': '🇪🇬', 
+      'tr': '🇹🇷', 'ly': '🇱🇾', 'jo': '🇯🇴', 'bh': '🇧🇭', 'kw': '🇰🇼',
+      'ae': '🇦🇪', 'sa': '🇸🇦', 'qa': '🇶🇦', 'cn': '🇨🇳'
+    };
+    
+    const fe = flagMap[u.flag] || '💰';
+    
+    message += `${fe} ${u.name}: ${u.newVal.toFixed(2)} `;
+    if (isUp || isDown) {
+      const diff = Math.abs(u.newVal - u.oldVal);
+      message += `${emoji} (السعر السابق ${u.oldVal.toFixed(2)})\n`;
+    } else {
+      message += `\n`;
+    }
+  }
+  
+  message += `\n📱 المصدر: شبكة مراسلي مؤشر الدينار`;
+  
+  try {
+    const success = await telegramManager.sendMessage(appConfig.telegramPostChannel, message);
+    if (success) {
+      console.log(`[Telegram Broadcast] Successfully broadcasted changes to ${appConfig.telegramPostChannel}`);
+    } else {
+      console.log(`[Telegram Broadcast] Failed to broadcast changes to ${appConfig.telegramPostChannel}`);
+    }
+  } catch (err: any) {
+    console.error(`[Telegram Broadcast] Error: ${err.message || err}`);
+  }
+}
 
 async function loadConfigFromSupabase() {
   if (!supabase || !supabaseAnonKey || supabaseAnonKey.includes('dummy')) return;
@@ -1639,6 +1694,7 @@ async function fetchParallelRatesFromTelegram(): Promise<boolean | null> {
       console.log(`[Scraper] Scrape check completed. Found rates for: ${foundKeys.join(', ')}`);
       
       let anyChanged = false;
+      const telegramUpdates: {name: string, oldVal: number, newVal: number, flag: string}[] = [];
 
       // Dynamically assign all extracted rates
       for (const term of appConfig.terms) {
@@ -1684,6 +1740,13 @@ async function fetchParallelRatesFromTelegram(): Promise<boolean | null> {
             rates.lastChanged.parallel[term.id] = new Date().toISOString();
             anyChanged = true;
             
+            telegramUpdates.push({
+              name: term.name,
+              oldVal: currentVal || newValFromTelegram,
+              newVal: newValFromTelegram,
+              flag: term.flag
+            });
+            
             const changeLog = {
               id: Math.random().toString(36).substring(2, 9),
               currencyCode: term.id,
@@ -1725,6 +1788,13 @@ async function fetchParallelRatesFromTelegram(): Promise<boolean | null> {
         }
         
         console.log(`[Scraper] Applied changes. New USD: ${rates.parallel.USD}`);
+        
+        // Broadcast to Telegram channel
+        if (telegramUpdates.length > 0) {
+          broadcastRateChanges(telegramUpdates).catch(err => {
+            console.error("[Scraper] Failed to auto-broadcast to Telegram:", err);
+          });
+        }
         
         // Also update local history fallback for chart
         history.push({
@@ -2815,6 +2885,8 @@ async function startServer() {
       }
       
       let changed = false;
+      const telegramUpdates: {name: string, oldVal: number, newVal: number, flag: string}[] = [];
+      
       for (const [key, value] of Object.entries(updates)) {
         const numValue = Number(value);
         if (!isNaN(numValue) && numValue > 0) {
@@ -2826,6 +2898,16 @@ async function startServer() {
             changed = true;
             
             const term = appConfig.terms.find(t => t.id === key);
+            
+            if (term) {
+              telegramUpdates.push({
+                name: term.name,
+                oldVal: oldVal,
+                newVal: numValue,
+                flag: term.flag
+              });
+            }
+            
             const changeLog = {
               id: Math.random().toString(36).substring(2, 9),
               currencyCode: key,
@@ -2848,6 +2930,11 @@ async function startServer() {
         await saveToSupabase('parallel');
         broadcastRatesUpdate(rates);
         res.json({ success: true, message: "تم تحديث الأسعار بنجاح" });
+        
+        // Broadcast to Telegram in background
+        broadcastRateChanges(telegramUpdates).catch(err => {
+          console.error("Failed to auto-broadcast to Telegram:", err);
+        });
       } else {
         res.json({ success: true, message: "لم يتم اكتشاف أي تغييرات" });
       }
@@ -2913,6 +3000,33 @@ async function startServer() {
       console.error(`[API] Error fetching messages for ${channel}:`, error);
       if (!res.headersSent) {
         res.status(500).json({ success: false, error: error.message || "Failed to fetch messages" });
+      }
+    }
+  });
+
+  // Programmatic access to post a message to a Telegram channel
+  app.post("/api/telegram/send-message", requireAdmin, async (req: express.Request, res: express.Response) => {
+    const { channel, message } = req.body;
+
+    if (!channel || !message) {
+      return res.status(400).json({ success: false, error: "Channel username and message are required" });
+    }
+
+    if (!telegramManager || !telegramManager.isConnected()) {
+      return res.status(503).json({ success: false, error: "Telegram client is not connected" });
+    }
+
+    try {
+      const success = await telegramManager.sendMessage(channel, message);
+      if (success) {
+        res.json({ success: true, message: "تم النشر بنجاح" });
+      } else {
+        res.status(500).json({ success: false, error: "فشل النشر" });
+      }
+    } catch (error: any) {
+      console.error(`[API] Error sending message to ${channel}:`, error);
+      if (!res.headersSent) {
+        res.status(500).json({ success: false, error: error.message || "Failed to send message" });
       }
     }
   });
