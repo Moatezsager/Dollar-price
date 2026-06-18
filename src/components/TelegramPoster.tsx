@@ -1,12 +1,40 @@
 import React, { useState } from 'react';
-import { Send, AlertCircle, CheckCircle2, MessageSquare } from 'lucide-react';
+import { Send, AlertCircle, CheckCircle2, MessageSquare, Sparkles } from 'lucide-react';
 
 export const TelegramPoster = ({ token }: { token: string }) => {
   const [channel, setChannel] = useState('');
   const [message, setMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  const handleGenerateMarketView = async () => {
+    setError(null);
+    setSuccess(null);
+    setIsGenerating(true);
+
+    try {
+      const response = await fetch('/api/admin/telegram/generate-analysis', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      const data = await response.json();
+      if (response.ok && data.success) {
+        setMessage(data.message);
+        setSuccess('تم توليد رؤية السوق بنجاح. يمكنك المراجعة والتعديل قبل النشر.');
+      } else {
+        setError(data.error || 'حدث خطأ أثناء توليد التحليل');
+      }
+    } catch (err: any) {
+      setError(err.message || 'حدث خطأ في الاتصال بالخادم');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   const handleSend = async () => {
     if (!channel || !message) {
@@ -68,13 +96,23 @@ export const TelegramPoster = ({ token }: { token: string }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-zinc-300 mb-2">محتوى الرسالة</label>
+           <div className="flex justify-between items-center mb-2">
+            <label className="block text-sm font-medium text-zinc-300">محتوى الرسالة</label>
+            <button
+              onClick={handleGenerateMarketView}
+              disabled={isGenerating}
+              className="px-3 py-1.5 flex items-center gap-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              {isGenerating ? 'جاري التوليد...' : 'ذكاء اصطناعي لرؤية السوق'}
+            </button>
+          </div>
           <textarea
             rows={5}
             placeholder="اكتب رسالتك هنا..."
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-zinc-600 focus:outline-none focus:border-blue-500/50 resize-y"
+            className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-zinc-600 focus:outline-none focus:border-blue-500/50 resize-y leading-relaxed"
             dir="rtl"
           />
         </div>

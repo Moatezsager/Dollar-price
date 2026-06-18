@@ -8,6 +8,7 @@ import { Server as SocketIOServer } from 'socket.io';
 import { createServer } from 'http';
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
+import { GoogleGenAI } from "@google/genai";
 import { TelegramClient, Api } from "telegram";
 import { StringSession } from "telegram/sessions";
 import { getTelegramClient, fetchChannelMessages, initializeTelegram, activeClient, TelegramManager, getTelegramManager } from "./telegramClient";
@@ -1044,8 +1045,8 @@ async function fetchOfficialRates(): Promise<boolean> {
 // Dynamic Configuration
 // Dynamic Configuration
 let appConfig: AppConfig = {
-  channels: ["dollarr_ly", "musheermarket", "lydollar", "djheih2026", "suqalmushir"],
-  telegramPostChannel: "djheih2026",
+  channels: ["dollarr_ly", "musheermarket", "lydollar", "suqalmushir"],
+  telegramPostChannel: "lydollar",
   telegramAutoPost: false,
   enableHttpScraper: true,
   enableUserTracking: true,
@@ -3045,10 +3046,26 @@ async function startServer() {
       const originalChannel = appConfig.telegramPostChannel;
       appConfig.telegramPostChannel = targetChannel;
       
-      const sampleUpdates = [
-        { name: "الدولار الأمريكي", oldVal: 6.95, newVal: 7.05, flag: "us" },
-        { name: "اليورو الأوروبي", oldVal: 7.60, newVal: 7.55, flag: "eu" }
-      ];
+      const sampleUpdates: {name: string, oldVal: number, newVal: number, flag: string}[] = [];
+      const termsToInclude = ["USD", "EUR", "GBP", "TND", "EGP"];
+      for (const t of appConfig.terms) {
+        if (termsToInclude.includes(t.id)) {
+           const currentR = rates.parallel[t.id];
+           const prevR = rates.previousParallel[t.id];
+           if (currentR) {
+              sampleUpdates.push({ 
+                name: t.name, 
+                oldVal: prevR || currentR, 
+                newVal: currentR, 
+                flag: t.flag || 'us' 
+              });
+           }
+        }
+      }
+      
+      if (sampleUpdates.length === 0) {
+        return res.status(400).json({ success: false, error: "لا توجد أسعار متاحة لإرسالها." });
+      }
       
       await broadcastRateChanges(sampleUpdates, true);
       
@@ -3057,6 +3074,56 @@ async function startServer() {
       res.json({ success: true, message: "تم إرسال رسالة تجريبية" });
     } catch (err: any) {
       res.status(500).json({ success: false, error: err.message || "Failed to broadcast" });
+    }
+  });
+
+  // Generate Market Analysis
+  app.post("/api/admin/telegram/generate-analysis", requireAdmin, async (req: express.Request, res: express.Response) => {
+    try {
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        return res.status(503).json({ success: false, error: "Gemini API Key is not configured." });
+      }
+
+      const ai = new GoogleGenAI({ apiKey });
+      
+      const updates = [];
+      const termsToInclude = ["USD", "EUR", "GBP", "TND", "EGP"];
+      for (const t of appConfig.terms) {
+        if (termsToInclude.includes(t.id)) {
+           const currentR = rates.parallel[t.id];
+           const prevR = rates.previousParallel[t.id];
+           if (currentR) {
+              updates.push(`- ${t.name}: السعر الحالي ${currentR.toFixed(3)} ${prevR && currentR !== prevR ? '(كان '+prevR.toFixed(3)+')' : ''}`);
+           }
+        }
+      }
+
+      const prompt = `أنت خبير اقتصادي ومحلل مالي ليبي متخصص في سوق العملات ومؤشر الدينار الليبي. 
+بناءً على التغيرات التالية في أسعار الصرف في السوق الموازي:
+${updates.join('\n')}
+
+قم بكتابة نبذة أو تعليق مختصر (بحد أقصى 3-4 أسطر) يصف حالة السوق (استقرار، صعود، أو هبوط) بلهجة ليبية عامية محترفة ولبقة.
+يجب أن تكون جذابة وصالحة للنشر بقناة تيليجرام.
+لا تستخدم أي مقدمات أو خاتمات زائدة من قبيل "حسنا سأقوم بذلك"، فقط الجملة التحليلية المطلوبة. ولا تذكر الأسعار مرة أخرى بالتفصيل بل تحدث عن الاتجاه العام (مثلا السوق راكد، الدولار طاير، اليورو طايح، وهكذا).`;
+
+      const response = await ai.models.generateContent({
+          model: 'gemini-2.5-flash',
+          contents: prompt
+      });
+      
+      const text = response.text;
+      
+      let finalMessage = `📊 *رؤية السوق* 📊\n`;
+      finalMessage += `━━━━━━━━━━━━━━━━━\n`;
+      finalMessage += `${text?.trim()}\n`;
+      finalMessage += `━━━━━━━━━━━━━━━━━\n`;
+      finalMessage += `📱 المصدر: شبكة مراسلي مؤشر الدينار`;
+
+      res.json({ success: true, message: finalMessage });
+    } catch (err: any) {
+      console.error('Error generating analysis:', err);
+      res.status(500).json({ success: false, error: err.message || "Failed to generate analysis" });
     }
   });
 
