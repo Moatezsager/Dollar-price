@@ -452,7 +452,7 @@ export default function Admin() {
 
   const fetchData = async () => {
     setLoading(true);
-    await Promise.all([fetchConfig(), fetchStats(), fetchLogs(), fetchRecentChanges(), fetchLiveFeed(), fetchApiStats()]);
+    await Promise.all([fetchConfig(), fetchStats(), fetchLogs(), fetchRecentChanges(), fetchLiveFeed(), fetchApiStats(), fetchTrackingLogs()]);
     setLoading(false);
   };
 
@@ -565,6 +565,20 @@ export default function Admin() {
       }
     } catch (err) {
       console.warn("Live feed fetch failed");
+    }
+  };
+
+  const fetchTrackingLogs = async () => {
+    try {
+      const res = await fetchWithTimeout("/api/admin/tracking/logs", {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setUserLogs(data.logs || []);
+      }
+    } catch (err) {
+      console.warn("Tracking logs fetch failed");
     }
   };
 
@@ -3224,7 +3238,11 @@ export default function Admin() {
                           try {
                             const res = await fetch("/api/admin/telegram/test-broadcast", {
                               method: "POST",
-                              headers: { Authorization: `Bearer ${token}` }
+                              headers: { 
+                                Authorization: `Bearer ${token}`,
+                                "Content-Type": "application/json"
+                              },
+                              body: JSON.stringify({ channel: config?.telegramPostChannel })
                             });
                             const data = await res.json();
                             if (data.success) {

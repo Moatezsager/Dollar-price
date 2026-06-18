@@ -1093,10 +1093,16 @@ let appConfig: AppConfig = {
 };
 let telegramManager: TelegramManager | null = null;
 
-async function broadcastRateChanges(updates: {name: string, oldVal: number, newVal: number, flag: string}[]) {
-  console.log(`[Telegram Broadcast] Check: autoPost=${appConfig.telegramAutoPost}, channel=${appConfig.telegramPostChannel}, manager=${!!telegramManager}`);
-  if (!appConfig.telegramAutoPost || !appConfig.telegramPostChannel || !telegramManager) {
-    console.log("[Telegram Broadcast] Aborting broadcast due to failed prerequisites.");
+async function broadcastRateChanges(updates: {name: string, oldVal: number, newVal: number, flag: string}[], isTest: boolean = false) {
+  console.log(`[Telegram Broadcast] Check: autoPost=${appConfig.telegramAutoPost}, channel=${appConfig.telegramPostChannel}, manager=${!!telegramManager}, test=${isTest}`);
+  
+  if (!appConfig.telegramPostChannel || !telegramManager) {
+    console.log("[Telegram Broadcast] Aborting broadcast. channel or manager missing.");
+    return;
+  }
+
+  if (!isTest && !appConfig.telegramAutoPost) {
+    console.log("[Telegram Broadcast] Aborting broadcast because telegramAutoPost is disabled.");
     return;
   }
   
@@ -3028,12 +3034,26 @@ async function startServer() {
         return res.status(503).json({ success: false, error: "Telegram client is not properly initialized" });
       }
       
+      const { channel } = req.body;
+      const targetChannel = channel || appConfig.telegramPostChannel;
+      
+      if (!targetChannel) {
+         return res.status(400).json({ success: false, error: "لا يوجد قناة محددة للنشر." });
+      }
+      
+      // Temporarily store original channel to restore after test
+      const originalChannel = appConfig.telegramPostChannel;
+      appConfig.telegramPostChannel = targetChannel;
+      
       const sampleUpdates = [
         { name: "الدولار الأمريكي", oldVal: 6.95, newVal: 7.05, flag: "us" },
         { name: "اليورو الأوروبي", oldVal: 7.60, newVal: 7.55, flag: "eu" }
       ];
       
-      await broadcastRateChanges(sampleUpdates);
+      await broadcastRateChanges(sampleUpdates, true);
+      
+      appConfig.telegramPostChannel = originalChannel;
+      
       res.json({ success: true, message: "تم إرسال رسالة تجريبية" });
     } catch (err: any) {
       res.status(500).json({ success: false, error: err.message || "Failed to broadcast" });
