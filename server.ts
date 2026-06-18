@@ -89,6 +89,7 @@ interface AppConfig {
   telegramSessionString?: string;
   telegramPostChannel?: string;
   telegramAutoPost?: boolean;
+  telegramTemplateStyle?: string;
   enableHttpScraper?: boolean;
   enableUserTracking?: boolean;
   apiConfig?: {
@@ -1048,6 +1049,7 @@ let appConfig: AppConfig = {
   channels: ["dollarr_ly", "musheermarket", "lydollar", "suqalmushir"],
   telegramPostChannel: "lydollar",
   telegramAutoPost: false,
+  telegramTemplateStyle: "classic",
   enableHttpScraper: true,
   enableUserTracking: true,
   apiConfig: {
@@ -1094,8 +1096,8 @@ let appConfig: AppConfig = {
 };
 let telegramManager: TelegramManager | null = null;
 
-async function broadcastRateChanges(updates: {name: string, oldVal: number, newVal: number, flag: string}[], isTest: boolean = false) {
-  console.log(`[Telegram Broadcast] Check: autoPost=${appConfig.telegramAutoPost}, channel=${appConfig.telegramPostChannel}, manager=${!!telegramManager}, test=${isTest}`);
+async function broadcastRateChanges(updates: {id?: string, name: string, oldVal: number, newVal: number, flag: string}[], isTest: boolean = false) {
+  console.log(`[Telegram Broadcast] Check: autoPost=${appConfig.telegramAutoPost}, channel=${appConfig.telegramPostChannel}, style=${appConfig.telegramTemplateStyle || 'classic'}, manager=${!!telegramManager}, test=${isTest}`);
   
   if (!appConfig.telegramPostChannel || !telegramManager) {
     console.log("[Telegram Broadcast] Aborting broadcast. channel or manager missing.");
@@ -1116,39 +1118,131 @@ async function broadcastRateChanges(updates: {name: string, oldVal: number, newV
   const dateStr = now.toLocaleDateString('ar-LY', { timeZone: 'Africa/Tripoli' });
   const timeStr = now.toLocaleTimeString('ar-LY', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit' });
   
-  let message = `📊 *تحديث أسعار الصرف* 📊\n`;
-  message += `━━━━━━━━━━━━━━━━━\n`;
-  message += `🗓️ التاريخ: ${dateStr}\n`;
-  message += `⏰ الوقت: ${timeStr}\n`;
-  message += `━━━━━━━━━━━━━━━━━\n\n`;
-  
-  for (const u of updates) {
-    const isUp = u.newVal > u.oldVal;
-    const isDown = u.newVal < u.oldVal;
-    let emoji = '➖ استقرار';
-    if (isUp) emoji = '📈 ارتفع';
-    if (isDown) emoji = '📉 انخفض';
-    
-    const flagMap: Record<string, string> = {
-      'us': '🇺🇸', 'eu': '🇪🇺', 'gb': '🇬🇧', 'tn': '🇹🇳', 'eg': '🇪🇬', 
-      'tr': '🇹🇷', 'ly': '🇱🇾', 'jo': '🇯🇴', 'bh': '🇧🇭', 'kw': '🇰🇼',
-      'ae': '🇦🇪', 'sa': '🇸🇦', 'qa': '🇶🇦', 'cn': '🇨🇳'
-    };
-    
-    const fe = flagMap[u.flag] || '💰';
-    
-    message += `${fe} *${u.name}*: ${u.newVal.toFixed(3)} `;
-    if (isUp || isDown) {
-      message += `${emoji} (كان ${u.oldVal.toFixed(3)})\n\n`;
-    } else {
-      message += `${emoji}\n\n`;
-    }
+  // Choose day name in Arabic for Tripoli
+  const dayNames = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+  let dayName = "الخميس";
+  try {
+    const dayIndex = new Date(now.toLocaleString('en-US', { timeZone: 'Africa/Tripoli' })).getDay();
+    dayName = dayNames[dayIndex];
+  } catch (e) {
+    // fallback
   }
-  
-  message += `━━━━━━━━━━━━━━━━━\n`;
-  message += `🔗 تابع التحديثات الحية على منصتنا:\n🌐 https://h1.nu/1rWaV\n\n`;
-  message += `📱 المصدر: شبكة مراسلي مؤشر الدينار | الدقة والسرعة`;
-  
+
+  const flagMap: Record<string, string> = {
+    'us': '🇺🇸', 'eu': '🇪🇺', 'gb': '🇬🇧', 'tn': '🇹🇳', 'eg': '🇪🇬', 
+    'tr': '🇹🇷', 'ly': '🇱🇾', 'jo': '🇯🇴', 'bh': '🇧🇭', 'kw': '🇰🇼',
+    'ae': '🇦🇪', 'sa': '🇸🇦', 'qa': '🇶🇦', 'cn': '🇨🇳'
+  };
+
+  const getCode = (u: any) => {
+    if (u.id) return u.id;
+    const name = u.name;
+    if (name.includes("دولار")) return "USD";
+    if (name.includes("يورو")) return "EUR";
+    if (name.includes("إسترليني") || name.includes("باوند")) return "GBP";
+    if (name.includes("تونسي")) return "TND";
+    if (name.includes("مصري")) return "EGP";
+    if (name.includes("تركية")) return "TRY";
+    if (name.includes("أردني")) return "JOD";
+    if (name.includes("بحريني")) return "BHD";
+    if (name.includes("كويتي")) return "KWD";
+    if (name.includes("درهم")) return "AED";
+    if (name.includes("سعودي")) return "SAR";
+    if (name.includes("قطري")) return "QAR";
+    return "CURR";
+  };
+
+  const style = appConfig.telegramTemplateStyle || "classic";
+  let message = "";
+
+  if (style === "modern") {
+    message += `📊 *أسعار الصرف – ${dayName} ${dateStr}* \n`;
+    message += `━━━━━━━━━━━━━━━━━━━\n`;
+    
+    for (const u of updates) {
+      const isUp = u.newVal > u.oldVal;
+      const isDown = u.newVal < u.oldVal;
+      const fe = flagMap[u.flag] || '💰';
+      const code = getCode(u);
+      
+      const diff = u.newVal - u.oldVal;
+      const pct = u.oldVal > 0 ? (diff / u.oldVal) * 100 : 0;
+      
+      message += `${fe} *${code}* : ${u.newVal.toFixed(3)}`;
+      if (isUp) {
+        message += ` (📈 +${pct.toFixed(2)}%)\n`;
+      } else if (isDown) {
+        message += ` (📉 ${pct.toFixed(2)}%)\n`;
+      } else {
+        message += ` (➖ استقرار)\n`;
+      }
+    }
+    
+    message += `━━━━━━━━━━━━━━━━━━━\n`;
+    message += `🔗 التحديث المباشر: https://h1.nu/1rWaV\n`;
+    message += `📱 المصدر: شبكة مراسلي مؤشر الدينار`;
+
+  } else if (style === "professional") {
+    message += `💎 *مؤشر الدينار | النشرة الاقتصادية اليومية* 💎\n`;
+    message += `━━━━━━━━━━━━━━━━━━━\n`;
+    message += `متابعينا الكرام، إليكم آخر تحديثات أسعار الصرف بالسوق الموازية لليوم:\n\n`;
+    
+    for (const u of updates) {
+      const isUp = u.newVal > u.oldVal;
+      const isDown = u.newVal < u.oldVal;
+      const fe = flagMap[u.flag] || '💰';
+      const code = getCode(u);
+      
+      const diff = u.newVal - u.oldVal;
+      const pct = u.oldVal > 0 ? (diff / u.oldVal) * 100 : 0;
+      
+      message += `${fe} *${u.name} (${code})*:\n`;
+      message += `👈 السعر الحالي: *${u.newVal.toFixed(3)} د.ل*\n`;
+      
+      if (isUp) {
+        message += `👈 الاتجاه الأخير: 📈 +${pct.toFixed(2)}% (السابق: ${u.oldVal.toFixed(3)})\n\n`;
+      } else if (isDown) {
+        message += `👈 الاتجاه الأخير: 📉 ${pct.toFixed(2)}% (السابق: ${u.oldVal.toFixed(3)})\n\n`;
+      } else {
+        message += `👈 الاتجاه الأخير: ➖ استقرار\n\n`;
+      }
+    }
+    
+    message += `━━━━━━━━━━━━━━━━━━━\n`;
+    message += `⏰ تم التحديث: ${timeStr} | 🗓️ ${dayName} - ${dateStr}\n`;
+    message += `🔗 التحديث المباشر والرسوم البيانية:\n🌐 https://h1.nu/1rWaV\n\n`;
+    message += `📱 المصدر: شبكة مراسلي مؤشر الدينار | الدقة والسرعة`;
+
+  } else {
+    // Classic style
+    message += `📊 *تحديث أسعار الصرف* 📊\n`;
+    message += `━━━━━━━━━━━━━━━━━\n`;
+    message += `🗓️ التاريخ: ${dateStr}\n`;
+    message += `⏰ الوقت: ${timeStr}\n`;
+    message += `━━━━━━━━━━━━━━━━━\n\n`;
+    
+    for (const u of updates) {
+      const isUp = u.newVal > u.oldVal;
+      const isDown = u.newVal < u.oldVal;
+      let emoji = '➖ استقرار';
+      if (isUp) emoji = '📈 ارتفع';
+      if (isDown) emoji = '📉 انخفض';
+      
+      const fe = flagMap[u.flag] || '💰';
+      
+      message += `${fe} *${u.name}*: ${u.newVal.toFixed(3)} `;
+      if (isUp || isDown) {
+        message += `${emoji} (كان ${u.oldVal.toFixed(3)})\n\n`;
+      } else {
+        message += `${emoji}\n\n`;
+      }
+    }
+    
+    message += `━━━━━━━━━━━━━━━━━\n`;
+    message += `🔗 تابع التحديثات الحية على منصتنا:\n🌐 https://h1.nu/1rWaV\n\n`;
+    message += `📱 المصدر: شبكة مراسلي مؤشر الدينار | الدقة والسرعة`;
+  }
+
   try {
     const success = await telegramManager.sendMessage(appConfig.telegramPostChannel, message);
     if (success) {
@@ -1241,6 +1335,9 @@ async function loadConfigFromSupabase() {
       }
       if (dbConfig.telegramPostChannel === undefined) {
         dbConfig.telegramPostChannel = appConfig.telegramPostChannel;
+      }
+      if (dbConfig.telegramTemplateStyle === undefined) {
+        dbConfig.telegramTemplateStyle = appConfig.telegramTemplateStyle || "classic";
       }
 
       appConfig = dbConfig;
@@ -1773,6 +1870,7 @@ async function fetchParallelRatesFromTelegram(): Promise<boolean | null> {
             anyChanged = true;
             
             telegramUpdates.push({
+              id: term.id,
               name: term.name,
               oldVal: currentVal || newValFromTelegram,
               newVal: newValFromTelegram,
@@ -2933,6 +3031,7 @@ async function startServer() {
             
             if (term) {
               telegramUpdates.push({
+                id: term.id,
                 name: term.name,
                 oldVal: oldVal,
                 newVal: numValue,
@@ -3054,7 +3153,7 @@ async function startServer() {
       const originalChannel = appConfig.telegramPostChannel;
       appConfig.telegramPostChannel = targetChannel;
       
-      const sampleUpdates: {name: string, oldVal: number, newVal: number, flag: string}[] = [];
+      const sampleUpdates: {id: string, name: string, oldVal: number, newVal: number, flag: string}[] = [];
       const termsToInclude = ["USD", "EUR", "GBP", "TND", "EGP"];
       for (const t of appConfig.terms) {
         if (termsToInclude.includes(t.id)) {
@@ -3062,6 +3161,7 @@ async function startServer() {
            const prevR = rates.previousParallel[t.id];
            if (currentR) {
               sampleUpdates.push({ 
+                id: t.id,
                 name: t.name, 
                 oldVal: prevR || currentR, 
                 newVal: currentR, 

@@ -3231,6 +3231,21 @@ export default function Admin() {
                       />
                       <p className="text-xs text-zinc-500 mt-2">انسخ الرابط (مثل https://t.me/djheih2026) أو ضع المعرف، ويجب أن يكون حسابك لديه صلاحيات النشر (أدمن).</p>
                     </div>
+
+                    <div>
+                      <label className="block text-sm font-bold text-zinc-400 mb-2">تنسيق رسالة النشر (قالب النشر تلقائي/تجريبي)</label>
+                      <select
+                        value={config?.telegramTemplateStyle || 'classic'}
+                        onChange={(e) => setConfig({ ...config, telegramTemplateStyle: e.target.value })}
+                        className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500/50"
+                        dir="rtl"
+                      >
+                        <option value="classic" className="bg-zinc-900 text-white">النمط الكلاسيكي (تفصيلي بالأسعار السابقة)</option>
+                        <option value="modern" className="bg-zinc-900 text-white">النمط الحديث المطور بمؤشر نسب التغيير 📊</option>
+                        <option value="professional" className="bg-zinc-900 text-white">النمط المهني التحليلي 💎 (الأكثر احترافية للاقتصاد)</option>
+                      </select>
+                      <p className="text-xs text-zinc-500 mt-2">اختر التنسيق المفضل لإرساله تلقائياً أو تجريبياً إلى قناتك على تيليجرام.</p>
+                    </div>
                     
                     <div className="flex justify-end gap-3 pt-2 border-t border-white/5">
                       <button
