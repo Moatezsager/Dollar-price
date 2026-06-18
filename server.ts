@@ -1094,24 +1094,33 @@ let appConfig: AppConfig = {
 let telegramManager: TelegramManager | null = null;
 
 async function broadcastRateChanges(updates: {name: string, oldVal: number, newVal: number, flag: string}[]) {
-  if (!appConfig.telegramAutoPost || !appConfig.telegramPostChannel || !telegramManager || !telegramManager.isConnected()) return;
+  console.log(`[Telegram Broadcast] Check: autoPost=${appConfig.telegramAutoPost}, channel=${appConfig.telegramPostChannel}, manager=${!!telegramManager}`);
+  if (!appConfig.telegramAutoPost || !appConfig.telegramPostChannel || !telegramManager) {
+    console.log("[Telegram Broadcast] Aborting broadcast due to failed prerequisites.");
+    return;
+  }
   
-  if (updates.length === 0) return;
+  if (updates.length === 0) {
+    console.log("[Telegram Broadcast] Aborting broadcast because updates array is empty.");
+    return;
+  }
   
   const now = new Date();
   const dateStr = now.toLocaleDateString('ar-LY', { timeZone: 'Africa/Tripoli' });
   const timeStr = now.toLocaleTimeString('ar-LY', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit' });
   
-  let message = `📊 تحديث أسعار الصرف\n`;
+  let message = `📊 *تحديث أسعار الصرف* 📊\n`;
+  message += `━━━━━━━━━━━━━━━━━\n`;
   message += `🗓️ التاريخ: ${dateStr}\n`;
-  message += `⏰ الوقت: ${timeStr}\n\n`;
+  message += `⏰ الوقت: ${timeStr}\n`;
+  message += `━━━━━━━━━━━━━━━━━\n\n`;
   
   for (const u of updates) {
     const isUp = u.newVal > u.oldVal;
     const isDown = u.newVal < u.oldVal;
-    let emoji = '➖';
-    if (isUp) emoji = '📈';
-    if (isDown) emoji = '📉';
+    let emoji = '➖ استقرار';
+    if (isUp) emoji = '📈 ارتفع';
+    if (isDown) emoji = '📉 انخفض';
     
     const flagMap: Record<string, string> = {
       'us': '🇺🇸', 'eu': '🇪🇺', 'gb': '🇬🇧', 'tn': '🇹🇳', 'eg': '🇪🇬', 
@@ -1121,16 +1130,16 @@ async function broadcastRateChanges(updates: {name: string, oldVal: number, newV
     
     const fe = flagMap[u.flag] || '💰';
     
-    message += `${fe} ${u.name}: ${u.newVal.toFixed(2)} `;
+    message += `${fe} *${u.name}*: ${u.newVal.toFixed(3)} `;
     if (isUp || isDown) {
-      const diff = Math.abs(u.newVal - u.oldVal);
-      message += `${emoji} (السعر السابق ${u.oldVal.toFixed(2)})\n`;
+      message += `${emoji} (كان ${u.oldVal.toFixed(3)})\n\n`;
     } else {
-      message += `\n`;
+      message += `${emoji}\n\n`;
     }
   }
   
-  message += `\n📱 المصدر: شبكة مراسلي مؤشر الدينار`;
+  message += `━━━━━━━━━━━━━━━━━\n`;
+  message += `📱 المصدر: شبكة مراسلي مؤشر الدينار`;
   
   try {
     const success = await telegramManager.sendMessage(appConfig.telegramPostChannel, message);
@@ -1210,6 +1219,14 @@ async function loadConfigFromSupabase() {
         }
         return t;
       });
+
+      // 6. Provide defaults for new telegram auto post settings
+      if (dbConfig.telegramAutoPost === undefined) {
+        dbConfig.telegramAutoPost = appConfig.telegramAutoPost;
+      }
+      if (dbConfig.telegramPostChannel === undefined) {
+        dbConfig.telegramPostChannel = appConfig.telegramPostChannel;
+      }
 
       appConfig = dbConfig;
       console.log(`[Startup] Initializing TelegramManager. Session length: ${(process.env.TELEGRAM_SESSION || process.env.TG_SESSION_V2 || appConfig.telegramSessionString)?.length || 0}`);
@@ -1994,7 +2011,7 @@ async function startServer() {
     const ua = req.headers['user-agent'] || 'Unknown';
     
     // Exclude specific IPs from being logged
-    const EXCLUDED_IPS = ['41.254.79.142'];
+    const EXCLUDED_IPS: string[] = []; // Removed '41.254.79.142' so you can see yourself during testing
     const shouldLog = !EXCLUDED_IPS.some(excludedIp => ip && ip.includes(excludedIp));
 
     if (shouldLog) {
@@ -3004,6 +3021,25 @@ async function startServer() {
     }
   });
 
+  // Test broadcast endpoint
+  app.post("/api/admin/telegram/test-broadcast", requireAdmin, async (req: express.Request, res: express.Response) => {
+    try {
+      if (!telegramManager) {
+        return res.status(503).json({ success: false, error: "Telegram client is not properly initialized" });
+      }
+      
+      const sampleUpdates = [
+        { name: "الدولار الأمريكي", oldVal: 6.95, newVal: 7.05, flag: "us" },
+        { name: "اليورو الأوروبي", oldVal: 7.60, newVal: 7.55, flag: "eu" }
+      ];
+      
+      await broadcastRateChanges(sampleUpdates);
+      res.json({ success: true, message: "تم إرسال رسالة تجريبية" });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message || "Failed to broadcast" });
+    }
+  });
+
   // Programmatic access to post a message to a Telegram channel
   app.post("/api/telegram/send-message", requireAdmin, async (req: express.Request, res: express.Response) => {
     const { channel, message } = req.body;
@@ -3012,8 +3048,8 @@ async function startServer() {
       return res.status(400).json({ success: false, error: "Channel username and message are required" });
     }
 
-    if (!telegramManager || !telegramManager.isConnected()) {
-      return res.status(503).json({ success: false, error: "Telegram client is not connected" });
+    if (!telegramManager) {
+      return res.status(503).json({ success: false, error: "Telegram client is not properly initialized" });
     }
 
     try {

@@ -15,6 +15,7 @@ import { FlagIcon } from "./components/FlagIcon";
 import { TelegramStatus } from "./components/TelegramStatus";
 import { TelegramPoster } from "./components/TelegramPoster";
 import { decodeData } from "./utils/security";
+import { io } from "socket.io-client";
 
 interface Stats {
   onlineUsers: number;
@@ -417,48 +418,35 @@ export default function Admin() {
   useEffect(() => {
     if (!token) return;
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}`;
-    let socket: WebSocket | null = null;
-    let reconnectTimeout: any = null;
+    let socket: any = null;
 
     const connect = () => {
       try {
-        socket = new WebSocket(wsUrl);
+        socket = io();
 
-        socket.onmessage = (event) => {
-          try {
-            const data = JSON.parse(event.data);
-            if (data.type === 'online_count') {
-              setStats(prev => prev ? { ...prev, onlineUsers: data.count } : null);
-            } else if (data.type === 'user_logs') {
-              setUserLogs(data.logs);
-            } else if (data.type === 'config_update') {
-              setConfig(data.config);
-            }
-          } catch (err) {
-            console.error('WebSocket message error:', err);
-          }
-        };
+        socket.on('online_count', (data: any) => {
+          setStats(prev => prev ? { ...prev, onlineUsers: data.count } : null);
+        });
+        
+        socket.on('user_logs', (data: any) => {
+          setUserLogs(data.logs);
+        });
+        
+        socket.on('config_update', (data: any) => {
+          setConfig(data.config);
+        });
 
-        socket.onclose = () => {
-          reconnectTimeout = setTimeout(connect, 3000);
-        };
-
-        socket.onerror = () => {
-          socket?.close();
-        };
       } catch (err) {
-        console.error('WebSocket connection error:', err);
-        reconnectTimeout = setTimeout(connect, 5000);
+        console.error('Socket.io connection error:', err);
       }
     };
 
     connect();
 
     return () => {
-      socket?.close();
-      clearTimeout(reconnectTimeout);
+      if (socket) {
+        socket.disconnect();
+      }
     };
   }, [token]);
 
@@ -3230,7 +3218,28 @@ export default function Admin() {
                       <p className="text-xs text-zinc-500 mt-2">انسخ الرابط (مثل https://t.me/djheih2026) أو ضع المعرف، ويجب أن يكون حسابك لديه صلاحيات النشر (أدمن).</p>
                     </div>
                     
-                    <div className="flex justify-end pt-2 border-t border-white/5">
+                    <div className="flex justify-end gap-3 pt-2 border-t border-white/5">
+                      <button
+                        onClick={async () => {
+                          try {
+                            const res = await fetch("/api/admin/telegram/test-broadcast", {
+                              method: "POST",
+                              headers: { Authorization: `Bearer ${token}` }
+                            });
+                            const data = await res.json();
+                            if (data.success) {
+                              setSuccess("تم إرسال المنشور التجريبي بنجاح!");
+                            } else {
+                              setError(data.error || "فشل إرسال المنشور التجريبي");
+                            }
+                          } catch (err: any) {
+                            setError("فشل في الاتصال بالخادم");
+                          }
+                        }}
+                        className="px-6 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold transition-colors"
+                      >
+                        إرسال رسالة اختبارية
+                      </button>
                       <button
                         onClick={handleSave}
                         className="px-6 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold transition-colors"
