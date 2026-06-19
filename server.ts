@@ -504,14 +504,14 @@ async function initializeRatesFromDB(force = false) {
       .from('parallel_rates')
       .select('*')
       .order('recorded_at', { ascending: false })
-      .limit(50);
+      .limit(1000);
 
     // 2. Fetch latest official rates
     const { data: officialData, error: officialError } = await supabase
       .from('official_rates')
       .select('*')
       .order('recorded_at', { ascending: false })
-      .limit(50);
+      .limit(1000);
 
     // Check for errors (ignore table not found errors during migration)
     const isParallelTableMissing = parallelError && parallelError.message.includes('relation "parallel_rates" does not exist');
@@ -1910,13 +1910,14 @@ async function fetchParallelRatesFromTelegram(): Promise<boolean | null> {
       const synced = await syncCheckRates("كاشط تيليجرام");
       if (synced) anyChanged = true;
 
+      // Always update scraped time
+      if (newestMessageTime > 0) {
+        rates.lastUpdated = new Date(newestMessageTime).toISOString();
+      } else {
+        rates.lastUpdated = new Date().toISOString();
+      }
+
       if (anyChanged) {
-        if (newestMessageTime > 0) {
-          rates.lastUpdated = new Date(newestMessageTime).toISOString();
-        } else {
-          rates.lastUpdated = new Date().toISOString();
-        }
-        
         console.log(`[Scraper] Applied changes. New USD: ${rates.parallel.USD}`);
         
         // Broadcast to Telegram channel
@@ -3684,13 +3685,12 @@ ${updates.join('\n')}
       // 1. Fetch data from Telegram
       const parallelUpdate = await fetchParallelRatesFromTelegram();
       
-      // Always save to DB if we successfully fetched data (parallelUpdate is true or false, not null)
-      // This ensures DB is in sync with memory even if the price itself didn't change.
-      // This prevents "Memory Poisoning" where initializeRatesFromDB might overwrite memory with old DB data.
-      if (parallelUpdate !== null) {
+      if (parallelUpdate === true) {
         console.log(`[Cron-Job] Fetch completed (Changes: ${parallelUpdate}). Syncing with database...`);
         await saveToSupabase('parallel');
         broadcastRatesUpdate(rates);
+      } else if (parallelUpdate === false) {
+        console.log("[Cron-Job] No changes detected. Database sync skipped.");
       } else {
         console.log("[Cron-Job] Scraper was busy or too recent. Skipping DB sync.");
       }
@@ -3742,10 +3742,13 @@ ${updates.join('\n')}
       // 1. Fetch official rates (CBL + fallbacks)
       const officialUpdate = await fetchOfficialRates();
       
-      // Always save to DB if we successfully fetched data to ensure sync
-      console.log(`[Cron-Job-Official] Fetch completed (Changes: ${officialUpdate}). Syncing with database...`);
-      await saveToSupabase('official');
-      broadcastRatesUpdate(rates);
+      if (officialUpdate === true) {
+        console.log(`[Cron-Job-Official] Fetch completed (Changes: ${officialUpdate}). Syncing with database...`);
+        await saveToSupabase('official');
+        broadcastRatesUpdate(rates);
+      } else {
+        console.log("[Cron-Job-Official] No changes detected. Database sync skipped.");
+      }
       
       const duration = Date.now() - startTime;
       const newOfficial = rates.official.USD;
