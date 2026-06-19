@@ -3279,9 +3279,14 @@ export default function Admin() {
                         className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500/50"
                         dir="rtl"
                       >
-                        <option value="classic" className="bg-zinc-900 text-white">النمط الكلاسيكي (تفصيلي بالأسعار السابقة)</option>
-                        <option value="modern" className="bg-zinc-900 text-white">النمط الحديث المطور بمؤشر نسب التغيير 📊</option>
-                        <option value="professional" className="bg-zinc-900 text-white">النمط المهني التحليلي 💎 (الأكثر احترافية للاقتصاد)</option>
+                        <option value="random" className="bg-zinc-900 text-white text-emerald-400 font-bold">اختيار عشوائي ذكي 🎲 (ينصح به لكسر الروتين)</option>
+                        <option value="classic" className="bg-zinc-900 text-white">النمط الكلاسيكي 📊 (تفصيلي بالأسعار السابقة)</option>
+                        <option value="modern" className="bg-zinc-900 text-white">النمط الحديث 📈 (مؤشر نسب التغيير)</option>
+                        <option value="professional" className="bg-zinc-900 text-white">النمط المهني 💎 (الأكثر احترافية للاقتصاد)</option>
+                        <option value="urgent" className="bg-zinc-900 text-white">النمط العاجل 🔴 (للتحديثات السريعة)</option>
+                        <option value="compact" className="bg-zinc-900 text-white">النمط المختصر ⚡ (سريع القراءة)</option>
+                        <option value="market_alert" className="bg-zinc-900 text-white">نمط جرس السوق 🔔 (مختصر للمتداولين)</option>
+                        <option value="elegant" className="bg-zinc-900 text-white">النمط الأنيق ⚜️ (تصميم جمالي وجذاب)</option>
                       </select>
                       <p className="text-xs text-zinc-500 mt-2">اختر التنسيق المفضل لإرساله تلقائياً أو تجريبياً إلى قناتك على تيليجرام.</p>
                     </div>
