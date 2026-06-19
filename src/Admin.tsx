@@ -2561,9 +2561,14 @@ export default function Admin() {
                               <Globe className="w-3 h-3 text-blue-400" />
                               <span className="truncate max-w-[150px] md:max-w-[200px]" dir="ltr">{change.source}</span>
                             </div>
-                            <div className="flex items-center gap-1 text-[11px] text-zinc-500 font-mono">
-                              <Clock className="w-3 h-3" />
-                              {format(new Date(change.timestamp), "yyyy-MM-dd HH:mm:ss")}
+                            <div className="flex flex-col md:items-end gap-1">
+                              <div className="flex items-center gap-1 text-[11px] text-zinc-500 font-mono" dir="ltr">
+                                {format(new Date(change.timestamp), "yyyy-MM-dd HH:mm:ss")}
+                              </div>
+                              <div className="flex items-center gap-1 text-[11px] font-medium text-emerald-500/70">
+                                <Clock className="w-3 h-3" />
+                                {formatDistanceToNow(new Date(change.timestamp), { addSuffix: true, locale: ar })}
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -3543,8 +3548,11 @@ export default function Admin() {
                       ) : (
                         dbRecords.map((record) => (
                           <tr key={record.id} className="hover:bg-white/5 transition-colors group">
-                            <td className="py-3 px-4 text-zinc-300" dir="ltr">
-                              {format(new Date(record.recorded_at), 'yyyy-MM-dd HH:mm:ss')}
+                            <td className="py-3 px-4 text-zinc-300">
+                              <div className="flex flex-col">
+                                <span dir="ltr" className="text-sm">{format(new Date(record.recorded_at), 'yyyy-MM-dd HH:mm:ss')}</span>
+                                <span className="text-[10px] text-zinc-500 font-medium mt-0.5">{formatDistanceToNow(new Date(record.recorded_at), { addSuffix: true, locale: ar })}</span>
+                              </div>
                             </td>
                             <td className="py-3 px-4">
                               {editingRecord === record.id ? (

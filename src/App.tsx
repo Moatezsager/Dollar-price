@@ -1541,6 +1541,23 @@ export default function App() {
       <div className="fixed top-[-10%] left-[-10%] w-[500px] h-[500px] bg-emerald-600/10 blur-[120px] rounded-full pointer-events-none"></div>
       <div className="fixed bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-blue-600/10 blur-[120px] rounded-full pointer-events-none"></div>
 
+      {/* Telegram Floating Action Button */}
+      <motion.a
+        href="https://t.me/libya_index_dollar"
+        target="_blank"
+        rel="noopener noreferrer"
+        initial={{ scale: 0, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ type: "spring", stiffness: 260, damping: 20, delay: 1 }}
+        whileHover={{ scale: 1.1, y: -4 }}
+        whileTap={{ scale: 0.9 }}
+        className="fixed bottom-6 left-6 z-[999] flex items-center justify-center w-14 h-14 bg-[#24A1DE] text-white rounded-full shadow-[0_8px_30px_rgb(36,161,222,0.4)] hover:shadow-[0_8px_40px_rgb(36,161,222,0.6)] border border-white/10 group overflow-hidden"
+      >
+        <div className="absolute inset-0 bg-gradient-to-tr from-black/10 to-transparent"></div>
+        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.2)_0%,transparent_100%)]"></div>
+        <Send className="w-6 h-6 relative z-10 mr-1 -mt-0.5 group-hover:scale-110 transition-transform duration-300" />
+      </motion.a>
+
       {/* Offline & Stale Data Warning - Top Banner */}
       <AnimatePresence>
         {(isOffline || appStatus?.status === 'stale') && (
@@ -2021,9 +2038,11 @@ export default function App() {
             </div>
 
             {rates?.lastUpdated && (
-              <div className="flex items-center gap-2 mt-6 text-[11px] sm:text-xs text-zinc-500 bg-white/5 w-fit px-3 py-1.5 rounded-full border border-white/5">
+              <div className="flex flex-wrap items-center gap-2 mt-6 text-[11px] sm:text-xs text-zinc-500 bg-white/5 w-fit px-3 py-1.5 rounded-full border border-white/5">
                 <Clock className="w-3.5 h-3.5 text-emerald-500/70" />
                 <span>آخر تحديث: {formatDistanceToNow(new Date(rates.lastUpdated), { addSuffix: true, locale: ar })}</span>
+                <div className="w-1 h-1 rounded-full bg-zinc-600 hidden sm:block"></div>
+                <span className="font-mono text-[10px] hidden sm:block" dir="ltr">{format(new Date(rates.lastUpdated), "yyyy-MM-dd HH:mm")}</span>
               </div>
             )}
           </div>

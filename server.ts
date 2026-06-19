@@ -1823,7 +1823,7 @@ async function fetchParallelRatesFromTelegram(): Promise<boolean | null> {
       console.log(`[Scraper] Scrape check completed. Found rates for: ${foundKeys.join(', ')}`);
       
       let anyChanged = false;
-      const telegramUpdates: {name: string, oldVal: number, newVal: number, flag: string}[] = [];
+      const telegramUpdates: {id: string, name: string, oldVal: number, newVal: number, flag: string}[] = [];
 
       // Dynamically assign all extracted rates
       for (const term of appConfig.terms) {
@@ -3015,7 +3015,7 @@ async function startServer() {
       }
       
       let changed = false;
-      const telegramUpdates: {name: string, oldVal: number, newVal: number, flag: string}[] = [];
+      const telegramUpdates: {id: string, name: string, oldVal: number, newVal: number, flag: string}[] = [];
       
       for (const [key, value] of Object.entries(updates)) {
         const numValue = Number(value);
