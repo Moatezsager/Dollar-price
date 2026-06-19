@@ -5,11 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "tsx --expose-gc server.ts",
-    "build": "vite build",
+    "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
-    "start": "tsx --expose-gc server.ts"
+    "start": "node dist/server.cjs"
   },
   "dependencies": {
     "@google/genai": "^1.45.0",
@@ -48,6 +48,7 @@
     "@types/node": "^22.14.0",
     "@types/ws": "^8.18.1",
     "autoprefixer": "^10.4.21",
+    "esbuild": "^0.28.1",
     "tailwindcss": "^4.1.14",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"

@@ -6,6 +6,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { ar } from 'date-fns/locale';
 
 interface RateCellProps {
+  key?: string | number | null;
   term: { id: string; name: string; flag: string };
   rate: number;
   prevRate: number;
