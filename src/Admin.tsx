@@ -400,19 +400,39 @@ export default function Admin() {
     }
   }, [token]);
 
-  const navItems = [
-    { id: 'dashboard', label: 'لوحة التحكم', icon: LayoutDashboard },
-    { id: 'database', label: 'قاعدة البيانات', icon: Database },
-    { id: 'tracking', label: 'المتصلين', icon: Users },
-    { id: 'messages', label: 'البريد', icon: Mail },
-    { id: 'config', label: 'الإعدادات', icon: Settings },
-    { id: 'api', label: 'المطورين', icon: Code2 },
-    { id: 'stats', label: 'النشاط', icon: Activity },
-    { id: 'changes', label: 'السجل', icon: HistoryIcon },
-    { id: 'ai', label: 'قارئ نصوص', icon: Zap },
-    { id: 'telegram', label: 'الحساب', icon: Globe },
-    { id: 'logs', label: 'الأخطاء', icon: AlertTriangle },
-    { id: 'tools', label: 'أدوات', icon: Cpu },
+  const navGroups = [
+    {
+      group: 'الرئيسية',
+      items: [
+        { id: 'dashboard', label: 'لوحة التحكم', icon: LayoutDashboard },
+        { id: 'stats', label: 'النشاط', icon: Activity },
+        { id: 'tracking', label: 'المتصلين', icon: Users },
+      ]
+    },
+    {
+      group: 'التواصل والبيانات',
+      items: [
+        { id: 'database', label: 'قاعدة البيانات', icon: Database },
+        { id: 'messages', label: 'البريد', icon: Mail },
+        { id: 'changes', label: 'السجل', icon: HistoryIcon },
+      ]
+    },
+    {
+      group: 'الخدمات الخارجية',
+      items: [
+        { id: 'telegram', label: 'الحساب', icon: Globe },
+        { id: 'ai', label: 'الذكاء الاصطناعي', icon: Zap },
+        { id: 'api', label: 'المطورين', icon: Code2 },
+        { id: 'tools', label: 'أدوات', icon: Cpu },
+      ]
+    },
+    {
+      group: 'النظام',
+      items: [
+        { id: 'config', label: 'الإعدادات', icon: Settings },
+        { id: 'logs', label: 'الأخطاء', icon: AlertTriangle },
+      ]
+    }
   ];
 
   useEffect(() => {
@@ -1185,20 +1205,27 @@ export default function Admin() {
             </div>
           </div>
 
-          <nav className="space-y-1.5">
-            {navItems.map(item => (
-              <button
-                key={item.id}
-                onClick={() => setActiveTab(item.id as any)}
-                className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-sm font-bold transition-all group ${
-                  activeTab === item.id 
-                    ? 'bg-emerald-500 text-black shadow-lg shadow-emerald-500/20' 
-                    : 'text-zinc-500 hover:text-white hover:bg-white/5'
-                }`}
-              >
-                <item.icon className={`w-5 h-5 ${activeTab === item.id ? 'stroke-[2.5]' : 'group-hover:scale-110 transition-transform'}`} />
-                {item.label}
-              </button>
+          <nav className="space-y-6">
+            {navGroups.map((group, idx) => (
+              <div key={idx}>
+                <h3 className="text-[11px] font-bold text-zinc-500 mb-3 px-4 uppercase tracking-widest">{group.group}</h3>
+                <div className="space-y-1.5">
+                  {group.items.map(item => (
+                    <button
+                      key={item.id}
+                      onClick={() => setActiveTab(item.id as any)}
+                      className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-sm font-bold transition-all group ${
+                        activeTab === item.id 
+                          ? 'bg-emerald-500 text-black shadow-lg shadow-emerald-500/20' 
+                          : 'text-zinc-500 hover:text-white hover:bg-white/5'
+                      }`}
+                    >
+                      <item.icon className={`w-5 h-5 ${activeTab === item.id ? 'stroke-[2.5]' : 'group-hover:scale-110 transition-transform'}`} />
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             ))}
           </nav>
         </div>
@@ -1300,23 +1327,30 @@ export default function Admin() {
                   </button>
                 </div>
 
-                <nav className="space-y-2">
-                  {navItems.map(item => (
-                    <button
-                      key={item.id}
-                      onClick={() => {
-                        setActiveTab(item.id as any);
-                        setIsSidebarOpen(false);
-                      }}
-                      className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-sm font-bold transition-all ${
-                        activeTab === item.id 
-                          ? 'bg-emerald-500 text-black' 
-                          : 'text-zinc-500 hover:bg-white/5'
-                      }`}
-                    >
-                      <item.icon className="w-5 h-5" />
-                      {item.label}
-                    </button>
+                <nav className="space-y-6">
+                  {navGroups.map((group, idx) => (
+                    <div key={idx}>
+                      <h3 className="text-[11px] font-bold text-zinc-500 mb-3 px-4 uppercase tracking-widest">{group.group}</h3>
+                      <div className="space-y-2">
+                        {group.items.map(item => (
+                          <button
+                            key={item.id}
+                            onClick={() => {
+                              setActiveTab(item.id as any);
+                              setIsSidebarOpen(false);
+                            }}
+                            className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-sm font-bold transition-all ${
+                              activeTab === item.id 
+                                ? 'bg-emerald-500 text-black shadow-lg shadow-emerald-500/20' 
+                                : 'text-zinc-500 hover:text-white hover:bg-white/5'
+                            }`}
+                          >
+                            <item.icon className={`w-5 h-5 ${activeTab === item.id ? 'stroke-[2.5]' : ''}`} />
+                            {item.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   ))}
                 </nav>
 
