@@ -107,8 +107,8 @@ export class TelegramManager {
       
       let cooldownExtra = 0;
       if (errorMsg.includes("AUTH_KEY_DUPLICATED")) {
-        console.error("[TelegramManager] CRITICAL: Auth key is duplicated. This session is being used by another client. Entering 5-minute cooldown...");
-        cooldownExtra = 300000; // 5 minutes extra cooldown
+        console.error("[TelegramManager] CRITICAL: Auth key is duplicated. This session is being used by another client. Entering 5-second cooldown to wait for other client to disconnect...");
+        cooldownExtra = 5000; // 5 seconds extra cooldown instead of 5 minutes for dev server restart tolerance
       }
       
       if (this.client) {
@@ -168,8 +168,8 @@ export class TelegramManager {
     } catch (error: any) {
       console.error(`[TelegramManager] Error fetching messages from ${channelUsername}:`, error.message || error);
       
-      // If it's a connection error, try to reconnect for next time
-      if (error.message?.includes('connection') || error.message?.includes('disconnected')) {
+      // If it's a connection error or duplicated auth, try to reconnect for next time
+      if (error.message?.includes('connection') || error.message?.includes('disconnected') || error.message?.includes('AUTH_KEY_DUPLICATED')) {
         this.client = null;
         activeClient = null;
       }
@@ -216,6 +216,10 @@ export class TelegramManager {
       return true;
     } catch (error: any) {
       console.error(`[TelegramManager] Error sending message to ${channelUsername}:`, error.message || error);
+      if (error.message?.includes('connection') || error.message?.includes('disconnected') || error.message?.includes('AUTH_KEY_DUPLICATED')) {
+        this.client = null;
+        activeClient = null;
+      }
       return false;
     }
   }
