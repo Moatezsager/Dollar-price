@@ -7,6 +7,7 @@ import { createClient } from '@supabase/supabase-js';
 import { Server as SocketIOServer } from 'socket.io';
 import { createServer } from 'http';
 import helmet from "helmet";
+import compression from "compression";
 import rateLimit from "express-rate-limit";
 import { GoogleGenAI } from "@google/genai";
 import { TelegramClient, Api } from "telegram";
@@ -17,6 +18,9 @@ import Database from 'better-sqlite3';
 // Initialize SQLite for local messages
 const db = new Database('messages.db');
 db.pragma('journal_mode = WAL');
+db.pragma('cache_size = 32000');
+db.pragma('synchronous = NORMAL');
+db.pragma('temp_store = MEMORY');
 
 // Create messages table if not exists
 db.exec(`
@@ -1185,8 +1189,8 @@ async function broadcastRateChanges(updates: {id?: string, name: string, oldVal:
     }
     
     message += `━━━━━━━━━━━━━━━━━━━\n`;
-    message += `🔗 التحديث المباشر: https://tinyurl.com/2j7667u2\n`;
-    message += `📱 المصدر: شبكة مراسلي مؤشر الدينار`;
+    message += `🔗 التحديث المباشر والرسوم البيانية:\n🌐 https://tinyurl.com/2j7667u2\n\n`;
+    message += `📱 المصدر: شبكة مراسلي مؤشر الدينار | الدقة والسرعة`;
 
   } else if (style === "urgent") {
     message += `🔴 *تحديث الأسعار الآن* 🔴\n`;
@@ -1201,7 +1205,7 @@ async function broadcastRateChanges(updates: {id?: string, name: string, oldVal:
       message += `     السابق: ${u.oldVal.toFixed(3)}\n\n`;
     }
     message += `━━━━━━━━━━━━━\n`;
-    message += `🔗 https://tinyurl.com/2j7667u2`;
+    message += `🌐 لمتابعة الأسعار لحظة بلحظة:\n🔗 https://tinyurl.com/2j7667u2`;
 
   } else if (style === "compact") {
     message += `⚡ *موجز الأسعار* | ${timeStr} ⚡\n\n`;
@@ -1214,7 +1218,7 @@ async function broadcastRateChanges(updates: {id?: string, name: string, oldVal:
       
       message += `${fe} *${code}* ${u.newVal.toFixed(3)} ${icon} `;
     }
-    message += `\n\n🔗 https://tinyurl.com/2j7667u2`;
+    message += `\n\n🌐 لمتابعة الأسعار:\n🔗 https://tinyurl.com/2j7667u2`;
 
   } else if (style === "market_alert") {
     message += `🔔 *حركة السوق الموازية* 🔔\n`;
@@ -1231,7 +1235,7 @@ async function broadcastRateChanges(updates: {id?: string, name: string, oldVal:
       }
       message += `\n`;
     }
-    message += `🌐 التفاصيل: https://tinyurl.com/2j7667u2`;
+    message += `🌐 التفاصيل الحية والرسوم البيانية:\n🔗 https://tinyurl.com/2j7667u2`;
 
   } else if (style === "elegant") {
     message += `⚜️ *النشرة المحدثة للعملات* ⚜️\n`;
@@ -1254,7 +1258,7 @@ async function broadcastRateChanges(updates: {id?: string, name: string, oldVal:
     }
     message += `════════════════════\n`;
     message += `تابعنا لمعرفة المزيد عبر:\n`;
-    message += `📌 https://tinyurl.com/2j7667u2`;
+    message += `📌 منصة مؤشر الدينار:\n🌐 https://tinyurl.com/2j7667u2`;
 
   } else if (style === "professional") {
     message += `💎 *مؤشر الدينار | النشرة الاقتصادية اليومية* 💎\n`;
@@ -1705,7 +1709,7 @@ async function fetchParallelRatesFromTelegram(): Promise<boolean | null> {
         console.warn("[Scraper] GramJS returned 0 messages for all channels.");
       }
       
-      const canUseHttpScraper = appConfig.enableHttpScraper === true;
+      const canUseHttpScraper = appConfig.enableHttpScraper !== false;
       if (canUseHttpScraper) {
         console.log("[Scraper] Using HTTP Scraper fallback...");
         const USER_AGENTS = [
@@ -1846,7 +1850,7 @@ async function fetchParallelRatesFromTelegram(): Promise<boolean | null> {
   } else {
     console.warn("[Scraper] Failed to fetch any messages from any channels.");
     const channelList = channels.join(', ');
-    const usedSources = usedGramJs ? "GramJS" : (forceHttpScraper ? "HTTP (Forced)" : "None");
+    const usedSources = usedGramJs ? (canUseHttpScraper ? "GramJS -> HTTP Fallback" : "GramJS (No Fallback)") : (forceHttpScraper ? "HTTP (Forced)" : "None");
     await logErrorArabic(`فشل الكاشط في جلب أي بيانات من جميع القنوات (${channels.length} قناة)`, "الكاشط", `القنوات: ${channelList}\nالمصادر المستخدمة: ${usedSources}\nإجمالي الرسائل: ${totalMessagesProcessed}`);
   }
 
@@ -2271,6 +2275,7 @@ async function startServer() {
     setTimeout(() => process.exit(1), 1000);
   });
 
+  app.use(compression());
   app.use(express.json());
   app.set('trust proxy', 1);
 
@@ -2955,6 +2960,71 @@ async function startServer() {
       if (!res.headersSent) {
         res.status(500).json({ success: false, message: err.message });
       }
+    }
+  });
+
+  
+  app.get("/api/admin/system-report", requireAdmin, async (req, res) => {
+    try {
+      const minutesSinceLastScrape = Math.floor((Date.now() - lastSuccessfulScrape.getTime()) / 60000);
+      
+      let recentErrors = [];
+      let dbStats = null;
+      if (supabase && process.env.VITE_SUPABASE_ANON_KEY && !process.env.VITE_SUPABASE_ANON_KEY.includes('dummy')) {
+        try {
+          const { data: logs } = await supabase.from('error_logs').select('*').order('created_at', { ascending: false }).limit(20);
+          if (logs) recentErrors = logs;
+          
+          const [parallel, official] = await Promise.all([
+            supabase.from('parallel_rates').select('*', { count: 'exact', head: true }),
+            supabase.from('official_rates').select('*', { count: 'exact', head: true })
+          ]);
+          dbStats = {
+            parallel_rates: parallel.count || 0,
+            official_rates: official.count || 0
+          };
+        } catch (e) {}
+      }
+
+      const memory = process.memoryUsage();
+      const report = {
+        generated_at: new Date().toISOString(),
+        system_health: {
+          uptime_hours: (process.uptime() / 3600).toFixed(2),
+          server_start_time: serverStartTime.toISOString(),
+          memory_mb: {
+            rss: Math.round(memory.rss / 1024 / 1024),
+            heap_total: Math.round(memory.heapTotal / 1024 / 1024),
+            heap_used: Math.round(memory.heapUsed / 1024 / 1024)
+          },
+          node_version: process.version
+        },
+        database_status: {
+          supabase_connected: !!(supabase && process.env.VITE_SUPABASE_ANON_KEY && !process.env.VITE_SUPABASE_ANON_KEY.includes('dummy')),
+          stats: dbStats
+        },
+        scraper_status: {
+          last_successful_scrape: lastSuccessfulScrape.toISOString(),
+          minutes_since_last_scrape: minutesSinceLastScrape,
+          is_stale: minutesSinceLastScrape > 30,
+          channels_count: appConfig.channels.length,
+          terms_count: appConfig.terms.length
+        },
+        telegram_status: {
+          is_authenticated: !!activeClient
+        },
+        network_stats: {
+          public_api_requests: apiStats.public.totalRequests,
+          premium_api_requests: apiStats.premium.totalRequests,
+          banned_ips_count: apiStats.bannedIPsCount,
+          active_websocket_connections: io.engine ? io.engine.clientsCount : 0
+        },
+        recent_critical_errors: recentErrors
+      };
+
+      res.json(report);
+    } catch (err) {
+      res.status(500).json({ error: "Failed to generate system report", message: String(err) });
     }
   });
 
