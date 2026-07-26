@@ -1185,7 +1185,7 @@ async function broadcastRateChanges(updates: {id?: string, name: string, oldVal:
     }
     
     message += `━━━━━━━━━━━━━━━━━━━\n`;
-    message += `🔗 التحديث المباشر: https://h1.nu/1rWaV\n`;
+    message += `🔗 التحديث المباشر: https://tinyurl.com/2j7667u2\n`;
     message += `📱 المصدر: شبكة مراسلي مؤشر الدينار`;
 
   } else if (style === "urgent") {
@@ -1201,7 +1201,7 @@ async function broadcastRateChanges(updates: {id?: string, name: string, oldVal:
       message += `     السابق: ${u.oldVal.toFixed(3)}\n\n`;
     }
     message += `━━━━━━━━━━━━━\n`;
-    message += `🔗 https://h1.nu/1rWaV`;
+    message += `🔗 https://tinyurl.com/2j7667u2`;
 
   } else if (style === "compact") {
     message += `⚡ *موجز الأسعار* | ${timeStr} ⚡\n\n`;
@@ -1214,7 +1214,7 @@ async function broadcastRateChanges(updates: {id?: string, name: string, oldVal:
       
       message += `${fe} *${code}* ${u.newVal.toFixed(3)} ${icon} `;
     }
-    message += `\n\n🔗 https://h1.nu/1rWaV`;
+    message += `\n\n🔗 https://tinyurl.com/2j7667u2`;
 
   } else if (style === "market_alert") {
     message += `🔔 *حركة السوق الموازية* 🔔\n`;
@@ -1231,7 +1231,7 @@ async function broadcastRateChanges(updates: {id?: string, name: string, oldVal:
       }
       message += `\n`;
     }
-    message += `🌐 التفاصيل: https://h1.nu/1rWaV`;
+    message += `🌐 التفاصيل: https://tinyurl.com/2j7667u2`;
 
   } else if (style === "elegant") {
     message += `⚜️ *النشرة المحدثة للعملات* ⚜️\n`;
@@ -1254,7 +1254,7 @@ async function broadcastRateChanges(updates: {id?: string, name: string, oldVal:
     }
     message += `════════════════════\n`;
     message += `تابعنا لمعرفة المزيد عبر:\n`;
-    message += `📌 https://h1.nu/1rWaV`;
+    message += `📌 https://tinyurl.com/2j7667u2`;
 
   } else if (style === "professional") {
     message += `💎 *مؤشر الدينار | النشرة الاقتصادية اليومية* 💎\n`;
@@ -1284,7 +1284,7 @@ async function broadcastRateChanges(updates: {id?: string, name: string, oldVal:
     
     message += `━━━━━━━━━━━━━━━━━━━\n`;
     message += `⏰ تم التحديث: ${timeStr} | 🗓️ ${dayName} - ${dateStr}\n`;
-    message += `🔗 التحديث المباشر والرسوم البيانية:\n🌐 https://h1.nu/1rWaV\n\n`;
+    message += `🔗 التحديث المباشر والرسوم البيانية:\n🌐 https://tinyurl.com/2j7667u2\n\n`;
     message += `📱 المصدر: شبكة مراسلي مؤشر الدينار | الدقة والسرعة`;
 
   } else {
@@ -1313,7 +1313,7 @@ async function broadcastRateChanges(updates: {id?: string, name: string, oldVal:
     }
     
     message += `━━━━━━━━━━━━━━━━━\n`;
-    message += `🔗 تابع التحديثات الحية على منصتنا:\n🌐 https://h1.nu/1rWaV\n\n`;
+    message += `🔗 تابع التحديثات الحية على منصتنا:\n🌐 https://tinyurl.com/2j7667u2\n\n`;
     message += `📱 المصدر: شبكة مراسلي مؤشر الدينار | الدقة والسرعة`;
   }
 
@@ -3301,7 +3301,7 @@ ${updates.join('\n')}
       finalMessage += `━━━━━━━━━━━━━━━━━\n`;
       finalMessage += `${text?.trim()}\n`;
       finalMessage += `━━━━━━━━━━━━━━━━━\n`;
-      finalMessage += `🔗 تابع التحديثات الحية على منصتنا:\n🌐 https://h1.nu/1rWaV\n\n`;
+      finalMessage += `🔗 تابع التحديثات الحية على منصتنا:\n🌐 https://tinyurl.com/2j7667u2\n\n`;
       finalMessage += `📱 المصدر: شبكة مراسلي مؤشر الدينار | الدقة والسرعة`;
 
       res.json({ success: true, message: finalMessage });
@@ -3363,7 +3363,7 @@ ${updates.join('\n')}
       finalMessage += `━━━━━━━━━━━━━━━━━\n`;
       finalMessage += `${text?.trim()}\n`;
       finalMessage += `━━━━━━━━━━━━━━━━━\n`;
-      finalMessage += `🔗 تابع التحديثات الحية على منصتنا:\n🌐 https://h1.nu/1rWaV\n\n`;
+      finalMessage += `🔗 تابع التحديثات الحية على منصتنا:\n🌐 https://tinyurl.com/2j7667u2\n\n`;
       finalMessage += `📱 المصدر: شبكة مراسلي مؤشر الدينار | الدقة والسرعة`;
 
       const success = await telegramManager.sendMessage(targetChannel, finalMessage);
