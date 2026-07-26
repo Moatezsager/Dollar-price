@@ -1456,6 +1456,14 @@ let isScraping = false;
 let lastSuccessfulScrape = new Date();
 let lastAttemptTime = 0;
 
+interface ChannelStatusInfo {
+  last_scrape_attempt: number;
+  last_post_time: number;
+  status: 'active' | 'stale' | 'error';
+  messages_processed: number;
+}
+let channelStatusTracker: Record<string, ChannelStatusInfo> = {};
+
 interface LiveFeedMessage {
   id: string;
   channel: string;
@@ -1622,6 +1630,15 @@ async function fetchParallelRatesFromTelegram(): Promise<boolean | null> {
 
     console.log(`[Scraper] Validated channels: ${channels.join(', ')}`);
     
+    const nowTimestamp = Date.now();
+    channels.forEach(ch => {
+      if (!channelStatusTracker[ch]) {
+        channelStatusTracker[ch] = { last_scrape_attempt: 0, last_post_time: 0, status: 'stale', messages_processed: 0 };
+      }
+      channelStatusTracker[ch].last_scrape_attempt = nowTimestamp;
+      channelStatusTracker[ch].status = 'stale'; // reset until success
+    });
+    
     // Calculate start of today in Libya (UTC+2)
     const nowTime = new Date();
     const libyaTime = new Date(nowTime.getTime() + (2 * 60 * 60 * 1000));
@@ -1652,6 +1669,12 @@ async function fetchParallelRatesFromTelegram(): Promise<boolean | null> {
           throw { channel, error: err };
         }
       }));
+      // Log GramJS errors to tracker
+      for (const result of gramJsResults) {
+        if (result.status === 'rejected') {
+          if (channelStatusTracker[result.reason.channel]) channelStatusTracker[result.reason.channel].status = 'error';
+        }
+      }
 
       for (const result of gramJsResults) {
         if (result.status === 'fulfilled') {
@@ -1660,6 +1683,10 @@ async function fetchParallelRatesFromTelegram(): Promise<boolean | null> {
             console.log(`[Scraper-GramJS] Fetched ${messages.length} messages from ${channel}`);
             successfulChannels++;
             totalMessagesProcessed += messages.length;
+            channelStatusTracker[channel].status = 'active';
+            channelStatusTracker[channel].messages_processed += messages.length;
+            const latestMsgDate = Math.max(...messages.map((m: any) => m.date));
+            if (latestMsgDate > channelStatusTracker[channel].last_post_time) channelStatusTracker[channel].last_post_time = latestMsgDate;
             for (const msg of messages) {
               // Only process messages from today
               if (msg.date < startOfTodayLibya) {
@@ -1789,12 +1816,16 @@ async function fetchParallelRatesFromTelegram(): Promise<boolean | null> {
           const errorMsg = e instanceof Error ? e.message : String(e);
           console.error(`[Scraper] Failed to fetch ${channel} after ${duration}ms:`, errorMsg);
           await logErrorArabic(`فشل الاتصال بقناة تيليجرام: ${channel}`, "الكاشط", errorMsg);
-          return null;
+          return { channel, error: true };
         }
       }));
 
       for (const result of scrapeResults) {
         if (result.status === 'fulfilled' && result.value) {
+          if (result.value.error) {
+            if (channelStatusTracker[result.value.channel]) channelStatusTracker[result.value.channel].status = 'error';
+            continue;
+          }
           const { channel, blocks } = result.value;
           
           successfulChannels++;
@@ -1802,6 +1833,8 @@ async function fetchParallelRatesFromTelegram(): Promise<boolean | null> {
           // Only take the last 20 messages from the blocks for better coverage
           const recentBlocks = blocks.slice(-21); 
           totalMessagesProcessed += (recentBlocks.length - 1);
+          channelStatusTracker[channel].status = 'active';
+          channelStatusTracker[channel].messages_processed += (recentBlocks.length - 1);
 
           for (const block of recentBlocks) {
             const textMatch = block.match(/<div class="tgme_widget_message_text[^>]*>(.*?)<\/div>/);
@@ -1810,6 +1843,7 @@ async function fetchParallelRatesFromTelegram(): Promise<boolean | null> {
             if (textMatch && timeMatch) {
               const cleanText = textMatch[1].replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ');
               const time = new Date(timeMatch[1]).getTime();
+              if (time > channelStatusTracker[channel].last_post_time) channelStatusTracker[channel].last_post_time = time;
               
               // Use the Libya-aware today filter
               if (time < startOfTodayLibya) {
@@ -2975,13 +3009,18 @@ async function startServer() {
           const { data: logs } = await supabase.from('error_logs').select('*').order('created_at', { ascending: false }).limit(20);
           if (logs) recentErrors = logs;
           
-          const [parallel, official] = await Promise.all([
+          const pingStart = Date.now();
+          const [parallel, official, errorLogsQuery] = await Promise.all([
             supabase.from('parallel_rates').select('*', { count: 'exact', head: true }),
-            supabase.from('official_rates').select('*', { count: 'exact', head: true })
+            supabase.from('official_rates').select('*', { count: 'exact', head: true }),
+            supabase.from('error_logs').select('*', { count: 'exact', head: true })
           ]);
+          const ping_ms = Date.now() - pingStart;
           dbStats = {
             parallel_rates: parallel.count || 0,
-            official_rates: official.count || 0
+            official_rates: official.count || 0,
+            error_logs_count: errorLogsQuery.count || 0,
+            ping_ms
           };
         } catch (e) {}
       }
@@ -3017,9 +3056,29 @@ async function startServer() {
           public_api_requests: apiStats.public.totalRequests,
           premium_api_requests: apiStats.premium.totalRequests,
           banned_ips_count: apiStats.bannedIPsCount,
-          active_websocket_connections: io.engine ? io.engine.clientsCount : 0
+          active_websocket_connections: io.engine ? io.engine.clientsCount : 0,
+          error_rate_percentage: apiStats.public.totalRequests > 0 ? (((apiStats.public.failedRequests + apiStats.premium.failedRequests) / (apiStats.public.totalRequests + apiStats.premium.totalRequests)) * 100).toFixed(2) : "0.00"
         },
-        recent_critical_errors: recentErrors
+        channels_breakdown: Object.entries(channelStatusTracker).map(([channel, stats]) => ({
+          channel,
+          status: stats.status,
+          last_post_minutes_ago: stats.last_post_time > 0 ? Math.floor((Date.now() - stats.last_post_time) / 60000) : null,
+          messages_processed: stats.messages_processed
+        })),
+        app_metadata: {
+          app_version: process.env.npm_package_version || "1.0.0",
+          environment: process.env.NODE_ENV || "development"
+        },
+        recent_critical_errors: recentErrors.reduce((acc: any[], err: any) => {
+          const existing = acc.find((e: any) => e.message === err.message && e.context === err.context);
+          if (existing) {
+            existing.occurrences_count = (existing.occurrences_count || 1) + 1;
+            existing.latest_occurrence = err.created_at;
+          } else {
+            acc.push({ ...err, occurrences_count: 1, latest_occurrence: err.created_at });
+          }
+          return acc;
+        }, [])
       };
 
       res.json(report);
