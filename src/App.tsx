@@ -1560,7 +1560,7 @@ export default function App() {
         transition={{ type: "spring", stiffness: 260, damping: 20, delay: 1 }}
         whileHover={{ scale: 1.1, y: -4 }}
         whileTap={{ scale: 0.9 }}
-        className={`fixed left-6 z-[999] flex items-center justify-center w-14 h-14 bg-[#24A1DE] text-white rounded-full shadow-[0_8px_30px_rgb(36,161,222,0.4)] hover:shadow-[0_8px_40px_rgb(36,161,222,0.6)] border border-white/10 group overflow-hidden transition-all duration-500 ${isInstallPromptVisible ? 'bottom-40' : 'bottom-6'}`}
+        className={`fixed left-6 z-[999] flex items-center justify-center w-14 h-14 bg-[#24A1DE] text-white rounded-full shadow-[0_8px_30px_rgb(36,161,222,0.4)] hover:shadow-[0_8px_40px_rgb(36,161,222,0.6)] border border-white/10 group overflow-hidden transition-all duration-500 ${isInstallPromptVisible ? 'bottom-32 md:bottom-32' : 'bottom-20 md:bottom-6'}`}
       >
         <div className="absolute inset-0 bg-gradient-to-tr from-black/10 to-transparent"></div>
         <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.2)_0%,transparent_100%)]"></div>

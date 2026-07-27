@@ -2923,12 +2923,37 @@ export default function Admin() {
                     </h2>
                     <p className="text-sm text-zinc-500 mt-1">آخر 20 رسالة خطأ أو تحذير من السيرفر والمستخدمين</p>
                   </div>
-                  <button 
-                    onClick={fetchLogs}
-                    className="p-3 rounded-xl bg-white/5 text-zinc-400 hover:text-white transition-all border border-white/5"
-                  >
-                    <RefreshCw className="w-5 h-5" />
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <button 
+                      onClick={async () => {
+                        if (window.confirm("هل أنت متأكد من مسح جميع سجلات الأخطاء؟")) {
+                          try {
+                            const res = await fetch("/api/admin/error-logs", {
+                              method: "DELETE",
+                              headers: { Authorization: `Bearer ${token}` }
+                            });
+                            if (res.ok) {
+                              setLogs([]);
+                              setSuccess("تم مسح السجلات بنجاح");
+                              setTimeout(() => setSuccess(""), 3000);
+                            }
+                          } catch (e) {
+                            setError("فشل مسح السجلات");
+                            setTimeout(() => setError(""), 3000);
+                          }
+                        }
+                      }}
+                      className="px-4 py-2 rounded-xl bg-rose-500/10 text-rose-400 font-bold hover:bg-rose-500/20 transition-all border border-rose-500/20 text-sm"
+                    >
+                      تنظيف السجل
+                    </button>
+                    <button 
+                      onClick={fetchLogs}
+                      className="p-3 rounded-xl bg-white/5 text-zinc-400 hover:text-white transition-all border border-white/5"
+                    >
+                      <RefreshCw className="w-5 h-5" />
+                    </button>
+                  </div>
                 </div>
                 
                 <div className="bg-black/40 p-6 font-mono text-sm leading-relaxed max-h-[600px] overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-800">

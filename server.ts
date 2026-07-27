@@ -3138,6 +3138,26 @@ async function startServer() {
     }
   });
 
+  app.delete("/api/admin/error-logs", requireAdmin, async (req: express.Request, res: express.Response) => {
+    if (!supabase || !supabaseAnonKey || supabaseAnonKey.includes('dummy')) {
+      return res.json({ success: false, message: "قاعدة البيانات غير متصلة" });
+    }
+    try {
+      const { error } = await supabase
+        .from('error_logs')
+        .delete()
+        .neq('id', 0);
+      
+      if (error) throw error;
+      res.json({ success: true, message: "تم تنظيف السجلات بنجاح" });
+    } catch (err) {
+      console.error("Error clearing logs:", err);
+      if (!res.headersSent) {
+        res.status(500).json({ success: false, message: "فشل تنظيف السجلات" });
+      }
+    }
+  });
+
   app.get("/api/admin/error-logs", requireAdmin, async (req: express.Request, res: express.Response) => {
     if (!supabase || !supabaseAnonKey || supabaseAnonKey.includes('dummy')) {
       return res.json({ success: false, message: "قاعدة البيانات غير متصلة" });
