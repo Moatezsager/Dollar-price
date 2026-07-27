@@ -1166,8 +1166,9 @@ async function broadcastRateChanges(updates: {id?: string, name: string, oldVal:
   let message = "";
 
   if (style === "modern") {
-    message += `📊 *أسعار الصرف – ${dayName} ${dateStr}* \n`;
-    message += `━━━━━━━━━━━━━━━━━━━\n`;
+    message += `📊 *مؤشر الدينار | الأسعار المحدثة*\n`;
+    message += `📅 ${dayName}، ${dateStr} | ⏰ ${timeStr}\n`;
+    message += `━━━━━━━━━━━━━━━━━━━\n\n`;
     
     for (const u of updates) {
       const isUp = u.newVal > u.oldVal;
@@ -1175,95 +1176,97 @@ async function broadcastRateChanges(updates: {id?: string, name: string, oldVal:
       const fe = flagMap[u.flag] || '💰';
       const code = getCode(u);
       
-      const diff = u.newVal - u.oldVal;
-      const pct = u.oldVal > 0 ? (diff / u.oldVal) * 100 : 0;
+      const diff = Math.abs(u.newVal - u.oldVal);
       
       message += `${fe} *${code}* : ${u.newVal.toFixed(3)}`;
       if (isUp) {
-        message += ` (📈 +${pct.toFixed(2)}%)\n`;
+        message += `  (📈 +${diff.toFixed(3)})\n`;
       } else if (isDown) {
-        message += ` (📉 ${pct.toFixed(2)}%)\n`;
+        message += `  (📉 -${diff.toFixed(3)})\n`;
       } else {
-        message += ` (➖ استقرار)\n`;
+        message += `  (➖)\n`;
       }
     }
     
-    message += `━━━━━━━━━━━━━━━━━━━\n`;
-    message += `🔗 التحديث المباشر والرسوم البيانية:\n🌐 https://tinyurl.com/2j7667u2\n\n`;
-    message += `📱 المصدر: شبكة مراسلي مؤشر الدينار | الدقة والسرعة`;
+    message += `\n━━━━━━━━━━━━━━━━━━━\n`;
+    message += `🔗 *للتفاصيل والرسوم البيانية:*\n🌐 https://tinyurl.com/2j7667u2`;
 
   } else if (style === "urgent") {
-    message += `🔴 *تحديث الأسعار الآن* 🔴\n`;
+    message += `🚨 *عاجل | تحديث أسعار الصرف* 🚨\n`;
+    message += `⏱ ${timeStr}\n`;
     message += `━━━━━━━━━━━━━\n\n`;
     for (const u of updates) {
       const isUp = u.newVal > u.oldVal;
       const isDown = u.newVal < u.oldVal;
       const fe = flagMap[u.flag] || '💰';
       
-      const emoji = isUp ? '🔺' : isDown ? '🔻' : '➖';
-      message += `${fe} *${u.name}*: *${u.newVal.toFixed(3)}* ${emoji}\n`;
-      message += `     السابق: ${u.oldVal.toFixed(3)}\n\n`;
+      const emoji = isUp ? '🔺 ارتفاع' : isDown ? '🔻 انخفاض' : '➖ استقرار';
+      message += `${fe} *${u.name}*: *${u.newVal.toFixed(3)}*\n`;
+      if (isUp || isDown) {
+         message += `     ${emoji} (كان: ${u.oldVal.toFixed(3)})\n\n`;
+      } else {
+         message += `     ${emoji}\n\n`;
+      }
     }
     message += `━━━━━━━━━━━━━\n`;
-    message += `🌐 لمتابعة الأسعار لحظة بلحظة:\n🔗 https://tinyurl.com/2j7667u2`;
+    message += `🌐 *المتابعة الحية:*\n🔗 https://tinyurl.com/2j7667u2`;
 
   } else if (style === "compact") {
-    message += `⚡ *موجز الأسعار* | ${timeStr} ⚡\n\n`;
+    message += `⚡ *موجز الأسعار* | ${timeStr}\n\n`;
     for (const u of updates) {
       const isUp = u.newVal > u.oldVal;
       const isDown = u.newVal < u.oldVal;
       const fe = flagMap[u.flag] || '💰';
       const code = getCode(u);
-      const icon = isUp ? '⤴️' : isDown ? '⤵️' : '⬅️';
+      const icon = isUp ? '🔺' : isDown ? '🔻' : '➖';
       
       message += `${fe} *${code}* ${u.newVal.toFixed(3)} ${icon} `;
     }
-    message += `\n\n🌐 لمتابعة الأسعار:\n🔗 https://tinyurl.com/2j7667u2`;
+    message += `\n\n🌐 *للتفاصيل:* https://tinyurl.com/2j7667u2`;
 
   } else if (style === "market_alert") {
-    message += `🔔 *حركة السوق الموازية* 🔔\n`;
+    message += `🔔 *تنبيه حركة السوق* 🔔\n`;
     message += `الساعة: ${timeStr}\n\n`;
     for (const u of updates) {
       const isUp = u.newVal > u.oldVal;
       const isDown = u.newVal < u.oldVal;
       const fe = flagMap[u.flag] || '💰';
-      const diffStr = isUp ? `زيادة (+${(u.newVal - u.oldVal).toFixed(3)})` : isDown ? `تراجع (${(u.oldVal - u.newVal).toFixed(3)})` : `بدون تغيير`;
+      const diffStr = isUp ? `🔼 ارتفاع بمقدار ${(u.newVal - u.oldVal).toFixed(3)}` : isDown ? `🔽 تراجع بمقدار ${(u.oldVal - u.newVal).toFixed(3)}` : `استقرار`;
       
       message += `${fe} *${u.name}*: *${u.newVal.toFixed(3)}*\n`;
-      if (isUp || isDown) {
-         message += `     ↳ ${diffStr}\n`;
+      if (isUp || isDown) { 
+        message += `     ↳ ${diffStr}\n`;
       }
       message += `\n`;
     }
-    message += `🌐 التفاصيل الحية والرسوم البيانية:\n🔗 https://tinyurl.com/2j7667u2`;
+    message += `🌐 *التفاصيل الحية:*\n🔗 https://tinyurl.com/2j7667u2`;
 
   } else if (style === "elegant") {
-    message += `⚜️ *النشرة المحدثة للعملات* ⚜️\n`;
+    message += `⚜️ *النشرة الاقتصادية للعملات* ⚜️\n`;
     message += `════════════════════\n`;
-    message += `التاريخ: ${dayName} ${dateStr}\n\n`;
+    message += `🗓 ${dayName}، ${dateStr}\n\n`;
     for (const u of updates) {
       const isUp = u.newVal > u.oldVal;
       const isDown = u.newVal < u.oldVal;
       const fe = flagMap[u.flag] || '💰';
       
       message += `${fe} *${u.name}*\n`;
-      message += `   السعر: ${u.newVal.toFixed(3)} `;
+      message += `   السعر: *${u.newVal.toFixed(3)}* `;
       if (isUp) {
-        message += `(ارتفع 🟢)\n\n`;
+        message += `(+)\n\n`;
       } else if (isDown) {
-        message += `(انخفض 🔴)\n\n`;
+        message += `(-)\n\n`;
       } else {
-        message += `(مستقر ⚪)\n\n`;
+        message += `(=)\n\n`;
       }
     }
     message += `════════════════════\n`;
-    message += `تابعنا لمعرفة المزيد عبر:\n`;
-    message += `📌 منصة مؤشر الدينار:\n🌐 https://tinyurl.com/2j7667u2`;
+    message += `📌 *منصة مؤشر الدينار:*\n🌐 https://tinyurl.com/2j7667u2`;
 
   } else if (style === "professional") {
-    message += `💎 *مؤشر الدينار | النشرة الاقتصادية اليومية* 💎\n`;
+    message += `🏦 *مؤشر الدينار | تقرير أسعار الصرف* 🏦\n`;
     message += `━━━━━━━━━━━━━━━━━━━\n`;
-    message += `متابعينا الكرام، إليكم آخر تحديثات أسعار الصرف بالسوق الموازية لليوم:\n\n`;
+    message += `تحديث السوق الموازية ليوم ${dayName}:\n\n`;
     
     for (const u of updates) {
       const isUp = u.newVal > u.oldVal;
@@ -1271,29 +1274,29 @@ async function broadcastRateChanges(updates: {id?: string, name: string, oldVal:
       const fe = flagMap[u.flag] || '💰';
       const code = getCode(u);
       
-      const diff = u.newVal - u.oldVal;
+      const diff = Math.abs(u.newVal - u.oldVal);
       const pct = u.oldVal > 0 ? (diff / u.oldVal) * 100 : 0;
       
       message += `${fe} *${u.name} (${code})*:\n`;
-      message += `👈 السعر الحالي: *${u.newVal.toFixed(3)} د.ل*\n`;
+      message += `💵 السعر: *${u.newVal.toFixed(3)} د.ل*\n`;
       
       if (isUp) {
-        message += `👈 الاتجاه الأخير: 📈 +${pct.toFixed(2)}% (السابق: ${u.oldVal.toFixed(3)})\n\n`;
+        message += `📈 التغير: +${diff.toFixed(3)} (+${pct.toFixed(2)}%) مقارنة بـ ${u.oldVal.toFixed(3)}\n\n`;
       } else if (isDown) {
-        message += `👈 الاتجاه الأخير: 📉 ${pct.toFixed(2)}% (السابق: ${u.oldVal.toFixed(3)})\n\n`;
+        message += `📉 التغير: -${diff.toFixed(3)} (-${pct.toFixed(2)}%) مقارنة بـ ${u.oldVal.toFixed(3)}\n\n`;
       } else {
-        message += `👈 الاتجاه الأخير: ➖ استقرار\n\n`;
+        message += `➖ التغير: استقرار\n\n`;
       }
     }
     
     message += `━━━━━━━━━━━━━━━━━━━\n`;
-    message += `⏰ تم التحديث: ${timeStr} | 🗓️ ${dayName} - ${dateStr}\n`;
-    message += `🔗 التحديث المباشر والرسوم البيانية:\n🌐 https://tinyurl.com/2j7667u2\n\n`;
-    message += `📱 المصدر: شبكة مراسلي مؤشر الدينار | الدقة والسرعة`;
+    message += `⏱ وقت التحديث: ${timeStr} | ${dateStr}\n`;
+    message += `🔗 *البيانات الحية:* https://tinyurl.com/2j7667u2\n`;
+    message += `📱 *المصدر:* شبكة مراسلي مؤشر الدينار`;
 
   } else {
     // Classic style
-    message += `📊 *تحديث أسعار الصرف* 📊\n`;
+    message += `📊 *نشرة أسعار الصرف* 📊\n`;
     message += `━━━━━━━━━━━━━━━━━\n`;
     message += `🗓️ التاريخ: ${dateStr}\n`;
     message += `⏰ الوقت: ${timeStr}\n`;
@@ -1302,23 +1305,19 @@ async function broadcastRateChanges(updates: {id?: string, name: string, oldVal:
     for (const u of updates) {
       const isUp = u.newVal > u.oldVal;
       const isDown = u.newVal < u.oldVal;
-      let emoji = '➖ استقرار';
-      if (isUp) emoji = '📈 ارتفع';
-      if (isDown) emoji = '📉 انخفض';
+      const diff = Math.abs(u.newVal - u.oldVal);
+      let diffText = 'استقرار';
+      if (isUp) diffText = `ارتفاع +${diff.toFixed(3)}`;
+      if (isDown) diffText = `انخفاض -${diff.toFixed(3)}`;
       
       const fe = flagMap[u.flag] || '💰';
       
-      message += `${fe} *${u.name}*: ${u.newVal.toFixed(3)} `;
-      if (isUp || isDown) {
-        message += `${emoji} (كان ${u.oldVal.toFixed(3)})\n\n`;
-      } else {
-        message += `${emoji}\n\n`;
-      }
+      message += `${fe} *${u.name}*: *${u.newVal.toFixed(3)}*\n`;
+      message += `   (${diffText})\n\n`;
     }
     
     message += `━━━━━━━━━━━━━━━━━\n`;
-    message += `🔗 تابع التحديثات الحية على منصتنا:\n🌐 https://tinyurl.com/2j7667u2\n\n`;
-    message += `📱 المصدر: شبكة مراسلي مؤشر الدينار | الدقة والسرعة`;
+    message += `🔗 *منصة مؤشر الدينار:*\n🌐 https://tinyurl.com/2j7667u2`;
   }
 
   try {
@@ -1654,6 +1653,7 @@ async function fetchParallelRatesFromTelegram(): Promise<boolean | null> {
     // Try GramJS first if configured
     let usedGramJs = false;
     let forceHttpScraper = false;
+    let canUseHttpScraper = false;
 
     // TelegramManager handled by singleton
     if (telegramManager) {
@@ -1736,7 +1736,7 @@ async function fetchParallelRatesFromTelegram(): Promise<boolean | null> {
         console.warn("[Scraper] GramJS returned 0 messages for all channels.");
       }
       
-      const canUseHttpScraper = appConfig.enableHttpScraper !== false;
+      canUseHttpScraper = appConfig.enableHttpScraper !== false;
       if (canUseHttpScraper) {
         console.log("[Scraper] Using HTTP Scraper fallback...");
         const USER_AGENTS = [
