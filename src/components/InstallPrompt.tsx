@@ -9,6 +9,10 @@ export default function InstallPrompt() {
   const [showIOSInstructions, setShowIOSInstructions] = useState(false);
 
   useEffect(() => {
+    window.dispatchEvent(new CustomEvent('installPromptVisibility', { detail: showPrompt }));
+  }, [showPrompt]);
+
+  useEffect(() => {
     const dismissed = localStorage.getItem('installPromptDismissed');
     if (dismissed && Date.now() - parseInt(dismissed, 10) < 7 * 24 * 60 * 60 * 1000) {
       return;
