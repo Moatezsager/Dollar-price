@@ -27,6 +27,7 @@ interface Stats {
   serverStartTime: string;
   dbConnected?: boolean;
   memoryUsage: { rss: number; heapUsed: number; heapTotal: number };
+  installs?: { total: number; today: number };
   dbStats?: {
     parallelRatesCount: number;
     officialRatesCount: number;
@@ -1728,6 +1729,25 @@ export default function Admin() {
                 {/* Bento Grid Overview */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                   {/* Stats Cards */}
+                  
+                  {/* Installs Card */}
+                  <div className="bg-gradient-to-br from-purple-500/10 to-purple-600/5 border border-purple-500/20 rounded-[2rem] p-6 relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/10 blur-3xl rounded-full -mr-16 -mt-16 group-hover:bg-purple-500/20 transition-all"></div>
+                    <div className="flex items-center justify-between mb-4 relative">
+                      <div className="w-12 h-12 rounded-2xl bg-purple-500/20 flex items-center justify-center">
+                        <Download className="w-6 h-6 text-purple-400" />
+                      </div>
+                      <span className="text-xs font-black text-purple-500/50 uppercase tracking-tighter">Total</span>
+                    </div>
+                    <div className="relative">
+                      <h3 className="text-zinc-400 text-xs font-bold mb-1">عمليات التثبيت</h3>
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-3xl font-black text-white">{stats?.installs?.total || 0}</span>
+                        <span className="text-xs text-purple-500 font-bold">+{stats?.installs?.today || 0} اليوم</span>
+                      </div>
+                    </div>
+                  </div>
+                  
                   <div className="bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 border border-emerald-500/20 rounded-[2rem] p-6 relative overflow-hidden group">
                     <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 blur-3xl rounded-full -mr-16 -mt-16 group-hover:bg-emerald-500/20 transition-all"></div>
                     <div className="flex items-center justify-between mb-4 relative">

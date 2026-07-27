@@ -34,6 +34,16 @@ db.exec(`
   )
 `);
 
+// Create installs table if not exists
+db.exec(`
+  CREATE TABLE IF NOT EXISTS installs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    platform TEXT,
+    user_agent TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+
 // Initialize Supabase client for server
 const supabaseUrl = process.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY; 
@@ -2521,6 +2531,19 @@ async function startServer() {
 
   app.get("/api/ping", (req, res) => {
     const minutesSinceLastScrape = Math.floor((Date.now() - lastSuccessfulScrape.getTime()) / 60000);
+      
+      let totalInstalls = 0;
+      let installsToday = 0;
+      try {
+        const installsRes = db.prepare('SELECT COUNT(*) as count FROM installs').get() as {count: number};
+        if (installsRes) totalInstalls = installsRes.count;
+        
+        const todayStr = new Date().toISOString().split('T')[0];
+        const installsTodayRes = db.prepare('SELECT COUNT(*) as count FROM installs WHERE created_at LIKE ?').get(`${todayStr}%`) as {count: number};
+        if (installsTodayRes) installsToday = installsTodayRes.count;
+      } catch (err) {
+        console.error("Error fetching install stats:", err);
+      }
     
     // Fallback: if pinged and last scrape was more than 10 mins ago, trigger it
     if (minutesSinceLastScrape >= 10) {
@@ -2852,6 +2875,19 @@ async function startServer() {
     try {
       const minutesSinceLastScrape = Math.floor((Date.now() - lastSuccessfulScrape.getTime()) / 60000);
       
+      let totalInstalls = 0;
+      let installsToday = 0;
+      try {
+        const installsRes = db.prepare('SELECT COUNT(*) as count FROM installs').get() as {count: number};
+        if (installsRes) totalInstalls = installsRes.count;
+        
+        const todayStr = new Date().toISOString().split('T')[0];
+        const installsTodayRes = db.prepare('SELECT COUNT(*) as count FROM installs WHERE created_at LIKE ?').get(`${todayStr}%`) as {count: number};
+        if (installsTodayRes) installsToday = installsTodayRes.count;
+      } catch (err) {
+        console.error("Error fetching install stats:", err);
+      }
+      
       let dbStats = {
         parallelRatesCount: 0,
         officialRatesCount: 0,
@@ -2889,6 +2925,7 @@ async function startServer() {
         serverStartTime: serverStartTime.toISOString(),
         memoryUsage: process.memoryUsage(),
         dbConnected: !!(supabase && supabaseAnonKey && !supabaseAnonKey.includes('dummy')),
+        installs: { total: totalInstalls, today: installsToday },
         dbStats
       });
     } catch (err) {
@@ -3002,6 +3039,19 @@ async function startServer() {
     try {
       const minutesSinceLastScrape = Math.floor((Date.now() - lastSuccessfulScrape.getTime()) / 60000);
       
+      let totalInstalls = 0;
+      let installsToday = 0;
+      try {
+        const installsRes = db.prepare('SELECT COUNT(*) as count FROM installs').get() as {count: number};
+        if (installsRes) totalInstalls = installsRes.count;
+        
+        const todayStr = new Date().toISOString().split('T')[0];
+        const installsTodayRes = db.prepare('SELECT COUNT(*) as count FROM installs WHERE created_at LIKE ?').get(`${todayStr}%`) as {count: number};
+        if (installsTodayRes) installsToday = installsTodayRes.count;
+      } catch (err) {
+        console.error("Error fetching install stats:", err);
+      }
+      
       let recentErrors = [];
       let dbStats = null;
       if (supabase && process.env.VITE_SUPABASE_ANON_KEY && !process.env.VITE_SUPABASE_ANON_KEY.includes('dummy')) {
@@ -3069,6 +3119,7 @@ async function startServer() {
           app_version: process.env.npm_package_version || "1.0.0",
           environment: process.env.NODE_ENV || "development"
         },
+        installs: { total: totalInstalls, today: installsToday },
         recent_critical_errors: recentErrors.reduce((acc: any[], err: any) => {
           const existing = acc.find((e: any) => e.message === err.message && e.context === err.context);
           if (existing) {
@@ -3292,6 +3343,19 @@ async function startServer() {
     const lastUpdatedTime = new Date(rates.lastUpdated).getTime();
     const minutesSinceLastChange = Math.floor((Date.now() - lastUpdatedTime) / 60000);
     const minutesSinceLastScrape = Math.floor((Date.now() - lastSuccessfulScrape.getTime()) / 60000);
+      
+      let totalInstalls = 0;
+      let installsToday = 0;
+      try {
+        const installsRes = db.prepare('SELECT COUNT(*) as count FROM installs').get() as {count: number};
+        if (installsRes) totalInstalls = installsRes.count;
+        
+        const todayStr = new Date().toISOString().split('T')[0];
+        const installsTodayRes = db.prepare('SELECT COUNT(*) as count FROM installs WHERE created_at LIKE ?').get(`${todayStr}%`) as {count: number};
+        if (installsTodayRes) installsToday = installsTodayRes.count;
+      } catch (err) {
+        console.error("Error fetching install stats:", err);
+      }
     
     // Consider data stale if no price changes for 12 hours OR no successful scrape for 12 hours
     const isStale = minutesSinceLastChange > 720 || minutesSinceLastScrape > 720;

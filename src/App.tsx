@@ -56,6 +56,7 @@ import { decodeData } from "./utils/security";
 import { io } from "socket.io-client";
 import { RateCell } from "./components/RateCell";
 import { usePriceFlash } from "./hooks/usePriceFlash";
+import InstallPrompt from "./components/InstallPrompt";
 
 
 interface Rates {
@@ -1505,6 +1506,7 @@ export default function App() {
   return (
     <MotionConfig transition={animationsEnabled ? undefined : { duration: 0 }}>
       <div className="min-h-screen bg-[#050505] text-white font-sans selection:bg-emerald-500/20 relative overflow-hidden" dir="rtl">
+        <InstallPrompt />
         {/* No more Splash Screen - Skeletons show the structure immediately */}
 
       <Joyride
