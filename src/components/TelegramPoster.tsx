@@ -145,6 +145,38 @@ export const TelegramPoster = ({ token }: { token: string }) => {
             </>
           )}
         </button>
+        <button
+          onClick={async () => {
+            if (!channel) {
+              setError('يرجى تحديد القناة');
+              return;
+            }
+            setError(null);
+            setSuccess(null);
+            try {
+              const response = await fetch('/api/admin/telegram/official-broadcast', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ channel })
+              });
+              const data = await response.json();
+              if (response.ok && data.success) {
+                setSuccess('تم إرسال أسعار المصرف المركزي بنجاح!');
+              } else {
+                setError(data.error || 'حدث خطأ أثناء إرسال أسعار المصرف المركزي');
+              }
+            } catch (err: any) {
+              setError(err.message || 'حدث خطأ في الاتصال بالخادم');
+            }
+          }}
+          className="w-full py-3 px-4 bg-gradient-to-l from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg mt-3"
+        >
+          <span>نشر أسعار المركزي</span>
+          <Send className="w-4 h-4" />
+        </button>
       </div>
     </div>
   );
