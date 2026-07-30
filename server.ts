@@ -2373,7 +2373,7 @@ async function startServer() {
         const installsRes = db.prepare('SELECT COUNT(*) as count FROM installs').get() as {count: number};
         if (installsRes) totalInstalls = installsRes.count;
         
-        const todayStr = new Date().toISOString().split('T')[0];
+        const todayStr = new Date(new Date().getTime() + 2 * 60 * 60 * 1000).toISOString().split('T')[0];
         const installsTodayRes = db.prepare('SELECT COUNT(*) as count FROM installs WHERE created_at LIKE ?').get(`${todayStr}%`) as {count: number};
         if (installsTodayRes) installsToday = installsTodayRes.count;
       } catch (err) {
@@ -2716,7 +2716,7 @@ async function startServer() {
         const installsRes = db.prepare('SELECT COUNT(*) as count FROM installs').get() as {count: number};
         if (installsRes) totalInstalls = installsRes.count;
         
-        const todayStr = new Date().toISOString().split('T')[0];
+        const todayStr = new Date(new Date().getTime() + 2 * 60 * 60 * 1000).toISOString().split('T')[0];
         const installsTodayRes = db.prepare('SELECT COUNT(*) as count FROM installs WHERE created_at LIKE ?').get(`${todayStr}%`) as {count: number};
         if (installsTodayRes) installsToday = installsTodayRes.count;
       } catch (err) {
@@ -2880,7 +2880,7 @@ async function startServer() {
         const installsRes = db.prepare('SELECT COUNT(*) as count FROM installs').get() as {count: number};
         if (installsRes) totalInstalls = installsRes.count;
         
-        const todayStr = new Date().toISOString().split('T')[0];
+        const todayStr = new Date(new Date().getTime() + 2 * 60 * 60 * 1000).toISOString().split('T')[0];
         const installsTodayRes = db.prepare('SELECT COUNT(*) as count FROM installs WHERE created_at LIKE ?').get(`${todayStr}%`) as {count: number};
         if (installsTodayRes) installsToday = installsTodayRes.count;
       } catch (err) {
@@ -3205,7 +3205,7 @@ async function startServer() {
         const installsRes = db.prepare('SELECT COUNT(*) as count FROM installs').get() as {count: number};
         if (installsRes) totalInstalls = installsRes.count;
         
-        const todayStr = new Date().toISOString().split('T')[0];
+        const todayStr = new Date(new Date().getTime() + 2 * 60 * 60 * 1000).toISOString().split('T')[0];
         const installsTodayRes = db.prepare('SELECT COUNT(*) as count FROM installs WHERE created_at LIKE ?').get(`${todayStr}%`) as {count: number};
         if (installsTodayRes) installsToday = installsTodayRes.count;
       } catch (err) {
@@ -3594,6 +3594,22 @@ ${updates.join('\n')}
   app.get("/api/config", (req: express.Request, res: express.Response) => {
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
     res.json({ terms: appConfig.terms });
+  });
+
+  
+  app.post("/api/track/install", (req: express.Request, res: express.Response) => {
+    try {
+      const { platform } = req.body;
+      const userAgent = req.headers['user-agent'] || '';
+      
+      const insert = db.prepare('INSERT INTO installs (platform, user_agent) VALUES (?, ?)');
+      insert.run(platform || 'unknown', userAgent);
+      
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Error tracking install:", err);
+      res.status(500).json({ success: false, error: err.message });
+    }
   });
 
   app.post("/api/logs/error", async (req: express.Request, res: express.Response) => {

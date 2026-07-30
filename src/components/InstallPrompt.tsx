@@ -74,11 +74,7 @@ export default function InstallPrompt() {
     
     if (outcome === 'accepted') {
       try {
-        await fetch('/api/track/install', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ platform: 'pwa_prompt' })
-        });
+// Tracked by appinstalled event instead to prevent double counting
       } catch (e) {
         console.error('Failed to track install', e);
       }
