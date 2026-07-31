@@ -27,7 +27,7 @@ export default function PushNotificationPrompt() {
       // Wait for a few seconds before prompting
       await new Promise(resolve => setTimeout(resolve, 3000));
 
-      const dismissed = localStorage.getItem('pushPromptDismissed_v2');
+      const dismissed = localStorage.getItem('pushPromptDismissed_v3');
       if (dismissed && Date.now() - parseInt(dismissed, 10) < 30 * 24 * 60 * 60 * 1000) {
         return; // Don't prompt if dismissed recently
       }
@@ -106,12 +106,12 @@ export default function PushNotificationPrompt() {
     }
     
     setShowPrompt(false);
-    localStorage.setItem('pushPromptDismissed_v2', Date.now().toString());
+    localStorage.setItem('pushPromptDismissed_v3', Date.now().toString());
   };
 
   const handleDismiss = () => {
     setShowPrompt(false);
-    localStorage.setItem('pushPromptDismissed_v2', Date.now().toString());
+    localStorage.setItem('pushPromptDismissed_v3', Date.now().toString());
   };
 
   if (!showPrompt) return null;

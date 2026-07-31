@@ -2004,10 +2004,7 @@ async function fetchParallelRatesFromTelegram(): Promise<boolean | null> {
     lastSuccessfulScrape = new Date();
     console.log(`[Scraper] Successfully processed ${totalMessagesProcessed} messages from ${successfulChannels} channels.`);
   } else {
-    console.warn("[Scraper] Failed to fetch any messages from any channels.");
-    const channelList = channels.join(', ');
-    const usedSources = usedGramJs ? (canUseHttpScraper ? "GramJS -> HTTP Fallback" : "GramJS (No Fallback)") : (forceHttpScraper ? "HTTP (Forced)" : "None");
-    await logErrorArabic(`فشل الكاشط في جلب أي بيانات من جميع القنوات (${channels.length} قناة)`, "الكاشط", `القنوات: ${channelList}\nالمصادر المستخدمة: ${usedSources}\nإجمالي الرسائل: ${totalMessagesProcessed}`);
+    console.warn("[Scraper] Failed to fetch any messages from any channels (They might be empty or blocked).");
   }
 
     // Memory monitoring
@@ -2339,7 +2336,7 @@ setInterval(cleanupUserLogs, 15 * 60 * 1000);
 async function startServer() {
   const app = express();
   const server = createServer(app);
-  const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+  const PORT = 3000;
 
   // Online Users Tracking
   const io = new SocketIOServer(server, {
@@ -4458,7 +4455,7 @@ ${updates.join('\n')}
     }
   }, 60000); // Check every minute
 
-  server.listen(PORT, () => {
+  server.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
     
     // Initial scrape on startup (with delay to avoid AUTH_KEY_DUPLICATED when Render restarts)
@@ -4538,6 +4535,32 @@ async function startMonitoring() {
      }
   }, 15 * 60 * 1000); // 15 mins
 }
+
+// Graceful shutdown handling
+process.on('SIGTERM', async () => {
+  console.log('SIGTERM received. Shutting down gracefully...');
+  
+  if (activeClient) {
+    try {
+      console.log('Disconnecting Telegram Client...');
+      await activeClient.disconnect();
+    } catch (e) {}
+  }
+  process.exit(0);
+});
+
+process.on('SIGINT', async () => {
+  console.log('SIGINT received. Shutting down gracefully...');
+  
+  if (activeClient) {
+    try {
+      console.log('Disconnecting Telegram Client...');
+      await activeClient.disconnect();
+    } catch (e) {}
+  }
+  process.exit(0);
+});
+
 startMonitoring();
 
 startServer().catch((err) => {
