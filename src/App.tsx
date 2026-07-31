@@ -57,6 +57,7 @@ import { io } from "socket.io-client";
 import { RateCell } from "./components/RateCell";
 import { usePriceFlash } from "./hooks/usePriceFlash";
 import InstallPrompt from "./components/InstallPrompt";
+import PushNotificationPrompt from "./components/PushNotificationPrompt";
 
 
 interface Rates {
@@ -1514,6 +1515,7 @@ export default function App() {
     <MotionConfig transition={animationsEnabled ? undefined : { duration: 0 }}>
       <div className="min-h-screen bg-[#050505] text-white font-sans selection:bg-emerald-500/20 relative overflow-hidden" dir="rtl">
         <InstallPrompt />
+        <PushNotificationPrompt />
         {/* No more Splash Screen - Skeletons show the structure immediately */}
 
       <Joyride
