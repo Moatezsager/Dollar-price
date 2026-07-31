@@ -1,4 +1,5 @@
 import "dotenv/config";
+import cron from "node-cron";
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
@@ -1062,6 +1063,198 @@ async function fetchOfficialRates(): Promise<boolean> {
 
 // Dynamic Configuration
 // Dynamic Configuration
+
+interface CurrencyStat {
+  high: number;
+  low: number;
+  sum: number;
+  count: number;
+  startPrice: number;
+}
+const dailyStats: Record<string, CurrencyStat> = {};
+const weeklyStats: Record<string, CurrencyStat> = {};
+
+function initStatsIfEmpty(termId: string, val: number) {
+  if (!dailyStats[termId]) {
+    dailyStats[termId] = { high: val, low: val, sum: 0, count: 0, startPrice: val };
+  }
+  if (!weeklyStats[termId]) {
+    weeklyStats[termId] = { high: val, low: val, sum: 0, count: 0, startPrice: val };
+  }
+}
+
+function updateStats(termId: string, val: number) {
+  if (val <= 0) return;
+  initStatsIfEmpty(termId, val);
+  
+  if (val > dailyStats[termId].high) dailyStats[termId].high = val;
+  if (val < dailyStats[termId].low) dailyStats[termId].low = val;
+  dailyStats[termId].sum += val;
+  dailyStats[termId].count++;
+
+  if (val > weeklyStats[termId].high) weeklyStats[termId].high = val;
+  if (val < weeklyStats[termId].low) weeklyStats[termId].low = val;
+  weeklyStats[termId].sum += val;
+  weeklyStats[termId].count++;
+}
+
+async function broadcastSuddenChangeAlert(u: {id?: string, name: string, oldVal: number, newVal: number, flag: string}) {
+  if (!appConfig.telegramPostChannel || !telegramManager || !appConfig.telegramAutoPost) return;
+  const pct = Math.abs(u.newVal - u.oldVal) / u.oldVal * 100;
+  if (pct < 1.0) return; // 1% threshold
+  
+  const isUp = u.newVal > u.oldVal;
+  let message = `🚨 *تنبيه عاجل | تغيير مفاجئ* 🚨\n\n`;
+  message += `العملة: *${u.name}*\n`;
+  message += `السعر الجديد: *${u.newVal.toFixed(3)}*\n`;
+  message += `السعر القديم: ${u.oldVal.toFixed(3)}\n`;
+  message += `نسبة التغيير: ${isUp ? '📈 ارتفع' : '📉 انخفض'} بمقدار ${pct.toFixed(2)}%\n\n`;
+  message += `🔗 التفاصيل: https://tinyurl.com/2j7667u2`;
+  
+  try {
+    await telegramManager.sendMessage(appConfig.telegramPostChannel, message);
+  } catch (e) {
+    console.error("[Telegram] Failed to send sudden alert:", e);
+  }
+}
+
+async function broadcastDailyReport() {
+  if (!appConfig.telegramPostChannel || !telegramManager || !appConfig.telegramAutoPost) return;
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('ar-LY', { timeZone: 'Africa/Tripoli' });
+  
+  let message = `📊 *المؤشر | تقرير نهاية اليوم*\n📅 ${dateStr}\n━━━━━━━━━━━━━━━━━\n\n`;
+  
+  const mainCurrencies = ['USD', 'USD_CHECKS', 'EUR', 'GBP'];
+  const goldCurrencies = ['GOLD_CAST_24', 'GOLD_CAST_21', 'GOLD_CAST_18', 'GOLD'];
+  
+  for (const cid of mainCurrencies) {
+    const stat = dailyStats[cid];
+    const term = appConfig.terms.find(t => t.id === cid);
+    if (term) {
+      let high = stat?.count > 0 ? stat.high : (rates.parallel[cid] || 0);
+      let low = stat?.count > 0 ? stat.low : (rates.parallel[cid] || 0);
+      let avg = stat?.count > 0 ? (stat.sum / stat.count) : (rates.parallel[cid] || 0);
+      let trend = '➖';
+      if (stat?.count > 0) {
+        trend = stat.high > stat.startPrice ? '📈' : (stat.low < stat.startPrice ? '📉' : '➖');
+      }
+      if (avg > 0) {
+        message += `💵 *${term.name}*\n`;
+        message += `└ أعلى: ${high.toFixed(3)} | أدنى: ${low.toFixed(3)} | متوسط: ${avg.toFixed(3)} ${trend}\n\n`;
+      }
+    }
+  }
+  
+  message += `━━━━━━━━━━━━━━━━━\n`;
+  for (const cid of goldCurrencies) {
+    const stat = dailyStats[cid];
+    const term = appConfig.terms.find(t => t.id === cid);
+    if (term) {
+      let high = stat?.count > 0 ? stat.high : (rates.parallel[cid] || 0);
+      let low = stat?.count > 0 ? stat.low : (rates.parallel[cid] || 0);
+      if (high > 0) {
+        message += `🥇 ${term.name} | أعلى: ${high.toFixed(2)} | أدنى: ${low.toFixed(2)}\n`;
+      }
+    }
+  }
+  
+  message += `━━━━━━━━━━━━━━━━━\n📡 *مؤشر الدينار | الدقة والسرعة*\n🔗 https://tinyurl.com/2j7667u2`;
+  
+  try {
+    await telegramManager.sendMessage(appConfig.telegramPostChannel, message);
+  } catch(e) {}
+  
+  // Reset daily stats
+  for (const key in dailyStats) {
+    dailyStats[key].high = rates.parallel[key] || 0;
+    dailyStats[key].low = rates.parallel[key] || 0;
+    dailyStats[key].sum = 0;
+    dailyStats[key].count = 0;
+    dailyStats[key].startPrice = rates.parallel[key] || 0;
+  }
+}
+
+async function broadcastWeeklyReport() {
+  if (!appConfig.telegramPostChannel || !telegramManager || !appConfig.telegramAutoPost) return;
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('ar-LY', { timeZone: 'Africa/Tripoli' });
+  const pastWeek = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toLocaleDateString('ar-LY', { timeZone: 'Africa/Tripoli' });
+  
+  let message = `📊 *المؤشر | تقرير الأسبوع*\n📅 ${pastWeek} — ${dateStr}\n━━━━━━━━━━━━━━━━━\n\n`;
+  
+  const mainCurrencies = ['USD', 'USD_CHECKS', 'EUR', 'GBP'];
+  const goldCurrencies = ['GOLD_CAST_24', 'GOLD_CAST_21', 'GOLD_CAST_18', 'GOLD'];
+  
+  for (const cid of mainCurrencies) {
+    const stat = weeklyStats[cid];
+    const term = appConfig.terms.find(t => t.id === cid);
+    if (term) {
+      let avg = stat?.count > 0 ? (stat.sum / stat.count) : (rates.parallel[cid] || 0);
+      let startPrice = stat ? stat.startPrice : (rates.parallel[cid] || 0);
+      if (avg > 0 && startPrice > 0) {
+        const pct = Math.abs(avg - startPrice) / startPrice * 100;
+        let trendStr = `➖ استقر`;
+        if (pct > 0.01) {
+          trendStr = avg > startPrice ? `📈 ارتفع ${pct.toFixed(2)}%` : `📉 انخفض ${pct.toFixed(2)}%`;
+        }
+        message += `💵 *${term.name}*\n`;
+        message += `├ هذا الأسبوع: ${avg.toFixed(3)}\n`;
+        message += `├ الأسبوع الماضي: ${startPrice.toFixed(3)}\n`;
+        message += `└ التغيير: ${trendStr}\n\n`;
+      }
+    }
+  }
+  
+  message += `━━━━━━━━━━━━━━━━━\n`;
+  for (const cid of goldCurrencies) {
+    const stat = weeklyStats[cid];
+    const term = appConfig.terms.find(t => t.id === cid);
+    if (term) {
+      let avg = stat?.count > 0 ? (stat.sum / stat.count) : (rates.parallel[cid] || 0);
+      let startPrice = stat ? stat.startPrice : (rates.parallel[cid] || 0);
+      if (avg > 0 && startPrice > 0) {
+        const pct = Math.abs(avg - startPrice) / startPrice * 100;
+        let trendStr = `➖ استقر`;
+        if (pct > 0.01) {
+          trendStr = avg > startPrice ? `📈 ارتفع ${pct.toFixed(2)}%` : `📉 انخفض ${pct.toFixed(2)}%`;
+        }
+        message += `🥇 ${term.name} | ${avg.toFixed(2)} ${trendStr}\n`;
+      }
+    }
+  }
+  
+  message += `━━━━━━━━━━━━━━━━━\n📡 *مؤشر الدينار | الدقة والسرعة*\n🔗 https://tinyurl.com/2j7667u2`;
+  
+  try {
+    await telegramManager.sendMessage(appConfig.telegramPostChannel, message);
+  } catch(e) {}
+  
+  // Reset weekly stats
+  for (const key in weeklyStats) {
+    weeklyStats[key].high = rates.parallel[key] || 0;
+    weeklyStats[key].low = rates.parallel[key] || 0;
+    weeklyStats[key].sum = 0;
+    weeklyStats[key].count = 0;
+    weeklyStats[key].startPrice = rates.parallel[key] || 0;
+  }
+}
+
+// Setup CRON jobs
+cron.schedule('59 23 * * *', () => {
+  broadcastDailyReport().catch(console.error);
+}, {
+  scheduled: true,
+  timezone: "Africa/Tripoli"
+});
+
+cron.schedule('55 23 * * 5', () => {
+  broadcastWeeklyReport().catch(console.error);
+}, {
+  scheduled: true,
+  timezone: "Africa/Tripoli"
+});
+
 let appConfig: AppConfig = {
   channels: ["dollarr_ly", "musheermarket", "lydollar", "suqalmushir"],
   telegramPostChannel: "lydollar",
@@ -1827,6 +2020,15 @@ async function fetchParallelRatesFromTelegram(): Promise<boolean | null> {
             anyChanged = true;
             
             telegramUpdates.push({
+              id: term.id,
+              name: term.name,
+              oldVal: currentVal || newValFromTelegram,
+              newVal: newValFromTelegram,
+              flag: term.flag
+            });
+            
+            updateStats(term.id, newValFromTelegram);
+            broadcastSuddenChangeAlert({
               id: term.id,
               name: term.name,
               oldVal: currentVal || newValFromTelegram,
@@ -4144,6 +4346,12 @@ ${updates.join('\n')}
       try {
         // 1. Load latest rates from Supabase immediately to ensure we have the latest prices
         await loadLatestRatesFromSupabase();
+        for (const key in rates.parallel) {
+          if (rates.parallel[key] > 0) {
+            initStatsIfEmpty(key, rates.parallel[key]);
+          }
+        }
+
         
         console.log("[Startup] Waiting 30s for system to settle and old sessions to clear...");
         await new Promise(resolve => setTimeout(resolve, 30000));
