@@ -11,7 +11,7 @@ import { createServer } from 'http';
 import helmet from "helmet";
 import compression from "compression";
 import rateLimit from "express-rate-limit";
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 import { TelegramClient, Api } from "telegram";
 import { StringSession } from "telegram/sessions";
 import { getTelegramClient, fetchChannelMessages, initializeTelegram, activeClient, TelegramManager, getTelegramManager } from "./telegramClient";
@@ -1600,7 +1600,89 @@ let liveFeed: LiveFeedMessage[] = [];
  * Extracts rates from a given text based on the current configuration.
  * Returns an array of extracted rates.
  */
-const extractRatesFromText = (cleanText: string) => {
+
+const aiProcessedTexts = new Set<string>();
+
+async function extractRatesWithAI(text: string, channel: string): Promise<{ code: string, value: number, date?: string }[]> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return [];
+  
+  const cacheKey = channel + "_" + text.substring(0, 30) + text.length;
+  if (aiProcessedTexts.has(cacheKey)) return [];
+  aiProcessedTexts.add(cacheKey);
+  
+  if (aiProcessedTexts.size > 1000) {
+    const arr = Array.from(aiProcessedTexts);
+    aiProcessedTexts.clear();
+    arr.slice(500).forEach(k => aiProcessedTexts.add(k));
+  }
+
+  const termIds = appConfig.terms.map(t => t.id).join(", ");
+  
+  const prompt = `أنت خبير مالي في ليبيا. استخرج أسعار العملات والذهب من النص التالي، والذي تم نشره في قناة "${channel}".
+النص:
+${text}
+
+المطلوب:
+إرجاع مصفوفة JSON تحتوي على كائنات بصيغة:
+[
+  { "code": "USD", "value": 9.10 }
+]
+
+تعليمات هامة جداً:
+1. استخرج السعر النهائي للوحدة الأجنبية الواحدة مقابل الدينار الليبي (مثال: إذا كان 100 دينار تونسي = 34.5 دينار ليبي، فإن السعر هو 0.345. وإذا كان الدينار الليبي = 5.50 جنيه مصري، فإن السعر هو 1/5.50 = 0.1818).
+2. رموز العملات المسموحة فقط: ${termIds}
+3. لا تقم بإضافة أي عملات غير موجودة. إذا لم يكن هناك أسعار، أرجع مصفوفة فارغة [].
+4. للذهب (كسر أو خارجي) استخرج السعر للجرام الواحد بالدينار.`;
+
+  try {
+    const ai = new GoogleGenAI({ apiKey });
+    const response = await ai.models.generateContent({
+      model: "gemini-3.7-flash",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              code: { type: Type.STRING },
+              value: { type: Type.NUMBER }
+            },
+            required: ["code", "value"]
+          }
+        }
+      }
+    });
+
+    if (response.text) {
+      const parsed = JSON.parse(response.text);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        console.log(`[Scraper-AI] AI extracted rates from ${channel}: `, JSON.stringify(parsed));
+        return parsed.filter(item => {
+          const term = appConfig.terms.find(t => t.id === item.code);
+          return term && typeof item.value === 'number' && item.value >= term.min && item.value <= term.max;
+        });
+      }
+    }
+  } catch (e) {
+    console.error(`[Scraper-AI] Error calling AI for ${channel}: `, e);
+  }
+  return [];
+}
+
+
+function stripArabicDiacritics(text: string): string {
+  // Remove harakat (tashkeel)
+  let result = text.replace(/[\u064B-\u065F\u0670]/g, '');
+  // Remove tatweel (kashida)
+  result = result.replace(/\u0640/g, '');
+  return result;
+}
+
+const extractRatesFromText = (originalText: string) => {
+  const cleanText = stripArabicDiacritics(originalText);
   const results: { code: string, value: number, date?: string }[] = [];
   
   // Pre-compile regexes for performance
@@ -1614,8 +1696,9 @@ const extractRatesFromText = (cleanText: string) => {
     if (!match) continue;
 
     let valStr = null;
-    const firstCapturedNum = match[1] || match[3];
-    const secondCapturedNum = match[2] || match[4];
+    const capturedNums = match.slice(1).filter(Boolean);
+    const firstCapturedNum = capturedNums[0];
+    const secondCapturedNum = capturedNums[1];
     
     if (firstCapturedNum) {
       if (secondCapturedNum) {
