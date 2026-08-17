@@ -1900,7 +1900,23 @@ async function fetchParallelRatesFromTelegram(): Promise<boolean | null> {
               }
 
               const cleanText = msg.text;
-              const extracted = extractRatesFromText(cleanText);
+              let extracted = extractRatesFromText(cleanText);
+              const hasCurrencyKeywords = /(?:يورو|دولار|باوند|دينار|ليرة|ذهب|فضة|كسر|مسبوك|أونصة|EUR|USD|GBP|TND|TRY|EGP)/i.test(cleanText);
+              if (hasCurrencyKeywords && cleanText.length > 10 && cleanText.length < 800) {
+                 const aiExtracted = await extractRatesWithAI(cleanText, channel);
+                 if (aiExtracted.length > 0) {
+                    const merged = [...extracted];
+                    for (const aiRate of aiExtracted) {
+                        const existingIdx = merged.findIndex(r => r.code === aiRate.code);
+                        if (existingIdx >= 0) {
+                            merged[existingIdx] = aiRate; 
+                        } else {
+                            merged.push(aiRate);
+                        }
+                    }
+                    extracted = merged;
+                 }
+              }
               
               const feedMsg: LiveFeedMessage = {
                 id: Math.random().toString(36).substring(2, 11),
@@ -2055,7 +2071,23 @@ async function fetchParallelRatesFromTelegram(): Promise<boolean | null> {
                 continue; 
               }
 
-                  const extracted = extractRatesFromText(cleanText);
+                  let extracted = extractRatesFromText(cleanText);
+                  const hasCurrencyKeywords = /(?:يورو|دولار|باوند|دينار|ليرة|ذهب|فضة|كسر|مسبوك|أونصة|EUR|USD|GBP|TND|TRY|EGP)/i.test(cleanText);
+                  if (hasCurrencyKeywords && cleanText.length > 10 && cleanText.length < 800) {
+                     const aiExtracted = await extractRatesWithAI(cleanText, channel);
+                     if (aiExtracted.length > 0) {
+                        const merged = [...extracted];
+                        for (const aiRate of aiExtracted) {
+                            const existingIdx = merged.findIndex(r => r.code === aiRate.code);
+                            if (existingIdx >= 0) {
+                                merged[existingIdx] = aiRate; 
+                            } else {
+                                merged.push(aiRate);
+                            }
+                        }
+                        extracted = merged;
+                     }
+                  }
                   
                   const feedMsg: LiveFeedMessage = {
                     id: Math.random().toString(36).substring(2, 11),
