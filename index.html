@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0, viewport-fit=cover" />
     <title>مؤشر الدينار | Dinar Index</title>
-    <meta name="theme-color" content="#050505" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
     <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
     <meta name="description" content="متابعة أسعار العملات والذهب في ليبيا لحظة بلحظة من السوق الموازي والمصرف المركزي" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -12,22 +12,18 @@
     <meta name="apple-mobile-web-app-title" content="مؤشر الدينار" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="application-name" content="مؤشر الدينار" />
-    <meta name="msapplication-TileColor" content="#050505" />
+    <meta name="msapplication-TileColor" content="#000000" />
     <meta name="msapplication-tap-highlight" content="no" />
     <meta name="format-detection" content="telephone=no" />
     
     <!-- PWA Icons & Splash Screens -->
-    <link rel="apple-touch-icon" href="https://hatscripts.github.io/circle-flags/flags/ly.svg" />
-    <link rel="icon" type="image/svg+xml" href="https://hatscripts.github.io/circle-flags/flags/ly.svg" />
-    <link rel="mask-icon" href="https://hatscripts.github.io/circle-flags/flags/ly.svg" color="#10b981" />
+    <link rel="apple-touch-icon" href="/logo.gif" />
+    <link rel="icon" type="image/gif" href="/logo.gif" />
     
-    <!-- iOS Splash Screens (Simplified for now) -->
-    <link rel="apple-touch-startup-image" href="https://hatscripts.github.io/circle-flags/flags/ly.svg" />
+    <!-- iOS Splash Screens -->
+    <link rel="apple-touch-startup-image" href="/logo.gif" />
     
     <style>
-      /* Prevent pull-to-refresh on mobile if desired, but keep it for now as it's useful */
-      /* body { overscroll-behavior-y: contain; } */
-      
       /* Safe area padding for notched phones */
       :root {
         --safe-area-inset-top: env(safe-area-inset-top);
@@ -40,7 +36,7 @@
       <style>
         body {
           margin: 0;
-          background-color: #050505;
+          background-color: #000000;
         }
         .splash-container {
           display: flex;
@@ -49,38 +45,39 @@
           justify-content: center;
           height: 100vh;
           width: 100vw;
-          background-color: #050505;
+          background-color: #000000;
           color: white;
           font-family: system-ui, -apple-system, sans-serif;
         }
         .splash-logo-container {
           position: relative;
-          width: 96px;
-          height: 96px;
-          margin-bottom: 32px;
+          width: 160px;
+          height: 160px;
+          margin-bottom: 24px;
+          display: flex;
+          justify-content: center;
+          align-items: center;
         }
         .splash-logo-glow {
           position: absolute;
-          inset: 0;
-          background-color: #10b981;
+          inset: 10px;
+          background-color: rgba(16, 185, 129, 0.15);
           border-radius: 50%;
-          filter: blur(24px);
-          opacity: 0.4;
-          animation: pulse-glow 2s ease-in-out infinite;
+          filter: blur(30px);
+          animation: pulse-glow 3s ease-in-out infinite;
         }
         .splash-logo {
           position: relative;
           width: 100%;
           height: 100%;
-          border-radius: 50%;
-          box-shadow: 0 0 20px rgba(16, 185, 129, 0.2);
+          object-fit: contain;
           z-index: 10;
         }
         .splash-title {
-          font-size: 30px;
+          font-size: 28px;
           line-height: 36px;
           font-weight: 800;
-          letter-spacing: 0.025em;
+          letter-spacing: 0.02em;
           background: linear-gradient(to right, #34d399, #10b981);
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
@@ -89,14 +86,15 @@
         .splash-subtitle {
           font-size: 14px;
           color: #a1a1aa;
-          margin-top: 12px;
+          margin-top: 10px;
           font-weight: 500;
+          letter-spacing: 0.05em;
         }
         .splash-loader {
-          margin-top: 48px;
-          width: 64px;
-          height: 4px;
-          background-color: rgba(255, 255, 255, 0.1);
+          margin-top: 50px;
+          width: 80px;
+          height: 3px;
+          background-color: rgba(255, 255, 255, 0.08);
           border-radius: 4px;
           overflow: hidden;
           position: relative;
@@ -107,13 +105,13 @@
           left: -50%;
           height: 100%;
           width: 50%;
-          background-color: #10b981;
+          background-image: linear-gradient(90deg, transparent, #10b981, transparent);
           border-radius: 4px;
-          animation: loading 1.5s infinite ease-in-out;
+          animation: loading 1.8s infinite ease-in-out;
         }
         @keyframes pulse-glow {
-          0%, 100% { opacity: 0.3; transform: scale(1); }
-          50% { opacity: 0.6; transform: scale(1.1); }
+          0%, 100% { opacity: 0.4; transform: scale(0.9); }
+          50% { opacity: 0.8; transform: scale(1.1); }
         }
         @keyframes loading {
           0% { left: -50%; }
@@ -123,10 +121,10 @@
       <div class="splash-container">
         <div class="splash-logo-container">
           <div class="splash-logo-glow"></div>
-          <img src="https://hatscripts.github.io/circle-flags/flags/ly.svg" alt="Logo" class="splash-logo" />
+          <img src="/logo.gif" alt="Logo" class="splash-logo" />
         </div>
         <h1 class="splash-title">مؤشر الدينار</h1>
-        <p class="splash-subtitle">جاري التحديث...</p>
+        <p class="splash-subtitle">جاري التحميل...</p>
         <div class="splash-loader"></div>
       </div>
     </div>

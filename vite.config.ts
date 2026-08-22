@@ -34,39 +34,39 @@ export default defineConfig(({mode}) => {
               short_name: 'المحول',
               description: 'فتح محول العملات مباشرة',
               url: '/?section=converter',
-              icons: [{ src: 'https://hatscripts.github.io/circle-flags/flags/ly.svg', sizes: '192x192' }]
+              icons: [{ src: '/logo.gif', sizes: '192x192' }]
             },
             {
               name: 'أسعار الذهب',
               short_name: 'الذهب',
               description: 'فتح أسعار الذهب والمعادن',
               url: '/?section=gold',
-              icons: [{ src: 'https://hatscripts.github.io/circle-flags/flags/ly.svg', sizes: '192x192' }]
+              icons: [{ src: '/logo.gif', sizes: '192x192' }]
             }
           ],
           icons: [
             {
-              src: 'https://hatscripts.github.io/circle-flags/flags/ly.svg',
+              src: '/logo.gif',
               sizes: '192x192',
-              type: 'image/svg+xml',
+              type: 'image/gif',
               purpose: 'any'
             },
             {
-              src: 'https://hatscripts.github.io/circle-flags/flags/ly.svg',
+              src: '/logo.gif',
               sizes: '192x192',
-              type: 'image/svg+xml',
+              type: 'image/gif',
               purpose: 'maskable'
             },
             {
-              src: 'https://hatscripts.github.io/circle-flags/flags/ly.svg',
+              src: '/logo.gif',
               sizes: '512x512',
-              type: 'image/svg+xml',
+              type: 'image/gif',
               purpose: 'any'
             },
             {
-              src: 'https://hatscripts.github.io/circle-flags/flags/ly.svg',
+              src: '/logo.gif',
               sizes: '512x512',
-              type: 'image/svg+xml',
+              type: 'image/gif',
               purpose: 'maskable'
             }
           ],

@@ -1629,8 +1629,8 @@ export default function App() {
             className="fixed bottom-6 left-4 right-4 z-[100] bg-zinc-900/98 border border-white/10 p-5 rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.5)] backdrop-blur-2xl"
           >
             <div className="flex items-start gap-4">
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-blue-500/20 flex items-center justify-center border border-white/10 shrink-0">
-                <img src="https://hatscripts.github.io/circle-flags/flags/ly.svg" alt="App Icon" className="w-10 h-10 rounded-full shadow-lg" />
+              <div className="w-14 h-14 rounded-2xl bg-black flex items-center justify-center border border-white/10 shrink-0 overflow-hidden">
+                <img src="/logo.gif" alt="App Icon" className="w-12 h-12 object-contain" />
               </div>
               <div className="flex-1">
                 <h4 className="text-white font-bold text-base">ثبّت "مؤشر الدينار" على هاتفك</h4>
