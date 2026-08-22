@@ -34,37 +34,37 @@ export default defineConfig(({mode}) => {
               short_name: 'المحول',
               description: 'فتح محول العملات مباشرة',
               url: '/?section=converter',
-              icons: [{ src: '/app-icon.png', sizes: '192x192' }]
+              icons: [{ src: '/app-icon-192.png', sizes: '192x192' }]
             },
             {
               name: 'أسعار الذهب',
               short_name: 'الذهب',
               description: 'فتح أسعار الذهب والمعادن',
               url: '/?section=gold',
-              icons: [{ src: '/app-icon.png', sizes: '192x192' }]
+              icons: [{ src: '/app-icon-192.png', sizes: '192x192' }]
             }
           ],
           icons: [
             {
-              src: '/app-icon.png',
+              src: '/app-icon-192.png',
               sizes: '192x192',
               type: 'image/png',
               purpose: 'any'
             },
             {
-              src: '/app-icon.png',
+              src: '/app-icon-192.png',
               sizes: '192x192',
               type: 'image/png',
               purpose: 'maskable'
             },
             {
-              src: '/app-icon.png',
+              src: '/app-icon-512.png',
               sizes: '512x512',
               type: 'image/png',
               purpose: 'any'
             },
             {
-              src: '/app-icon.png',
+              src: '/app-icon-512.png',
               sizes: '512x512',
               type: 'image/png',
               purpose: 'maskable'

@@ -342,7 +342,7 @@ export default function App() {
       setDeferredPrompt(e);
       setShowInstallBanner(true);
       
-      const androidPromptDismissed = localStorage.getItem('androidPromptDismissed_v2');
+      const androidPromptDismissed = localStorage.getItem('androidPromptDismissed_v3');
       if (!androidPromptDismissed && !window.matchMedia('(display-mode: standalone)').matches) {
         setTimeout(() => setShowAndroidPrompt(true), 3000);
       }
@@ -1708,7 +1708,7 @@ export default function App() {
                 onClick={() => {
                   triggerHaptic(5);
                   setShowAndroidPrompt(false);
-                  localStorage.setItem('androidPromptDismissed_v2', 'true');
+                  localStorage.setItem('androidPromptDismissed_v3', 'true');
                 }}
                 className="p-2 -mr-2 text-zinc-500 hover:text-white transition-colors"
               >
