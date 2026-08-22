@@ -342,7 +342,7 @@ export default function App() {
       setDeferredPrompt(e);
       setShowInstallBanner(true);
       
-      const androidPromptDismissed = localStorage.getItem('androidPromptDismissed');
+      const androidPromptDismissed = localStorage.getItem('androidPromptDismissed_v2');
       if (!androidPromptDismissed && !window.matchMedia('(display-mode: standalone)').matches) {
         setTimeout(() => setShowAndroidPrompt(true), 3000);
       }
@@ -1636,7 +1636,7 @@ export default function App() {
           >
             <div className="flex items-start gap-4">
               <div className="w-14 h-14 rounded-2xl bg-black flex items-center justify-center border border-white/10 shrink-0 overflow-hidden">
-                <img src="/logo.gif" alt="App Icon" className="w-12 h-12 object-contain" />
+                <img src="/app-icon.png" alt="App Icon" className="w-12 h-12 object-contain" />
               </div>
               <div className="flex-1">
                 <h4 className="text-white font-bold text-base">ثبّت "مؤشر الدينار" على هاتفك</h4>
@@ -1686,7 +1686,7 @@ export default function App() {
           >
             <div className="flex items-start gap-4">
               <div className="w-14 h-14 rounded-2xl bg-black flex items-center justify-center border border-white/10 shrink-0 overflow-hidden">
-                <img src="/logo.gif" alt="App Icon" className="w-12 h-12 object-contain" />
+                <img src="/app-icon.png" alt="App Icon" className="w-12 h-12 object-contain" />
               </div>
               <div className="flex-1">
                 <h4 className="text-white font-bold text-base">ثبّت "مؤشر الدينار" على جهازك</h4>
@@ -1708,7 +1708,7 @@ export default function App() {
                 onClick={() => {
                   triggerHaptic(5);
                   setShowAndroidPrompt(false);
-                  localStorage.setItem('androidPromptDismissed', 'true');
+                  localStorage.setItem('androidPromptDismissed_v2', 'true');
                 }}
                 className="p-2 -mr-2 text-zinc-500 hover:text-white transition-colors"
               >
