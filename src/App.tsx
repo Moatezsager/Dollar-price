@@ -35,7 +35,9 @@ import {
   ChevronDown,
   Code2,
   Mail,
-  Minus
+  Minus,
+  ExternalLink,
+  MoreHorizontal
 } from "lucide-react";
 import {
   AreaChart,
@@ -280,6 +282,7 @@ export default function App() {
   const [isIOS, setIsIOS] = useState(false);
   const [showIOSPrompt, setShowIOSPrompt] = useState(false);
   const [showAndroidPrompt, setShowAndroidPrompt] = useState(false);
+  const [showInAppBrowserPrompt, setShowInAppBrowserPrompt] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [currentPage, setCurrentPage] = useState<'dashboard' | 'api' | 'contact'>('dashboard');
   const [hapticEnabled, setHapticEnabled] = useState(() => {
@@ -355,15 +358,23 @@ export default function App() {
     }
 
     const userAgent = window.navigator.userAgent.toLowerCase();
+    const isInAppBrowser = /fban|fbav|instagram|telegram|twitter|linkedin/i.test(userAgent);
+
     setIsIOS(/iphone|ipad|ipod/.test(userAgent));
 
-    // Check iOS prompt
-    const iosPromptDismissed = localStorage.getItem('iosPromptDismissed');
-    const isIOSDevice = /iphone|ipad|ipod/.test(userAgent);
-    setIsIOS(isIOSDevice);
-
-    if (isIOSDevice && !iosPromptDismissed && !window.matchMedia('(display-mode: standalone)').matches && !(window.navigator as any).standalone) {
-      setTimeout(() => setShowIOSPrompt(true), 3000);
+    if (isInAppBrowser && !window.matchMedia('(display-mode: standalone)').matches && !(window.navigator as any).standalone) {
+      const inAppPromptDismissed = localStorage.getItem('inAppPromptDismissed');
+      if (!inAppPromptDismissed) {
+        setTimeout(() => setShowInAppBrowserPrompt(true), 1500);
+      }
+    } else {
+      // Check iOS prompt if not in in-app browser
+      const iosPromptDismissed = localStorage.getItem('iosPromptDismissed');
+      const isIOSDevice = /iphone|ipad|ipod/.test(userAgent);
+      
+      if (isIOSDevice && !iosPromptDismissed && !window.matchMedia('(display-mode: standalone)').matches && !(window.navigator as any).standalone) {
+        setTimeout(() => setShowIOSPrompt(true), 3000);
+      }
     }
 
     // Handle app installed event
@@ -1624,6 +1635,54 @@ export default function App() {
         )}
       </AnimatePresence>
 
+
+      {/* In-App Browser Warning Prompt */}
+      <AnimatePresence>
+        {showInAppBrowserPrompt && (
+          <motion.div
+            initial={{ y: -100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: -100, opacity: 0 }}
+            className="fixed top-6 left-4 right-4 z-[150] bg-indigo-600 border border-white/20 p-5 rounded-[2rem] shadow-[0_20px_50px_rgba(79,70,229,0.5)] backdrop-blur-2xl"
+          >
+            <div className="flex items-start gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-white/10 flex items-center justify-center border border-white/20 shrink-0 overflow-hidden">
+                <ExternalLink className="w-6 h-6 text-white" />
+              </div>
+              <div className="flex-1">
+                <h4 className="text-white font-bold text-base">متصفح غير مدعوم للتثبيت</h4>
+                <p className="text-indigo-100 text-xs mt-1.5 leading-relaxed">
+                  أنت تتصفح من داخل تطبيق آخر. لتتمكن من تثبيت البرنامج:
+                </p>
+                <div className="mt-3 flex flex-col gap-2">
+                  <div className="flex items-center gap-2 text-xs text-white bg-black/20 p-2.5 rounded-xl">
+                    <div className="w-6 h-6 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
+                      <MoreHorizontal className="w-4 h-4 text-white" />
+                    </div>
+                    <span>1. اضغط على الثلاث نقاط (الخيارات) في الأعلى</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-white bg-black/20 p-2.5 rounded-xl">
+                    <div className="w-6 h-6 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
+                      <Globe className="w-4 h-4 text-white" />
+                    </div>
+                    <span>2. اختر "فتح في المتصفح" (Open in Browser)</span>
+                  </div>
+                </div>
+              </div>
+              <button 
+                onClick={() => {
+                  triggerHaptic(5);
+                  setShowInAppBrowserPrompt(false);
+                  localStorage.setItem('inAppPromptDismissed', 'true');
+                }}
+                className="p-2 -mr-2 text-indigo-200 hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* iOS Install Prompt */}
       <AnimatePresence>
