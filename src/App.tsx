@@ -279,6 +279,7 @@ export default function App() {
   const [isStandalone, setIsStandalone] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
   const [showIOSPrompt, setShowIOSPrompt] = useState(false);
+  const [showAndroidPrompt, setShowAndroidPrompt] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [currentPage, setCurrentPage] = useState<'dashboard' | 'api' | 'contact'>('dashboard');
   const [hapticEnabled, setHapticEnabled] = useState(() => {
@@ -340,6 +341,11 @@ export default function App() {
       e.preventDefault();
       setDeferredPrompt(e);
       setShowInstallBanner(true);
+      
+      const androidPromptDismissed = localStorage.getItem('androidPromptDismissed');
+      if (!androidPromptDismissed && !window.matchMedia('(display-mode: standalone)').matches) {
+        setTimeout(() => setShowAndroidPrompt(true), 3000);
+      }
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
@@ -1665,6 +1671,50 @@ export default function App() {
             </div>
             {/* Indicator Arrow for Safari Share Button */}
             <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-zinc-900 rotate-45 border-r border-b border-white/10"></div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Android/Desktop Install Prompt */}
+      <AnimatePresence>
+        {showAndroidPrompt && (
+          <motion.div
+            initial={{ y: 100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 100, opacity: 0 }}
+            className="fixed bottom-6 left-4 right-4 z-[100] bg-zinc-900/98 border border-white/10 p-5 rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.5)] backdrop-blur-2xl"
+          >
+            <div className="flex items-start gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-black flex items-center justify-center border border-white/10 shrink-0 overflow-hidden">
+                <img src="/logo.gif" alt="App Icon" className="w-12 h-12 object-contain" />
+              </div>
+              <div className="flex-1">
+                <h4 className="text-white font-bold text-base">ثبّت "مؤشر الدينار" على جهازك</h4>
+                <p className="text-zinc-400 text-xs mt-1.5 leading-relaxed">
+                  احصل على تجربة أسرع وأفضل، مع إمكانية الوصول للأسعار بدون إنترنت.
+                </p>
+                <button
+                  onClick={() => {
+                    setShowAndroidPrompt(false);
+                    handleInstall();
+                  }}
+                  className="mt-4 w-full flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-emerald-400 text-white font-bold text-sm py-2.5 rounded-xl shadow-[0_0_15px_rgba(16,185,129,0.3)]"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>تثبيت التطبيق الآن</span>
+                </button>
+              </div>
+              <button 
+                onClick={() => {
+                  triggerHaptic(5);
+                  setShowAndroidPrompt(false);
+                  localStorage.setItem('androidPromptDismissed', 'true');
+                }}
+                className="p-2 -mr-2 text-zinc-500 hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
