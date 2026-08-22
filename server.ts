@@ -102,13 +102,37 @@ async function sendRetentionPushNotifications() {
         }, payload);
       } catch (err: any) {
         if (err.statusCode === 410 || err.statusCode === 404) {
-          // Subscription expired or invalid
           db.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').run(sub.endpoint);
         }
       }
     }
   } catch (err) {
     console.error('[Push] Retention error:', err);
+  }
+}
+
+async function sendPushNotificationToAll(title: string, body: string, url: string = '/') {
+  try {
+    const subscriptions = db.prepare('SELECT endpoint, p256dh, auth FROM push_subscriptions').all();
+    if (!subscriptions || subscriptions.length === 0) return;
+    
+    console.log(`[Push] Sending alert to ${subscriptions.length} users.`);
+    const payload = JSON.stringify({ title, body, url });
+    
+    for (const sub of subscriptions as any[]) {
+      try {
+        await webpush.sendNotification({
+          endpoint: sub.endpoint,
+          keys: { p256dh: sub.p256dh, auth: sub.auth }
+        }, payload);
+      } catch (err: any) {
+        if (err.statusCode === 410 || err.statusCode === 404) {
+          db.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').run(sub.endpoint);
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[Push] Broadcast error:', err);
   }
 }
 
@@ -1200,6 +1224,11 @@ async function broadcastSuddenChangeAlert(u: {id?: string, name: string, oldVal:
   } catch (e) {
     console.error("[Telegram] Failed to send sudden alert:", e);
   }
+
+  // SEND PUSH NOTIFICATION
+  const pushTitle = `🚨 تغيير في ${u.name}`;
+  const pushBody = `السعر الجديد: ${u.newVal.toFixed(3)} (${isUp ? '📈 ارتفع' : '📉 انخفض'})`;
+  sendPushNotificationToAll(pushTitle, pushBody);
 }
 
 async function broadcastDailyReport() {
@@ -1451,6 +1480,18 @@ async function broadcastRateChanges(updates: {id?: string, name: string, oldVal:
     if (!success) console.error("[Telegram Broadcast] Failed to send message");
   } catch (e) {
     console.error("[Telegram Broadcast] Failed to send message:", e);
+  }
+
+  // SEND PUSH NOTIFICATION
+  if (!isTest) {
+    const mainUpdates = updates.filter(u => u.id === 'USD' || u.id === 'EUR' || u.id === 'GOLD' || u.id === 'GOLD_CAST_21').slice(0, 2);
+    if (mainUpdates.length > 0) {
+      const pushTitle = 'تحديث جديد لأسعار السوق';
+      const pushBody = mainUpdates.map(u => `${u.name}: ${u.newVal.toFixed(3)}`).join(' | ');
+      sendPushNotificationToAll(pushTitle, pushBody);
+    } else {
+      sendPushNotificationToAll('تحديث جديد', 'تم تحديث أسعار السوق الموازي');
+    }
   }
 }
 
