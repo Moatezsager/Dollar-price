@@ -53,13 +53,32 @@ db.exec(`
   );
 `);
 
+// -----------------------------------------------------------------------
+// VAPID Keys — يقرأ من Environment Variables أولاً (مهم على Render)
+// حتى لا تتغير المفاتيح عند إعادة تشغيل السيرفر وتنقطع الاشتراكات
+// -----------------------------------------------------------------------
 let vapidKeys = { publicKey: '', privateKey: '' };
-const storedKeys = db.prepare('SELECT value FROM server_config WHERE key = ?').get('vapid_keys');
-if (storedKeys) {
-  vapidKeys = JSON.parse(storedKeys.value);
+
+if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+  // أولوية: استخدام المفاتيح الثابتة من Environment Variables
+  vapidKeys = {
+    publicKey:  process.env.VAPID_PUBLIC_KEY,
+    privateKey: process.env.VAPID_PRIVATE_KEY
+  };
+  console.log('[Push] Using VAPID keys from environment variables (stable).');
 } else {
-  vapidKeys = webpush.generateVAPIDKeys();
-  db.prepare('INSERT INTO server_config (key, value) VALUES (?, ?)').run('vapid_keys', JSON.stringify(vapidKeys));
+  // Fallback: قراءة من SQLite (للتطوير المحلي فقط)
+  const storedKeys = db.prepare('SELECT value FROM server_config WHERE key = ?').get('vapid_keys') as any;
+  if (storedKeys) {
+    vapidKeys = JSON.parse(storedKeys.value);
+    console.log('[Push] Using VAPID keys from SQLite (local dev).');
+  } else {
+    vapidKeys = webpush.generateVAPIDKeys();
+    db.prepare('INSERT INTO server_config (key, value) VALUES (?, ?)').run('vapid_keys', JSON.stringify(vapidKeys));
+    console.log('[Push] Generated new VAPID keys and saved to SQLite.');
+    console.warn('[Push] WARNING: Add VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY to Render env vars to make them permanent!');
+    console.warn('[Push] PUBLIC_KEY=' + vapidKeys.publicKey);
+  }
 }
 
 webpush.setVapidDetails(
@@ -67,6 +86,7 @@ webpush.setVapidDetails(
   vapidKeys.publicKey,
   vapidKeys.privateKey
 );
+console.log('[Push] VAPID public key:', vapidKeys.publicKey.substring(0, 20) + '...');
 
 
 
@@ -111,26 +131,68 @@ async function sendRetentionPushNotifications() {
   }
 }
 
-async function sendPushNotificationToAll(title: string, body: string, url: string = '/') {
+async function sendPushNotificationToAll(
+  title: string,
+  body:  string,
+  url:   string = '/'
+) {
   try {
-    const subscriptions = db.prepare('SELECT endpoint, p256dh, auth FROM push_subscriptions').all();
-    if (!subscriptions || subscriptions.length === 0) return;
-    
-    console.log(`[Push] Sending alert to ${subscriptions.length} users.`);
-    const payload = JSON.stringify({ title, body, url });
-    
-    for (const sub of subscriptions as any[]) {
-      try {
-        await webpush.sendNotification({
-          endpoint: sub.endpoint,
-          keys: { p256dh: sub.p256dh, auth: sub.auth }
-        }, payload);
-      } catch (err: any) {
-        if (err.statusCode === 410 || err.statusCode === 404) {
-          db.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').run(sub.endpoint);
-        }
+    const subscriptions = db.prepare(
+      'SELECT endpoint, p256dh, auth FROM push_subscriptions'
+    ).all() as any[];
+
+    if (!subscriptions || subscriptions.length === 0) {
+      console.log('[Push] No subscribers to notify.');
+      return;
+    }
+
+    console.log(`[Push] Sending to ${subscriptions.length} subscribers: "${title}"`);
+
+    const payload = JSON.stringify({
+      title,
+      body,
+      url,
+      icon:  '/icons/icon-192.png',
+      badge: '/icons/badge-72.png',
+      tag:   'dinar-' + Date.now()
+    });
+
+    // معالجة دفعات بحجم 50 لتجنب الـ rate limiting
+    const BATCH_SIZE = 50;
+    let sent = 0, failed = 0, removed = 0;
+
+    for (let i = 0; i < subscriptions.length; i += BATCH_SIZE) {
+      const batch = subscriptions.slice(i, i + BATCH_SIZE);
+
+      await Promise.allSettled(
+        batch.map(async (sub: any) => {
+          try {
+            await webpush.sendNotification(
+              { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+              payload,
+              { TTL: 60 * 60 * 24 }  // يُخزَّن 24 ساعة إذا كان الجهاز offline
+            );
+            sent++;
+          } catch (err: any) {
+            if (err.statusCode === 410 || err.statusCode === 404) {
+              // اشتراك منتهي الصلاحية → احذفه
+              db.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').run(sub.endpoint);
+              removed++;
+            } else {
+              failed++;
+              console.warn('[Push] Failed to send to one subscriber:', err.statusCode || err.message);
+            }
+          }
+        })
+      );
+
+      // استراحة صغيرة بين الدفعات
+      if (i + BATCH_SIZE < subscriptions.length) {
+        await new Promise(r => setTimeout(r, 100));
       }
     }
+
+    console.log(`[Push] Done — sent: ${sent}, failed: ${failed}, removed (expired): ${removed}`);
   } catch (err) {
     console.error('[Push] Broadcast error:', err);
   }
@@ -2815,20 +2877,34 @@ app.get('/api/push/public-key', (req: express.Request, res: express.Response) =>
 
 app.post('/api/push/subscribe', (req: express.Request, res: express.Response) => {
   try {
-    const { subscription } = req.body;
-    if (!subscription || !subscription.endpoint) return res.status(400).json({ error: 'Invalid subscription' });
-    
+    const { subscription, oldEndpoint } = req.body;
+    if (!subscription || !subscription.endpoint) {
+      return res.status(400).json({ error: 'Invalid subscription' });
+    }
+
     const { endpoint, keys } = subscription;
     const { p256dh, auth } = keys;
-    
+
+    // إذا تجدّد الاشتراك (pushsubscriptionchange) → احذف القديم
+    if (oldEndpoint && oldEndpoint !== endpoint) {
+      db.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').run(oldEndpoint);
+      console.log('[Push] Removed old subscription after renewal.');
+    }
+
     db.prepare(`
-      INSERT INTO push_subscriptions (endpoint, p256dh, auth, last_active) 
+      INSERT INTO push_subscriptions (endpoint, p256dh, auth, last_active)
       VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-      ON CONFLICT(endpoint) DO UPDATE SET last_active = CURRENT_TIMESTAMP
+      ON CONFLICT(endpoint) DO UPDATE SET
+        p256dh      = excluded.p256dh,
+        auth        = excluded.auth,
+        last_active = CURRENT_TIMESTAMP
     `).run(endpoint, p256dh, auth);
-    
-    res.json({ success: true });
+
+    const total = (db.prepare('SELECT COUNT(*) as c FROM push_subscriptions').get() as any).c;
+    console.log(`[Push] Subscription saved. Total subscribers: ${total}`);
+    res.json({ success: true, total });
   } catch (err: any) {
+    console.error('[Push] Subscribe error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });

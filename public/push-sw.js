@@ -1,35 +1,38 @@
-self.addEventListener('push', function(event) {
-  if (event.data) {
-    const data = event.data.json();
-    const options = {
-      body: data.body,
-      icon: data.icon || 'https://hatscripts.github.io/circle-flags/flags/ly.svg',
-      badge: 'https://hatscripts.github.io/circle-flags/flags/ly.svg',
-      vibrate: [100, 50, 100],
-      data: data.url || '/',
-      requireInteraction: true
-    };
-    event.waitUntil(
-      self.registration.showNotification(data.title, options)
-    );
+// ============================================================
+const APP_NAME = 'مؤشر الدينار';
+const APP_URL  = 'https://dollar-price-qp14.onrender.com';
+const ICON_URL = '/icons/icon-192.png';
+const BADGE_URL = '/icons/badge-72.png';
+// ----------------------------------------------------------------
+// حدث استقبال الإشعار من السيرفر
+// ----------------------------------------------------------------
+self.addEventListener('push', function (event) {
+  if (!event.data) return;
+  let data;
+  try {
+    data = event.data.json();
+  } catch (e) {
+    data = { title: APP_NAME, body: event.data.text(), url: '/' };
   }
-});
-
-self.addEventListener('notificationclick', function(event) {
-  event.notification.close();
-  const urlToOpen = event.notification.data || '/';
-  
-  event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
-      for (let i = 0; i < clientList.length; i++) {
-        const client = clientList[i];
-        if (client.url.includes(self.location.origin) && 'focus' in client) {
-          return client.focus();
-        }
-      }
-      if (clients.openWindow) {
-        return clients.openWindow(urlToOpen);
-      }
-    })
-  );
-});
+  const title = data.title || APP_NAME;
+  const body  = data.body  || 'تحديث جديد للأسعار';
+  const url   = data.url   || '/';
+  const tag   = data.tag   || 'dinar-update-' + Date.now();
+  const options = {
+    body,
+    icon:             data.icon  || ICON_URL,
+    badge:            data.badge || BADGE_URL,
+    tag,
+    renotify:         true,           // يُصوِّت حتى لو نفس الـ tag
+    requireInteraction: false,        // لا يبقى مفتوحاً على Android
+    silent:           false,
+    vibrate:          [200, 100, 200],
+    timestamp:        Date.now(),
+    dir:              'rtl',
+    lang:             'ar',
+    data: {
+      url:     url.startsWith('http') ? url : APP_URL + url,
+      tag,
+      sentAt:  Date.now()
+    },
+    actions: [

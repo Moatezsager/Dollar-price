@@ -15,7 +15,7 @@ window.addEventListener('unhandledrejection', (event) => {
   logErrorToServer(event.reason, 'Unhandled Promise Rejection');
 });
 
-// Register service worker
+// Register Workbox PWA service worker (caching)
 try {
   registerSW({ 
     immediate: true,
@@ -27,6 +27,18 @@ try {
 } catch (error) {
   console.error('SW registration call error', error);
   logErrorToServer(error, 'Service Worker Registration Call Error');
+}
+
+// Register the dedicated Push Service Worker (push-sw.js)
+// This SW handles Web Push notifications independently from Workbox
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/push-sw.js', { scope: '/' })
+    .then(reg => {
+      console.log('[PushSW] Registered successfully. Scope:', reg.scope);
+    })
+    .catch(err => {
+      console.warn('[PushSW] Registration failed (non-critical):', err);
+    });
 }
 
 const path = window.location.pathname;

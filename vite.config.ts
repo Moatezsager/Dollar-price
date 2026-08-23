@@ -88,11 +88,12 @@ export default defineConfig(({mode}) => {
           ]
         },
         workbox: {
-          globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+          globPatterns: ['**/*.{js,css,html,ico,png,svg,webp}'],
           cleanupOutdatedCaches: true,
           clientsClaim: true,
           skipWaiting: true,
-          importScripts: ['/push-sw.js'],
+          // push-sw.js is a standalone dedicated service worker served from /public.
+          // Do NOT import it here – it causes conflicts with Workbox's own push handling.
           runtimeCaching: [
             {
               urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
@@ -101,11 +102,9 @@ export default defineConfig(({mode}) => {
                 cacheName: 'google-fonts-cache',
                 expiration: {
                   maxEntries: 10,
-                  maxAgeSeconds: 60 * 60 * 24 * 365 // 1 year
+                  maxAgeSeconds: 60 * 60 * 24 * 365
                 },
-                cacheableResponse: {
-                  statuses: [0, 200]
-                }
+                cacheableResponse: { statuses: [0, 200] }
               }
             },
             {
@@ -115,11 +114,9 @@ export default defineConfig(({mode}) => {
                 cacheName: 'flag-icons-cache',
                 expiration: {
                   maxEntries: 50,
-                  maxAgeSeconds: 60 * 60 * 24 * 30 // 30 days
+                  maxAgeSeconds: 60 * 60 * 24 * 30
                 },
-                cacheableResponse: {
-                  statuses: [0, 200]
-                }
+                cacheableResponse: { statuses: [0, 200] }
               }
             },
             {
@@ -129,7 +126,7 @@ export default defineConfig(({mode}) => {
                 cacheName: 'rates-cache',
                 expiration: {
                   maxEntries: 5,
-                  maxAgeSeconds: 60 * 60 // 1 hour
+                  maxAgeSeconds: 60 * 60
                 },
                 networkTimeoutSeconds: 5
               }
@@ -141,7 +138,7 @@ export default defineConfig(({mode}) => {
                 cacheName: 'history-cache',
                 expiration: {
                   maxEntries: 10,
-                  maxAgeSeconds: 60 * 60 * 24 // 24 hours
+                  maxAgeSeconds: 60 * 60 * 24
                 }
               }
             }
