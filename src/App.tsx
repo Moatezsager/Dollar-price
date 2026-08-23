@@ -112,6 +112,7 @@ const METAL_IDS = [
   "GOLD_SCRAP_18", 
   "GOLD_SCRAP_21", 
   "GOLD_CAST_18", 
+  "GOLD_CAST_21", 
   "GOLD_CAST_24", 
   "GOLD_LIRA_8G", 
   "GOLD_MUJARA_14G", 
@@ -2358,7 +2359,7 @@ export default function App() {
                 Array(5).fill(0).map((_, i) => <RateSkeleton key={i} />)
               ) : (
                 configTerms.filter(t => METAL_IDS.includes(t.id) && !staleCurrencies.has(t.id))
-                  .slice(0, expandedSections.metals ? undefined : 5)
+                  .slice(0, (expandedSections.metals || activeTab === 'gold') ? undefined : 5)
                   .map(term => {
                   const rate = rates?.parallel[term.id] || 0;
                   const prevRate = rates?.previousParallel?.[term.id] || rate;
