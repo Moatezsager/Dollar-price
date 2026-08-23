@@ -2339,18 +2339,15 @@ export default function App() {
           </div>
 
           <section id="metals-grid">
-            <div className="flex items-center justify-between mb-6 cursor-pointer group hidden md:flex" onClick={() => toggleSection('metals')}>
+            <div className="flex items-center justify-between mb-6 group hidden md:flex">
               <div className="flex items-center gap-3.5">
-                <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-amber-500/20 to-amber-500/5 border border-amber-500/10 flex items-center justify-center text-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.1)] group-hover:scale-105 transition-transform duration-300">
+                <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-amber-500/20 to-amber-500/5 border border-amber-500/10 flex items-center justify-center text-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.1)]">
                   <Coins className="w-5 h-5" />
                 </div>
                 <div>
                   <h3 className="text-lg font-bold text-white tracking-wide">المعادن الثمينة</h3>
                   <p className="text-[11px] text-zinc-400 font-medium mt-0.5">أسعار الذهب والفضة</p>
                 </div>
-              </div>
-              <div className="w-8 h-8 rounded-full bg-zinc-800/50 flex items-center justify-center group-hover:bg-zinc-700 transition-colors">
-                <ChevronDown className={`w-4 h-4 text-zinc-400 transition-transform duration-300 ${expandedSections.metals ? 'rotate-180' : ''}`} />
               </div>
             </div>
             
@@ -2359,7 +2356,6 @@ export default function App() {
                 Array(5).fill(0).map((_, i) => <RateSkeleton key={i} />)
               ) : (
                 configTerms.filter(t => METAL_IDS.includes(t.id) && !staleCurrencies.has(t.id))
-                  .slice(0, (expandedSections.metals || activeTab === 'gold') ? undefined : 5)
                   .map(term => {
                   const rate = rates?.parallel[term.id] || 0;
                   const prevRate = rates?.previousParallel?.[term.id] || rate;
@@ -2665,74 +2661,73 @@ export default function App() {
             </div>
           </div>
         </footer>
-
-          {/* ====== BOTTOM NAVIGATION BAR (Mobile Only) ====== */}
-          <div className="md:hidden fixed bottom-5 left-4 right-4 z-[90] pb-safe pointer-events-none flex justify-center">
-            <nav
-              dir="ltr"
-              className="pointer-events-auto w-full max-w-[360px] bg-[#111111]/90 backdrop-blur-3xl border border-white/10 rounded-[2rem] p-1.5 flex items-center justify-between shadow-[0_24px_40px_-12px_rgba(0,0,0,0.8)]"
-            >
-              {/* Tab: Main */}
-              <button
-                onClick={() => { triggerHaptic(8); setActiveTab('main'); }}
-                className={`relative flex flex-col items-center justify-center h-14 w-[72px] rounded-[1.5rem] transition-colors duration-300 active:scale-90 ${
-                  activeTab === 'main' ? 'text-emerald-400' : 'text-zinc-500 hover:text-zinc-400'
-                }`}
-              >
-                {activeTab === 'main' && (
-                  <motion.div layoutId="nav-indicator" className="absolute inset-0 bg-emerald-500/10 border border-emerald-500/20 rounded-[1.5rem]" transition={{ type: "spring", stiffness: 400, damping: 25 }} />
-                )}
-                <Home className="w-5 h-5 relative z-10 mb-1" />
-                <span className="text-[10px] font-bold tracking-wide relative z-10" style={{ fontFamily: 'Cairo, sans-serif' }}>الرئيسية</span>
-              </button>
-
-              {/* Tab: Gold */}
-              <button
-                onClick={() => { triggerHaptic(8); setActiveTab('gold'); }}
-                className={`relative flex flex-col items-center justify-center h-14 w-[72px] rounded-[1.5rem] transition-colors duration-300 active:scale-90 ${
-                  activeTab === 'gold' ? 'text-amber-400' : 'text-zinc-500 hover:text-zinc-400'
-                }`}
-              >
-                {activeTab === 'gold' && (
-                  <motion.div layoutId="nav-indicator" className="absolute inset-0 bg-amber-500/10 border border-amber-500/20 rounded-[1.5rem]" transition={{ type: "spring", stiffness: 400, damping: 25 }} />
-                )}
-                <Coins className="w-5 h-5 relative z-10 mb-1" />
-                <span className="text-[10px] font-bold tracking-wide relative z-10" style={{ fontFamily: 'Cairo, sans-serif' }}>الذهب</span>
-              </button>
-
-              {/* Tab: Converter */}
-              <button
-                onClick={() => { triggerHaptic(8); setActiveTab('converter'); }}
-                className={`relative flex flex-col items-center justify-center h-14 w-[72px] rounded-[1.5rem] transition-colors duration-300 active:scale-90 ${
-                  activeTab === 'converter' ? 'text-blue-400' : 'text-zinc-500 hover:text-zinc-400'
-                }`}
-              >
-                {activeTab === 'converter' && (
-                  <motion.div layoutId="nav-indicator" className="absolute inset-0 bg-blue-500/10 border border-blue-500/20 rounded-[1.5rem]" transition={{ type: "spring", stiffness: 400, damping: 25 }} />
-                )}
-                <Calculator className="w-5 h-5 relative z-10 mb-1" />
-                <span className="text-[10px] font-bold tracking-wide relative z-10" style={{ fontFamily: 'Cairo, sans-serif' }}>المحول</span>
-              </button>
-
-              {/* Tab: More */}
-              <button
-                onClick={() => { triggerHaptic(8); setActiveTab('more'); }}
-                className={`relative flex flex-col items-center justify-center h-14 w-[72px] rounded-[1.5rem] transition-colors duration-300 active:scale-90 ${
-                  activeTab === 'more' ? 'text-indigo-400' : 'text-zinc-500 hover:text-zinc-400'
-                }`}
-              >
-                {activeTab === 'more' && (
-                  <motion.div layoutId="nav-indicator" className="absolute inset-0 bg-indigo-500/10 border border-indigo-500/20 rounded-[1.5rem]" transition={{ type: "spring", stiffness: 400, damping: 25 }} />
-                )}
-                <LayoutGrid className="w-5 h-5 relative z-10 mb-1" />
-                <span className="text-[10px] font-bold tracking-wide relative z-10" style={{ fontFamily: 'Cairo, sans-serif' }}>المزيد</span>
-              </button>
-            </nav>
-          </div>
-
           </motion.main>
         )}
       </AnimatePresence>
+
+      {/* ====== BOTTOM NAVIGATION BAR (Mobile Only) ====== */}
+      <div className="md:hidden fixed bottom-5 left-4 right-4 z-[90] pb-safe pointer-events-none flex justify-center">
+          <nav
+            dir="ltr"
+            className="pointer-events-auto w-full max-w-[360px] bg-[#111111]/90 backdrop-blur-3xl border border-white/10 rounded-[2rem] p-1.5 flex items-center justify-between shadow-[0_24px_40px_-12px_rgba(0,0,0,0.8)]"
+          >
+            {/* Tab: Main */}
+            <button
+              onClick={() => { triggerHaptic(8); setActiveTab('main'); }}
+              className={`relative flex flex-col items-center justify-center h-14 w-[72px] rounded-[1.5rem] transition-colors duration-300 active:scale-90 ${
+                activeTab === 'main' ? 'text-emerald-400' : 'text-zinc-500 hover:text-zinc-400'
+              }`}
+            >
+              {activeTab === 'main' && (
+                <div className="absolute inset-0 bg-emerald-500/10 border border-emerald-500/20 rounded-[1.5rem]" />
+              )}
+              <Home className="w-5 h-5 relative z-10 mb-1" />
+              <span className="text-[10px] font-bold tracking-wide relative z-10" style={{ fontFamily: 'Cairo, sans-serif' }}>الرئيسية</span>
+            </button>
+
+            {/* Tab: Gold */}
+            <button
+              onClick={() => { triggerHaptic(8); setActiveTab('gold'); }}
+              className={`relative flex flex-col items-center justify-center h-14 w-[72px] rounded-[1.5rem] transition-colors duration-300 active:scale-90 ${
+                activeTab === 'gold' ? 'text-amber-400' : 'text-zinc-500 hover:text-zinc-400'
+              }`}
+            >
+              {activeTab === 'gold' && (
+                <div className="absolute inset-0 bg-amber-500/10 border border-amber-500/20 rounded-[1.5rem]" />
+              )}
+              <Coins className="w-5 h-5 relative z-10 mb-1" />
+              <span className="text-[10px] font-bold tracking-wide relative z-10" style={{ fontFamily: 'Cairo, sans-serif' }}>الذهب</span>
+            </button>
+
+            {/* Tab: Converter */}
+            <button
+              onClick={() => { triggerHaptic(8); setActiveTab('converter'); }}
+              className={`relative flex flex-col items-center justify-center h-14 w-[72px] rounded-[1.5rem] transition-colors duration-300 active:scale-90 ${
+                activeTab === 'converter' ? 'text-blue-400' : 'text-zinc-500 hover:text-zinc-400'
+              }`}
+            >
+              {activeTab === 'converter' && (
+                <div className="absolute inset-0 bg-blue-500/10 border border-blue-500/20 rounded-[1.5rem]" />
+              )}
+              <Calculator className="w-5 h-5 relative z-10 mb-1" />
+              <span className="text-[10px] font-bold tracking-wide relative z-10" style={{ fontFamily: 'Cairo, sans-serif' }}>المحول</span>
+            </button>
+
+            {/* Tab: More */}
+            <button
+              onClick={() => { triggerHaptic(8); setActiveTab('more'); }}
+              className={`relative flex flex-col items-center justify-center h-14 w-[72px] rounded-[1.5rem] transition-colors duration-300 active:scale-90 ${
+                activeTab === 'more' ? 'text-indigo-400' : 'text-zinc-500 hover:text-zinc-400'
+              }`}
+            >
+              {activeTab === 'more' && (
+                <div className="absolute inset-0 bg-indigo-500/10 border border-indigo-500/20 rounded-[1.5rem]" />
+              )}
+              <LayoutGrid className="w-5 h-5 relative z-10 mb-1" />
+              <span className="text-[10px] font-bold tracking-wide relative z-10" style={{ fontFamily: 'Cairo, sans-serif' }}>المزيد</span>
+            </button>
+          </nav>
+        </div>
 
       {/* In-App Toasts */}
       <div className="fixed bottom-28 md:bottom-6 left-6 z-[200] flex flex-col gap-3 w-full max-w-sm pointer-events-none">
