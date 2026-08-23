@@ -2,6 +2,9 @@ import React, { useEffect, useState, useRef, useMemo } from "react";
 import { motion, AnimatePresence, useMotionValue, useTransform, animate, MotionConfig } from "motion/react";
 import Joyride, { Step, CallBackProps, STATUS, TooltipRenderProps } from 'react-joyride';
 import {
+  LayoutGrid,
+  Calculator,
+  Home,
   ArrowLeftRight,
   ArrowUpDown,
   ArrowDownRight,
@@ -281,6 +284,7 @@ export default function App() {
   const [showIOSPrompt, setShowIOSPrompt] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [currentPage, setCurrentPage] = useState<'dashboard' | 'api' | 'contact'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'main' | 'gold' | 'converter' | 'more'>('main');
   const [hapticEnabled, setHapticEnabled] = useState(() => {
     const saved = localStorage.getItem('hapticEnabled');
     return saved !== null ? saved === 'true' : true;
@@ -1562,7 +1566,7 @@ export default function App() {
         transition={{ type: "spring", stiffness: 260, damping: 20, delay: 1 }}
         whileHover={{ scale: 1.1, y: -4 }}
         whileTap={{ scale: 0.9 }}
-        className={`fixed left-6 z-[999] flex items-center justify-center w-14 h-14 bg-[#24A1DE] text-white rounded-full shadow-[0_8px_30px_rgb(36,161,222,0.4)] hover:shadow-[0_8px_40px_rgb(36,161,222,0.6)] border border-white/10 group overflow-hidden transition-all duration-500 ${isInstallPromptVisible ? 'bottom-32 md:bottom-32' : 'bottom-20 md:bottom-6'}`}
+        className={`fixed left-6 z-[999] md:flex hidden items-center justify-center w-14 h-14 bg-[#24A1DE] text-white rounded-full shadow-[0_8px_30px_rgb(36,161,222,0.4)] hover:shadow-[0_8px_40px_rgb(36,161,222,0.6)] border border-white/10 group overflow-hidden transition-all duration-500 ${isInstallPromptVisible ? 'bottom-36 md:bottom-32' : 'bottom-28 md:bottom-6'}`}
       >
         <div className="absolute inset-0 bg-gradient-to-tr from-black/10 to-transparent"></div>
         <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.2)_0%,transparent_100%)]"></div>
@@ -1924,8 +1928,11 @@ export default function App() {
             style={{ y: pullY }}
             data-compact={compactMode}
             data-animations={animationsEnabled}
-            className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-16 space-y-16 sm:space-y-24 relative z-10"
+            className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-16 relative z-10 pb-24 md:pb-16"
           >
+
+        {/* ===================== TAB: MAIN ===================== */}
+        <div className={activeTab === 'main' ? 'space-y-16 sm:space-y-24' : 'hidden md:block md:space-y-16 md:space-y-24'}>
 
         {/* Market Status Alert */}
         <div className={`flex items-center gap-3 p-3 sm:p-4 rounded-2xl border ${marketStatus.bg} ${marketStatus.border}`}>
@@ -2136,8 +2143,7 @@ export default function App() {
           )}
         </section>
 
-
-        {/* Data Grid: Other Parallel Currencies */}
+        {/* Data Grid: Other Parallel Currencies (Foreign Currencies + Checks + Transfers, NO METALS) */}
         <section id="main-rates-grid" className="space-y-16">
           {/* 1. Foreign Currencies Group */}
           <div>
@@ -2219,52 +2225,6 @@ export default function App() {
                       prevRate={prevRate}
                       trend={trends24h[term.id]?.parallel}
                       lastChangedDate={rates?.lastChanged?.parallel[term.id]}
-                      onClick={() => setSelectedRate({ code: term.id, name: term.name, market: 'parallel' })}
-                    />
-                  );
-                })
-              )}
-            </div>
-          </div>
-
-          {/* 3. Metals Group */}
-          <div id="metals-grid">
-            <div className="flex items-center justify-between mb-6 cursor-pointer group" onClick={() => toggleSection('metals')}>
-              <div className="flex items-center gap-3.5">
-                <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-amber-500/20 to-amber-500/5 border border-amber-500/10 flex items-center justify-center text-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.1)] group-hover:scale-105 transition-transform duration-300">
-                  <Coins className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-white tracking-wide">المعادن الثمينة</h3>
-                  <p className="text-[11px] text-zinc-400 font-medium mt-0.5">أسعار الذهب والفضة</p>
-                </div>
-              </div>
-              <div className="w-8 h-8 rounded-full bg-zinc-800/50 flex items-center justify-center group-hover:bg-zinc-700 transition-colors">
-                <ChevronDown className={`w-4 h-4 text-zinc-400 transition-transform duration-300 ${expandedSections.metals ? 'rotate-180' : ''}`} />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-8 gap-y-12">
-              {(!rates || configTerms.length === 0) ? (
-                Array(5).fill(0).map((_, i) => <RateSkeleton key={i} />)
-              ) : (
-                configTerms.filter(t => METAL_IDS.includes(t.id) && !staleCurrencies.has(t.id))
-                  .slice(0, expandedSections.metals ? undefined : 5)
-                  .map(term => {
-                  const rate = rates?.parallel[term.id] || 0;
-                  const prevRate = rates?.previousParallel?.[term.id] || rate;
-                  const isUp = rate > prevRate;
-                  const isDown = rate < prevRate;
-                  const isSilver = term.id.includes('SILVER');
-
-                  return (
-                    <RateCell
-                      key={`parallel-${term.id}`}
-                      term={term}
-                      rate={rate}
-                      prevRate={prevRate}
-                      trend={trends24h[term.id]?.parallel}
-                      lastChangedDate={rates?.lastChanged?.parallel[term.id]}
-                      decimals={isSilver ? 2 : 0}
                       onClick={() => setSelectedRate({ code: term.id, name: term.name, market: 'parallel' })}
                     />
                   );
@@ -2362,9 +2322,69 @@ export default function App() {
             )}
           </div>
         </section>
+        </div> {/* END TAB: MAIN */}
 
+        {/* ===================== TAB: GOLD ===================== */}
+        <div className={activeTab === 'gold' ? 'block space-y-8 md:space-y-16' : 'hidden md:block md:space-y-16'}>
+          {/* Mobile Gold Header */}
+          <div className="flex items-center gap-4 mb-2 md:hidden">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500/20 to-amber-500/5 border border-amber-500/20 flex items-center justify-center text-amber-400">
+              <Coins className="w-6 h-6" />
+            </div>
+            <div>
+              <h2 className="text-xl font-black text-white">المعادن الثمينة</h2>
+              <p className="text-xs text-zinc-400 mt-0.5">أسعار الذهب والفضة لحظياً</p>
+            </div>
+          </div>
+
+          <section id="metals-grid">
+            <div className="flex items-center justify-between mb-6 cursor-pointer group hidden md:flex" onClick={() => toggleSection('metals')}>
+              <div className="flex items-center gap-3.5">
+                <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-amber-500/20 to-amber-500/5 border border-amber-500/10 flex items-center justify-center text-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.1)] group-hover:scale-105 transition-transform duration-300">
+                  <Coins className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white tracking-wide">المعادن الثمينة</h3>
+                  <p className="text-[11px] text-zinc-400 font-medium mt-0.5">أسعار الذهب والفضة</p>
+                </div>
+              </div>
+              <div className="w-8 h-8 rounded-full bg-zinc-800/50 flex items-center justify-center group-hover:bg-zinc-700 transition-colors">
+                <ChevronDown className={`w-4 h-4 text-zinc-400 transition-transform duration-300 ${expandedSections.metals ? 'rotate-180' : ''}`} />
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-8 gap-y-12">
+              {(!rates || configTerms.length === 0) ? (
+                Array(5).fill(0).map((_, i) => <RateSkeleton key={i} />)
+              ) : (
+                configTerms.filter(t => METAL_IDS.includes(t.id) && !staleCurrencies.has(t.id))
+                  .slice(0, expandedSections.metals ? undefined : 5)
+                  .map(term => {
+                  const rate = rates?.parallel[term.id] || 0;
+                  const prevRate = rates?.previousParallel?.[term.id] || rate;
+                  const isSilver = term.id.includes('SILVER');
+
+                  return (
+                    <RateCell
+                      key={`parallel-${term.id}`}
+                      term={term}
+                      rate={rate}
+                      prevRate={prevRate}
+                      trend={trends24h[term.id]?.parallel}
+                      lastChangedDate={rates?.lastChanged?.parallel[term.id]}
+                      decimals={isSilver ? 2 : 0}
+                      onClick={() => setSelectedRate({ code: term.id, name: term.name, market: 'parallel' })}
+                    />
+                  );
+                })
+              )}
+            </div>
+          </section>
+        </div>
+
+        {/* ===================== TAB: CONVERTER ===================== */}
         {/* Improved Currency Converter - Bottom Section */}
-        <section id="currency-converter-section" className="mt-16">
+        <section id="currency-converter-section" className={`mt-16 ${activeTab === 'converter' ? '' : 'hidden md:block'}`}>
           <div className="bg-gradient-to-br from-white/[0.05] to-transparent border border-white/10 rounded-[3rem] p-8 sm:p-12 shadow-2xl relative overflow-hidden group text-right" dir="rtl">
             {/* Background elements */}
             <div className="absolute top-0 left-0 p-12 opacity-5 group-hover:opacity-10 transition-opacity duration-1000">
@@ -2485,8 +2505,133 @@ export default function App() {
           </div>
         </section>
 
-        {/* Footer */}
-        <footer className="pt-16 pb-12 border-t border-white/5 flex flex-col items-center gap-8">
+        {/* ===================== TAB: MORE (mobile only) ===================== */}
+        <div className={activeTab === 'more' ? 'block md:hidden' : 'hidden'}>
+          <div className="space-y-4 pt-2">
+
+            {/* App Info Card */}
+            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-white/[0.05] to-transparent border border-white/10 p-6">
+              <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-emerald-500/30 to-transparent" />
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shadow-lg">
+                  <img src="https://hatscripts.github.io/circle-flags/flags/ly.svg" alt="App" className="w-10 h-10 rounded-full" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-black text-white">مؤشر الدينار</h2>
+                  <p className="text-xs text-emerald-400 font-mono mt-0.5 uppercase tracking-widest">Dinar Index Libya</p>
+                  <p className="text-xs text-zinc-500 mt-1">by GreenBox © 2026</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Actions */}
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => { triggerHaptic(10); setShowSettingsModal(true); }}
+                className="flex flex-col items-center gap-3 p-5 rounded-2xl bg-white/[0.04] border border-white/10 active:scale-95 transition-transform"
+              >
+                <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-500/20 flex items-center justify-center">
+                  <Settings2 className="w-5 h-5 text-indigo-400" />
+                </div>
+                <span className="text-sm font-bold text-white">الإعدادات</span>
+              </button>
+
+              <button
+                onClick={() => { triggerHaptic(10); setShowCurrencyModal(true); }}
+                className="flex flex-col items-center gap-3 p-5 rounded-2xl bg-white/[0.04] border border-white/10 active:scale-95 transition-transform"
+              >
+                <div className="w-10 h-10 rounded-xl bg-blue-500/20 border border-blue-500/20 flex items-center justify-center">
+                  <FileText className="w-5 h-5 text-blue-400" />
+                </div>
+                <span className="text-sm font-bold text-white">طباعة PDF</span>
+              </button>
+
+              <button
+                onClick={() => { triggerHaptic(10); handleShare(); }}
+                className="flex flex-col items-center gap-3 p-5 rounded-2xl bg-white/[0.04] border border-white/10 active:scale-95 transition-transform"
+              >
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/20 flex items-center justify-center">
+                  <Share2 className="w-5 h-5 text-emerald-400" />
+                </div>
+                <span className="text-sm font-bold text-white">مشاركة</span>
+              </button>
+
+              <button
+                onClick={() => { triggerHaptic(10); setCurrentPage('api'); }}
+                className="flex flex-col items-center gap-3 p-5 rounded-2xl bg-white/[0.04] border border-white/10 active:scale-95 transition-transform"
+              >
+                <div className="w-10 h-10 rounded-xl bg-purple-500/20 border border-purple-500/20 flex items-center justify-center">
+                  <Code2 className="w-5 h-5 text-purple-400" />
+                </div>
+                <span className="text-sm font-bold text-white">المطورين</span>
+              </button>
+            </div>
+
+            {/* Notifications Row */}
+            <button
+              onClick={() => { triggerHaptic(10); setShowSettingsModal(true); setSettingsTab('notifications'); }}
+              className="w-full flex items-center gap-4 p-5 rounded-2xl bg-white/[0.04] border border-white/10 active:scale-95 transition-transform text-right"
+            >
+              <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/20 flex items-center justify-center shrink-0">
+                <Bell className="w-5 h-5 text-amber-400" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-bold text-white">الإشعارات والتنبيهات</p>
+                <p className="text-xs text-zinc-400 mt-0.5">
+                  {Notification.permission === 'granted' ? '✅ مفعّلة - ستصلك تنبيهات السعر' : '⚠️ غير مفعّلة اضغط للتفعيل'}
+                </p>
+              </div>
+              <ArrowRight className="w-4 h-4 text-zinc-600" />
+            </button>
+
+            {/* Telegram Row */}
+            <a
+              href="https://t.me/libya_index_dollar"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full flex items-center gap-4 p-5 rounded-2xl bg-[#24A1DE]/10 border border-[#24A1DE]/20 active:scale-95 transition-transform text-right"
+            >
+              <div className="w-10 h-10 rounded-xl bg-[#24A1DE]/20 border border-[#24A1DE]/30 flex items-center justify-center shrink-0">
+                <Send className="w-5 h-5 text-[#24A1DE]" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-bold text-white">قناة التيليجرام</p>
+                <p className="text-xs text-zinc-400 mt-0.5">@libya_index_dollar</p>
+              </div>
+              <ArrowRight className="w-4 h-4 text-zinc-600" />
+            </a>
+
+            {/* Contact Row */}
+            <button
+              onClick={() => { triggerHaptic(10); setCurrentPage('contact'); }}
+              className="w-full flex items-center gap-4 p-5 rounded-2xl bg-white/[0.04] border border-white/10 active:scale-95 transition-transform text-right"
+            >
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/20 flex items-center justify-center shrink-0">
+                <Mail className="w-5 h-5 text-emerald-400" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-bold text-white">اتصل بنا</p>
+                <p className="text-xs text-zinc-400 mt-0.5">للتواصل مع فريق التطوير</p>
+              </div>
+              <ArrowRight className="w-4 h-4 text-zinc-600" />
+            </button>
+
+            {/* Online count */}
+            <div className="flex items-center justify-center gap-3 py-4">
+              <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/[0.03] border border-white/5">
+                <div className="relative flex h-2 w-2">
+                  <div className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-40" />
+                  <div className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                </div>
+                <span className="text-xs font-mono text-zinc-300">{onlineCount.toLocaleString()}</span>
+                <span className="text-[10px] text-zinc-500">متواجد الآن</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer - Desktop only */}
+        <footer className="hidden md:flex pt-16 pb-12 border-t border-white/5 flex-col items-center gap-8">
           <div className="flex flex-col items-center gap-4">
             <div className="flex items-center gap-4 opacity-40 grayscale hover:opacity-100 hover:grayscale-0 transition-all duration-500">
               <span className="text-[10px] font-mono tracking-[0.2em] uppercase text-zinc-400">Dinar Index Libya</span>
@@ -2519,12 +2664,77 @@ export default function App() {
             </div>
           </div>
         </footer>
+
+          {/* ====== BOTTOM NAVIGATION BAR (Mobile Only) ====== */}
+          <div className="md:hidden fixed bottom-5 left-4 right-4 z-[90] pb-safe pointer-events-none flex justify-center">
+            <nav
+              dir="ltr"
+              className="pointer-events-auto w-full max-w-[360px] bg-[#111111]/90 backdrop-blur-3xl border border-white/10 rounded-[2rem] p-1.5 flex items-center justify-between shadow-[0_24px_40px_-12px_rgba(0,0,0,0.8)]"
+            >
+              {/* Tab: Main */}
+              <button
+                onClick={() => { triggerHaptic(8); setActiveTab('main'); }}
+                className={`relative flex flex-col items-center justify-center h-14 w-[72px] rounded-[1.5rem] transition-colors duration-300 active:scale-90 ${
+                  activeTab === 'main' ? 'text-emerald-400' : 'text-zinc-500 hover:text-zinc-400'
+                }`}
+              >
+                {activeTab === 'main' && (
+                  <motion.div layoutId="nav-indicator" className="absolute inset-0 bg-emerald-500/10 border border-emerald-500/20 rounded-[1.5rem]" transition={{ type: "spring", stiffness: 400, damping: 25 }} />
+                )}
+                <Home className="w-5 h-5 relative z-10 mb-1" />
+                <span className="text-[10px] font-bold tracking-wide relative z-10" style={{ fontFamily: 'Cairo, sans-serif' }}>الرئيسية</span>
+              </button>
+
+              {/* Tab: Gold */}
+              <button
+                onClick={() => { triggerHaptic(8); setActiveTab('gold'); }}
+                className={`relative flex flex-col items-center justify-center h-14 w-[72px] rounded-[1.5rem] transition-colors duration-300 active:scale-90 ${
+                  activeTab === 'gold' ? 'text-amber-400' : 'text-zinc-500 hover:text-zinc-400'
+                }`}
+              >
+                {activeTab === 'gold' && (
+                  <motion.div layoutId="nav-indicator" className="absolute inset-0 bg-amber-500/10 border border-amber-500/20 rounded-[1.5rem]" transition={{ type: "spring", stiffness: 400, damping: 25 }} />
+                )}
+                <Coins className="w-5 h-5 relative z-10 mb-1" />
+                <span className="text-[10px] font-bold tracking-wide relative z-10" style={{ fontFamily: 'Cairo, sans-serif' }}>الذهب</span>
+              </button>
+
+              {/* Tab: Converter */}
+              <button
+                onClick={() => { triggerHaptic(8); setActiveTab('converter'); }}
+                className={`relative flex flex-col items-center justify-center h-14 w-[72px] rounded-[1.5rem] transition-colors duration-300 active:scale-90 ${
+                  activeTab === 'converter' ? 'text-blue-400' : 'text-zinc-500 hover:text-zinc-400'
+                }`}
+              >
+                {activeTab === 'converter' && (
+                  <motion.div layoutId="nav-indicator" className="absolute inset-0 bg-blue-500/10 border border-blue-500/20 rounded-[1.5rem]" transition={{ type: "spring", stiffness: 400, damping: 25 }} />
+                )}
+                <Calculator className="w-5 h-5 relative z-10 mb-1" />
+                <span className="text-[10px] font-bold tracking-wide relative z-10" style={{ fontFamily: 'Cairo, sans-serif' }}>المحول</span>
+              </button>
+
+              {/* Tab: More */}
+              <button
+                onClick={() => { triggerHaptic(8); setActiveTab('more'); }}
+                className={`relative flex flex-col items-center justify-center h-14 w-[72px] rounded-[1.5rem] transition-colors duration-300 active:scale-90 ${
+                  activeTab === 'more' ? 'text-indigo-400' : 'text-zinc-500 hover:text-zinc-400'
+                }`}
+              >
+                {activeTab === 'more' && (
+                  <motion.div layoutId="nav-indicator" className="absolute inset-0 bg-indigo-500/10 border border-indigo-500/20 rounded-[1.5rem]" transition={{ type: "spring", stiffness: 400, damping: 25 }} />
+                )}
+                <LayoutGrid className="w-5 h-5 relative z-10 mb-1" />
+                <span className="text-[10px] font-bold tracking-wide relative z-10" style={{ fontFamily: 'Cairo, sans-serif' }}>المزيد</span>
+              </button>
+            </nav>
+          </div>
+
           </motion.main>
         )}
       </AnimatePresence>
 
       {/* In-App Toasts */}
-      <div className="fixed bottom-6 left-6 z-[200] flex flex-col gap-3 w-full max-w-sm pointer-events-none">
+      <div className="fixed bottom-28 md:bottom-6 left-6 z-[200] flex flex-col gap-3 w-full max-w-sm pointer-events-none">
         <AnimatePresence>
           {toasts.map(toast => (
             <motion.div

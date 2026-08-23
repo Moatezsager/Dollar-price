@@ -10,6 +10,28 @@ body {
   font-family: "Inter", "Cairo", sans-serif;
   background-color: #050505;
   color: #ffffff;
+  
+  /* Native App Feel */
+  -webkit-touch-callout: none; /* Disable iOS context menu on long press */
+  -webkit-user-select: none; /* Disable text selection (iOS/Safari) */
+  user-select: none; /* Disable text selection */
+  -webkit-tap-highlight-color: transparent; /* Disable gray tap highlight */
+  overscroll-behavior-y: none; /* Prevent rubber-band bounce effect on the whole page */
+}
+
+/* Allow text selection only in inputs and textareas */
+input, textarea {
+  -webkit-user-select: auto;
+  user-select: auto;
+}
+
+/* Hide scrollbars globally but keep scrolling functional */
+::-webkit-scrollbar {
+  display: none;
+}
+* {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
 }
 
 .pb-safe {
