@@ -1,0 +1,38 @@
+    // Split by rows to ensure we only match numbers within the correct row
+    const rows = html.split(/<tr[^>]*>/i);
+    
+    for (const currency of currencies) {
+      for (const name of currency.names) {
+        // Find the specific row containing this currency name
+        const targetRow = rows.find(row => row.includes(name));
+        if (targetRow) {
+          // Extract the "Selling Price" (بيع) rate as per user request
+          // Looking for the number after the "بيع:" span or just a number in the row
+          const rateMatch = targetRow.match(/بيع:\s*<\/span>\s*([\d.]+)/i) || 
+                           targetRow.match(/بيع\s*([\d.]+)/i) ||
+                           targetRow.match(/([\d.]+)\s*بيع/i);
+          
+          if (rateMatch && rateMatch[1]) {
+            const val = parseFloat(rateMatch[1]);
+            if (!isNaN(val) && val > 0) {
+              results[currency.id] = val;
+              break; 
+            }
+          } else {
+            // Fallback: try to find any number in the row if "بيع" is present
+            const numbers = targetRow.match(/[\d.]+/g);
+            if (numbers && numbers.length > 0) {
+              // Usually selling price is the last or second to last number
+              const val = parseFloat(numbers[numbers.length - 1]);
+              if (!isNaN(val) && val > 0 && val < 10) { // Sanity check for LYD rates
+                results[currency.id] = val;
+                break;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    if (results.USD && results.USD > 4.0 && results.USD < 8.0) {
+      console.log(`[CBL Scraper] Successfully extracted ${Object.keys(results).length} rates from CBL website (USD: ${results.USD})`);

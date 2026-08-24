@@ -1046,33 +1046,41 @@ async function fetchFromCBL(): Promise<RateMap | null> {
     // Split by rows to ensure we only match numbers within the correct row
     const rows = html.split(/<tr[^>]*>/i);
     
-    for (const currency of currencies) {
-      for (const name of currency.names) {
-        // Find the specific row containing this currency name
-        const targetRow = rows.find(row => row.includes(name));
-        if (targetRow) {
-          // Extract the "Selling Price" (بيع) rate as per user request
-          // Looking for the number after the "بيع:" span or just a number in the row
-          const rateMatch = targetRow.match(/بيع:\s*<\/span>\s*([\d.]+)/i) || 
-                           targetRow.match(/بيع\s*([\d.]+)/i) ||
-                           targetRow.match(/([\d.]+)\s*بيع/i);
-          
-          if (rateMatch && rateMatch[1]) {
-            const val = parseFloat(rateMatch[1]);
-            if (!isNaN(val) && val > 0) {
-              results[currency.id] = val;
-              break; 
-            }
-          } else {
-            // Fallback: try to find any number in the row if "بيع" is present
-            const numbers = targetRow.match(/[\d.]+/g);
-            if (numbers && numbers.length > 0) {
-              // Usually selling price is the last or second to last number
-              const val = parseFloat(numbers[numbers.length - 1]);
-              if (!isNaN(val) && val > 0 && val < 10) { // Sanity check for LYD rates
-                results[currency.id] = val;
-                break;
+    for (const row of rows) {
+      if (!row.includes("<td>") && !row.includes("<td ")) continue;
+      
+      const tds = row.match(/<td[^>]*>([\s\S]*?)<\/td>/gi);
+      if (tds && tds.length >= 6) {
+        const currencyHtml = tds[1];
+        let currencyId = null;
+        
+        if (currencyHtml.includes("الدولار الأمريكي") || currencyHtml.includes("USD")) currencyId = "USD";
+        else if (currencyHtml.includes("اليورو") || currencyHtml.includes("EUR")) currencyId = "EUR";
+        else if (currencyHtml.includes("الجنيه الاسترليني") || currencyHtml.includes("الجنيه الإسترليني") || currencyHtml.includes("GBP")) currencyId = "GBP";
+        else if (currencyHtml.includes("الدينار التونسي") || currencyHtml.includes("TND")) currencyId = "TND";
+        else if (currencyHtml.includes("الليرة التركية") || currencyHtml.includes("TRY")) currencyId = "TRY";
+        else if (currencyHtml.includes("الريال السعودي") || currencyHtml.includes("SAR")) currencyId = "SAR";
+        else if (currencyHtml.includes("الدرهم الإماراتي") || currencyHtml.includes("الدرهم الاماراتي") || currencyHtml.includes("AED")) currencyId = "AED";
+        else if (currencyHtml.includes("اليوان الصيني") || currencyHtml.includes("الايوان الصيني") || currencyHtml.includes("CNY")) currencyId = "CNY";
+        else if (currencyHtml.includes("الدولار الكندي") || currencyHtml.includes("CAD")) currencyId = "CAD";
+        else if (currencyHtml.includes("الدولار الاسترالي") || currencyHtml.includes("الدولار الأسترالي") || currencyHtml.includes("AUD")) currencyId = "AUD";
+        else if (currencyHtml.includes("الفرنك السويسري") || currencyHtml.includes("CHF")) currencyId = "CHF";
+        else if (currencyHtml.includes("الكرونر السويدي") || currencyHtml.includes("الكرونة السويدية") || currencyHtml.includes("SEK")) currencyId = "SEK";
+        else if (currencyHtml.includes("الكرونر النرويجي") || currencyHtml.includes("الكرونة النرويجية") || currencyHtml.includes("NOK")) currencyId = "NOK";
+        else if (currencyHtml.includes("الكرونر الدنمركي") || currencyHtml.includes("الكرونة الدنماركية") || currencyHtml.includes("DKK")) currencyId = "DKK";
+        else if (currencyHtml.includes("الين الياباني") || currencyHtml.includes("JPY")) currencyId = "JPY";
+
+        if (currencyId) {
+          // Index 4 is strictly the 'Selling' (بيع) column on the CBL website
+          const sellHtml = tds[4];
+          const match = sellHtml.match(/[\d.]+/);
+          if (match) {
+            let val = parseFloat(match[0]);
+            if (!isNaN(val) && val > 0 && val < 20) {
+              if (currencyId === 'JPY') {
+                val = parseFloat((val / 100).toFixed(4));
               }
+              results[currencyId] = val;
             }
           }
         }
@@ -1095,6 +1103,47 @@ async function fetchFromCBL(): Promise<RateMap | null> {
 }
 
 // Fetch real official rates from open API
+async function broadcastOfficialRates(isTest: boolean = false) {
+  if (!appConfig.telegramPostChannel || !telegramManager) {
+    console.log("[Telegram Broadcast] Aborting broadcast. channel or manager missing.");
+    return;
+  }
+
+  if (!isTest && !appConfig.telegramAutoPost) {
+    console.log("[Telegram Broadcast] Aborting official broadcast because telegramAutoPost is disabled.");
+    return;
+  }
+
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('ar-LY', { timeZone: 'Africa/Tripoli' });
+  const timeStr = now.toLocaleTimeString('ar-LY', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit' });
+  
+  const dayNames = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+  let dayName = "الخميس";
+  try {
+    const dayIndex = new Date(now.toLocaleString('en-US', { timeZone: 'Africa/Tripoli' })).getDay();
+    dayName = dayNames[dayIndex];
+  } catch (e) {}
+
+  let message = `🏦 *نشرة أسعار مصرف ليبيا المركزي* 🏦\n`;
+  message += `━━━━━━━━━━━━━━━━━━━\n`;
+  message += `🗓 ${dayName}، ${dateStr} | ⏰ ${timeStr}\n\n`;
+
+  for (const t of appConfig.terms) {
+    if (rates.official[t.id]) {
+      const val = rates.official[t.id];
+      const flag = t.flag === 'us' ? '🇺🇸' : t.flag === 'eu' ? '🇪🇺' : t.flag === 'gb' ? '🇬🇧' : t.flag === 'tn' ? '🇹🇳' : t.flag === 'eg' ? '🇪🇬' : t.flag === 'tr' ? '🇹🇷' : '💰';
+      message += `${flag} *${t.name}*: ${val.toFixed(4)} د.ل\n`;
+    }
+  }
+
+  message += `\n━━━━━━━━━━━━━━━━━━━\n`;
+  message += `🔗 *لمزيد من التفاصيل والبيانات الحية:*\n🌐 https://tinyurl.com/2j7667u2\n`;
+  message += `📱 *المصدر:* مصرف ليبيا المركزي`;
+
+  await telegramManager.sendMessage(appConfig.telegramPostChannel, message);
+}
+
 async function fetchOfficialRates(): Promise<boolean> {
   console.log("[Official] Starting official rates fetch cycle...");
   // 1. Try CBL Website First (Most Accurate for Libya)
@@ -3831,46 +3880,7 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
 
   // Test broadcast endpoint
 
-async function broadcastOfficialRates(isTest: boolean = false) {
-  if (!appConfig.telegramPostChannel || !telegramManager) {
-    console.log("[Telegram Broadcast] Aborting broadcast. channel or manager missing.");
-    return;
-  }
 
-  if (!isTest && !appConfig.telegramAutoPost) {
-    console.log("[Telegram Broadcast] Aborting official broadcast because telegramAutoPost is disabled.");
-    return;
-  }
-
-  const now = new Date();
-  const dateStr = now.toLocaleDateString('ar-LY', { timeZone: 'Africa/Tripoli' });
-  const timeStr = now.toLocaleTimeString('ar-LY', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit' });
-  
-  const dayNames = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
-  let dayName = "الخميس";
-  try {
-    const dayIndex = new Date(now.toLocaleString('en-US', { timeZone: 'Africa/Tripoli' })).getDay();
-    dayName = dayNames[dayIndex];
-  } catch (e) {}
-
-  let message = `🏦 *نشرة أسعار مصرف ليبيا المركزي* 🏦\n`;
-  message += `━━━━━━━━━━━━━━━━━━━\n`;
-  message += `🗓 ${dayName}، ${dateStr} | ⏰ ${timeStr}\n\n`;
-
-  for (const t of appConfig.terms) {
-    if (rates.official[t.id]) {
-      const val = rates.official[t.id];
-      const flag = t.flag === 'us' ? '🇺🇸' : t.flag === 'eu' ? '🇪🇺' : t.flag === 'gb' ? '🇬🇧' : t.flag === 'tn' ? '🇹🇳' : t.flag === 'eg' ? '🇪🇬' : t.flag === 'tr' ? '🇹🇷' : '💰';
-      message += `${flag} *${t.name}*: ${val.toFixed(4)} د.ل\n`;
-    }
-  }
-
-  message += `\n━━━━━━━━━━━━━━━━━━━\n`;
-  message += `🔗 *لمزيد من التفاصيل والبيانات الحية:*\n🌐 https://tinyurl.com/2j7667u2\n`;
-  message += `📱 *المصدر:* مصرف ليبيا المركزي`;
-
-  await telegramManager.sendMessage(appConfig.telegramPostChannel, message);
-}
 
   app.post("/api/admin/telegram/official-broadcast", requireAdmin, async (req: express.Request, res: express.Response) => {
     try {
@@ -4541,7 +4551,7 @@ ${updates.join('\n')}
     } catch (err) {
       console.error("[Cron-Job-Official] Official refresh failed:", err);
       if (!res.headersSent) {
-        res.status(500).json({ success: false, error: "Internal server error during official refresh" });
+        res.status(500).json({ success: false, error: "Internal server error during official refresh", details: err ? String(err) : "Unknown", stack: err && err.stack ? err.stack : "" });
       }
     }
   });
