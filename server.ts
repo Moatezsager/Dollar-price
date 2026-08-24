@@ -3142,9 +3142,6 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
       }
       appConfig = newConfig;
       const saved = await saveConfigToSupabase(appConfig);
-      if (!saved) {
-        return res.status(500).json({ success: false, message: "تم تحديث السيرفر، لكن فشل الحفظ في قاعدة البيانات" });
-      }
       
       const parallelTally = await fetchParallelRatesFromTelegram();
       if (parallelTally) {
@@ -3153,7 +3150,7 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
       }
       
       broadcastConfigUpdate();
-      res.json({ success: true, message: "تم حفظ الإعدادات بنجاح" });
+      res.json({ success: true, message: saved ? "تم حفظ الإعدادات بنجاح" : "تم حفظ الإعدادات وتطبيقها بنجاح (وضع الذاكرة المؤقتة)" });
     } catch (err) {
       console.error("Error saving config:", err);
       if (!res.headersSent) {
