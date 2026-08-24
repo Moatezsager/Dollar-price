@@ -2604,6 +2604,8 @@ interface DeviceLogEntry {
   timestamp: string;
   deviceType: string;
   deviceName: string;
+  visits?: number;
+  firstVisit?: string;
 }
 
 let userLogs: DeviceLogEntry[] = [];
@@ -2673,16 +2675,28 @@ async function startServer() {
       else if (/Linux/i.test(ua)) deviceName = "Linux PC";
       else deviceName = deviceType;
 
-      const newLog: DeviceLogEntry = {
-        id: Math.random().toString(36).substring(2, 11),
-        ip: ip,
-        userAgent: ua,
-        timestamp: new Date().toISOString(),
-        deviceType: deviceType,
-        deviceName: deviceName
-      };
-
-      userLogs.unshift(newLog);
+      const existingLogIndex = userLogs.findIndex(log => log.ip === ip && log.userAgent === ua);
+      
+      if (existingLogIndex !== -1) {
+        const existingLog = userLogs[existingLogIndex];
+        existingLog.timestamp = new Date().toISOString();
+        existingLog.visits = (existingLog.visits || 1) + 1;
+        userLogs.splice(existingLogIndex, 1);
+        userLogs.unshift(existingLog);
+      } else {
+        const newLog: DeviceLogEntry = {
+          id: Math.random().toString(36).substring(2, 11),
+          ip: ip,
+          userAgent: ua,
+          timestamp: new Date().toISOString(),
+          firstVisit: new Date().toISOString(),
+          visits: 1,
+          deviceType: deviceType,
+          deviceName: deviceName
+        };
+        userLogs.unshift(newLog);
+      }
+      
       if (userLogs.length > 200) userLogs.pop();
       broadcastUserLogs();
     }
