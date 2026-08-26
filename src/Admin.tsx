@@ -2798,7 +2798,7 @@ export default function Admin() {
                         </tr>
                       ) : (
                         userLogs.map((log) => {
-                          const isOnline = new Date().getTime() - new Date(log.timestamp).getTime() < 3 * 60 * 1000;
+                          const isOnline = log.isOnline || (new Date().getTime() - new Date(log.timestamp).getTime() < 1 * 60 * 1000);
                           return (
                           <tr key={log.id} className="hover:bg-white/[0.02] transition-colors group">
                             <td className="px-6 py-4">
@@ -3711,7 +3711,7 @@ export default function Admin() {
                         </tr>
                       ) : (
                         userLogs.map((log) => {
-                          const isOnline = new Date().getTime() - new Date(log.timestamp).getTime() < 3 * 60 * 1000;
+                          const isOnline = log.isOnline || (new Date().getTime() - new Date(log.timestamp).getTime() < 1 * 60 * 1000);
                           return (
                           <tr key={log.id} className="hover:bg-white/[0.02] transition-colors group">
                             <td className="px-6 py-4">

@@ -918,7 +918,12 @@ export default function App() {
 
     const connect = () => {
       try {
-        socket = io();
+        let deviceId = localStorage.getItem('__deviceId');
+        if (!deviceId) {
+          deviceId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+          localStorage.setItem('__deviceId', deviceId);
+        }
+        socket = io('/', { query: { deviceId } });
 
         socket.on('online_count', (data: any) => {
           setOnlineCount(data.count);

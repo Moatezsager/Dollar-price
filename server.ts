@@ -2599,6 +2599,7 @@ process.on('SIGINT', gracefulShutdown);
 
 interface DeviceLogEntry {
   id: string;
+  deviceId: string;
   ip: string;
   userAgent: string;
   timestamp: string;
@@ -2608,6 +2609,7 @@ interface DeviceLogEntry {
   browser?: string;
   visits?: number;
   firstVisit?: string;
+  isOnline?: boolean;
 }
 
 let userLogs: DeviceLogEntry[] = [];
@@ -2637,6 +2639,18 @@ async function startServer() {
     }
   });
   let onlineUsers = 0;
+  const connectedDevices = new Map<string, Set<string>>(); // deviceId -> socketIds
+  const updateDeviceOnlineStatus = (deviceId: string) => {
+    const isOnline = (connectedDevices.get(deviceId)?.size || 0) > 0;
+    const log = userLogs.find(l => l.deviceId === deviceId);
+    if (log) {
+        log.isOnline = isOnline;
+        if (isOnline) {
+             log.timestamp = new Date().toISOString();
+        }
+        broadcastUserLogs();
+    }
+  };
 
   io.on('connection', (socket: any) => {
     const req = socket.request;
