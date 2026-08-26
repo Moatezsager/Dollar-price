@@ -2604,6 +2604,8 @@ interface DeviceLogEntry {
   timestamp: string;
   deviceType: string;
   deviceName: string;
+  os?: string;
+  browser?: string;
   visits?: number;
   firstVisit?: string;
 }
@@ -2676,6 +2678,20 @@ async function startServer() {
       else if (/Linux/i.test(ua)) deviceName = "Linux PC";
       else deviceName = deviceType;
 
+      let os = "Unknown OS";
+      if (/Windows/i.test(ua)) os = "Windows";
+      else if (/Mac OS X/i.test(ua)) os = "macOS";
+      else if (/Android/i.test(ua)) os = "Android";
+      else if (/Linux/i.test(ua)) os = "Linux";
+      else if (/iPhone|iPad|iPod/i.test(ua)) os = "iOS";
+      
+      let browser = "Unknown Browser";
+      if (/Edg/i.test(ua)) browser = "Edge";
+      else if (/Chrome|CriOS/i.test(ua)) browser = "Chrome";
+      else if (/Firefox|FxiOS/i.test(ua)) browser = "Firefox";
+      else if (/Safari/i.test(ua) && !/Chrome/i.test(ua)) browser = "Safari";
+      else if (/Opera|OPR/i.test(ua)) browser = "Opera";
+
       const existingLogIndex = userLogs.findIndex(log => log.ip === ip && log.userAgent === ua);
       
       if (existingLogIndex !== -1) {
@@ -2693,7 +2709,9 @@ async function startServer() {
           firstVisit: new Date().toISOString(),
           visits: 1,
           deviceType: deviceType,
-          deviceName: deviceName
+          deviceName: deviceName,
+          os: os,
+          browser: browser
         };
         userLogs.unshift(newLog);
       }
