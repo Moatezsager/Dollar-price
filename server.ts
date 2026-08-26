@@ -2650,7 +2650,8 @@ async function startServer() {
 
     onlineUsers++;
     
-    const ip = (req.headers['x-forwarded-for'] || req.connection.remoteAddress) as string;
+    const rawIp = (req.headers['x-forwarded-for'] || req.connection.remoteAddress || '') as string;
+    const ip = rawIp.split(',')[0].trim();
     const ua = req.headers['user-agent'] || 'Unknown';
     
     // Exclude specific IPs from being logged
