@@ -277,6 +277,9 @@ interface AppConfig {
   telegramTemplateStyle?: string;
   enableHttpScraper?: boolean;
   enableUserTracking?: boolean;
+  facebookPageId?: string;
+  facebookAccessToken?: string;
+  facebookAutoPost?: boolean;
   apiConfig?: {
     enabled: boolean;
     rateLimitWindowMs: number;
@@ -1103,6 +1106,46 @@ async function fetchFromCBL(): Promise<RateMap | null> {
 }
 
 // Fetch real official rates from open API
+
+async function broadcastToSocialMedia(message: string, isTest: boolean = false) {
+  // Telegram
+  if (!isTest || isTest) {
+    if (appConfig.telegramAutoPost || isTest) {
+      try {
+        if (appConfig.telegramPostChannel && telegramManager) {
+          const success = await telegramManager.sendMessage(appConfig.telegramPostChannel, message);
+          if (!success) console.error("[Telegram Broadcast] Failed to send message");
+        }
+      } catch (e) {
+        console.error("[Telegram Broadcast] Failed to send message:", e);
+      }
+    }
+  }
+
+  // Facebook
+  if (!isTest && appConfig.facebookAutoPost && appConfig.facebookPageId && appConfig.facebookAccessToken) {
+     let fbMessage = message.replace(/[*_`]/g, '');
+     
+     // Optionally adjust some emojis or formatting for FB if needed
+     try {
+       const url = `https://graph.facebook.com/v20.0/${appConfig.facebookPageId}/feed`;
+       const fbRes = await fetch(url, {
+         method: 'POST',
+         headers: { 'Content-Type': 'application/json' },
+         body: JSON.stringify({ message: fbMessage, access_token: appConfig.facebookAccessToken })
+       });
+       const fbData = await fbRes.json();
+       if (fbData.error) {
+         console.error("[Facebook Broadcast] Error:", fbData.error.message);
+       } else {
+         console.log("[Facebook Broadcast] Successfully posted, ID:", fbData.id);
+       }
+     } catch(e) {
+       console.error("[Facebook Broadcast] Failed:", e);
+     }
+  }
+}
+
 async function broadcastOfficialRates(isTest: boolean = false) {
   if (!appConfig.telegramPostChannel || !telegramManager) {
     console.log("[Telegram Broadcast] Aborting broadcast. channel or manager missing.");
@@ -1141,7 +1184,7 @@ async function broadcastOfficialRates(isTest: boolean = false) {
   message += `🔗 *لمزيد من التفاصيل والبيانات الحية:*\n🌐 https://tinyurl.com/2j7667u2\n`;
   message += `📱 *المصدر:* مصرف ليبيا المركزي`;
 
-  await telegramManager.sendMessage(appConfig.telegramPostChannel, message);
+  await broadcastToSocialMedia(message, typeof isTest !== "undefined" ? isTest : false);
 }
 
 async function fetchOfficialRates(): Promise<boolean> {
@@ -1331,7 +1374,7 @@ async function broadcastSuddenChangeAlert(u: {id?: string, name: string, oldVal:
   message += `🔗 التفاصيل: https://tinyurl.com/2j7667u2`;
   
   try {
-    await telegramManager.sendMessage(appConfig.telegramPostChannel, message);
+    await broadcastToSocialMedia(message, typeof isTest !== "undefined" ? isTest : false);
   } catch (e) {
     console.error("[Telegram] Failed to send sudden alert:", e);
   }
@@ -1386,7 +1429,7 @@ async function broadcastDailyReport() {
   message += `━━━━━━━━━━━━━━━━━\n📡 *مؤشر الدينار | الدقة والسرعة*\n🔗 https://tinyurl.com/2j7667u2`;
   
   try {
-    await telegramManager.sendMessage(appConfig.telegramPostChannel, message);
+    await broadcastToSocialMedia(message, typeof isTest !== "undefined" ? isTest : false);
   } catch(e) {}
   
   // Reset daily stats
@@ -1451,7 +1494,7 @@ async function broadcastWeeklyReport() {
   message += `━━━━━━━━━━━━━━━━━\n📡 *مؤشر الدينار | الدقة والسرعة*\n🔗 https://tinyurl.com/2j7667u2`;
   
   try {
-    await telegramManager.sendMessage(appConfig.telegramPostChannel, message);
+    await broadcastToSocialMedia(message, typeof isTest !== "undefined" ? isTest : false);
   } catch(e) {}
   
   // Reset weekly stats
@@ -1587,12 +1630,7 @@ async function broadcastRateChanges(updates: {id?: string, name: string, oldVal:
   message += `🌐 https://tinyurl.com/2j7667u2\n`;
   message += `📱 *المصدر:* شبكة مؤشر الدينار`;
 
-  try {
-    const success = await telegramManager.sendMessage(appConfig.telegramPostChannel, message);
-    if (!success) console.error("[Telegram Broadcast] Failed to send message");
-  } catch (e) {
-    console.error("[Telegram Broadcast] Failed to send message:", e);
-  }
+  await broadcastToSocialMedia(message, isTest);
 
   // SEND PUSH NOTIFICATION
   if (!isTest) {
