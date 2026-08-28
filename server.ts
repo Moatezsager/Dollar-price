@@ -1107,23 +1107,24 @@ async function fetchFromCBL(): Promise<RateMap | null> {
 
 // Fetch real official rates from open API
 
-async function broadcastToSocialMedia(message: string, isTest: boolean = false) {
+async function broadcastToSocialMedia(message: string, isTest: boolean = false, target: 'all' | 'telegram' | 'facebook' = 'all') {
   // Telegram
-  if (!isTest || isTest) {
-    if (appConfig.telegramAutoPost || isTest) {
-      try {
-        if (appConfig.telegramPostChannel && telegramManager) {
-          const success = await telegramManager.sendMessage(appConfig.telegramPostChannel, message);
-          if (!success) console.error("[Telegram Broadcast] Failed to send message");
-        }
-      } catch (e) {
-        console.error("[Telegram Broadcast] Failed to send message:", e);
+  const shouldPostTg = (!isTest && appConfig.telegramAutoPost) || (isTest && (target === 'telegram' || target === 'all'));
+  if (shouldPostTg) {
+    try {
+      if (appConfig.telegramPostChannel && telegramManager) {
+        const success = await telegramManager.sendMessage(appConfig.telegramPostChannel, message);
+        if (!success) console.error("[Telegram Broadcast] Failed to send message");
       }
+    } catch (e) {
+      console.error("[Telegram Broadcast] Failed to send message:", e);
+      if (isTest && target === 'telegram') throw e;
     }
   }
 
   // Facebook
-  if (!isTest && appConfig.facebookAutoPost && appConfig.facebookPageId && appConfig.facebookAccessToken) {
+  const shouldPostFb = (!isTest && appConfig.facebookAutoPost) || (isTest && (target === 'facebook' || target === 'all'));
+  if (shouldPostFb && appConfig.facebookPageId && appConfig.facebookAccessToken) {
      let fbMessage = message.replace(/[*_`]/g, '');
      
      // Optionally adjust some emojis or formatting for FB if needed
@@ -1137,11 +1138,13 @@ async function broadcastToSocialMedia(message: string, isTest: boolean = false) 
        const fbData = await fbRes.json();
        if (fbData.error) {
          console.error("[Facebook Broadcast] Error:", fbData.error.message);
+         if (isTest && target === 'facebook') throw new Error(fbData.error.message);
        } else {
          console.log("[Facebook Broadcast] Successfully posted, ID:", fbData.id);
        }
      } catch(e) {
        console.error("[Facebook Broadcast] Failed:", e);
+       if (isTest && target === 'facebook') throw e;
      }
   }
 }
@@ -1574,11 +1577,11 @@ let appConfig: AppConfig = {
 };
 let telegramManager: TelegramManager | null = null;
 
-async function broadcastRateChanges(updates: {id?: string, name: string, oldVal: number, newVal: number, flag: string}[], isTest: boolean = false) {
-  if (!appConfig.telegramPostChannel || !telegramManager) {
-    return;
+async function broadcastRateChanges(updates: {id?: string, name: string, oldVal: number, newVal: number, flag: string}[], isTest: boolean = false, target: 'all' | 'telegram' | 'facebook' = 'all') {
+  if (target !== 'facebook' && (!appConfig.telegramPostChannel || !telegramManager)) {
+    if (target === 'telegram') return;
   }
-  if (!isTest && !appConfig.telegramAutoPost) {
+  if (!isTest && !appConfig.telegramAutoPost && !appConfig.facebookAutoPost) {
     return;
   }
   if (updates.length === 0) {
@@ -1630,7 +1633,7 @@ async function broadcastRateChanges(updates: {id?: string, name: string, oldVal:
   message += `🌐 https://tinyurl.com/2j7667u2\n`;
   message += `📱 *المصدر:* شبكة مؤشر الدينار`;
 
-  await broadcastToSocialMedia(message, isTest);
+  await broadcastToSocialMedia(message, isTest, target);
 
   // SEND PUSH NOTIFICATION
   if (!isTest) {
@@ -4035,6 +4038,39 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
       res.json({ success: true, message: "تم إرسال رسالة تجريبية" });
     } catch (err: any) {
       res.status(500).json({ success: false, error: err.message || "Failed to broadcast" });
+    }
+  });
+
+  app.post("/api/admin/facebook/test-broadcast", requireAdmin, async (req: express.Request, res: express.Response) => {
+    try {
+      if (!appConfig.facebookPageId || !appConfig.facebookAccessToken) {
+         return res.status(400).json({ success: false, error: "بيانات فيسبوك غير مكتملة. يرجى حفظ الإعدادات أولاً." });
+      }
+      
+      const sampleUpdates: {id: string, name: string, oldVal: number, newVal: number, flag: string}[] = [];
+      for (const t of appConfig.terms) {
+           const currentR = rates.parallel[t.id];
+           const prevR = rates.previousParallel[t.id];
+           if (currentR) {
+              sampleUpdates.push({ 
+                id: t.id,
+                name: t.name, 
+                oldVal: prevR || currentR, 
+                newVal: currentR, 
+                flag: t.flag || 'us' 
+              });
+           }
+      }
+      
+      if (sampleUpdates.length === 0) {
+        return res.status(400).json({ success: false, error: "لا توجد أسعار متاحة لإرسالها." });
+      }
+      
+      await broadcastRateChanges(sampleUpdates, true, 'facebook');
+      
+      res.json({ success: true, message: "تم إرسال رسالة تجريبية إلى فيسبوك بنجاح" });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message || "Failed to broadcast to Facebook" });
     }
   });
 
