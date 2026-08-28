@@ -1143,7 +1143,7 @@ async function broadcastToSocialMedia(message: string, isTest: boolean = false, 
          console.log("[Facebook Broadcast] Successfully posted, ID:", fbData.id);
          
          // Automatically add a comment to the post
-         const commentMessage = `📢 تابعنا على تيليجرام لتصلك التحديثات فوراً:\n👉 https://t.me/DinarIndex\n\n🌐 للمزيد من التفاصيل والرسوم البيانية، تفضل بزيارة موقعنا:\n👉 https://tinyurl.com/2j7667u2`;
+         const commentMessage = `📢 تابعنا على تيليجرام لتصلك التحديثات فوراً:\n👉 https://t.me/libya_index_dollar\n\n🌐 للمزيد من التفاصيل والرسوم البيانية، تفضل بزيارة موقعنا:\n👉 https://tinyurl.com/2j7667u2`;
          const commentUrl = `https://graph.facebook.com/v20.0/${fbData.id}/comments`;
          const commentRes = await fetch(commentUrl, {
            method: 'POST',

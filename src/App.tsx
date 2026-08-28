@@ -1565,7 +1565,7 @@ export default function App() {
 
       {/* Telegram Floating Action Button */}
       <motion.a
-        href="https://t.me/DinarIndex"
+        href="https://t.me/libya_index_dollar"
         target="_blank"
         rel="noopener noreferrer"
         initial={{ scale: 0, opacity: 0 }}
@@ -2606,7 +2606,7 @@ export default function App() {
 
             {/* Telegram Row */}
             <a
-              href="https://t.me/DinarIndex"
+              href="https://t.me/libya_index_dollar"
               target="_blank"
               rel="noopener noreferrer"
               className="w-full flex items-center gap-4 p-5 rounded-2xl bg-[#24A1DE]/10 border border-[#24A1DE]/20 active:scale-95 transition-transform text-right"
@@ -2616,7 +2616,7 @@ export default function App() {
               </div>
               <div className="flex-1">
                 <p className="text-sm font-bold text-white">قناة التيليجرام</p>
-                <p className="text-xs text-zinc-400 mt-0.5">@DinarIndex</p>
+                <p className="text-xs text-zinc-400 mt-0.5">@libya_index_dollar</p>
               </div>
               <ArrowRight className="w-4 h-4 text-zinc-600" />
             </a>
