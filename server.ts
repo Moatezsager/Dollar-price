@@ -1153,6 +1153,7 @@ async function broadcastToSocialMedia(message: string, isTest: boolean = false, 
          const commentData = await commentRes.json();
          if (commentData.error) {
             console.error("[Facebook Broadcast] Failed to add comment:", commentData.error.message);
+            if (isTest && target === 'facebook') throw new Error("Comment Error: " + commentData.error.message);
          } else {
             console.log("[Facebook Broadcast] Successfully added comment, ID:", commentData.id);
          }
