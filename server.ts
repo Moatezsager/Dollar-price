@@ -1141,6 +1141,21 @@ async function broadcastToSocialMedia(message: string, isTest: boolean = false, 
          if (isTest && target === 'facebook') throw new Error(fbData.error.message);
        } else {
          console.log("[Facebook Broadcast] Successfully posted, ID:", fbData.id);
+         
+         // Automatically add a comment to the post
+         const commentMessage = `📢 تابعنا على تيليجرام لتصلك التحديثات فوراً:\n👉 https://t.me/DinarIndex\n\n🌐 للمزيد من التفاصيل والرسوم البيانية، تفضل بزيارة موقعنا:\n👉 https://tinyurl.com/2j7667u2`;
+         const commentUrl = `https://graph.facebook.com/v20.0/${fbData.id}/comments`;
+         const commentRes = await fetch(commentUrl, {
+           method: 'POST',
+           headers: { 'Content-Type': 'application/json' },
+           body: JSON.stringify({ message: commentMessage, access_token: appConfig.facebookAccessToken })
+         });
+         const commentData = await commentRes.json();
+         if (commentData.error) {
+            console.error("[Facebook Broadcast] Failed to add comment:", commentData.error.message);
+         } else {
+            console.log("[Facebook Broadcast] Successfully added comment, ID:", commentData.id);
+         }
        }
      } catch(e) {
        console.error("[Facebook Broadcast] Failed:", e);
