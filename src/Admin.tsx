@@ -3445,6 +3445,39 @@ export default function Admin() {
                       <p className="text-xs text-zinc-500 mt-2">اختر التنسيق المفضل لإرساله تلقائياً أو تجريبياً إلى قناتك على تيليجرام.</p>
                     </div>
                     
+
+                    {/* Facebook Sensor Status */}
+                    {config?.facebookBroadcastStatus && (
+                      <div className={`p-4 rounded-xl border ${config.facebookBroadcastStatus.status === 'ok' ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-red-500/10 border-red-500/20'}`}>
+                        <div className="flex items-center gap-2 mb-2">
+                           <div className={`w-2 h-2 rounded-full ${config.facebookBroadcastStatus.status === 'ok' ? 'bg-emerald-500' : 'bg-red-500'}`}></div>
+                           <h4 className="font-bold text-white">حساس حالة النشر (Facebook Sensor)</h4>
+                        </div>
+                        <div className="text-sm space-y-1">
+                          <p className="text-zinc-300">
+                             <span className="text-zinc-500">الحالة:</span> 
+                             <span className={config.facebookBroadcastStatus.status === 'ok' ? 'text-emerald-400 mr-2' : 'text-red-400 mr-2'}>
+                                {config.facebookBroadcastStatus.status === 'ok' ? 'يعمل بشكل سليم' : 'يوجد خطأ'}
+                             </span>
+                          </p>
+                          {config.facebookBroadcastStatus.lastSuccessTime && (
+                            <p className="text-zinc-300">
+                               <span className="text-zinc-500">آخر نجاح:</span> 
+                               <span className="mr-2" dir="ltr">{new Date(config.facebookBroadcastStatus.lastSuccessTime).toLocaleString('ar-LY')}</span>
+                            </p>
+                          )}
+                          {config.facebookBroadcastStatus.status === 'error' && config.facebookBroadcastStatus.lastError && (
+                            <div className="mt-2 p-2 bg-black/40 rounded border border-red-500/30 text-red-400 text-xs text-left" dir="ltr">
+                               {config.facebookBroadcastStatus.lastError}
+                               {config.facebookBroadcastStatus.lastErrorTime && (
+                                  <div className="text-zinc-500 mt-1">Time: {new Date(config.facebookBroadcastStatus.lastErrorTime).toLocaleString('en-US')}</div>
+                               )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    
                     <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4 border-t border-white/5">
                       <button
                         onClick={async () => {

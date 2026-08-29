@@ -1154,6 +1154,7 @@ async function broadcastToSocialMedia(message: string, isTest: boolean = false, 
        }
 
        if (fbData.error) {
+         facebookBroadcastStatus = { status: 'error', lastError: fbData.error.message, lastErrorTime: new Date().toISOString(), lastSuccessTime: facebookBroadcastStatus.lastSuccessTime };
          console.error("[Facebook Broadcast] Error:", fbData.error.message);
          if (isTest && target === 'facebook') {
            if (fbData.error.message?.includes('global id') || fbData.error.code === 100) {
@@ -1179,8 +1180,10 @@ async function broadcastToSocialMedia(message: string, isTest: boolean = false, 
          } else {
             console.log("[Facebook Broadcast] Successfully added comment, ID:", commentData.id);
          }
+         facebookBroadcastStatus = { status: 'ok', lastError: '', lastErrorTime: facebookBroadcastStatus.lastErrorTime, lastSuccessTime: new Date().toISOString() };
        }
-     } catch(e) {
+     } catch(e: any) {
+       facebookBroadcastStatus = { status: 'error', lastError: e.message || String(e), lastErrorTime: new Date().toISOString(), lastSuccessTime: facebookBroadcastStatus.lastSuccessTime };
        console.error("[Facebook Broadcast] Failed:", e);
        if (isTest && target === 'facebook') throw e;
      }
@@ -1483,68 +1486,105 @@ async function broadcastDailyReport() {
   }
 }
 
-async function broadcastWeeklyReport() {
-  if (!appConfig.telegramPostChannel || !telegramManager || !appConfig.telegramAutoPost) return;
+async function broadcastWeeklyReport(isTest: boolean = false) {
+  if (!isTest && !appConfig.telegramAutoPost && !appConfig.facebookAutoPost) return;
+  if (!supabase || !supabaseAnonKey || supabaseAnonKey.includes('dummy')) {
+    console.warn("Supabase not configured, cannot generate accurate weekly report.");
+    if (isTest) throw new Error("Supabase is required for accurate weekly report.");
+    return;
+  }
+
   const now = new Date();
+  const pastWeekDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  
   const dateStr = now.toLocaleDateString('ar-LY', { timeZone: 'Africa/Tripoli' });
-  const pastWeek = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toLocaleDateString('ar-LY', { timeZone: 'Africa/Tripoli' });
+  const pastWeek = pastWeekDate.toLocaleDateString('ar-LY', { timeZone: 'Africa/Tripoli' });
   
-  let message = `📊 *المؤشر | تقرير الأسبوع*\n📅 ${pastWeek} — ${dateStr}\n━━━━━━━━━━━━━━━━━\n\n`;
+  const { data, error } = await supabase
+    .from('parallel_rates')
+    .select('rates, recorded_at')
+    .gte('recorded_at', pastWeekDate.toISOString())
+    .lte('recorded_at', now.toISOString())
+    .order('recorded_at', { ascending: true });
+    
+  if (error || !data || data.length === 0) {
+    console.error("[Weekly Report] Error fetching weekly data from Supabase:", error);
+    if (isTest) throw new Error("No data found in Supabase for the past week.");
+    return;
+  }
+
+  const stats: Record<string, { high: number, low: number, start: number, end: number, sum: number, count: number }> = {};
   
-  const mainCurrencies = ['USD', 'USD_CHECKS', 'EUR', 'GBP'];
-  const goldCurrencies = ['GOLD_CAST_24', 'GOLD_CAST_21', 'GOLD_CAST_18', 'GOLD'];
+  for (const row of data) {
+    const rowRates = row.rates || {};
+    for (const cid in rowRates) {
+       const val = rowRates[cid];
+       if (!val) continue;
+       
+       if (!stats[cid]) {
+         stats[cid] = { high: val, low: val, start: val, end: val, sum: 0, count: 0 };
+       }
+       
+       if (val > stats[cid].high) stats[cid].high = val;
+       if (val < stats[cid].low) stats[cid].low = val;
+       stats[cid].end = val;
+       stats[cid].sum += val;
+       stats[cid].count++;
+    }
+  }
+
+  let message = `📊 *مؤشر الدينار | الحصاد الأسبوعي*\n`;
+  message += `🗓 ${pastWeek} — ${dateStr}\n`;
+  message += `━━━━━━━━━━━━━━━━━━━\n\n`;
+  
+  const mainCurrencies = ['USD', 'EUR', 'GBP', 'USD_CHECKS'];
+  const goldCurrencies = ['GOLD_CAST_24', 'GOLD_CAST_21', 'GOLD'];
   
   for (const cid of mainCurrencies) {
-    const stat = weeklyStats[cid];
+    const stat = stats[cid];
     const term = appConfig.terms.find(t => t.id === cid);
-    if (term) {
-      let avg = stat?.count > 0 ? (stat.sum / stat.count) : (rates.parallel[cid] || 0);
-      let startPrice = stat ? stat.startPrice : (rates.parallel[cid] || 0);
-      if (avg > 0 && startPrice > 0) {
-        const pct = Math.abs(avg - startPrice) / startPrice * 100;
-        let trendStr = `➖ استقر`;
-        if (pct > 0.01) {
-          trendStr = avg > startPrice ? `📈 ارتفع ${pct.toFixed(2)}%` : `📉 انخفض ${pct.toFixed(2)}%`;
-        }
-        message += `💵 *${term.name}*\n`;
-        message += `├ هذا الأسبوع: ${avg.toFixed(3)}\n`;
-        message += `├ الأسبوع الماضي: ${startPrice.toFixed(3)}\n`;
-        message += `└ التغيير: ${trendStr}\n\n`;
-      }
+    if (stat && term) {
+       const avg = stat.sum / stat.count;
+       const diff = stat.end - stat.start;
+       let trendStr = "➖ استقرار";
+       let trendIcon = "🔄";
+       if (diff > 0.01) { trendStr = `صعود بمقدار ${Math.abs(diff).toFixed(3)}`; trendIcon = "📈"; }
+       else if (diff < -0.01) { trendStr = `هبوط بمقدار ${Math.abs(diff).toFixed(3)}`; trendIcon = "📉"; }
+       
+       message += `💵 *${term.name}*\n`;
+       message += `🔸 أعلى سعر: ${stat.high.toFixed(3)}\n`;
+       message += `🔹 أدنى سعر: ${stat.low.toFixed(3)}\n`;
+       message += `📊 المتوسط: ${avg.toFixed(3)}\n`;
+       message += `${trendIcon} الإغلاق مقارنة بالافتتاح: ${trendStr}\n\n`;
     }
   }
   
-  message += `━━━━━━━━━━━━━━━━━\n`;
+  message += `━━━━━━━━━━━━━━━━━━━\n`;
+  message += `🥇 *المعادن والذهب*\n\n`;
+  
   for (const cid of goldCurrencies) {
-    const stat = weeklyStats[cid];
+    const stat = stats[cid];
     const term = appConfig.terms.find(t => t.id === cid);
-    if (term) {
-      let avg = stat?.count > 0 ? (stat.sum / stat.count) : (rates.parallel[cid] || 0);
-      let startPrice = stat ? stat.startPrice : (rates.parallel[cid] || 0);
-      if (avg > 0 && startPrice > 0) {
-        const pct = Math.abs(avg - startPrice) / startPrice * 100;
-        let trendStr = `➖ استقر`;
-        if (pct > 0.01) {
-          trendStr = avg > startPrice ? `📈 ارتفع ${pct.toFixed(2)}%` : `📉 انخفض ${pct.toFixed(2)}%`;
-        }
-        message += `🥇 ${term.name} | ${avg.toFixed(2)} ${trendStr}\n`;
-      }
+    if (stat && term) {
+       const diff = stat.end - stat.start;
+       let trendStr = "استقرار ➖";
+       if (diff > 0.1) trendStr = `صعود 📈`;
+       else if (diff < -0.1) trendStr = `هبوط 📉`;
+       
+       message += `▪️ ${term.name}:\n`;
+       message += `أعلى: ${stat.high.toFixed(2)} | أدنى: ${stat.low.toFixed(2)} | الاغلاق: ${trendStr}\n\n`;
     }
   }
   
-  message += `━━━━━━━━━━━━━━━━━\n📡 *مؤشر الدينار | الدقة والسرعة*\n🔗 https://tinyurl.com/2j7667u2`;
+  message += `━━━━━━━━━━━━━━━━━━━\n`;
+  message += `💡 التقرير مبني على سجلات قاعدة البيانات طوال الأسبوع الماضي.\n\n`;
+  message += `🌐 للمزيد من التفاصيل والرسوم البيانية:\n`;
+  message += `👉 https://tinyurl.com/2j7667u2`;
   
-  try {
-    await broadcastToSocialMedia(message, typeof isTest !== "undefined" ? isTest : false);
-  } catch(e) {}
-  
-  // Reset weekly stats
-  for (const key in weeklyStats) {
-    weeklyStats[key].high = rates.parallel[key] || 0;
-    weeklyStats[key].low = rates.parallel[key] || 0;
-    weeklyStats[key].sum = 0;
-    weeklyStats[key].count = 0;
-    weeklyStats[key].startPrice = rates.parallel[key] || 0;
+  if (isTest) {
+    await broadcastToSocialMedia(message, true, 'all');
+  } else {
+    broadcastToSocialMedia(message, false, 'all').catch(e => console.error("[Background Weekly Broadcast] Error:", e));
   }
 }
 
@@ -1613,6 +1653,14 @@ let appConfig: AppConfig = {
     { id: "OFFICIAL_USD", name: "الدولار الرسمي", regex: "(?:الرسمي|المركزي)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 4.0, max: 6.0, isInverse: false, flag: "us" }
   ]
 };
+
+let facebookBroadcastStatus = {
+  status: 'ok',
+  lastError: '',
+  lastErrorTime: '',
+  lastSuccessTime: ''
+};
+
 let telegramManager: TelegramManager | null = null;
 
 async function broadcastRateChanges(updates: {id?: string, name: string, oldVal: number, newVal: number, flag: string}[], isTest: boolean = false, target: 'all' | 'telegram' | 'facebook' = 'all') {
@@ -1671,7 +1719,11 @@ async function broadcastRateChanges(updates: {id?: string, name: string, oldVal:
   message += `🌐 https://tinyurl.com/2j7667u2\n`;
   message += `📱 *المصدر:* شبكة مؤشر الدينار`;
 
-  await broadcastToSocialMedia(message, isTest, target);
+  if (isTest) {
+    await broadcastToSocialMedia(message, isTest, target);
+  } else {
+    broadcastToSocialMedia(message, isTest, target).catch(e => console.error("[Background Broadcast] Error:", e));
+  }
 
   // SEND PUSH NOTIFICATION
   if (!isTest) {
@@ -3257,7 +3309,7 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
   });
 
   app.get("/api/admin/config", requireAdmin, (req: express.Request, res: express.Response) => {
-    res.json({ ...appConfig, serverStartTime: serverStartTime.toISOString() });
+    res.json({ ...appConfig, serverStartTime: serverStartTime.toISOString(), facebookBroadcastStatus });
   });
 
   app.post("/api/admin/config", requireAdmin, async (req: express.Request, res: express.Response) => {
