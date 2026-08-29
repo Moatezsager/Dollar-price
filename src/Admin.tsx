@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Settings, Save, Plus, Trash2, ArrowRight, ShieldCheck, LogOut, X, Lock, Activity, Users, Cpu, History as HistoryIcon, AlertTriangle, Terminal, ArrowLeftRight, ArrowUpRight, ArrowDownRight, CheckCircle2, RefreshCw, Layers, Globe, Zap, Search, ChevronDown, ChevronUp, Clock, Info, Building2, Coins, Send, Building, TrendingUp, Stethoscope, ListX, Trash, LayoutDashboard, Menu, BarChart3, Bell, Shield, Database, Link, Copy, Code2, Download, Pause, Play, Filter, XCircle, AlertCircle, Mail, MessageSquare, DownloadCloud, Sparkles, Monitor, Smartphone, Layout, Wifi, AppWindow } from 'lucide-react';
+import { Settings, Check, Edit2, Save, Plus, Trash2, ArrowRight, ShieldCheck, LogOut, X, Lock, Activity, Users, Cpu, History as HistoryIcon, AlertTriangle, Terminal, ArrowLeftRight, ArrowUpRight, ArrowDownRight, CheckCircle2, RefreshCw, Layers, Globe, Zap, Search, ChevronDown, ChevronUp, Clock, Info, Building2, Coins, Send, Building, TrendingUp, Stethoscope, ListX, Trash, LayoutDashboard, Menu, BarChart3, Bell, Shield, Database, Link, Copy, Code2, Download, Pause, Play, Filter, XCircle, AlertCircle, Mail, MessageSquare, DownloadCloud, Sparkles, Monitor, Smartphone, Layout, Wifi, AppWindow } from 'lucide-react';
 import { format, formatDistanceToNow } from "date-fns";
 import { ar } from "date-fns/locale";
 import { logErrorToServer } from "./utils/logger";
@@ -2779,100 +2779,89 @@ export default function Admin() {
                   <table className="w-full text-right">
                     <thead>
                       <tr className="bg-white/[0.02] text-zinc-500 text-[10px] uppercase tracking-widest font-black">
-                        <th className="px-6 py-4">حالة الاتصال</th>
-                        <th className="px-6 py-4">الجهاز والنظام</th>
-                        <th className="px-6 py-4">الشبكة (IP)</th>
-                        <th className="px-6 py-4">التفاعل</th>
-                        <th className="px-6 py-4">المتصفح</th>
+                        <th className="px-6 py-4">التاريخ والوقت</th>
+                        <th className="px-6 py-4 text-center">السعر</th>
+                        <th className="px-6 py-4 text-left">إجراءات</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5">
-                      {userLogs.length === 0 ? (
+                      {dbRecords.length === 0 ? (
                         <tr>
-                          <td colSpan={5} className="py-20 text-center">
+                          <td colSpan={3} className="py-20 text-center">
                             <div className="flex flex-col items-center gap-4">
-                              <Users className="w-10 h-10 text-zinc-800" />
-                              <p className="text-zinc-600">لا توجد أجهزة مسجلة حالياً.</p>
+                              <Database className="w-10 h-10 text-zinc-800" />
+                              <p className="text-zinc-600">لا توجد سجلات حالياً لهذه العملة في هذا السوق.</p>
                             </div>
                           </td>
                         </tr>
                       ) : (
-                        userLogs.map((log) => {
-                          const isOnline = log.isOnline || (new Date().getTime() - new Date(log.timestamp).getTime() < 1 * 60 * 1000);
-                          return (
-                          <tr key={log.id} className="hover:bg-white/[0.02] transition-colors group">
-                            <td className="px-6 py-4">
-                              <div className="flex flex-col gap-1">
-                                <div className="flex items-center gap-2">
-                                  <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)] animate-pulse' : 'bg-zinc-600'}`}></div>
-                                  <span className={`text-[10px] font-bold ${isOnline ? 'text-emerald-400' : 'text-zinc-500'}`}>
-                                    {isOnline ? 'متصل الآن' : 'غير متصل'}
-                                  </span>
-                                </div>
-                                <span className="text-[10px] text-zinc-500 pr-4">
-                                  {formatDistanceToNow(new Date(log.timestamp), { addSuffix: true, locale: ar })}
+                        dbRecords.map((record) => (
+                          <tr key={record.id} className="hover:bg-white/[0.02] transition-colors group">
+                            <td className="px-6 py-4" dir="ltr">
+                              <span className="text-sm text-zinc-300 font-mono">
+                                {new Date(record.recorded_at).toLocaleString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-center">
+                              {editingRecord === record.id ? (
+                                <input
+                                  type="number"
+                                  step="0.001"
+                                  value={editValue}
+                                  onChange={(e) => setEditValue(e.target.value)}
+                                  className="bg-black/50 border border-emerald-500/50 rounded-lg px-3 py-1.5 text-white w-32 focus:outline-none focus:border-emerald-500 text-center"
+                                  autoFocus
+                                />
+                              ) : (
+                                <span className="text-base font-bold text-emerald-400 font-mono">
+                                  {record.value?.toFixed(3)}
                                 </span>
-                              </div>
+                              )}
                             </td>
                             <td className="px-6 py-4">
-                              <div className="flex items-center gap-3">
-                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center border ${
-                                  log.deviceType === 'Mobile' ? 'bg-blue-500/10 border-blue-500/20 text-blue-400' :
-                                   log.deviceType === 'Tablet' ? 'bg-purple-500/10 border-purple-500/20 text-purple-400' :
-                                   log.deviceType === 'Bot' ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
-                                }`}>
-                                  {log.deviceType === 'Mobile' ? <Smartphone className="w-5 h-5" /> : 
-                                   log.deviceType === 'Tablet' ? <Layout className="w-5 h-5" /> : 
-                                   <Monitor className="w-5 h-5" />}
-                                </div>
-                                <div className="flex flex-col">
-                                  <span className="text-sm font-bold text-white">{log.deviceName || log.deviceType}</span>
-                                  <span className="text-[10px] text-zinc-400 font-medium bg-white/5 px-2 py-0.5 rounded-md inline-block w-fit mt-1">
-                                    {log.os || 'نظام غير معروف'}
-                                  </span>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4">
-                              <div className="flex flex-col">
-                                <span className="text-xs font-mono font-bold text-zinc-300 flex items-center gap-1.5">
-                                  <Wifi className="w-3 h-3 text-zinc-500" />
-                                  {log.ip}
-                                </span>
-                                {log.firstVisit && (
-                                  <span className="text-[9px] text-zinc-500 flex items-center gap-1 mt-1">
-                                    <Clock className="w-3 h-3" />
-                                    أول زيارة: {new Date(log.firstVisit).toLocaleTimeString('ar-LY')}
-                                  </span>
+                              <div className="flex items-center justify-end gap-2">
+                                {editingRecord === record.id ? (
+                                  <>
+                                    <button
+                                      onClick={() => handleUpdateRecord(record.id)}
+                                      className="p-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-lg transition-colors"
+                                      title="حفظ"
+                                    >
+                                      <Check className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => setEditingRecord(null)}
+                                      className="p-1.5 bg-zinc-500/10 hover:bg-zinc-500/20 text-zinc-400 rounded-lg transition-colors"
+                                      title="إلغاء"
+                                    >
+                                      <X className="w-4 h-4" />
+                                    </button>
+                                  </>
+                                ) : (
+                                  <>
+                                    <button
+                                      onClick={() => {
+                                        setEditingRecord(record.id);
+                                        setEditValue(record.value?.toString() || '');
+                                      }}
+                                      className="p-1.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded-lg transition-colors"
+                                      title="تعديل"
+                                    >
+                                      <Edit2 className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteRecord(record.id)}
+                                      className="p-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg transition-colors"
+                                      title="حذف"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </>
                                 )}
                               </div>
                             </td>
-                            <td className="px-6 py-4">
-                              <div className="flex items-center gap-3">
-                                <div className="flex-1 max-w-[80px] h-1.5 bg-white/5 rounded-full overflow-hidden">
-                                  <div 
-                                    className="h-full bg-emerald-500 rounded-full" 
-                                    style={{ width: `${Math.min(((log.visits || 1) / 50) * 100, 100)}%` }}
-                                  ></div>
-                                </div>
-                                <div className="px-2 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-[10px] font-black text-emerald-400 min-w-[2rem] text-center">
-                                  {log.visits || 1}
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4">
-                              <div className="flex flex-col">
-                                <span className="text-[11px] font-bold text-white flex items-center gap-1.5">
-                                  <AppWindow className="w-3.5 h-3.5 text-zinc-400" />
-                                  {log.browser || 'متصفح غير معروف'}
-                                </span>
-                                <span className="text-[9px] text-zinc-500 font-mono truncate max-w-[120px] mt-1" title={log.userAgent}>
-                                  {log.userAgent}
-                                </span>
-                              </div>
-                            </td>
                           </tr>
-                        )})
+                        ))
                       )}
                     </tbody>
                   </table>
@@ -3809,100 +3798,94 @@ export default function Admin() {
                   <table className="w-full text-right">
                     <thead>
                       <tr className="bg-white/[0.02] text-zinc-500 text-[10px] uppercase tracking-widest font-black">
-                        <th className="px-6 py-4">حالة الاتصال</th>
-                        <th className="px-6 py-4">الجهاز والنظام</th>
-                        <th className="px-6 py-4">الشبكة (IP)</th>
-                        <th className="px-6 py-4">التفاعل</th>
-                        <th className="px-6 py-4">المتصفح</th>
+                        <th className="px-6 py-4">التاريخ والوقت</th>
+                        <th className="px-6 py-4">السعر</th>
+                        <th className="px-6 py-4">الإجراءات</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5">
-                      {userLogs.length === 0 ? (
+                      {dbRecords.length === 0 ? (
                         <tr>
-                          <td colSpan={5} className="py-20 text-center">
+                          <td colSpan={3} className="py-20 text-center">
                             <div className="flex flex-col items-center gap-4">
-                              <Users className="w-10 h-10 text-zinc-800" />
-                              <p className="text-zinc-600">لا توجد أجهزة مسجلة حالياً.</p>
+                              <Database className="w-10 h-10 text-zinc-800" />
+                              <p className="text-zinc-600">لا توجد سجلات مسجلة حالياً لهذه العملة.</p>
                             </div>
                           </td>
                         </tr>
                       ) : (
-                        userLogs.map((log) => {
-                          const isOnline = log.isOnline || (new Date().getTime() - new Date(log.timestamp).getTime() < 1 * 60 * 1000);
-                          return (
-                          <tr key={log.id} className="hover:bg-white/[0.02] transition-colors group">
+                        dbRecords.map((record) => (
+                          <tr key={record.id} className="hover:bg-white/[0.02] transition-colors group">
                             <td className="px-6 py-4">
                               <div className="flex flex-col gap-1">
-                                <div className="flex items-center gap-2">
-                                  <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)] animate-pulse' : 'bg-zinc-600'}`}></div>
-                                  <span className={`text-[10px] font-bold ${isOnline ? 'text-emerald-400' : 'text-zinc-500'}`}>
-                                    {isOnline ? 'متصل الآن' : 'غير متصل'}
-                                  </span>
-                                </div>
-                                <span className="text-[10px] text-zinc-500 pr-4">
-                                  {formatDistanceToNow(new Date(log.timestamp), { addSuffix: true, locale: ar })}
+                                <span className="text-sm font-bold text-white">
+                                  {new Date(record.recorded_at).toLocaleDateString('ar-LY')}
+                                </span>
+                                <span className="text-[10px] text-zinc-500 pr-1">
+                                  {new Date(record.recorded_at).toLocaleTimeString('ar-LY')}
                                 </span>
                               </div>
                             </td>
                             <td className="px-6 py-4">
-                              <div className="flex items-center gap-3">
-                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center border ${
-                                  log.deviceType === 'Mobile' ? 'bg-blue-500/10 border-blue-500/20 text-blue-400' :
-                                   log.deviceType === 'Tablet' ? 'bg-purple-500/10 border-purple-500/20 text-purple-400' :
-                                   log.deviceType === 'Bot' ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
-                                }`}>
-                                  {log.deviceType === 'Mobile' ? <Smartphone className="w-5 h-5" /> : 
-                                   log.deviceType === 'Tablet' ? <Layout className="w-5 h-5" /> : 
-                                   <Monitor className="w-5 h-5" />}
-                                </div>
-                                <div className="flex flex-col">
-                                  <span className="text-sm font-bold text-white">{log.deviceName || log.deviceType}</span>
-                                  <span className="text-[10px] text-zinc-400 font-medium bg-white/5 px-2 py-0.5 rounded-md inline-block w-fit mt-1">
-                                    {log.os || 'نظام غير معروف'}
-                                  </span>
-                                </div>
-                              </div>
+                              {editingRecord === record.id ? (
+                                <input
+                                  type="number"
+                                  step="0.001"
+                                  value={editValue}
+                                  onChange={(e) => setEditValue(e.target.value)}
+                                  className="w-32 bg-black border border-emerald-500/50 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-emerald-500"
+                                  autoFocus
+                                />
+                              ) : (
+                                <span className="text-lg font-bold text-emerald-400">
+                                  {Number(record.value).toFixed(3)}
+                                </span>
+                              )}
                             </td>
                             <td className="px-6 py-4">
-                              <div className="flex flex-col">
-                                <span className="text-xs font-mono font-bold text-zinc-300 flex items-center gap-1.5">
-                                  <Wifi className="w-3 h-3 text-zinc-500" />
-                                  {log.ip}
-                                </span>
-                                {log.firstVisit && (
-                                  <span className="text-[9px] text-zinc-500 flex items-center gap-1 mt-1">
-                                    <Clock className="w-3 h-3" />
-                                    أول زيارة: {new Date(log.firstVisit).toLocaleTimeString('ar-LY')}
-                                  </span>
+                              <div className="flex items-center gap-2">
+                                {editingRecord === record.id ? (
+                                  <>
+                                    <button
+                                      onClick={() => handleUpdateRecord(record.id)}
+                                      className="p-2 rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500 hover:text-black transition-colors"
+                                      title="حفظ"
+                                    >
+                                      <Save className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => setEditingRecord(null)}
+                                      className="p-2 rounded-lg bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white transition-colors"
+                                      title="إلغاء"
+                                    >
+                                      <X className="w-4 h-4" />
+                                    </button>
+                                  </>
+                                ) : (
+                                  <>
+                                    <button
+                                      onClick={() => {
+                                        setEditingRecord(record.id);
+                                        setEditValue(record.value.toString());
+                                      }}
+                                      className="p-2 rounded-lg bg-white/5 text-zinc-400 hover:bg-blue-500/20 hover:text-blue-400 transition-colors"
+                                      title="تعديل السعر"
+                                    >
+                                      <Edit2 className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteRecord(record.id)}
+                                      className="p-2 rounded-lg bg-white/5 text-zinc-400 hover:bg-red-500/20 hover:text-red-400 transition-colors"
+                                      title="حذف السجل"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </>
                                 )}
                               </div>
                             </td>
-                            <td className="px-6 py-4">
-                              <div className="flex items-center gap-3">
-                                <div className="flex-1 max-w-[80px] h-1.5 bg-white/5 rounded-full overflow-hidden">
-                                  <div 
-                                    className="h-full bg-emerald-500 rounded-full" 
-                                    style={{ width: `${Math.min(((log.visits || 1) / 50) * 100, 100)}%` }}
-                                  ></div>
-                                </div>
-                                <div className="px-2 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-[10px] font-black text-emerald-400 min-w-[2rem] text-center">
-                                  {log.visits || 1}
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4">
-                              <div className="flex flex-col">
-                                <span className="text-[11px] font-bold text-white flex items-center gap-1.5">
-                                  <AppWindow className="w-3.5 h-3.5 text-zinc-400" />
-                                  {log.browser || 'متصفح غير معروف'}
-                                </span>
-                                <span className="text-[9px] text-zinc-500 font-mono truncate max-w-[120px] mt-1" title={log.userAgent}>
-                                  {log.userAgent}
-                                </span>
-                              </div>
-                            </td>
                           </tr>
-                        )})
+                        ))
                       )}
                     </tbody>
                   </table>

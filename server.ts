@@ -3308,7 +3308,7 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
     });
   });
 
-  app.get("/api/admin/config", requireAdmin, (req: express.Request, res: express.Response) => {
+  app.get("/api/admin/config", requireAdmin, requireAdmin, (req: express.Request, res: express.Response) => {
     res.json({ ...appConfig, serverStartTime: serverStartTime.toISOString(), facebookBroadcastStatus });
   });
 
@@ -3624,10 +3624,33 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
         
       if (updateError) throw updateError;
       
-      // Invalidate caches
+            // Invalidate caches
       cachedHistory = null;
       lastHistoryFetchTime = 0;
       
+      try {
+        const { data: latestRecord } = await supabase
+          .from(table)
+          .select('rates, recorded_at')
+          .order('recorded_at', { ascending: false })
+          .limit(1)
+          .single();
+          
+        if (latestRecord && latestRecord.rates) {
+          if (market === 'official') {
+             rates.official = { ...rates.official, ...latestRecord.rates };
+             rates.lastUpdated = latestRecord.recorded_at;
+             rates.lastChanged.official = latestRecord.recorded_at;
+          } else {
+             rates.parallel = { ...rates.parallel, ...latestRecord.rates };
+             rates.lastUpdated = latestRecord.recorded_at;
+             rates.lastChanged.parallel = latestRecord.recorded_at;
+          }
+          broadcastRatesUpdate(rates);
+        }
+      } catch (e) {
+         console.error("[DB Sync] Failed to sync latest record after admin edit:", e);
+      }
       res.json({ success: true });
     } catch (err: any) {
       if (!res.headersSent) {
@@ -3652,10 +3675,33 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
         
       if (error) throw error;
       
-      // Invalidate caches
+            // Invalidate caches
       cachedHistory = null;
       lastHistoryFetchTime = 0;
       
+      try {
+        const { data: latestRecord } = await supabase
+          .from(table)
+          .select('rates, recorded_at')
+          .order('recorded_at', { ascending: false })
+          .limit(1)
+          .single();
+          
+        if (latestRecord && latestRecord.rates) {
+          if (market === 'official') {
+             rates.official = { ...rates.official, ...latestRecord.rates };
+             rates.lastUpdated = latestRecord.recorded_at;
+             rates.lastChanged.official = latestRecord.recorded_at;
+          } else {
+             rates.parallel = { ...rates.parallel, ...latestRecord.rates };
+             rates.lastUpdated = latestRecord.recorded_at;
+             rates.lastChanged.parallel = latestRecord.recorded_at;
+          }
+          broadcastRatesUpdate(rates);
+        }
+      } catch (e) {
+         console.error("[DB Sync] Failed to sync latest record after admin edit:", e);
+      }
       res.json({ success: true });
     } catch (err: any) {
       if (!res.headersSent) {
