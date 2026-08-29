@@ -2770,84 +2770,107 @@ async function startServer() {
     }
   });
   let onlineUsers = 0;
-  const connectedDevices = new Map<string, Set<string>>(); // deviceId -> socketIds
-  const updateDeviceOnlineStatus = (deviceId: string) => {
-    const isOnline = (connectedDevices.get(deviceId)?.size || 0) > 0;
-    const log = userLogs.find(l => l.deviceId === deviceId);
-    if (log) {
-        log.isOnline = isOnline;
-        if (isOnline) {
-             log.timestamp = new Date().toISOString();
-        }
-        broadcastUserLogs();
-    }
-  };
+  const activeDeviceSockets = new Map<string, Set<string>>(); // deviceKey -> socketIds
 
   io.on('connection', (socket: any) => {
     const req = socket.request;
-    if (!appConfig.enableUserTracking) {
-      onlineUsers++;
-      broadcastOnlineCount();
-      socket.on('disconnect', () => {
-        onlineUsers = Math.max(0, onlineUsers - 1);
-        broadcastOnlineCount();
-      });
-      return;
-    }
-
     onlineUsers++;
-    
-    const rawIp = (req.headers['x-forwarded-for'] || req.connection.remoteAddress || '') as string;
-    const ip = rawIp.split(',')[0].trim();
-    const ua = req.headers['user-agent'] || 'Unknown';
-    
-    // Exclude specific IPs from being logged
-    const EXCLUDED_IPS: string[] = []; // Removed '41.254.79.142' so you can see yourself during testing
-    const shouldLog = !EXCLUDED_IPS.some(excludedIp => ip && ip.includes(excludedIp));
+    broadcastOnlineCount();
 
-    if (shouldLog) {
+    const rawIp = (req.headers['x-forwarded-for'] || req.connection.remoteAddress || '') as string;
+    const ip = rawIp.split(',')[0].trim() || '127.0.0.1';
+    const ua = (req.headers['user-agent'] || 'Unknown') as string;
+    const deviceKey = `${ip}_${ua}`;
+
+    if (!activeDeviceSockets.has(deviceKey)) {
+      activeDeviceSockets.set(deviceKey, new Set());
+    }
+    activeDeviceSockets.get(deviceKey)!.add(socket.id);
+
+    if (appConfig.enableUserTracking) {
       let deviceType = "Desktop";
-      let deviceName = "Unknown Device";
+      let deviceName = "حاسوب مكتبي / محمول";
 
       if (/mobile/i.test(ua)) deviceType = "Mobile";
-      if (/tablet/i.test(ua)) deviceType = "Tablet";
-      if (/bot|crawler|spider/i.test(ua)) deviceType = "Bot";
+      if (/tablet|ipad/i.test(ua)) deviceType = "Tablet";
+      if (/bot|crawler|spider|googlebot|bingbot|yandex/i.test(ua)) deviceType = "Bot";
 
-      // Detect specific names
-      if (/iPhone/i.test(ua)) deviceName = "iPhone";
-      else if (/iPad/i.test(ua)) deviceName = "iPad";
-      else if (/Samsung|SM-|GT-/i.test(ua)) deviceName = "Samsung";
-      else if (/Android/i.test(ua)) deviceName = "Android";
-      else if (/Windows/i.test(ua)) deviceName = "Windows PC";
-      else if (/Macintosh/i.test(ua)) deviceName = "MacBook/iMac";
-      else if (/Linux/i.test(ua)) deviceName = "Linux PC";
-      else deviceName = deviceType;
+      // Detect specific device names
+      if (/iPhone/i.test(ua)) {
+        deviceName = "Apple iPhone";
+        deviceType = "Mobile";
+      } else if (/iPad/i.test(ua)) {
+        deviceName = "Apple iPad";
+        deviceType = "Tablet";
+      } else if (/Samsung|SM-|GT-/i.test(ua)) {
+        deviceName = "Samsung Galaxy";
+        deviceType = "Mobile";
+      } else if (/Huawei|Honor/i.test(ua)) {
+        deviceName = "Huawei Device";
+        deviceType = "Mobile";
+      } else if (/Xiaomi|Redmi|POCO/i.test(ua)) {
+        deviceName = "Xiaomi Device";
+        deviceType = "Mobile";
+      } else if (/Oppo|CPH/i.test(ua)) {
+        deviceName = "Oppo Device";
+        deviceType = "Mobile";
+      } else if (/Vivo/i.test(ua)) {
+        deviceName = "Vivo Device";
+        deviceType = "Mobile";
+      } else if (/Android/i.test(ua)) {
+        deviceName = "هاتف أندرويد (Android)";
+        deviceType = "Mobile";
+      } else if (/Windows/i.test(ua)) {
+        deviceName = "حاسوب ويندوز (Windows PC)";
+        deviceType = "Desktop";
+      } else if (/Macintosh|Mac OS/i.test(ua)) {
+        deviceName = "أبل ماك (MacBook / iMac)";
+        deviceType = "Desktop";
+      } else if (/Linux/i.test(ua)) {
+        deviceName = "حاسوب لينكس (Linux PC)";
+        deviceType = "Desktop";
+      }
 
-      let os = "Unknown OS";
-      if (/Windows/i.test(ua)) os = "Windows";
+      let os = "غير محدد";
+      if (/Windows NT 10.0/i.test(ua)) os = "Windows 10 / 11";
+      else if (/Windows/i.test(ua)) os = "Windows";
       else if (/Mac OS X/i.test(ua)) os = "macOS";
-      else if (/Android/i.test(ua)) os = "Android";
+      else if (/Android (\d+(\.\d+)?)/i.test(ua)) {
+        const match = ua.match(/Android (\d+(\.\d+)?)/i);
+        os = match ? `Android ${match[1]}` : "Android";
+      }
+      else if (/iPhone OS (\d+_\d+)/i.test(ua)) {
+        const match = ua.match(/iPhone OS (\d+_\d+)/i);
+        os = match ? `iOS ${match[1].replace('_', '.')}` : "iOS";
+      }
+      else if (/iOS/i.test(ua)) os = "iOS";
       else if (/Linux/i.test(ua)) os = "Linux";
-      else if (/iPhone|iPad|iPod/i.test(ua)) os = "iOS";
-      
-      let browser = "Unknown Browser";
-      if (/Edg/i.test(ua)) browser = "Edge";
-      else if (/Chrome|CriOS/i.test(ua)) browser = "Chrome";
-      else if (/Firefox|FxiOS/i.test(ua)) browser = "Firefox";
-      else if (/Safari/i.test(ua) && !/Chrome/i.test(ua)) browser = "Safari";
+
+      let browser = "متصفح آخر";
+      if (/SamsungBrowser/i.test(ua)) browser = "Samsung Internet";
+      else if (/Edg/i.test(ua)) browser = "Microsoft Edge";
+      else if (/Chrome|CriOS/i.test(ua)) browser = "Google Chrome";
+      else if (/Firefox|FxiOS/i.test(ua)) browser = "Mozilla Firefox";
+      else if (/Safari/i.test(ua) && !/Chrome/i.test(ua)) browser = "Apple Safari";
       else if (/Opera|OPR/i.test(ua)) browser = "Opera";
 
       const existingLogIndex = userLogs.findIndex(log => log.ip === ip && log.userAgent === ua);
-      
+
       if (existingLogIndex !== -1) {
         const existingLog = userLogs[existingLogIndex];
         existingLog.timestamp = new Date().toISOString();
         existingLog.visits = (existingLog.visits || 1) + 1;
+        existingLog.isOnline = true;
+        existingLog.deviceName = deviceName;
+        existingLog.deviceType = deviceType;
+        existingLog.os = os;
+        existingLog.browser = browser;
         userLogs.splice(existingLogIndex, 1);
         userLogs.unshift(existingLog);
       } else {
         const newLog: DeviceLogEntry = {
           id: Math.random().toString(36).substring(2, 11),
+          deviceId: Math.random().toString(36).substring(2, 11),
           ip: ip,
           userAgent: ua,
           timestamp: new Date().toISOString(),
@@ -2856,20 +2879,33 @@ async function startServer() {
           deviceType: deviceType,
           deviceName: deviceName,
           os: os,
-          browser: browser
+          browser: browser,
+          isOnline: true
         };
         userLogs.unshift(newLog);
       }
-      
+
       if (userLogs.length > 200) userLogs.pop();
       broadcastUserLogs();
     }
 
-    broadcastOnlineCount();
-
     socket.on('disconnect', () => {
       onlineUsers = Math.max(0, onlineUsers - 1);
       broadcastOnlineCount();
+
+      const sockets = activeDeviceSockets.get(deviceKey);
+      if (sockets) {
+        sockets.delete(socket.id);
+        if (sockets.size === 0) {
+          activeDeviceSockets.delete(deviceKey);
+          const log = userLogs.find(l => l.ip === ip && l.userAgent === ua);
+          if (log) {
+            log.isOnline = false;
+            log.timestamp = new Date().toISOString();
+            broadcastUserLogs();
+          }
+        }
+      }
     });
   });
 

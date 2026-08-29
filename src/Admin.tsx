@@ -207,6 +207,14 @@ export default function Admin() {
   const [messages, setMessages] = useState<any[]>([]);
   const [messagesLoading, setMessagesLoading] = useState(false);
 
+  // Tracking Tab State
+  const [deviceSearchTerm, setDeviceSearchTerm] = useState('');
+  const [deviceFilter, setDeviceFilter] = useState<'all' | 'Mobile' | 'Desktop' | 'Tablet' | 'Bot'>('all');
+  const [deviceStatusFilter, setDeviceStatusFilter] = useState<'all' | 'online' | 'offline'>('all');
+  const [copiedIp, setCopiedIp] = useState<string | null>(null);
+  const [expandedUserAgentId, setExpandedUserAgentId] = useState<string | null>(null);
+  const [trackingLoading, setTrackingLoading] = useState(false);
+
   const fetchMessages = async () => {
     if (!token) return;
     setMessagesLoading(true);
@@ -228,6 +236,12 @@ export default function Admin() {
   useEffect(() => {
     if (activeTab === 'messages' && token) {
       fetchMessages();
+    }
+  }, [activeTab, token]);
+
+  useEffect(() => {
+    if (activeTab === 'tracking' && token) {
+      fetchTrackingLogs();
     }
   }, [activeTab, token]);
 
@@ -2702,18 +2716,38 @@ export default function Admin() {
               exit={{ opacity: 0, y: -10 }}
               className="space-y-6"
             >
-              <section className="bg-[#0a0a0a] border border-white/10 rounded-[2.5rem] overflow-hidden shadow-2xl">
-                <div className="p-8 border-b border-white/5 flex items-center justify-between">
+              {/* Header Card */}
+              <div className="bg-[#0a0a0a] border border-white/10 rounded-[2.5rem] p-6 lg:p-8 shadow-2xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
+                <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
                   <div>
-                    <h2 className="text-xl font-black flex items-center gap-3 text-emerald-400">
-                      <Users className="w-6 h-6" />
-                      سجل الأجهزة المتصلة
-                    </h2>
-                    <p className="text-sm text-zinc-500 mt-1">عرض تفاصيل الأجهزة التي دخلت الموقع حالياً (آخر 200 جهاز)</p>
+                    <div className="flex items-center gap-3">
+                      <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl">
+                        <Users className="w-7 h-7 text-emerald-400" />
+                      </div>
+                      <div>
+                        <h2 className="text-2xl font-black text-white flex items-center gap-3">
+                          سجل الأجهزة المتصلة والزوار
+                          <span className="text-xs px-2.5 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full font-bold">
+                            مستقل عن قاعدة البيانات
+                          </span>
+                        </h2>
+                        <p className="text-sm text-zinc-400 mt-1">
+                          مراقبة فورية للأجهزة المتصلة بالموقع، عناوين IP، نوع المتصفح ونظام التشغيل في الوقت الفعلي
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-2 bg-white/5 px-4 py-2 rounded-xl border border-white/5">
-                      <span className="text-xs text-zinc-400">تتبع الأجهزة:</span>
+
+                  <div className="flex flex-wrap items-center gap-3">
+                    {/* Toggle User Tracking */}
+                    <div className="flex items-center gap-3 bg-white/5 border border-white/10 px-4 py-2.5 rounded-2xl backdrop-blur-md">
+                      <div className="flex flex-col">
+                        <span className="text-xs font-bold text-white">تتبع الأجهزة:</span>
+                        <span className="text-[10px] text-zinc-400">
+                          {config?.enableUserTracking ? 'مفعّل (يسجل الزوار)' : 'معطّل حالياً'}
+                        </span>
+                      </div>
                       <button 
                         onClick={async () => {
                           try {
@@ -2724,18 +2758,49 @@ export default function Admin() {
                             if (res.ok) {
                               const data = await res.json();
                               setConfig({ ...config, enableUserTracking: data.enabled });
+                              setSuccess(data.enabled ? "تم تفعيل تتبع الأجهزة بنجاح" : "تم إيقاف تتبع الأجهزة");
                             }
                           } catch (err) {
-                            console.error("Toggle tracking failed:", err);
+                            setError("فشل تغيير حالة تتبع الأجهزة");
                           }
                         }}
-                        className={`w-10 h-5 rounded-full transition-colors relative ${config?.enableUserTracking ? 'bg-emerald-500' : 'bg-zinc-700'}`}
+                        className={`w-12 h-6 rounded-full transition-colors relative flex items-center p-1 ${config?.enableUserTracking ? 'bg-emerald-500' : 'bg-zinc-700'}`}
                       >
-                        <div className={`absolute top-1 w-3 h-3 rounded-full bg-white transition-all ${config?.enableUserTracking ? 'right-1' : 'right-6'}`} />
+                        <div className={`w-4 h-4 rounded-full bg-white transition-transform ${config?.enableUserTracking ? '-translate-x-6' : 'translate-x-0'}`} />
                       </button>
                     </div>
+
+                    {/* Refresh Button */}
                     <button 
                       onClick={async () => {
+                        try {
+                          setTrackingLoading(true);
+                          const res = await fetch("/api/admin/tracking/logs", {
+                            headers: { Authorization: `Bearer ${token}` }
+                          });
+                          if (res.ok) {
+                            const data = await res.json();
+                            setUserLogs(data.logs || []);
+                            setSuccess("تم تحديث سجل الأجهزة فورياً");
+                          }
+                        } catch (err) {
+                          setError("فشل تحديث سجل الأجهزة");
+                        } finally {
+                          setTrackingLoading(false);
+                        }
+                      }}
+                      disabled={trackingLoading}
+                      className="p-3 bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white rounded-2xl transition-all border border-white/10 flex items-center gap-2 text-xs font-bold"
+                      title="تحديث القائمة"
+                    >
+                      <RefreshCw className={`w-4 h-4 ${trackingLoading ? 'animate-spin text-emerald-400' : ''}`} />
+                      <span className="hidden sm:inline">تحديث</span>
+                    </button>
+
+                    {/* Clear Logs Button */}
+                    <button 
+                      onClick={async () => {
+                        if (!confirm("هل أنت متأكد من مسح جميع سجلات الأجهزة المتصلة؟")) return;
                         try {
                           const res = await fetch("/api/admin/tracking/clear", {
                             method: "POST",
@@ -2743,126 +2808,394 @@ export default function Admin() {
                           });
                           if (res.ok) {
                             setUserLogs([]);
-                            setSuccess("تم مسح السجل بنجاح");
+                            setSuccess("تم مسح سجل الأجهزة بنجاح");
                           }
                         } catch (err) {
-                          console.error("Clear logs failed:", err);
+                          setError("فشل مسح سجل الأجهزة");
                         }
                       }}
-                      className="p-3 rounded-xl bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 transition-all border border-rose-500/10"
-                      title="مسح السجل"
+                      className="p-3 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-2xl transition-all border border-rose-500/20 flex items-center gap-2 text-xs font-bold"
+                      title="مسح سجل الأجهزة بالكامل"
                     >
-                      <Trash2 className="w-5 h-5" />
-                    </button>
-                    <button 
-                      onClick={async () => {
-                        try {
-                          const res = await fetch("/api/admin/tracking/logs", {
-                            headers: { Authorization: `Bearer ${token}` }
-                          });
-                          if (res.ok) {
-                            const data = await res.json();
-                            setUserLogs(data.logs);
-                          }
-                        } catch (err) {
-                          console.error("Fetch logs failed:", err);
-                        }
-                      }}
-                      className="p-3 rounded-xl bg-white/5 text-zinc-400 hover:text-white transition-all border border-white/5"
-                    >
-                      <RefreshCw className="w-5 h-5" />
+                      <Trash2 className="w-4 h-4" />
+                      <span className="hidden sm:inline">مسح السجل</span>
                     </button>
                   </div>
                 </div>
-                
+
+                {/* Key Metrics Row */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-8 pt-6 border-t border-white/5">
+                  {/* Live Online Users */}
+                  <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-4 flex flex-col justify-between">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-zinc-400 font-bold">المتصلين الآن</span>
+                      <span className="relative flex h-3 w-3">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                      </span>
+                    </div>
+                    <div className="mt-2 flex items-baseline gap-2">
+                      <span className="text-2xl font-black text-emerald-400 font-mono">
+                        {stats?.onlineUsers || (userLogs.filter(l => l.isOnline).length > 0 ? userLogs.filter(l => l.isOnline).length : 1)}
+                      </span>
+                      <span className="text-[11px] text-zinc-500">مستخدم نشط</span>
+                    </div>
+                  </div>
+
+                  {/* Total Devices Tracked */}
+                  <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-4 flex flex-col justify-between">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-zinc-400 font-bold">إجمالي الأجهزة</span>
+                      <Users className="w-4 h-4 text-cyan-400" />
+                    </div>
+                    <div className="mt-2 flex items-baseline gap-2">
+                      <span className="text-2xl font-black text-cyan-400 font-mono">{userLogs.length}</span>
+                      <span className="text-[11px] text-zinc-500">جهاز مسجل</span>
+                    </div>
+                  </div>
+
+                  {/* Smartphones */}
+                  <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-4 flex flex-col justify-between">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-zinc-400 font-bold">الهواتف الذكية</span>
+                      <Smartphone className="w-4 h-4 text-purple-400" />
+                    </div>
+                    <div className="mt-2 flex items-baseline gap-2">
+                      <span className="text-2xl font-black text-purple-400 font-mono">
+                        {userLogs.filter(l => l.deviceType === 'Mobile').length}
+                      </span>
+                      <span className="text-[11px] text-zinc-500">
+                        {userLogs.length > 0 ? `${Math.round((userLogs.filter(l => l.deviceType === 'Mobile').length / userLogs.length) * 100)}%` : '0%'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Desktops / PCs */}
+                  <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-4 flex flex-col justify-between">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-zinc-400 font-bold">أجهزة الكمبيوتر</span>
+                      <Monitor className="w-4 h-4 text-blue-400" />
+                    </div>
+                    <div className="mt-2 flex items-baseline gap-2">
+                      <span className="text-2xl font-black text-blue-400 font-mono">
+                        {userLogs.filter(l => l.deviceType === 'Desktop').length}
+                      </span>
+                      <span className="text-[11px] text-zinc-500">
+                        {userLogs.length > 0 ? `${Math.round((userLogs.filter(l => l.deviceType === 'Desktop').length / userLogs.length) * 100)}%` : '0%'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Filters & Search Control Bar */}
+              <div className="bg-[#0a0a0a] border border-white/10 rounded-2xl p-4 shadow-xl flex flex-col md:flex-row items-center justify-between gap-4">
+                {/* Search Input */}
+                <div className="relative w-full md:w-96">
+                  <Search className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                  <input 
+                    type="text"
+                    value={deviceSearchTerm}
+                    onChange={(e) => setDeviceSearchTerm(e.target.value)}
+                    placeholder="ابحث بالـ IP، اسم الجهاز، المتصفح، أو النظام..."
+                    className="w-full bg-white/5 border border-white/10 rounded-xl pr-10 pl-4 py-2.5 text-xs text-white placeholder:text-zinc-500 focus:outline-none focus:border-emerald-500/50 transition-colors"
+                  />
+                  {deviceSearchTerm && (
+                    <button 
+                      onClick={() => setDeviceSearchTerm('')}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white text-xs"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+
+                {/* Device Type Filters */}
+                <div className="flex flex-wrap items-center gap-1.5 w-full md:w-auto">
+                  <button 
+                    onClick={() => setDeviceFilter('all')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${deviceFilter === 'all' ? 'bg-white/15 text-white shadow-sm border border-white/10' : 'bg-transparent text-zinc-400 hover:text-white'}`}
+                  >
+                    الكل ({userLogs.length})
+                  </button>
+                  <button 
+                    onClick={() => setDeviceFilter('Mobile')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${deviceFilter === 'Mobile' ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' : 'bg-transparent text-zinc-400 hover:text-white'}`}
+                  >
+                    <Smartphone className="w-3.5 h-3.5" />
+                    هواتف ({userLogs.filter(l => l.deviceType === 'Mobile').length})
+                  </button>
+                  <button 
+                    onClick={() => setDeviceFilter('Desktop')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${deviceFilter === 'Desktop' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' : 'bg-transparent text-zinc-400 hover:text-white'}`}
+                  >
+                    <Monitor className="w-3.5 h-3.5" />
+                    حواسيب ({userLogs.filter(l => l.deviceType === 'Desktop').length})
+                  </button>
+                  <button 
+                    onClick={() => setDeviceFilter('Tablet')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${deviceFilter === 'Tablet' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'bg-transparent text-zinc-400 hover:text-white'}`}
+                  >
+                    أجهزة لوحية ({userLogs.filter(l => l.deviceType === 'Tablet').length})
+                  </button>
+                  <button 
+                    onClick={() => setDeviceFilter('Bot')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${deviceFilter === 'Bot' ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' : 'bg-transparent text-zinc-400 hover:text-white'}`}
+                  >
+                    <Cpu className="w-3.5 h-3.5" />
+                    روبوتات ({userLogs.filter(l => l.deviceType === 'Bot').length})
+                  </button>
+                </div>
+
+                {/* Online Status Filter */}
+                <div className="flex items-center gap-1 bg-white/5 p-1 rounded-xl border border-white/5 text-xs">
+                  <button 
+                    onClick={() => setDeviceStatusFilter('all')}
+                    className={`px-2.5 py-1 rounded-lg font-bold transition-all ${deviceStatusFilter === 'all' ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+                  >
+                    الكل
+                  </button>
+                  <button 
+                    onClick={() => setDeviceStatusFilter('online')}
+                    className={`px-2.5 py-1 rounded-lg font-bold transition-all flex items-center gap-1 ${deviceStatusFilter === 'online' ? 'bg-emerald-500/20 text-emerald-400' : 'text-zinc-500 hover:text-zinc-300'}`}
+                  >
+                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                    متصل
+                  </button>
+                  <button 
+                    onClick={() => setDeviceStatusFilter('offline')}
+                    className={`px-2.5 py-1 rounded-lg font-bold transition-all ${deviceStatusFilter === 'offline' ? 'bg-zinc-700 text-zinc-300' : 'text-zinc-500 hover:text-zinc-300'}`}
+                  >
+                    غير متصل
+                  </button>
+                </div>
+              </div>
+
+              {/* Devices Table Section */}
+              <section className="bg-[#0a0a0a] border border-white/10 rounded-[2.5rem] overflow-hidden shadow-2xl">
                 <div className="overflow-x-auto">
                   <table className="w-full text-right">
                     <thead>
-                      <tr className="bg-white/[0.02] text-zinc-500 text-[10px] uppercase tracking-widest font-black">
-                        <th className="px-6 py-4">التاريخ والوقت</th>
-                        <th className="px-6 py-4 text-center">السعر</th>
-                        <th className="px-6 py-4 text-left">إجراءات</th>
+                      <tr className="bg-white/[0.02] text-zinc-400 text-[11px] uppercase tracking-widest font-black border-b border-white/5">
+                        <th className="px-6 py-4">الجهاز ونظام التشغيل</th>
+                        <th className="px-6 py-4">المتصفح</th>
+                        <th className="px-6 py-4">عنوان IP</th>
+                        <th className="px-6 py-4 text-center">الزيارات</th>
+                        <th className="px-6 py-4">أول دخول</th>
+                        <th className="px-6 py-4">آخر نشاط</th>
+                        <th className="px-6 py-4 text-center">الحالة</th>
+                        <th className="px-6 py-4 text-left">التفاصيل</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5">
-                      {dbRecords.length === 0 ? (
-                        <tr>
-                          <td colSpan={3} className="py-20 text-center">
-                            <div className="flex flex-col items-center gap-4">
-                              <Database className="w-10 h-10 text-zinc-800" />
-                              <p className="text-zinc-600">لا توجد سجلات حالياً لهذه العملة في هذا السوق.</p>
-                            </div>
-                          </td>
-                        </tr>
-                      ) : (
-                        dbRecords.map((record) => (
-                          <tr key={record.id} className="hover:bg-white/[0.02] transition-colors group">
-                            <td className="px-6 py-4" dir="ltr">
-                              <span className="text-sm text-zinc-300 font-mono">
-                                {new Date(record.recorded_at).toLocaleString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 text-center">
-                              {editingRecord === record.id ? (
-                                <input
-                                  type="number"
-                                  step="0.001"
-                                  value={editValue}
-                                  onChange={(e) => setEditValue(e.target.value)}
-                                  className="bg-black/50 border border-emerald-500/50 rounded-lg px-3 py-1.5 text-white w-32 focus:outline-none focus:border-emerald-500 text-center"
-                                  autoFocus
-                                />
-                              ) : (
-                                <span className="text-base font-bold text-emerald-400 font-mono">
-                                  {record.value?.toFixed(3)}
-                                </span>
-                              )}
-                            </td>
-                            <td className="px-6 py-4">
-                              <div className="flex items-center justify-end gap-2">
-                                {editingRecord === record.id ? (
-                                  <>
-                                    <button
-                                      onClick={() => handleUpdateRecord(record.id)}
-                                      className="p-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-lg transition-colors"
-                                      title="حفظ"
-                                    >
-                                      <Check className="w-4 h-4" />
-                                    </button>
-                                    <button
-                                      onClick={() => setEditingRecord(null)}
-                                      className="p-1.5 bg-zinc-500/10 hover:bg-zinc-500/20 text-zinc-400 rounded-lg transition-colors"
-                                      title="إلغاء"
-                                    >
-                                      <X className="w-4 h-4" />
-                                    </button>
-                                  </>
-                                ) : (
-                                  <>
-                                    <button
+                      {(() => {
+                        const filtered = userLogs.filter((log) => {
+                          if (deviceFilter !== 'all' && log.deviceType !== deviceFilter) return false;
+                          if (deviceStatusFilter === 'online' && !log.isOnline) return false;
+                          if (deviceStatusFilter === 'offline' && log.isOnline) return false;
+                          if (deviceSearchTerm.trim()) {
+                            const query = deviceSearchTerm.toLowerCase();
+                            const mIp = log.ip?.toLowerCase().includes(query);
+                            const mDev = log.deviceName?.toLowerCase().includes(query);
+                            const mOs = log.os?.toLowerCase().includes(query);
+                            const mBro = log.browser?.toLowerCase().includes(query);
+                            const mUa = log.userAgent?.toLowerCase().includes(query);
+                            return mIp || mDev || mOs || mBro || mUa;
+                          }
+                          return true;
+                        });
+
+                        if (filtered.length === 0) {
+                          return (
+                            <tr>
+                              <td colSpan={8} className="py-20 text-center">
+                                <div className="flex flex-col items-center gap-4">
+                                  <div className="p-4 bg-white/5 border border-white/10 rounded-2xl">
+                                    <Users className="w-10 h-10 text-zinc-600" />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <p className="text-base font-bold text-zinc-300">
+                                      {deviceSearchTerm || deviceFilter !== 'all' || deviceStatusFilter !== 'all'
+                                        ? "لا توجد نتائج مطابقة لخيارات البحث أو الفلترة"
+                                        : "لا توجد أجهزة متصلة مسجلة حالياً"}
+                                    </p>
+                                    <p className="text-xs text-zinc-500">
+                                      {deviceSearchTerm || deviceFilter !== 'all' || deviceStatusFilter !== 'all'
+                                        ? "جرّب تغيير كلمات البحث أو إعادة ضبط الفلاتر أعلاه."
+                                        : "عندما يزور المستخدمون الموقع أو لوحة التحكم، ستظهر تفاصيل أجهزتهم هنا تلقائياً وبشكل فوري."}
+                                    </p>
+                                  </div>
+                                  {(deviceSearchTerm || deviceFilter !== 'all' || deviceStatusFilter !== 'all') && (
+                                    <button 
                                       onClick={() => {
-                                        setEditingRecord(record.id);
-                                        setEditValue(record.value?.toString() || '');
+                                        setDeviceSearchTerm('');
+                                        setDeviceFilter('all');
+                                        setDeviceStatusFilter('all');
                                       }}
-                                      className="p-1.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded-lg transition-colors"
-                                      title="تعديل"
+                                      className="mt-2 px-4 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-xl text-xs font-bold border border-emerald-500/20 transition-colors"
                                     >
-                                      <Edit2 className="w-4 h-4" />
+                                      إعادة تعيين الفلاتر
                                     </button>
-                                    <button
-                                      onClick={() => handleDeleteRecord(record.id)}
-                                      className="p-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg transition-colors"
-                                      title="حذف"
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        }
+
+                        return filtered.map((log, index) => {
+                          const isExpanded = expandedUserAgentId === (log.id || String(index));
+                          const isMobile = log.deviceType === 'Mobile';
+                          const isTablet = log.deviceType === 'Tablet';
+                          const isBot = log.deviceType === 'Bot';
+
+                          return (
+                            <React.Fragment key={log.id || index}>
+                              <tr className="hover:bg-white/[0.02] transition-colors group">
+                                {/* Device & OS */}
+                                <td className="px-6 py-4">
+                                  <div className="flex items-center gap-3">
+                                    <div className={`p-2.5 rounded-xl border ${
+                                      isMobile ? 'bg-purple-500/10 border-purple-500/20 text-purple-400' :
+                                      isTablet ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' :
+                                      isBot ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' :
+                                      'bg-blue-500/10 border-blue-500/20 text-blue-400'
+                                    }`}>
+                                      {isMobile ? <Smartphone className="w-5 h-5" /> :
+                                       isTablet ? <Smartphone className="w-5 h-5" /> :
+                                       isBot ? <Cpu className="w-5 h-5" /> :
+                                       <Monitor className="w-5 h-5" />}
+                                    </div>
+                                    <div>
+                                      <div className="text-sm font-bold text-white flex items-center gap-2">
+                                        {log.deviceName || (isMobile ? 'هاتف ذكي' : 'حاسوب مكتبي')}
+                                      </div>
+                                      <div className="flex items-center gap-2 mt-0.5">
+                                        <span className="text-[11px] text-zinc-400 bg-white/5 px-2 py-0.5 rounded-md border border-white/5 font-mono">
+                                          {log.os || 'نظام غير محدد'}
+                                        </span>
+                                        <span className="text-[10px] text-zinc-500 font-medium">
+                                          {log.deviceType || 'Desktop'}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </td>
+
+                                {/* Browser */}
+                                <td className="px-6 py-4">
+                                  <span className="text-xs font-semibold text-zinc-300 bg-white/5 px-2.5 py-1 rounded-lg border border-white/5">
+                                    {log.browser || 'غير محدد'}
+                                  </span>
+                                </td>
+
+                                {/* IP Address */}
+                                <td className="px-6 py-4" dir="ltr">
+                                  <div className="flex items-center gap-2 justify-end">
+                                    <span className="text-xs font-mono font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20">
+                                      {log.ip || '127.0.0.1'}
+                                    </span>
+                                    <button 
+                                      onClick={() => {
+                                        if (log.ip) {
+                                          navigator.clipboard.writeText(log.ip);
+                                          setCopiedIp(log.ip);
+                                          setTimeout(() => setCopiedIp(null), 2000);
+                                        }
+                                      }}
+                                      className="p-1.5 hover:bg-white/10 text-zinc-400 hover:text-white rounded-lg transition-colors"
+                                      title="نسخ عنوان الـ IP"
                                     >
-                                      <Trash2 className="w-4 h-4" />
+                                      {copiedIp === log.ip ? (
+                                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                      ) : (
+                                        <Copy className="w-3.5 h-3.5" />
+                                      )}
                                     </button>
-                                  </>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        ))
-                      )}
+                                  </div>
+                                </td>
+
+                                {/* Visits */}
+                                <td className="px-6 py-4 text-center">
+                                  <span className="text-xs font-bold text-cyan-400 bg-cyan-500/10 px-2.5 py-1 rounded-lg border border-cyan-500/20 font-mono">
+                                    {log.visits || 1} {log.visits && log.visits > 1 ? 'زيارات' : 'زيارة'}
+                                  </span>
+                                </td>
+
+                                {/* First Visit */}
+                                <td className="px-6 py-4" dir="ltr">
+                                  <span className="text-xs text-zinc-400 font-mono">
+                                    {log.firstVisit 
+                                      ? new Date(log.firstVisit).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+                                      : new Date(log.timestamp).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                  </span>
+                                </td>
+
+                                {/* Last Active */}
+                                <td className="px-6 py-4" dir="ltr">
+                                  <div className="flex flex-col items-start">
+                                    <span className="text-xs text-zinc-300 font-mono font-medium">
+                                      {new Date(log.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                                    </span>
+                                    <span className="text-[10px] text-zinc-500">
+                                      {formatDistanceToNow(new Date(log.timestamp), { addSuffix: true, locale: ar })}
+                                    </span>
+                                  </div>
+                                </td>
+
+                                {/* Status */}
+                                <td className="px-6 py-4 text-center">
+                                  {log.isOnline ? (
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                                      متصل الآن
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-zinc-800/80 text-zinc-400 border border-zinc-700">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-zinc-500" />
+                                      غير متصل
+                                    </span>
+                                  )}
+                                </td>
+
+                                {/* Actions / Expand Details */}
+                                <td className="px-6 py-4 text-left">
+                                  <button 
+                                    onClick={() => setExpandedUserAgentId(isExpanded ? null : (log.id || String(index)))}
+                                    className="p-1.5 bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white rounded-lg transition-colors text-xs flex items-center gap-1"
+                                    title="عرض التفاصيل التقنية"
+                                  >
+                                    {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                                    <span className="text-[11px]">التفاصيل</span>
+                                  </button>
+                                </td>
+                              </tr>
+
+                              {/* Expanded Row for User-Agent & Technical Info */}
+                              {isExpanded && (
+                                <tr className="bg-white/[0.015] border-b border-white/5">
+                                  <td colSpan={8} className="px-6 py-4">
+                                    <div className="bg-black/60 border border-white/10 rounded-2xl p-4 space-y-3">
+                                      <div className="flex items-center justify-between text-xs text-zinc-400 pb-2 border-b border-white/5">
+                                        <span className="font-bold text-white flex items-center gap-2">
+                                          <Code2 className="w-4 h-4 text-emerald-400" />
+                                          السلسلة التعريفية للمتصفح (User-Agent):
+                                        </span>
+                                        <span className="font-mono text-zinc-500 text-[10px]">
+                                          معرّف الجهاز: {log.id || log.deviceId || 'N/A'}
+                                        </span>
+                                      </div>
+                                      <p className="text-xs font-mono text-zinc-300 break-all bg-white/5 p-3 rounded-xl border border-white/5 leading-relaxed" dir="ltr">
+                                        {log.userAgent || 'لا يتوفر تفاصيل User Agent'}
+                                      </p>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                            </React.Fragment>
+                          );
+                        });
+                      })()}
                     </tbody>
                   </table>
                 </div>
