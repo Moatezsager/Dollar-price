@@ -1738,7 +1738,83 @@ async function broadcastRateChanges(updates: {id?: string, name: string, oldVal:
   }
 }
 
+function loadConfigFromStorage() {
+  try {
+    // 1. Try loading from SQLite first (local durable cache)
+    const stored = db.prepare('SELECT value FROM server_config WHERE key = ?').get('app_config') as any;
+    if (stored && stored.value) {
+      const parsedConfig = JSON.parse(stored.value) as AppConfig;
+      if (parsedConfig && Array.isArray(parsedConfig.terms) && Array.isArray(parsedConfig.channels)) {
+        applyLoadedConfig(parsedConfig, "SQLite");
+      }
+    }
+  } catch (e) {
+    console.error("[Storage] Failed to read config from SQLite:", e);
+  }
+}
+
+function applyLoadedConfig(loadedConfig: AppConfig, source: string) {
+  // 1. Merge terms: respect saved values from DB (min, max, regex, isInverse, name, flag)
+  const existingIds = new Set<string>();
+  
+  const mergedTerms = loadedConfig.terms.map(dbTerm => {
+    existingIds.add(dbTerm.id);
+    const defaultTerm = appConfig.terms.find(t => t.id === dbTerm.id);
+    return {
+      id: dbTerm.id,
+      name: dbTerm.name || defaultTerm?.name || dbTerm.id,
+      regex: dbTerm.regex || defaultTerm?.regex || "",
+      min: (typeof dbTerm.min === 'number' && !isNaN(dbTerm.min)) ? dbTerm.min : (defaultTerm?.min ?? 0),
+      max: (typeof dbTerm.max === 'number' && !isNaN(dbTerm.max)) ? dbTerm.max : (defaultTerm?.max ?? 10000),
+      isInverse: typeof dbTerm.isInverse === 'boolean' ? dbTerm.isInverse : (defaultTerm?.isInverse ?? false),
+      flag: (dbTerm.flag && dbTerm.flag !== "undefined" && dbTerm.flag !== "null") ? dbTerm.flag : (defaultTerm?.flag || "ly")
+    };
+  });
+
+  // 2. Add any newly introduced code terms that are missing in saved config
+  for (const defaultTerm of appConfig.terms) {
+    if (!existingIds.has(defaultTerm.id)) {
+      mergedTerms.push(defaultTerm);
+      console.log(`[Migration] Added new missing currency term: ${defaultTerm.id}`);
+    }
+  }
+  loadedConfig.terms = mergedTerms;
+
+  // 3. Ensure channels is a valid non-empty array
+  if (!Array.isArray(loadedConfig.channels) || loadedConfig.channels.length === 0) {
+    loadedConfig.channels = ["dollarr_ly", "musheermarket", "lydollar", "suqalmushir"];
+  }
+
+  // 4. Default other settings safely
+  if (loadedConfig.enableHttpScraper === undefined) {
+    loadedConfig.enableHttpScraper = true;
+  }
+  if (loadedConfig.telegramAutoPost === undefined) {
+    loadedConfig.telegramAutoPost = appConfig.telegramAutoPost;
+  }
+  if (loadedConfig.telegramPostChannel === undefined) {
+    loadedConfig.telegramPostChannel = appConfig.telegramPostChannel;
+  }
+  if (loadedConfig.telegramTemplateStyle === undefined) {
+    loadedConfig.telegramTemplateStyle = appConfig.telegramTemplateStyle || "classic";
+  }
+
+  appConfig = loadedConfig;
+
+  // Re-initialize Telegram Manager if credentials present
+  telegramManager = getTelegramManager(
+    Number(process.env.TELEGRAM_API_ID || appConfig.telegramApiId),
+    process.env.TELEGRAM_API_HASH || appConfig.telegramApiHash || "",
+    process.env.TELEGRAM_SESSION || process.env.TG_SESSION_V2 || appConfig.telegramSessionString || ""
+  );
+
+  console.log(`[Config] Config loaded & applied successfully from ${source}`);
+}
+
 async function loadConfigFromSupabase() {
+  // Always load from local SQLite first so we immediately have saved config
+  loadConfigFromStorage();
+
   if (!supabase || !supabaseAnonKey || supabaseAnonKey.includes('dummy')) return;
   try {
     const { data, error } = await supabase
@@ -1755,82 +1831,17 @@ async function loadConfigFromSupabase() {
         console.error("Error loading config from Supabase:", error);
       }
     } else if (data && data.config) {
-      // Robust Merge & Repair Logic
-      const dbConfig = data.config as AppConfig;
+      applyLoadedConfig(data.config as AppConfig, "Supabase");
       
-      // 1. Repair flags and missing fields for existing terms
-      dbConfig.terms = dbConfig.terms.map(dbTerm => {
-        const defaultTerm = appConfig.terms.find(t => t.id === dbTerm.id);
-        if (defaultTerm) {
-          // IMPORTANT: We override DB regex with Code regex to ensure bug fixes propagate!
-          return {
-            ...dbTerm,      // Start with DB values
-            regex: defaultTerm.regex, // OVERRIDE with latest code regex
-            min: defaultTerm.min,     // OVERRIDE with latest code constraints
-            max: defaultTerm.max,     // OVERRIDE with latest code constraints
-            name: dbTerm.name || defaultTerm.name,
-            // Ensure flag is valid and not a string "undefined"/"null"
-            flag: (dbTerm.flag && dbTerm.flag !== "undefined" && dbTerm.flag !== "null") ? dbTerm.flag : defaultTerm.flag
-          };
-        }
-        return dbTerm;
-      });
-
-      // 2. Add entirely new terms that are in the code but not in the DB
-      const existingIds = new Set(dbConfig.terms.map(t => t.id));
-      for (const defaultTerm of appConfig.terms) {
-        if (!existingIds.has(defaultTerm.id)) {
-          dbConfig.terms.push(defaultTerm);
-          console.log(`[Migration] Added missing term: ${defaultTerm.id}`);
-        }
+      // Also cache to SQLite
+      try {
+        db.prepare(`
+          INSERT INTO server_config (key, value) VALUES ('app_config', ?)
+          ON CONFLICT(key) DO UPDATE SET value = excluded.value
+        `).run(JSON.stringify(appConfig));
+      } catch (e) {
+        console.error("[Storage] Failed to sync Supabase config to SQLite:", e);
       }
-
-      // 3. Ensure channels is a valid array
-      if (!Array.isArray(dbConfig.channels) || dbConfig.channels.length === 0) {
-        dbConfig.channels = ["dollarr_ly", "musheermarket", "lydollar", "suqalmushir"];
-        console.warn("[Migration] Channels list was empty or invalid, restored defaults.");
-      }
-
-      // If user had djheih2026 set as post channel, but deleted it from sources, better reset it to lydollar 
-      // or clear it if that was the one causing failures
-      if (dbConfig.telegramPostChannel === "https://t.me/djheih2026" || dbConfig.telegramPostChannel === "djheih2026") {
-         dbConfig.telegramPostChannel = "";
-         console.warn("[Migration] Removed deleted channel djheih2026 from post configuration.");
-      }
-
-      // 4. Ensure enableHttpScraper is explicitly set (defaults to true for existing users)
-      if (dbConfig.enableHttpScraper === undefined) {
-        dbConfig.enableHttpScraper = true;
-        console.log("[Migration] Initialized enableHttpScraper to true");
-      }
-
-      // 5. Force isInverse to false for currencies handled by Smart Extraction
-      dbConfig.terms = dbConfig.terms.map(t => {
-        if (['TND', 'EGP', 'TRY'].includes(t.id)) {
-          return { ...t, isInverse: false };
-        }
-        return t;
-      });
-
-      // 6. Provide defaults for new telegram auto post settings
-      if (dbConfig.telegramAutoPost === undefined) {
-        dbConfig.telegramAutoPost = appConfig.telegramAutoPost;
-      }
-      if (dbConfig.telegramPostChannel === undefined) {
-        dbConfig.telegramPostChannel = appConfig.telegramPostChannel;
-      }
-      if (dbConfig.telegramTemplateStyle === undefined) {
-        dbConfig.telegramTemplateStyle = appConfig.telegramTemplateStyle || "classic";
-      }
-
-      appConfig = dbConfig;
-      console.log(`[Startup] Initializing TelegramManager. Session length: ${(process.env.TELEGRAM_SESSION || process.env.TG_SESSION_V2 || appConfig.telegramSessionString)?.length || 0}`);
-      telegramManager = getTelegramManager(
-        Number(process.env.TELEGRAM_API_ID || appConfig.telegramApiId),
-        process.env.TELEGRAM_API_HASH || appConfig.telegramApiHash || "",
-        process.env.TELEGRAM_SESSION || process.env.TG_SESSION_V2 || appConfig.telegramSessionString || ""
-      );
-      console.log("Loaded, merged and repaired config from Supabase successfully");
     }
   } catch (err) {
     console.error("Failed to load/repair config from Supabase", err);
@@ -1838,7 +1849,18 @@ async function loadConfigFromSupabase() {
 }
 
 async function saveConfigToSupabase(newConfig: AppConfig) {
-  if (!supabase || !supabaseAnonKey || supabaseAnonKey.includes('dummy')) return false;
+  // 1. Always save to SQLite first (instant local persistence)
+  try {
+    db.prepare(`
+      INSERT INTO server_config (key, value) VALUES ('app_config', ?)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value
+    `).run(JSON.stringify(newConfig));
+  } catch (e) {
+    console.error("[Storage] Failed to save config to SQLite:", e);
+  }
+
+  // 2. Save to Supabase for cloud durability
+  if (!supabase || !supabaseAnonKey || supabaseAnonKey.includes('dummy')) return true;
   try {
     const { error } = await supabase
       .from('app_config')
