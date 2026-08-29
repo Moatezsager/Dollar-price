@@ -1129,16 +1129,38 @@ async function broadcastToSocialMedia(message: string, isTest: boolean = false, 
      
      // Optionally adjust some emojis or formatting for FB if needed
      try {
-       const url = `https://graph.facebook.com/v20.0/${appConfig.facebookPageId}/feed`;
-       const fbRes = await fetch(url, {
+       const targetId = appConfig.facebookPageId.trim() || 'me';
+       let url = `https://graph.facebook.com/v20.0/${targetId}/feed`;
+       let fbRes = await fetch(url, {
          method: 'POST',
          headers: { 'Content-Type': 'application/json' },
          body: JSON.stringify({ message: fbMessage, access_token: appConfig.facebookAccessToken })
        });
-       const fbData = await fbRes.json();
+       let fbData = await fbRes.json();
+
+       // Fallback: If global ID error or invalid ID, attempt posting to /me/feed directly
+       if (fbData.error && (fbData.error.code === 100 || fbData.error.message?.includes('global id'))) {
+         console.log("[Facebook Broadcast] Trying fallback to /me/feed...");
+         const fallbackUrl = `https://graph.facebook.com/v20.0/me/feed`;
+         const fallbackRes = await fetch(fallbackUrl, {
+           method: 'POST',
+           headers: { 'Content-Type': 'application/json' },
+           body: JSON.stringify({ message: fbMessage, access_token: appConfig.facebookAccessToken })
+         });
+         const fallbackData = await fallbackRes.json();
+         if (!fallbackData.error) {
+           fbData = fallbackData;
+         }
+       }
+
        if (fbData.error) {
          console.error("[Facebook Broadcast] Error:", fbData.error.message);
-         if (isTest && target === 'facebook') throw new Error(fbData.error.message);
+         if (isTest && target === 'facebook') {
+           if (fbData.error.message?.includes('global id') || fbData.error.code === 100) {
+             throw new Error("المعرف المدخل هو معرف حساب شخصي وليس معرف صفحة عامة (Page). يجب استخدام معرف صفحة فيسبوك ورمز وصول الصفحة (Page Token).");
+           }
+           throw new Error(fbData.error.message);
+         }
        } else {
          console.log("[Facebook Broadcast] Successfully posted, ID:", fbData.id);
          
