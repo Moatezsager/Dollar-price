@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Settings, Check, Edit2, Save, Plus, Trash2, ArrowRight, ShieldCheck, LogOut, X, Lock, Activity, Users, Cpu, History as HistoryIcon, AlertTriangle, Terminal, ArrowLeftRight, ArrowUpRight, ArrowDownRight, CheckCircle2, RefreshCw, Layers, Globe, Zap, Search, ChevronDown, ChevronUp, Clock, Info, Building2, Coins, Send, Building, TrendingUp, Stethoscope, ListX, Trash, LayoutDashboard, Menu, BarChart3, Bell, Shield, Database, Link, Copy, Code2, Download, Pause, Play, Filter, XCircle, AlertCircle, Mail, MessageSquare, DownloadCloud, Sparkles, Monitor, Smartphone, Layout, Wifi, AppWindow } from 'lucide-react';
+import { Settings, Check, Edit2, Save, Plus, Trash2, ArrowRight, ShieldCheck, LogOut, X, Lock, Activity, Users, Cpu, History as HistoryIcon, AlertTriangle, Terminal, ArrowLeftRight, ArrowUpRight, ArrowDownRight, CheckCircle2, RefreshCw, Layers, Globe, Zap, Search, ChevronDown, ChevronUp, Clock, Info, Building2, Coins, Send, Building, TrendingUp, Stethoscope, ListX, Trash, LayoutDashboard, Menu, BarChart3, Bell, Shield, Database, Link, Copy, Code2, Download, Pause, Play, Filter, XCircle, AlertCircle, Mail, MessageSquare, DownloadCloud, Sparkles, Monitor, Smartphone, Layout, Wifi, AppWindow , MapPin } from 'lucide-react';
 import { format, formatDistanceToNow } from "date-fns";
 import { ar } from "date-fns/locale";
 import { logErrorToServer } from "./utils/logger";
@@ -2450,65 +2450,79 @@ export default function Admin() {
                 </div>
               </div>
 
-              <div className="bg-white/[0.02] border border-white/5 rounded-3xl overflow-hidden shadow-xl">
-                <div className="overflow-x-auto relative">
-                  <table className="w-full text-right">
-                    <thead>
-                      <tr className="bg-white/[0.02] text-zinc-500 text-[10px] uppercase tracking-widest font-black">
-                        <th className="px-6 py-4">IP / الموقع</th>
-                        <th className="px-6 py-4">المتصفح / النظام</th>
-                        <th className="px-6 py-4">مرات الظهور</th>
-                        <th className="px-6 py-4">آخر نشاط</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-white/5">
-                      {userLogs.length === 0 ? (
-                        <tr>
-                          <td colSpan={4} className="py-20 text-center">
-                            <div className="flex flex-col items-center gap-4">
-                              <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center">
-                                <Users className="w-8 h-8 text-zinc-500" />
-                              </div>
-                              <p className="text-zinc-500 font-bold">لا يوجد زوار مسجلين حالياً</p>
-                            </div>
-                          </td>
-                        </tr>
-                      ) : (
-                        userLogs.map((log: any, idx: number) => (
-                          <tr key={idx} className="bg-white/[0.015] hover:bg-white/[0.03] transition-colors">
-                            <td className="px-6 py-4">
-                              <div className="flex flex-col gap-1">
-                                <span className="text-white font-mono font-bold text-sm bg-black/40 w-fit px-2 py-0.5 rounded border border-white/10">{log.ip}</span>
-                                <span className="text-xs text-zinc-400">{log.location || 'غير معروف'}</span>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4">
-                              <div className="flex flex-col">
-                                <span className="text-white font-bold">{log.browser || 'غير معروف'}</span>
-                                <span className="text-[10px] text-zinc-500 uppercase">{log.os} • {log.platform}</span>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4">
-                              <span className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-blue-500/10 text-blue-400 text-xs font-bold border border-blue-500/20">
-                                {log.visits || 1} زيارة
-                              </span>
-                            </td>
-                            <td className="px-6 py-4">
-                              <div className="flex flex-col">
-                                <span className="text-white font-mono text-sm">{log.last_active ? format(new Date(log.last_active), "HH:mm:ss") : '---'}</span>
-                                <span className="text-[10px] text-zinc-500">{log.last_active ? format(new Date(log.last_active), "yyyy/MM/dd") : '---'}</span>
-                              </div>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+              {/* Grid of Visitors */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {userLogs.length === 0 ? (
+                  <div className="col-span-full py-20 text-center bg-white/[0.02] border border-white/5 rounded-3xl">
+                    <div className="flex flex-col items-center gap-4">
+                      <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center">
+                        <Users className="w-8 h-8 text-zinc-500" />
+                      </div>
+                      <p className="text-zinc-500 font-bold">لا يوجد زوار مسجلين حالياً</p>
+                    </div>
+                  </div>
+                ) : (
+                  userLogs.map((log: any, idx: number) => (
+                    <div key={idx} className="bg-white/[0.02] border border-white/5 rounded-3xl p-5 hover:bg-white/[0.04] transition-colors relative overflow-hidden group">
+                       <div className={`absolute top-0 right-0 w-32 h-32 rounded-full blur-[60px] -mr-16 -mt-16 transition-all pointer-events-none ${log.isOnline ? 'bg-emerald-500/10 group-hover:bg-emerald-500/20' : 'bg-blue-500/5 group-hover:bg-blue-500/10'}`}></div>
+                       
+                       {/* Header: IP + Status */}
+                       <div className="flex items-start justify-between mb-5 relative z-10">
+                          <div className="flex items-center gap-3">
+                             <div className={`relative flex items-center justify-center w-12 h-12 rounded-2xl border ${log.isOnline ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-white/5 border-white/10 text-zinc-400'}`}>
+                                {log.deviceType === 'Mobile' ? <Smartphone className="w-6 h-6" /> : log.deviceType === 'Tablet' ? <Layout className="w-6 h-6" /> : <Monitor className="w-6 h-6" />}
+                                {log.isOnline && (
+                                   <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 border-[3px] border-[#0a0a0a]"></span>
+                                )}
+                             </div>
+                             <div>
+                                <span className="text-white font-mono font-bold text-[13px] block">{log.ip}</span>
+                                <span className={`text-[9px] font-black uppercase tracking-widest ${log.isOnline ? 'text-emerald-500' : 'text-zinc-500'}`}>{log.isOnline ? 'متصل الآن' : 'غير متصل'}</span>
+                             </div>
+                          </div>
+                          <div className="flex flex-col items-end">
+                             <span className="text-[10px] font-black text-white bg-white/10 px-2.5 py-1 rounded-lg border border-white/10">{log.visits || 1} زيارة</span>
+                          </div>
+                       </div>
+
+                       {/* Body: Location, OS, Browser */}
+                       <div className="space-y-2 relative z-10 mb-5">
+                          <div className="flex items-center gap-3 bg-black/40 p-2.5 rounded-xl border border-white/5">
+                             <MapPin className="w-4 h-4 text-blue-400 shrink-0" />
+                             <span className="text-xs text-zinc-300 font-bold truncate">{log.location || 'غير معروف'}</span>
+                          </div>
+                          
+                          <div className="flex items-center gap-3 bg-black/40 p-2.5 rounded-xl border border-white/5">
+                             <AppWindow className="w-4 h-4 text-purple-400 shrink-0" />
+                             <div className="flex flex-col overflow-hidden">
+                                <span className="text-xs text-zinc-300 font-bold truncate">{log.browser || 'غير معروف'}</span>
+                                <span className="text-[9px] text-zinc-500 font-medium truncate">{log.os || 'غير معروف'} - {log.deviceName || 'جهاز غير معروف'}</span>
+                             </div>
+                          </div>
+                       </div>
+
+                       {/* Footer: Times */}
+                       <div className="flex items-center justify-between pt-4 border-t border-white/5 relative z-10">
+                          <div className="flex flex-col">
+                             <span className="text-[9px] text-zinc-500 uppercase tracking-widest font-black mb-1">آخر نشاط</span>
+                             <span className="text-[11px] text-zinc-300 font-bold flex items-center gap-1.5">
+                                <Clock className="w-3 h-3 text-zinc-500" />
+                                <span dir="rtl">{log.last_active ? formatDistanceToNow(new Date(log.last_active), { addSuffix: true, locale: ar }) : 'غير محدد'}</span>
+                             </span>
+                          </div>
+                          <div className="flex flex-col items-end">
+                             <span className="text-[9px] text-zinc-500 uppercase tracking-widest font-black mb-1">أول زيارة</span>
+                             <span className="text-[10px] text-zinc-400 font-mono font-bold">
+                                {log.firstVisit ? format(new Date(log.firstVisit), 'yyyy/MM/dd') : '---'}
+                             </span>
+                          </div>
+                       </div>
+                    </div>
+                  ))
+                )}
               </div>
             </motion.div>
           )}
-
                     {activeTab === 'report' && (
             <motion.div 
               key="report"
