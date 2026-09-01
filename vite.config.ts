@@ -12,7 +12,16 @@ export default defineConfig(({mode}) => {
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg', 'logo.png'],
+        includeAssets: [
+          'favicon.ico',
+          'favicon-16x16.png',
+          'favicon-32x32.png',
+          'apple-touch-icon.png',
+          'icon-192.png',
+          'icon-512.png',
+          'mask-icon.svg',
+          'logo.png'
+        ],
         manifest: {
           name: 'مؤشر الدينار | أسعار العملات في ليبيا',
           short_name: 'مؤشر الدينار',
@@ -34,37 +43,52 @@ export default defineConfig(({mode}) => {
               short_name: 'المحول',
               description: 'فتح محول العملات مباشرة',
               url: '/?section=converter',
-              icons: [{ src: '/logo.png', sizes: '192x192' }]
+              icons: [{ src: '/icon-192.png', sizes: '192x192' }]
             },
             {
               name: 'أسعار الذهب',
               short_name: 'الذهب',
               description: 'فتح أسعار الذهب والمعادن',
               url: '/?section=gold',
-              icons: [{ src: '/logo.png', sizes: '192x192' }]
+              icons: [{ src: '/icon-192.png', sizes: '192x192' }]
             }
           ],
           icons: [
             {
-              src: '/logo.png',
+              src: '/favicon-16x16.png',
+              sizes: '16x16',
+              type: 'image/png'
+            },
+            {
+              src: '/favicon-32x32.png',
+              sizes: '32x32',
+              type: 'image/png'
+            },
+            {
+              src: '/apple-touch-icon.png',
+              sizes: '180x180',
+              type: 'image/png'
+            },
+            {
+              src: '/icon-192.png',
               sizes: '192x192',
               type: 'image/png',
               purpose: 'any'
             },
             {
-              src: '/logo.png',
+              src: '/icon-192.png',
               sizes: '192x192',
               type: 'image/png',
               purpose: 'maskable'
             },
             {
-              src: '/logo.png',
+              src: '/icon-512.png',
               sizes: '512x512',
               type: 'image/png',
               purpose: 'any'
             },
             {
-              src: '/logo.png',
+              src: '/icon-512.png',
               sizes: '512x512',
               type: 'image/png',
               purpose: 'maskable'
