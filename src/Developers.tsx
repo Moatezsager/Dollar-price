@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Code2, Copy, CheckCircle2, Terminal, Server, Shield, Zap } from 'lucide-react';
+import { Code2, Copy, ArrowRight, CheckCircle2, Terminal, Server, Shield, Zap } from 'lucide-react';
 
-export const Developers = () => {
+export const Developers = ({ onBack }: { onBack?: () => void }) => {
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const handleCopy = (text: string, id: string) => {
@@ -48,6 +48,15 @@ print_r($data);
       exit={{ opacity: 0, y: -20 }}
       className="max-w-5xl mx-auto px-4 sm:px-6 py-8 sm:py-16 space-y-12"
     >
+      {onBack && (
+        <button 
+          onClick={onBack}
+          className="flex items-center gap-2 text-zinc-400 hover:text-white transition-colors"
+        >
+          <ArrowRight className="w-5 h-5" />
+          <span>العودة</span>
+        </button>
+      )}
       {/* Header */}
       <div className="text-center space-y-4">
         <div className="inline-flex items-center justify-center p-4 bg-emerald-500/10 rounded-full mb-4">

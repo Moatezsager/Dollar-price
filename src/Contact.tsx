@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Mail, Phone, MessageSquare, Send, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Mail, Phone, MessageSquare, Send, CheckCircle2, AlertCircle, ArrowRight } from 'lucide-react';
 
-export const Contact = () => {
+export const Contact = ({ onBack }: { onBack?: () => void }) => {
   const [formData, setFormData] = useState({
     email: '',
     phone: '',
@@ -47,6 +47,15 @@ export const Contact = () => {
       exit={{ opacity: 0, y: -20 }}
       className="max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-16 space-y-8"
     >
+      {onBack && (
+        <button 
+          onClick={onBack}
+          className="flex items-center gap-2 text-zinc-400 hover:text-white transition-colors"
+        >
+          <ArrowRight className="w-5 h-5" />
+          <span>العودة</span>
+        </button>
+      )}
       <div className="text-center space-y-4">
         <div className="w-16 h-16 mx-auto bg-emerald-500/10 rounded-2xl flex items-center justify-center mb-6">
           <Mail className="w-8 h-8 text-emerald-400" />
