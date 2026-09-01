@@ -1,0 +1,27 @@
+async function fetchOfficialRates(): Promise<boolean> {
+  console.log("[Official] Starting official rates fetch cycle...");
+  // 1. Try CBL Website First (Most Accurate for Libya)
+  const cblRates = await fetchFromCBL();
+  if (cblRates) {
+    let anyChanged = false;
+    Object.entries(cblRates).forEach(([key, val]) => {
+      if (isSignificantChange(rates.official[key], val)) {
+        rates.previousOfficial[key] = rates.official[key];
+        rates.lastChanged.official[key] = new Date().toISOString();
+        anyChanged = true;
+      }
+    });
+
+    if (anyChanged) {
+      rates.official = { ...rates.official, ...cblRates };
+      rates.parallel.OFFICIAL_USD = rates.official.USD;
+      rates.lastChanged.parallel.OFFICIAL_USD = new Date().toISOString();
+      console.log(`[Official] Rates updated via CBL Scraper`);
+      broadcastOfficialRates(false).catch(console.error);
+    }
+    return anyChanged;
+  }
+  
+  console.warn("[Official] Failed to fetch from CBL. Retaining previous official rates as they are fixed daily.");
+  return false;
+}

@@ -1190,6 +1190,8 @@ async function broadcastToSocialMedia(message: string, isTest: boolean = false, 
   }
 }
 
+let lastOfficialBroadcastDate = "";
+
 async function broadcastOfficialRates(isTest: boolean = false) {
   if (!appConfig.telegramPostChannel || !telegramManager) {
     console.log("[Telegram Broadcast] Aborting broadcast. channel or manager missing.");
@@ -1205,6 +1207,11 @@ async function broadcastOfficialRates(isTest: boolean = false) {
   const dateStr = now.toLocaleDateString('ar-LY', { timeZone: 'Africa/Tripoli' });
   const timeStr = now.toLocaleTimeString('ar-LY', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit' });
   
+  if (!isTest && lastOfficialBroadcastDate === dateStr) {
+    console.log("[Official Broadcast] Already broadcasted today. Skipping duplicate post.");
+    return;
+  }
+
   const dayNames = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
   let dayName = "الخميس";
   try {
@@ -1228,7 +1235,14 @@ async function broadcastOfficialRates(isTest: boolean = false) {
   message += `🔗 *لمزيد من التفاصيل والبيانات الحية:*\n🌐 https://tinyurl.com/2j7667u2\n`;
   message += `📱 *المصدر:* مصرف ليبيا المركزي`;
 
-  await broadcastToSocialMedia(message, typeof isTest !== "undefined" ? isTest : false);
+  try {
+    await broadcastToSocialMedia(message, typeof isTest !== "undefined" ? isTest : false);
+    if (!isTest) {
+      lastOfficialBroadcastDate = dateStr;
+    }
+  } catch(e) {
+    console.error("[Official Broadcast] Failed to broadcast", e);
+  }
 }
 
 async function fetchOfficialRates(): Promise<boolean> {
@@ -1254,116 +1268,8 @@ async function fetchOfficialRates(): Promise<boolean> {
     }
     return anyChanged;
   }
-
-  const ffKey = process.env.FAST_FOREX_KEY;
   
-  if (!ffKey) {
-    console.warn("[Official] FastForex Key missing, skipping premium source");
-  } else {
-    // Try FastForex (Secondary)
-    try {
-      const ffResponse = await fetch(`https://api.fastforex.io/fetch-all?from=USD&api_key=${ffKey}`);
-      const ffData = await ffResponse.json();
-      
-      if (ffData && ffData.results && ffData.results.LYD) {
-        let anyChanged = false;
-        const lyd = ffData.results.LYD;
-        const res = ffData.results;
-        
-        const newOfficial: RateMap = {
-          USD: lyd,
-          EUR: lyd / (res.EUR || 1),
-          GBP: lyd / (res.GBP || 1),
-          TND: lyd / (res.TND || 1),
-          TRY: lyd / (res.TRY || 1),
-          EGP: lyd / (res.EGP || 1),
-          JOD: lyd / (res.JOD || 1),
-          AED: lyd / (res.AED || 1),
-          SAR: lyd / (res.SAR || 1),
-          BHD: lyd / (res.BHD || 1),
-          KWD: lyd / (res.KWD || 1),
-          QAR: lyd / (res.QAR || 1),
-          CNY: lyd / (res.CNY || 1),
-        };
-
-        Object.entries(newOfficial).forEach(([key, val]) => {
-          if (isSignificantChange(rates.official[key], val)) {
-            rates.previousOfficial[key] = rates.official[key];
-            rates.lastChanged.official[key] = new Date().toISOString();
-            anyChanged = true;
-          }
-        });
-        
-        if (anyChanged) {
-          rates.official = { ...rates.official, ...newOfficial };
-          rates.parallel.OFFICIAL_USD = rates.official.USD;
-          rates.lastChanged.parallel.OFFICIAL_USD = new Date().toISOString();
-          console.log(`[Official] Rates updated via FastForex`);
-          broadcastOfficialRates(false).catch(console.error);
-        }
-        return anyChanged;
-      }
-    } catch (e) {
-      console.warn("[Official] FastForex failed, falling back to public APIs");
-    }
-  }
-
-  // Fallback to free public APIs
-  const sources = [
-    "https://api.exchangerate-api.com/v4/latest/USD",
-    "https://open.er-api.com/v6/latest/USD"
-  ];
-
-  for (const source of sources) {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000);
-      const response = await fetch(source, { signal: controller.signal });
-      clearTimeout(timeoutId);
-      
-      const data = await response.json();
-      
-      if (data && data.rates && data.rates.LYD) {
-        let anyChanged = false;
-        const lyd = data.rates.LYD;
-        
-        const newOfficial: RateMap = {
-          USD: lyd,
-          EUR: lyd / (data.rates.EUR || 1),
-          GBP: lyd / (data.rates.GBP || 1),
-          TND: lyd / (data.rates.TND || 1),
-          TRY: lyd / (data.rates.TRY || 1),
-          EGP: lyd / (data.rates.EGP || 1),
-          JOD: lyd / (data.rates.JOD || 1),
-          AED: lyd / (data.rates.AED || 1),
-          SAR: lyd / (data.rates.SAR || 1),
-          BHD: lyd / (data.rates.BHD || 1),
-          KWD: lyd / (data.rates.KWD || 1),
-          QAR: lyd / (data.rates.QAR || 1),
-          CNY: lyd / (data.rates.CNY || 1),
-        };
-
-        Object.entries(newOfficial).forEach(([key, val]) => {
-          if (isSignificantChange(rates.official[key], val)) {
-            rates.previousOfficial[key] = rates.official[key];
-            rates.lastChanged.official[key] = new Date().toISOString();
-            anyChanged = true;
-          }
-        });
-        
-        if (anyChanged) {
-          rates.official = { ...rates.official, ...newOfficial };
-          rates.parallel.OFFICIAL_USD = rates.official.USD;
-          rates.lastChanged.parallel.OFFICIAL_USD = new Date().toISOString();
-          console.log(`Official rates updated via ${source}`);
-          broadcastOfficialRates(false).catch(console.error);
-        }
-        return anyChanged;
-      }
-    } catch (error) {
-      console.error(`Error fetching official rates from ${source}:`, error);
-    }
-  }
+  console.warn("[Official] Failed to fetch from CBL. Retaining previous official rates as they are fixed daily.");
   return false;
 }
 
