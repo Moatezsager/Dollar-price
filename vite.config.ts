@@ -12,7 +12,7 @@ export default defineConfig(({mode}) => {
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
+        includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg', 'logo.png'],
         manifest: {
           name: 'مؤشر الدينار | أسعار العملات في ليبيا',
           short_name: 'مؤشر الدينار',
@@ -34,39 +34,39 @@ export default defineConfig(({mode}) => {
               short_name: 'المحول',
               description: 'فتح محول العملات مباشرة',
               url: '/?section=converter',
-              icons: [{ src: 'https://hatscripts.github.io/circle-flags/flags/ly.svg', sizes: '192x192' }]
+              icons: [{ src: '/logo.png', sizes: '192x192' }]
             },
             {
               name: 'أسعار الذهب',
               short_name: 'الذهب',
               description: 'فتح أسعار الذهب والمعادن',
               url: '/?section=gold',
-              icons: [{ src: 'https://hatscripts.github.io/circle-flags/flags/ly.svg', sizes: '192x192' }]
+              icons: [{ src: '/logo.png', sizes: '192x192' }]
             }
           ],
           icons: [
             {
-              src: 'https://hatscripts.github.io/circle-flags/flags/ly.svg',
+              src: '/logo.png',
               sizes: '192x192',
-              type: 'image/svg+xml',
+              type: 'image/png',
               purpose: 'any'
             },
             {
-              src: 'https://hatscripts.github.io/circle-flags/flags/ly.svg',
+              src: '/logo.png',
               sizes: '192x192',
-              type: 'image/svg+xml',
+              type: 'image/png',
               purpose: 'maskable'
             },
             {
-              src: 'https://hatscripts.github.io/circle-flags/flags/ly.svg',
+              src: '/logo.png',
               sizes: '512x512',
-              type: 'image/svg+xml',
+              type: 'image/png',
               purpose: 'any'
             },
             {
-              src: 'https://hatscripts.github.io/circle-flags/flags/ly.svg',
+              src: '/logo.png',
               sizes: '512x512',
-              type: 'image/svg+xml',
+              type: 'image/png',
               purpose: 'maskable'
             }
           ],

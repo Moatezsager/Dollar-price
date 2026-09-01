@@ -1679,7 +1679,7 @@ export default function App() {
           >
             <div className="flex items-start gap-4">
               <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-blue-500/20 flex items-center justify-center border border-white/10 shrink-0">
-                <img src="https://hatscripts.github.io/circle-flags/flags/ly.svg" alt="App Icon" className="w-10 h-10 rounded-full shadow-lg" />
+                <img src="/logo.png" alt="App Icon" className="w-10 h-10 rounded-full shadow-lg" />
               </div>
               <div className="flex-1">
                 <h4 className="text-white font-bold text-base">ثبّت "مؤشر الدينار" على هاتفك</h4>
@@ -1786,12 +1786,12 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 sm:h-20 flex items-center justify-between">
           <div className="flex items-center gap-3 sm:gap-4">
             <div 
-              className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-emerald-500/20 to-emerald-500/5 border border-emerald-500/20 flex items-center justify-center shadow-[0_0_15px_rgba(16,185,129,0.1)] cursor-pointer"
+              className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-emerald-500/20 to-emerald-500/5 border border-emerald-500/20 flex items-center justify-center shadow-[0_0_15px_rgba(16,185,129,0.1)] cursor-pointer overflow-hidden p-1"
               onClick={() => setCurrentPage('dashboard')}
               onDoubleClick={() => window.location.href = '/admin-panel-secure'}
               title="لوحة التحكم (انقر مرتين)"
             >
-              <Activity className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400" />
+              <img src="/logo.png" alt="Logo" className="w-full h-full object-contain rounded-lg" />
             </div>
             <div 
               className="flex flex-col cursor-pointer"
@@ -2559,7 +2559,7 @@ export default function App() {
               <div className="flex items-center gap-5">
                 <div className="w-20 h-20 rounded-[1.5rem] bg-gradient-to-br from-emerald-500/10 to-blue-500/10 border border-white/10 flex items-center justify-center shadow-lg relative overflow-hidden">
                   <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-white/10 via-transparent to-transparent"></div>
-                  <img src="https://hatscripts.github.io/circle-flags/flags/ly.svg" alt="App" className="w-12 h-12 rounded-full relative z-10 drop-shadow-md" />
+                  <img src="/logo.png" alt="App" className="w-12 h-12 rounded-full relative z-10 drop-shadow-md" />
                 </div>
                 <div>
                   <h2 className="text-2xl font-black text-white tracking-tight">مؤشر الدينار</h2>
@@ -3471,8 +3471,8 @@ export default function App() {
         {/* PDF Header - Modern Dark Theme */}
         <div style={{ backgroundColor: '#0f172a', padding: '40px', borderBottom: '6px solid #10b981', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <div style={{ width: '56px', height: '56px', borderRadius: '16px', backgroundColor: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)' }}>
-              <Activity size={32} />
+            <div style={{ width: '56px', height: '56px', borderRadius: '16px', backgroundColor: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)' }}>
+              <img src="/logo.png" alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
             </div>
             <div>
               <h1 style={{ fontSize: '36px', fontWeight: '900', color: '#ffffff', margin: '0', letterSpacing: '-0.5px' }}>مؤشر الدينار</h1>
