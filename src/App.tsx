@@ -1497,6 +1497,23 @@ export default function App() {
 
   const PdfFlagIcon = ({ flagCode, size = 24 }: { flagCode?: string, size?: number }) => {
     const code = flagCode?.trim().toLowerCase();
+    
+    if (code === 'gold') {
+      return (
+        <div style={{ width: `${size}px`, height: `${size}px`, borderRadius: '50%', backgroundColor: '#fef08a', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #eab308', flexShrink: 0, fontSize: `${size * 0.6}px` }}>
+          ✨
+        </div>
+      );
+    }
+    
+    if (code === 'silver') {
+      return (
+        <div style={{ width: `${size}px`, height: `${size}px`, borderRadius: '50%', backgroundColor: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #94a3b8', flexShrink: 0, fontSize: `${size * 0.6}px` }}>
+          🪙
+        </div>
+      );
+    }
+
     if (!code || code === "undefined" || code === "null") {
       return (
         <div style={{ width: `${size}px`, height: `${size}px`, borderRadius: '50%', backgroundColor: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #e2e8f0', flexShrink: 0 }}>
