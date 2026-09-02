@@ -416,19 +416,19 @@ export default function App() {
         await navigator.share({
           title: 'مؤشر الدينار | أسعار العملات في ليبيا',
           text: 'تابع أسعار العملات والذهب في ليبيا لحظة بلحظة عبر منصة مؤشر الدينار.',
-          url: window.location.origin,
+          url: 'https://dollar-price-qp14.onrender.com/',
         });
       } catch (error: any) {
         // Ignore AbortError (user canceled)
         if (error.name !== 'AbortError') {
           console.error('Error sharing', error);
           // Fallback to clipboard if share fails for other reasons
-          navigator.clipboard.writeText(window.location.origin);
+          navigator.clipboard.writeText('https://dollar-price-qp14.onrender.com/');
           addToast('تنبيه', 'تم نسخ الرابط بدلاً من المشاركة', 'info');
         }
       }
     } else {
-      navigator.clipboard.writeText(window.location.origin);
+      navigator.clipboard.writeText('https://dollar-price-qp14.onrender.com/');
       addToast('تم النسخ', 'تم نسخ رابط التطبيق لمشاركته', 'info');
     }
   };
@@ -842,7 +842,7 @@ export default function App() {
             vibrate: [200, 100, 200],
             tag: `price-change-${code}`, // استخدام Tag لمنع تراكم الإشعارات لنفس العملة
             renotify: true,
-            data: { url: window.location.origin },
+            data: { url: 'https://dollar-price-qp14.onrender.com/' },
             silent: false,
             dir: 'rtl',
             actions: [
