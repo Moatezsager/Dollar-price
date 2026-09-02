@@ -1236,7 +1236,8 @@ async function broadcastOfficialRates(isTest: boolean = false) {
   message += `📱 *المصدر:* مصرف ليبيا المركزي`;
 
   try {
-    await broadcastToSocialMedia(message, typeof isTest !== "undefined" ? isTest : false);
+    // Send only to Telegram, disable Facebook for official rates to prevent spamming
+    await broadcastToSocialMedia(message, typeof isTest !== "undefined" ? isTest : false, 'telegram');
     if (!isTest) {
       lastOfficialBroadcastDate = dateStr;
     }
@@ -1247,6 +1248,14 @@ async function broadcastOfficialRates(isTest: boolean = false) {
 
 async function fetchOfficialRates(): Promise<boolean> {
   console.log("[Official] Starting official rates fetch cycle...");
+
+  // Stop fetching official rates on Fridays (5) and Saturdays (6)
+  const libyaFormatter = new Intl.DateTimeFormat('en-US', { timeZone: 'Africa/Tripoli' });
+  const dayIndex = new Date(libyaFormatter.format(new Date())).getDay();
+  if (dayIndex === 5 || dayIndex === 6) {
+    console.log("[Official] Skipping fetch. Official markets (CBL) are closed on Friday and Saturday.");
+    return false;
+  }
   // 1. Try CBL Website First (Most Accurate for Libya)
   const cblRates = await fetchFromCBL();
   if (cblRates) {
@@ -1567,6 +1576,7 @@ let facebookBroadcastStatus = {
   lastSuccessTime: ''
 };
 
+let lastSocialBroadcastTime = 0;
 let telegramManager: TelegramManager | null = null;
 
 async function broadcastRateChanges(updates: {id?: string, name: string, oldVal: number, newVal: number, flag: string}[], isTest: boolean = false, target: 'all' | 'telegram' | 'facebook' = 'all') {
@@ -1584,6 +1594,31 @@ async function broadcastRateChanges(updates: {id?: string, name: string, oldVal:
   const dateStr = now.toLocaleDateString('ar-LY', { timeZone: 'Africa/Tripoli' });
   const timeStr = now.toLocaleTimeString('ar-LY', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit' });
   
+  // --- SMART BROADCAST COOLDOWN ---
+  if (!isTest) {
+    const nowMs = Date.now();
+    const hoursSinceLast = lastSocialBroadcastTime === 0 ? 3 : (nowMs - lastSocialBroadcastTime) / (1000 * 60 * 60);
+    
+    let hasSignificantChange = false;
+    for (const u of updates) {
+      const diff = Math.abs(u.newVal - u.oldVal);
+      const pct = u.oldVal > 0 ? (diff / u.oldVal) * 100 : 0;
+      // Threshold: Change >= 0.03 LYD (for USD/EUR/GBP) OR >= 0.5% (for Gold/Silver)
+      if (diff >= 0.03 || pct >= 0.5) {
+        hasSignificantChange = true;
+        break;
+      }
+    }
+    
+    // If it's been less than 2 hours AND no significant changes, skip posting
+    if (hoursSinceLast < 2 && !hasSignificantChange) {
+      console.log(`[Smart Broadcast] Cooldown active (${hoursSinceLast.toFixed(1)} hrs). No major changes detected. Skipping social post.`);
+      return;
+    }
+    lastSocialBroadcastTime = nowMs;
+  }
+  // --------------------------------
+
   const dayNames = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
   let dayName = "الخميس";
   try {
@@ -2559,11 +2594,76 @@ initializeRatesFromDB().then(() => {
 });
 
 // Auto-cleanup old data to keep the database clean
+async function downsampleTable(tableName) {
+  try {
+    if (!supabase) return;
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const cutoff = sevenDaysAgo.toISOString();
+
+    const { data, error } = await supabase
+      .from(tableName)
+      .select('id, recorded_at, usd')
+      .lt('recorded_at', cutoff)
+      .order('recorded_at', { ascending: true })
+      .limit(10000);
+
+    if (error || !data || data.length === 0) return;
+
+    const groupedByDay = {};
+    for (const row of data) {
+      if (!row.recorded_at) continue;
+      const day = row.recorded_at.split('T')[0];
+      if (!groupedByDay[day]) groupedByDay[day] = [];
+      groupedByDay[day].push(row);
+    }
+
+    let idsToDelete = [];
+    for (const day in groupedByDay) {
+      const records = groupedByDay[day];
+      if (records.length <= 3) continue;
+
+      let highId = records[0].id;
+      let lowId = records[0].id;
+      let highUsd = records[0].usd || 0;
+      let lowUsd = records[0].usd || 999999;
+      const closeId = records[records.length - 1].id;
+
+      for (const row of records) {
+        const usd = row.usd || 0;
+        if (usd > highUsd) { highUsd = usd; highId = row.id; }
+        if (usd < lowUsd) { lowUsd = usd; lowId = row.id; }
+      }
+
+      const keepIds = new Set([highId, lowId, closeId]);
+      for (const row of records) {
+        if (!keepIds.has(row.id)) idsToDelete.push(row.id);
+      }
+    }
+
+    const chunkSize = 200;
+    for (let i = 0; i < idsToDelete.length; i += chunkSize) {
+      const chunk = idsToDelete.slice(i, i + chunkSize);
+      await supabase.from(tableName).delete().in('id', chunk);
+    }
+    
+    if (idsToDelete.length > 0) {
+      console.log(`[Cleanup] Downsampled ${tableName}: deleted ${idsToDelete.length} redundant historical records.`);
+    }
+  } catch (err) {
+    console.error(`[Cleanup] Error downsampling ${tableName}:`, err);
+  }
+}
+
 const cleanupOldData = async () => {
   if (!supabase || !supabaseAnonKey || supabaseAnonKey.includes('dummy')) return;
   
   try {
     console.log("Running scheduled database cleanup...");
+    
+    // Proposal 4: Downsample data older than 7 days (Keep only High/Low/Close per day)
+    await downsampleTable('parallel_rates');
+    await downsampleTable('official_rates');
     
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -4962,15 +5062,22 @@ ${updates.join('\n')}
         console.log("[Startup] Waiting 30s for system to settle and old sessions to clear...");
         await new Promise(resolve => setTimeout(resolve, 30000));
         
-        console.log("[Startup] Triggering initial rates update...");
-        const officialChanged = await fetchOfficialRates();
-        const parallelChanged = await fetchParallelRatesFromTelegram();
+        const libyaFormatter = new Intl.DateTimeFormat('en-US', { timeZone: 'Africa/Tripoli', hour: 'numeric', hourCycle: 'h23' });
+        const currentLibyaHour = parseInt(libyaFormatter.format(new Date()), 10);
         
-        if (officialChanged || parallelChanged) {
-          console.log("[Startup] Initial changes detected! Saving to database...");
-          const saveType = (officialChanged && parallelChanged) ? 'both' : (officialChanged ? 'official' : 'parallel');
-          await saveToSupabase(saveType);
-          broadcastRatesUpdate(rates);
+        if (currentLibyaHour >= 1 && currentLibyaHour < 9) {
+          console.log(`[Startup] Skipping initial update during quiet hours (Hour ${currentLibyaHour} Libya Time). Market is sleeping.`);
+        } else {
+          console.log("[Startup] Triggering initial rates update...");
+          const officialChanged = await fetchOfficialRates();
+          const parallelChanged = await fetchParallelRatesFromTelegram();
+          
+          if (officialChanged || parallelChanged) {
+            console.log("[Startup] Initial changes detected! Saving to database...");
+            const saveType = (officialChanged && parallelChanged) ? 'both' : (officialChanged ? 'official' : 'parallel');
+            await saveToSupabase(saveType);
+            broadcastRatesUpdate(rates);
+          }
         }
       } catch (err) {
         console.error("[Startup] Error during initial update:", err);
@@ -4980,6 +5087,15 @@ ${updates.join('\n')}
     // Auto-refresh rates every 10 minutes as long as server is awake
     setInterval(async () => {
       try {
+        // Stop fetching and publishing between 12 AM (00:00) and 6 AM (06:00) Libya time
+        const libyaFormatter = new Intl.DateTimeFormat('en-US', { timeZone: 'Africa/Tripoli', hour: 'numeric', hourCycle: 'h23' });
+        const currentLibyaHour = parseInt(libyaFormatter.format(new Date()), 10);
+        
+        if (currentLibyaHour >= 1 && currentLibyaHour < 9) {
+          console.log(`[Auto-Refresh] Skipping update during quiet hours (Current Hour: ${currentLibyaHour}:00 Libya Time). Market is sleeping.`);
+          return;
+        }
+
         console.log("[Auto-Refresh] Triggering automatic rates update...");
         const officialChanged = await fetchOfficialRates();
         const parallelChanged = await fetchParallelRatesFromTelegram();
