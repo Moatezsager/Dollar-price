@@ -1577,6 +1577,7 @@ let facebookBroadcastStatus = {
 };
 
 let lastSocialBroadcastTime = 0;
+let lastSuccessfulFetchTime = Date.now();
 let telegramManager: TelegramManager | null = null;
 
 async function broadcastRateChanges(updates: {id?: string, name: string, oldVal: number, newVal: number, flag: string}[], isTest: boolean = false, target: 'all' | 'telegram' | 'facebook' = 'all') {
@@ -2562,8 +2563,10 @@ async function fetchParallelRatesFromTelegram(): Promise<boolean | null> {
         if (history.length > 5000) history.shift();
       }
 
+      lastSuccessfulFetchTime = Date.now();
       return anyChanged;
     }
+    lastSuccessfulFetchTime = Date.now();
     return false;
   } catch (error) {
     console.error("Error fetching from Telegram:", error);
@@ -5024,11 +5027,53 @@ ${updates.join('\n')}
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
+    app.use(express.static(distPath, { index: false }));
     app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
+      let html = fs.readFileSync(path.join(distPath, "index.html"), 'utf8');
+      
+      // Dynamic SEO Injection
+      if (rates && rates.parallel && rates.parallel.USD) {
+        const usdStr = rates.parallel.USD.toFixed(2);
+        const eurStr = (rates.parallel.EUR || 0).toFixed(2);
+        
+        const dynamicTitle = `💵 دولار: ${usdStr} | 💶 يورو: ${eurStr} | مؤشر الدينار`;
+        const dynamicDesc = `السعر الآن في السوق الموازي: الدولار ${usdStr} د.ل، واليورو ${eurStr} د.ل. تابع أسعار العملات والذهب لحظة بلحظة.`;
+        
+        html = html.replace(/<title>.*?<\/title>/, `<title>${dynamicTitle}</title>`);
+        html = html.replace(/<meta name="description" content=".*?" \/>/, `<meta name="description" content="${dynamicDesc}" />`);
+        html = html.replace(/<meta property="og:title" content=".*?" \/>/, `<meta property="og:title" content="${dynamicTitle}" />`);
+        html = html.replace(/<meta property="og:description" content=".*?" \/>/, `<meta property="og:description" content="${dynamicDesc}" />`);
+        html = html.replace(/<meta property="twitter:title" content=".*?" \/>/, `<meta property="twitter:title" content="${dynamicTitle}" />`);
+        html = html.replace(/<meta property="twitter:description" content=".*?" \/>/, `<meta property="twitter:description" content="${dynamicDesc}" />`);
+      }
+      
+      res.send(html);
     });
   }
+
+  // Admin Watchdog (Suggestion 2)
+  setInterval(async () => {
+    const libyaFormatter = new Intl.DateTimeFormat('en-US', { timeZone: 'Africa/Tripoli', hour: 'numeric', hourCycle: 'h23' });
+    const currentLibyaHour = parseInt(libyaFormatter.format(new Date()), 10);
+    
+    // Only check during active market hours
+    if (currentLibyaHour >= 9 || currentLibyaHour < 1) {
+      const hoursSinceSuccess = (Date.now() - lastSuccessfulFetchTime) / (1000 * 60 * 60);
+      if (hoursSinceSuccess > 4) {
+        console.warn(`[Watchdog] No successful scrape for ${hoursSinceSuccess.toFixed(1)} hours!`);
+        // Send alert to admin via saved messages if possible
+        if (telegramManager && telegramManager.client && telegramManager.client.connected) {
+          try {
+            await telegramManager.sendMessage('me', `⚠️ *تنبيه للمدير (Watchdog)* ⚠️\n\nيبدو أن هناك مشكلة في الجلب الآلي للسوق الموازي.\nمرت أكثر من 4 ساعات دون أي عملية جلب ناجحة.\n\nرجاءً تحقق من حالة السيرفر أو حساب التليجرام.`);
+            // Reset to avoid spamming every minute, remind again after 4 hours
+            lastSuccessfulFetchTime = Date.now();
+          } catch (e) {
+            console.error("[Watchdog] Failed to send alert", e);
+          }
+        }
+      }
+    }
+  }, 30 * 60 * 1000); // Check every 30 minutes
 
   // Memory Monitor
   const MEMORY_THRESHOLD = 500 * 1024 * 1024; // 500MB
