@@ -1577,6 +1577,7 @@ let facebookBroadcastStatus = {
 };
 
 let lastSocialBroadcastTime = 0;
+let lastBroadcastState: Record<string, { price: number, time: number }> = {};
 let lastSuccessfulFetchTime = Date.now();
 let telegramManager: TelegramManager | null = null;
 
@@ -1595,30 +1596,45 @@ async function broadcastRateChanges(updates: {id?: string, name: string, oldVal:
   const dateStr = now.toLocaleDateString('ar-LY', { timeZone: 'Africa/Tripoli' });
   const timeStr = now.toLocaleTimeString('ar-LY', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit' });
   
-  // --- SMART BROADCAST COOLDOWN ---
+  // --- SMART BROADCAST COOLDOWN V2 (Per Currency) ---
   if (!isTest) {
     const nowMs = Date.now();
-    const hoursSinceLast = lastSocialBroadcastTime === 0 ? 3 : (nowMs - lastSocialBroadcastTime) / (1000 * 60 * 60);
+    const qualifiedUpdates = [];
     
-    let hasSignificantChange = false;
     for (const u of updates) {
-      const diff = Math.abs(u.newVal - u.oldVal);
-      const pct = u.oldVal > 0 ? (diff / u.oldVal) * 100 : 0;
-      // Threshold: Change >= 0.03 LYD (for USD/EUR/GBP) OR >= 0.5% (for Gold/Silver)
-      if (diff >= 0.03 || pct >= 0.5) {
-        hasSignificantChange = true;
-        break;
+      // Get the last broadcasted state for this specific currency. If none, assume it's oldVal and time=0
+      const history = lastBroadcastState[u.id] || { price: u.oldVal, time: 0 };
+      const diffFromLastBroadcast = Math.abs(u.newVal - history.price);
+      const hoursSinceLast = history.time === 0 ? 999 : (nowMs - history.time) / (1000 * 60 * 60);
+      
+      const isMetal = u.id.startsWith('GOLD') || u.id.startsWith('SILVER');
+      const pctChange = history.price > 0 ? (diffFromLastBroadcast / history.price) * 100 : 0;
+      
+      // The user requested >= 2 piasters (0.02)
+      const hasSignificantPriceChange = isMetal ? (pctChange >= 0.4) : (diffFromLastBroadcast >= 0.02);
+      
+      // If 3 hours have passed since we last talked about this currency AND there's ANY change
+      const hasTimePassed = hoursSinceLast >= 3 && diffFromLastBroadcast > 0;
+      
+      if (hasSignificantPriceChange || hasTimePassed || history.time === 0) {
+        qualifiedUpdates.push(u);
       }
     }
     
-    // If it's been less than 2 hours AND no significant changes, skip posting
-    if (hoursSinceLast < 2 && !hasSignificantChange) {
-      console.log(`[Smart Broadcast] Cooldown active (${hoursSinceLast.toFixed(1)} hrs). No major changes detected. Skipping social post.`);
-      return;
+    if (qualifiedUpdates.length === 0) {
+      console.log(`[Smart Broadcast] Cooldown active. Changes (< 0.02) and time (< 3 hrs). Skipping social post.`);
+      return; // Skip broadcast completely
     }
-    lastSocialBroadcastTime = nowMs;
+    
+    // Update the global state ONLY for the currencies we are about to broadcast
+    for (const u of qualifiedUpdates) {
+      lastBroadcastState[u.id] = { price: u.newVal, time: nowMs };
+    }
+    
+    // Replace updates with only the ones that qualified, so the message is clean!
+    updates = qualifiedUpdates;
   }
-  // --------------------------------
+  // ------------------------------------------------
 
   const dayNames = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
   let dayName = "الخميس";
