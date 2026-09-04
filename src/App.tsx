@@ -317,6 +317,22 @@ export default function App() {
   }, []);
 
   // Network Status Listener
+  // Analytics Tracker
+  useEffect(() => {
+    const sessionId = sessionStorage.getItem('__sessionId') || (Math.random().toString(36).substring(2) + Date.now().toString(36));
+    sessionStorage.setItem('__sessionId', sessionId);
+    
+    fetch('/api/analytics/track', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionId,
+        pagePath: window.location.pathname,
+        referrer: document.referrer
+      })
+    }).catch(e => console.log('Analytics tracking issue:', e));
+  }, []);
+
   useEffect(() => {
     const handleOnline = () => setIsOffline(false);
     const handleOffline = () => setIsOffline(true);
@@ -1958,13 +1974,13 @@ export default function App() {
 
       <AnimatePresence mode="wait">
         {currentPage === 'api' ? (
-          <Developers key="api" onBack={() => setCurrentPage('dashboard')} />
+          <motion.div key="api" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}><Developers onBack={() => setCurrentPage('dashboard')} /></motion.div>
         ) : currentPage === 'terms' ? (
-          <Terms key="terms" onBack={() => setCurrentPage('dashboard')} />
+          <motion.div key="terms" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}><Terms onBack={() => setCurrentPage('dashboard')} /></motion.div>
         ) : currentPage === 'privacy' ? (
-          <Privacy key="privacy" onBack={() => setCurrentPage('dashboard')} />
+          <motion.div key="privacy" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}><Privacy onBack={() => setCurrentPage('dashboard')} /></motion.div>
         ) : currentPage === 'contact' ? (
-          <Contact key="contact" onBack={() => setCurrentPage('dashboard')} />
+          <motion.div key="contact" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}><Contact onBack={() => setCurrentPage('dashboard')} /></motion.div>
         ) : (
           <motion.main 
             key="dashboard"
