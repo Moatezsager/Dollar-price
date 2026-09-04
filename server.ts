@@ -2831,6 +2831,44 @@ const cleanupUserLogs = () => {
 // Run memory cleanup every 15 minutes
 setInterval(cleanupUserLogs, 15 * 60 * 1000);
 
+
+// ==========================================
+// Local Database Maintenance (Auto-Vacuum)
+// ==========================================
+const cleanupLocalDatabase = () => {
+  try {
+    console.log("[Local DB] Running scheduled cleanup and VACUUM...");
+    
+    // Delete analytics older than 60 days
+    const analyticsResult = db.prepare(`
+      DELETE FROM analytics_events 
+      WHERE created_at < datetime('now', '-60 days')
+    `).run();
+    if (analyticsResult.changes > 0) {
+      console.log(`[Local DB] Deleted ${analyticsResult.changes} old analytics events.`);
+    }
+
+    // Delete messages older than 60 days
+    const messagesResult = db.prepare(`
+      DELETE FROM messages 
+      WHERE created_at < datetime('now', '-60 days')
+    `).run();
+    if (messagesResult.changes > 0) {
+      console.log(`[Local DB] Deleted ${messagesResult.changes} old messages.`);
+    }
+
+    // Run VACUUM to reclaim space
+    db.exec('VACUUM');
+    console.log("[Local DB] VACUUM completed successfully.");
+    
+  } catch (error) {
+    console.error("[Local DB] Error during cleanup:", error);
+  }
+};
+
+// Schedule it to run at 3:00 AM every day
+cron.schedule('0 3 * * *', cleanupLocalDatabase);
+
 async function startServer() {
   const app = express();
   const server = createServer(app);
@@ -3605,7 +3643,15 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
   });
 
   // Analytics Tracking Endpoint
-  app.post("/api/analytics/track", (req: express.Request, res: express.Response) => {
+  const analyticsRateLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 30, // limit each IP to 30 tracking requests per minute
+    message: { success: false, message: "Too many tracking requests, please try again later." },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
+  app.post("/api/analytics/track", analyticsRateLimiter, (req: express.Request, res: express.Response) => {
     try {
       const { sessionId, pagePath, referrer } = req.body;
       const uaString = req.headers['user-agent'] || '';
