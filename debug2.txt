@@ -1,0 +1,100 @@
+          </div>
+
+          {/* Comprehensive Parallel Rates Table */}
+          <div style={{ marginBottom: '40px' }}>
+            <h2 style={{ fontSize: '20px', fontWeight: '800', color: '#0f172a', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ width: '6px', height: '20px', backgroundColor: '#10b981', borderRadius: '4px' }}></div>
+              أسعار السوق الموازي (شامل)
+            </h2>
+            <div style={{ borderRadius: '16px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead style={{ backgroundColor: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
+                  <tr>
+                    <th style={{ textAlign: 'right', padding: '16px 24px', fontSize: '13px', color: '#475569', fontWeight: '800' }}>العملة / الصنف</th>
+                    <th style={{ textAlign: 'center', padding: '16px 24px', fontSize: '13px', color: '#475569', fontWeight: '800' }}>السعر الحالي</th>
+                    <th style={{ textAlign: 'center', padding: '16px 24px', fontSize: '13px', color: '#475569', fontWeight: '800' }}>السعر السابق</th>
+                    <th style={{ textAlign: 'left', padding: '16px 24px', fontSize: '13px', color: '#475569', fontWeight: '800' }}>مؤشر التغير</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {configTerms.filter(c => c.id !== 'OFFICIAL_USD' && selectedCurrencies.includes(c.id) && !staleCurrencies.has(c.id)).map((c, idx) => {
+                    const rate = rates?.parallel[c.id] || 0;
+                    if (rate === 0) return null; // Skip empty rates
+                    const prev = rates?.previousParallel?.[c.id] || rate;
+                    const isUp = rate > prev;
+                    const isEven = idx % 2 === 0;
+                    return (
+                      <tr key={`pdf-row-${c.id}`} style={{ backgroundColor: isEven ? '#ffffff' : '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
+                        <td style={{ padding: '14px 24px', fontWeight: '700', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <PdfFlagIcon flagCode={c.flag} size={24} />
+                          {c.name}
+                        </td>
+                        <td style={{ textAlign: 'center', padding: '14px 24px', fontSize: '16px', fontWeight: '800', color: '#0f172a' }}>
+                          {rate.toFixed(2)}
+                        </td>
+                        <td style={{ textAlign: 'center', padding: '14px 24px', fontSize: '14px', color: '#64748b', fontWeight: '600' }}>
+                          {prev.toFixed(2)}
+                        </td>
+                        <td style={{ textAlign: 'left', padding: '14px 24px', fontWeight: '800', color: rate === prev ? '#64748b' : isUp ? '#dc2626' : '#16a34a', direction: 'ltr' }}>
+                          {rate === prev ? '-' : isUp ? `▲ +${(rate - prev).toFixed(2)}` : `▼ ${(rate - prev).toFixed(2)}`}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Official Rates Grid */}
+          <div style={{ marginBottom: '40px' }}>
+            <h2 style={{ fontSize: '20px', fontWeight: '800', color: '#0f172a', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ width: '6px', height: '20px', backgroundColor: '#3b82f6', borderRadius: '4px' }}></div>
+              نشرة أسعار الصرف الرسمية (مصرف ليبيا المركزي)
+            </h2>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
+              {dynamicCurrencies.filter(c => rates?.official[c.code]).map(c => (
+                <div key={`pdf-off-${c.code}`} style={{ padding: '16px', borderRadius: '16px', border: '1px solid #e2e8f0', backgroundColor: '#f8fafc', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                    <PdfFlagIcon flagCode={c.flag} size={20} />
+                    <span style={{ fontSize: '12px', fontWeight: '800', color: '#475569' }}>{c.code}</span>
+                  </div>
+                  <p style={{ fontSize: '20px', fontWeight: '900', color: '#0f172a', margin: '0' }}>{(rates?.official[c.code] || 0).toFixed(3)}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* PDF Footer - Copyright & Disclaimer */}
+          <div style={{ marginTop: '60px', paddingTop: '30px', borderTop: '2px solid #e2e8f0', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', marginBottom: '24px' }}>
+              <div style={{ textAlign: 'right' }}>
+                <p style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '800', marginBottom: '4px', textTransform: 'uppercase' }}>المصدر</p>
+                <p style={{ fontSize: '14px', color: '#0f172a', fontWeight: '800', margin: '0' }}>شبكة مراسلي مؤشر الدينار</p>
+              </div>
+              <div style={{ textAlign: 'left' }}>
+                <p style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '800', marginBottom: '4px', textTransform: 'uppercase' }}>الموقع الإلكتروني</p>
+                <p style={{ fontSize: '14px', color: '#0f172a', fontWeight: '800', margin: '0' }}>dinar-index.ly</p>
+              </div>
+            </div>
+            
+            <div style={{ backgroundColor: '#f1f5f9', padding: '16px 24px', borderRadius: '12px', width: '100%', textAlign: 'center', marginBottom: '24px' }}>
+              <p style={{ fontSize: '12px', color: '#64748b', lineHeight: '1.6', margin: '0', fontWeight: '600' }}>
+                هذا التقرير استرشادي فقط ويعبر عن متوسط أسعار السوق اللحظية وقت الإصدار. لا يتحمل التطبيق أي مسؤولية عن القرارات المالية المتخذة بناءً على هذه البيانات.
+              </p>
+            </div>
+
+            {/* GreenBox Copyright */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', opacity: 0.8 }}>
+              <div style={{ width: '24px', height: '24px', borderRadius: '6px', backgroundColor: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
+                <Building2 size={14} />
+              </div>
+              <span style={{ fontSize: '14px', fontWeight: '900', color: '#0f172a', letterSpacing: '0.5px' }}>GreenBox © 2026</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    </MotionConfig>
+  );
+}

@@ -1,0 +1,250 @@
+            >
+              <h2 className="text-xl font-bold text-white mb-6 text-right">تخصيص تقرير PDF</h2>
+              <p className="text-sm text-zinc-400 mb-6 text-right">اختر العملات التي ترغب في تضمينها في التقرير:</p>
+              
+              <div className="grid grid-cols-2 gap-3 mb-8 max-h-[300px] overflow-y-auto pr-2">
+                {configTerms.filter(c => c.id !== 'OFFICIAL_USD' && !staleCurrencies.has(c.id)).map(c => (
+                  <button
+                    key={c.id}
+                    onClick={() => {
+                      if (selectedCurrencies.includes(c.id)) {
+                        setSelectedCurrencies(selectedCurrencies.filter(id => id !== c.id));
+                      } else {
+                        setSelectedCurrencies([...selectedCurrencies, c.id]);
+                      }
+                    }}
+                    className={`p-3 rounded-xl border text-right flex items-center justify-between transition-colors ${
+                      selectedCurrencies.includes(c.id)
+                        ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400'
+                        : 'bg-white/5 border-white/5 text-zinc-400 hover:bg-white/10'
+                    }`}
+                  >
+                    <span className="text-xs font-bold">{c.name}</span>
+                    {selectedCurrencies.includes(c.id) && <CheckCircle2 className="w-4 h-4" />}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowCurrencyModal(false)}
+                  className="flex-1 px-4 py-3 bg-white/5 text-white rounded-xl font-bold hover:bg-white/10 transition-colors"
+                >
+                  إلغاء
+                </button>
+                <button
+                  onClick={() => generatePDF(selectedCurrencies)}
+                  className="flex-1 px-4 py-3 bg-emerald-500 text-black rounded-xl font-bold hover:bg-emerald-400 transition-colors"
+                >
+                  طباعة التقرير
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Hidden PDF Template - Unlocked by @media print */}
+      <div 
+        id="pdf-report-container"
+        ref={reportRef} 
+        className="opacity-0 pointer-events-none absolute top-[-9999px] left-[-9999px] print:opacity-100 print:pointer-events-auto print:static print:block"
+        style={{ 
+          width: '210mm', // A4 exact width
+          minHeight: '297mm', // A4 exact min-height
+          backgroundColor: '#ffffff',
+          color: '#0f172a',
+          fontFamily: "'Cairo', sans-serif",
+          lineHeight: '1.5',
+          direction: 'rtl',
+          margin: '0',
+          padding: '0'
+        }}
+        dir="rtl"
+      >
+        {/* PDF Header - Modern Dark Theme */}
+        <div style={{ backgroundColor: '#0f172a', padding: '40px', borderBottom: '6px solid #10b981', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <div style={{ width: '56px', height: '56px', borderRadius: '16px', backgroundColor: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)' }}>
+              <img src="/logo.png" alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+            </div>
+            <div>
+              <h1 style={{ fontSize: '36px', fontWeight: '900', color: '#ffffff', margin: '0', letterSpacing: '-0.5px' }}>مؤشر الدينار</h1>
+              <p style={{ fontSize: '16px', color: '#94a3b8', margin: '4px 0 0', fontWeight: '600' }}>التقرير الشامل لأسعار الصرف في السوق الليبي</p>
+            </div>
+          </div>
+          <div style={{ textAlign: 'left', backgroundColor: 'rgba(255, 255, 255, 0.05)', padding: '16px 24px', borderRadius: '16px', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
+            <p style={{ fontSize: '12px', color: '#94a3b8', margin: '0 0 4px', textTransform: 'uppercase', fontWeight: '700' }}>تاريخ الإصدار</p>
+            <p style={{ fontSize: '18px', fontWeight: '800', color: '#ffffff', margin: '0' }}>{format(new Date(), "dd MMMM yyyy", { locale: ar })}</p>
+            <p style={{ fontSize: '14px', fontWeight: '600', color: '#10b981', margin: '2px 0 0' }}>{format(new Date(), "HH:mm")}</p>
+          </div>
+        </div>
+
+        <div style={{ padding: '40px' }}>
+          {/* Market Overview - Highlight Cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginBottom: '40px' }}>
+            {/* Card 1: USD Cash */}
+            <div style={{ padding: '24px', borderRadius: '20px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', position: 'relative', overflow: 'hidden' }}>
+              <div style={{ position: 'absolute', top: 0, right: 0, width: '4px', height: '100%', backgroundColor: '#16a34a' }}></div>
+              <p style={{ fontSize: '14px', color: '#166534', fontWeight: '800', margin: '0 0 12px' }}>الدولار الأمريكي (نقدي)</p>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                <span style={{ fontSize: '36px', fontWeight: '900', color: '#14532d' }}>{usdRate.toFixed(2)}</span>
+                <span style={{ fontSize: '16px', color: '#166534', fontWeight: '700' }}>د.ل</span>
+              </div>
+              <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #bbf7d0', paddingTop: '12px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <span style={{ fontSize: '11px', color: '#166534', opacity: 0.7, fontWeight: '700' }}>السعر السابق</span>
+                  <span style={{ fontSize: '14px', fontWeight: '800', color: '#14532d' }}>{prevUsdRate.toFixed(2)}</span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                  <span style={{ fontSize: '11px', color: '#166534', opacity: 0.7, fontWeight: '700' }}>التغير</span>
+                  <span style={{ fontSize: '14px', fontWeight: '800', color: usdIsUp ? '#dc2626' : '#16a34a', direction: 'ltr' }}>
+                    {usdIsUp ? '▲' : '▼'} {Math.abs(usdChange).toFixed(2)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Card 2: USD Checks */}
+            <div style={{ padding: '24px', borderRadius: '20px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', position: 'relative', overflow: 'hidden' }}>
+              <div style={{ position: 'absolute', top: 0, right: 0, width: '4px', backgroundColor: '#3b82f6', height: '100%' }}></div>
+              <p style={{ fontSize: '14px', color: '#1e293b', fontWeight: '800', margin: '0 0 12px' }}>الدولار (صكوك الجمهورية)</p>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                <span style={{ fontSize: '36px', fontWeight: '900', color: '#0f172a' }}>{usdChecksRate.toFixed(2)}</span>
+                <span style={{ fontSize: '16px', color: '#475569', fontWeight: '700' }}>د.ل</span>
+              </div>
+              <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #e2e8f0', paddingTop: '12px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700' }}>السعر السابق</span>
+                  <span style={{ fontSize: '14px', fontWeight: '800', color: '#0f172a' }}>{prevUsdChecksRate.toFixed(2)}</span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                  <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700' }}>التغير</span>
+                  <span style={{ fontSize: '14px', fontWeight: '800', color: (usdChecksRate > prevUsdChecksRate) ? '#dc2626' : '#16a34a', direction: 'ltr' }}>
+                    {(usdChecksRate > prevUsdChecksRate) ? '▲' : '▼'} {Math.abs(usdChecksRate - prevUsdChecksRate).toFixed(2)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Card 3: EUR */}
+            <div style={{ padding: '24px', borderRadius: '20px', backgroundColor: '#fdf4ff', border: '1px solid #fbcfe8', position: 'relative', overflow: 'hidden' }}>
+              <div style={{ position: 'absolute', top: 0, right: 0, width: '4px', backgroundColor: '#d946ef', height: '100%' }}></div>
+              <p style={{ fontSize: '14px', color: '#86198f', fontWeight: '800', margin: '0 0 12px' }}>اليورو (نقدي)</p>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                <span style={{ fontSize: '36px', fontWeight: '900', color: '#4a044e' }}>{(rates?.parallel['EUR'] || 0).toFixed(2)}</span>
+                <span style={{ fontSize: '16px', color: '#86198f', fontWeight: '700' }}>د.ل</span>
+              </div>
+              <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #fbcfe8', paddingTop: '12px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <span style={{ fontSize: '11px', color: '#86198f', opacity: 0.7, fontWeight: '700' }}>السعر السابق</span>
+                  <span style={{ fontSize: '14px', fontWeight: '800', color: '#4a044e' }}>{(rates?.previousParallel?.['EUR'] || rates?.parallel['EUR'] || 0).toFixed(2)}</span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                  <span style={{ fontSize: '11px', color: '#86198f', opacity: 0.7, fontWeight: '700' }}>التغير</span>
+                  <span style={{ fontSize: '14px', fontWeight: '800', color: ((rates?.parallel['EUR'] || 0) > (rates?.previousParallel?.['EUR'] || 0)) ? '#dc2626' : '#16a34a', direction: 'ltr' }}>
+                    {((rates?.parallel['EUR'] || 0) > (rates?.previousParallel?.['EUR'] || 0)) ? '▲' : '▼'} {Math.abs((rates?.parallel['EUR'] || 0) - (rates?.previousParallel?.['EUR'] || 0)).toFixed(2)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Comprehensive Parallel Rates Table */}
+          <div style={{ marginBottom: '40px' }}>
+            <h2 style={{ fontSize: '20px', fontWeight: '800', color: '#0f172a', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ width: '6px', height: '20px', backgroundColor: '#10b981', borderRadius: '4px' }}></div>
+              أسعار السوق الموازي (شامل)
+            </h2>
+            <div style={{ borderRadius: '16px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead style={{ backgroundColor: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
+                  <tr>
+                    <th style={{ textAlign: 'right', padding: '16px 24px', fontSize: '13px', color: '#475569', fontWeight: '800' }}>العملة / الصنف</th>
+                    <th style={{ textAlign: 'center', padding: '16px 24px', fontSize: '13px', color: '#475569', fontWeight: '800' }}>السعر الحالي</th>
+                    <th style={{ textAlign: 'center', padding: '16px 24px', fontSize: '13px', color: '#475569', fontWeight: '800' }}>السعر السابق</th>
+                    <th style={{ textAlign: 'left', padding: '16px 24px', fontSize: '13px', color: '#475569', fontWeight: '800' }}>مؤشر التغير</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {configTerms.filter(c => c.id !== 'OFFICIAL_USD' && selectedCurrencies.includes(c.id) && !staleCurrencies.has(c.id)).map((c, idx) => {
+                    const rate = rates?.parallel[c.id] || 0;
+                    if (rate === 0) return null; // Skip empty rates
+                    const prev = rates?.previousParallel?.[c.id] || rate;
+                    const isUp = rate > prev;
+                    const isEven = idx % 2 === 0;
+                    return (
+                      <tr key={`pdf-row-${c.id}`} style={{ backgroundColor: isEven ? '#ffffff' : '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
+                        <td style={{ padding: '14px 24px', fontWeight: '700', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <PdfFlagIcon flagCode={c.flag} size={24} />
+                          {c.name}
+                        </td>
+                        <td style={{ textAlign: 'center', padding: '14px 24px', fontSize: '16px', fontWeight: '800', color: '#0f172a' }}>
+                          {rate.toFixed(2)}
+                        </td>
+                        <td style={{ textAlign: 'center', padding: '14px 24px', fontSize: '14px', color: '#64748b', fontWeight: '600' }}>
+                          {prev.toFixed(2)}
+                        </td>
+                        <td style={{ textAlign: 'left', padding: '14px 24px', fontWeight: '800', color: rate === prev ? '#64748b' : isUp ? '#dc2626' : '#16a34a', direction: 'ltr' }}>
+                          {rate === prev ? '-' : isUp ? `▲ +${(rate - prev).toFixed(2)}` : `▼ ${(rate - prev).toFixed(2)}`}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Official Rates Grid */}
+          <div style={{ marginBottom: '40px' }}>
+            <h2 style={{ fontSize: '20px', fontWeight: '800', color: '#0f172a', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ width: '6px', height: '20px', backgroundColor: '#3b82f6', borderRadius: '4px' }}></div>
+              نشرة أسعار الصرف الرسمية (مصرف ليبيا المركزي)
+            </h2>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
+              {dynamicCurrencies.filter(c => rates?.official[c.code]).map(c => (
+                <div key={`pdf-off-${c.code}`} style={{ padding: '16px', borderRadius: '16px', border: '1px solid #e2e8f0', backgroundColor: '#f8fafc', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                    <PdfFlagIcon flagCode={c.flag} size={20} />
+                    <span style={{ fontSize: '12px', fontWeight: '800', color: '#475569' }}>{c.code}</span>
+                  </div>
+                  <p style={{ fontSize: '20px', fontWeight: '900', color: '#0f172a', margin: '0' }}>{(rates?.official[c.code] || 0).toFixed(3)}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* PDF Footer - Copyright & Disclaimer */}
+          <div style={{ marginTop: '60px', paddingTop: '30px', borderTop: '2px solid #e2e8f0', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', marginBottom: '24px' }}>
+              <div style={{ textAlign: 'right' }}>
+                <p style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '800', marginBottom: '4px', textTransform: 'uppercase' }}>المصدر</p>
+                <p style={{ fontSize: '14px', color: '#0f172a', fontWeight: '800', margin: '0' }}>شبكة مراسلي مؤشر الدينار</p>
+              </div>
+              <div style={{ textAlign: 'left' }}>
+                <p style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '800', marginBottom: '4px', textTransform: 'uppercase' }}>الموقع الإلكتروني</p>
+                <p style={{ fontSize: '14px', color: '#0f172a', fontWeight: '800', margin: '0' }}>dinar-index.ly</p>
+              </div>
+            </div>
+            
+            <div style={{ backgroundColor: '#f1f5f9', padding: '16px 24px', borderRadius: '12px', width: '100%', textAlign: 'center', marginBottom: '24px' }}>
+              <p style={{ fontSize: '12px', color: '#64748b', lineHeight: '1.6', margin: '0', fontWeight: '600' }}>
+                هذا التقرير استرشادي فقط ويعبر عن متوسط أسعار السوق اللحظية وقت الإصدار. لا يتحمل التطبيق أي مسؤولية عن القرارات المالية المتخذة بناءً على هذه البيانات.
+              </p>
+            </div>
+
+            {/* GreenBox Copyright */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', opacity: 0.8 }}>
+              <div style={{ width: '24px', height: '24px', borderRadius: '6px', backgroundColor: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
+                <Building2 size={14} />
+              </div>
+              <span style={{ fontSize: '14px', fontWeight: '900', color: '#0f172a', letterSpacing: '0.5px' }}>GreenBox © 2026</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    </MotionConfig>
+  );
+}
