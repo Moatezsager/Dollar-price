@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef, useMemo } from "react";
 import { motion, AnimatePresence, useMotionValue, useTransform, animate, MotionConfig } from "motion/react";
+import { toPng } from "html-to-image";
 import Joyride, { Step, CallBackProps, STATUS, TooltipRenderProps } from 'react-joyride';
 import {
   LayoutGrid,
@@ -294,7 +295,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'main' | 'gold' | 'charts' | 'converter' | 'more'>('main');
 
 
-  const [chartAnalysisCurrency, setChartAnalysisCurrency] = useState('USD');
+  const [chartAnalysisCurrency, setChartAnalysisCurrency] = useState('USD_CASH');
   const [chartAnalysisRange, setChartAnalysisRange] = useState<'1w' | '1m' | '6m' | '1y' | 'all'>('1m');
   const [hapticEnabled, setHapticEnabled] = useState(() => {
     const saved = localStorage.getItem('hapticEnabled');
@@ -1564,6 +1565,73 @@ export default function App() {
     );
   };
 
+
+  const [isGeneratingShareImage, setIsGeneratingShareImage] = useState(false);
+  const [shareData, setShareData] = useState<any>(null);
+
+  const handleShareCardImage = async (code: string, name: string, price: number, isGold = false) => {
+    setIsGeneratingShareImage(true);
+    triggerHaptic(10);
+    try {
+      // Calculate stats for the last 24h
+      const now = new Date();
+      const cutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      const values = history
+        .filter(h => new Date(h.time) >= cutoff)
+        .map(h => {
+          if (isGold) return h.ratesParallel?.[code] || h.rates?.gold?.karat18 || 0;
+          if (code === 'USD_CASH') return h.usdParallel || h.ratesParallel?.USD || 0;
+          if (code === 'USD_CHECKS') return h.ratesParallel?.USD_CHECKS || h.ratesParallel?.USD_JBANK || h.ratesParallel?.USD_NCB || 0;
+          return h.ratesParallel?.[code] || 0;
+        })
+        .filter(v => v > 0);
+
+      const max = values.length > 0 ? Math.max(...values) : price;
+      const min = values.length > 0 ? Math.min(...values) : price;
+      const avg = values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : price;
+      const trend = price >= (values[0] || price) ? 'up' : 'down';
+
+      setShareData({ code, name, price, max, min, avg, trend, isGold });
+
+      // Wait a tick for the hidden component to render
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      const node = document.getElementById('share-card-node');
+      if (node) {
+        const dataUrl = await toPng(node, { cacheBust: true, pixelRatio: 3, quality: 1 });
+        
+        // Try web share first
+        if (navigator.share) {
+          const response = await fetch(dataUrl);
+          const blob = await response.blob();
+          const file = new File([blob], 'share.png', { type: 'image/png' });
+          if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            await navigator.share({
+              title: 'مؤشر الدينار',
+              text: `سعر ${name} الآن: ${price.toFixed(2)} د.ل`,
+              files: [file]
+            });
+            setIsGeneratingShareImage(false);
+            setShareData(null);
+            return;
+          }
+        }
+        
+        // Fallback to download
+        const link = document.createElement('a');
+        link.download = `dinar-index-${code}.png`;
+        link.href = dataUrl;
+        link.click();
+        addToast('تم الحفظ', 'تم حفظ صورة السعر بنجاح', 'info');
+      }
+    } catch (err) {
+      console.error(err);
+      addToast('خطأ', 'فشل إنشاء الصورة للمشاركة', 'down');
+    }
+    setIsGeneratingShareImage(false);
+    setShareData(null);
+  };
+
   return (
     <MotionConfig transition={animationsEnabled ? undefined : { duration: 0 }}>
       <div className="min-h-screen bg-[#050505] text-white font-sans selection:bg-emerald-500/20 relative overflow-hidden" dir="rtl">
@@ -2469,13 +2537,13 @@ export default function App() {
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 {/* العملة */}
                 <div className="flex bg-white/5 p-1 rounded-2xl border border-white/5 w-full sm:w-auto overflow-x-auto">
-                  {['USD', 'EUR', 'GBP', 'GOLD'].map(curr => (
+                  {['USD_CASH', 'USD_CHECKS', 'EUR', 'GOLD_SCRAP_18'].map(curr => (
                     <button
                       key={curr}
                       onClick={() => setChartAnalysisCurrency(curr)}
                       className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-sm font-bold transition-all ${chartAnalysisCurrency === curr ? 'bg-fuchsia-500/20 text-fuchsia-400' : 'text-zinc-400 hover:text-zinc-200'}`}
                     >
-                      {curr === 'GOLD' ? 'ذهب كسر 18' : curr}
+                      {curr === 'USD_CASH' ? 'دولار كاش' : curr === 'USD_CHECKS' ? 'دولار شيك' : curr === 'EUR' ? 'يورو' : curr === 'GOLD_SCRAP_18' ? 'ذهب كسر 18' : curr}
                     </button>
                   ))}
                 </div>
@@ -2515,10 +2583,10 @@ export default function App() {
                     .filter(h => new Date(h.time) >= cutoff)
                     .map(h => {
                       let val = 0;
-                      if (chartAnalysisCurrency === 'USD') val = h.rates?.parallel?.USD || 0;
-                      if (chartAnalysisCurrency === 'EUR') val = h.rates?.parallel?.EUR || 0;
-                      if (chartAnalysisCurrency === 'GBP') val = h.rates?.parallel?.GBP || 0;
-                      if (chartAnalysisCurrency === 'GOLD') val = h.rates?.gold?.karat18 || 0;
+                      if (chartAnalysisCurrency === 'USD_CASH') val = h.usdParallel || h.ratesParallel?.USD || 0;
+                      if (chartAnalysisCurrency === 'USD_CHECKS') val = h.ratesParallel?.USD_CHECKS || h.ratesParallel?.USD_JBANK || h.ratesParallel?.USD_NCB || 0;
+                      if (chartAnalysisCurrency === 'EUR') val = h.ratesParallel?.EUR || 0;
+                      if (chartAnalysisCurrency === 'GOLD_SCRAP_18') val = h.ratesParallel?.GOLD_SCRAP_18 || 0;
                       
                       return {
                         time: format(new Date(h.time), "yyyy-MM-dd HH:mm"),
@@ -2609,10 +2677,10 @@ export default function App() {
                     const values = history
                       .filter(h => new Date(h.time) >= cutoff)
                       .map(h => {
-                        if (chartAnalysisCurrency === 'USD') return h.rates?.parallel?.USD;
-                        if (chartAnalysisCurrency === 'EUR') return h.rates?.parallel?.EUR;
-                        if (chartAnalysisCurrency === 'GBP') return h.rates?.parallel?.GBP;
-                        if (chartAnalysisCurrency === 'GOLD') return h.rates?.gold?.karat18;
+                        if (chartAnalysisCurrency === 'USD_CASH') return h.usdParallel || h.ratesParallel?.USD || 0;
+                        if (chartAnalysisCurrency === 'USD_CHECKS') return h.ratesParallel?.USD_CHECKS || h.ratesParallel?.USD_JBANK || h.ratesParallel?.USD_NCB || 0;
+                        if (chartAnalysisCurrency === 'EUR') return h.ratesParallel?.EUR || 0;
+                        if (chartAnalysisCurrency === 'GOLD_SCRAP_18') return h.ratesParallel?.GOLD_SCRAP_18 || 0;
                         return 0;
                       }).filter(v => v > 0);
                       
@@ -2990,7 +3058,7 @@ export default function App() {
             {/* Tab: Main */}
             <button
               onClick={() => { triggerHaptic(8); setActiveTab('main'); }}
-              className={`relative flex flex-col items-center justify-center h-14 w-[72px] rounded-[1.5rem] transition-colors duration-300 active:scale-90 ${
+              className={`relative flex flex-col items-center justify-center h-14 flex-1 mx-0.5 rounded-[1.5rem] transition-colors duration-300 active:scale-90 ${
                 activeTab === 'main' ? 'text-emerald-400' : 'text-zinc-500 hover:text-zinc-400'
               }`}
             >
@@ -3004,7 +3072,7 @@ export default function App() {
             {/* Tab: Gold */}
             <button
               onClick={() => { triggerHaptic(8); setActiveTab('gold'); }}
-              className={`relative flex flex-col items-center justify-center h-14 w-[72px] rounded-[1.5rem] transition-colors duration-300 active:scale-90 ${
+              className={`relative flex flex-col items-center justify-center h-14 flex-1 mx-0.5 rounded-[1.5rem] transition-colors duration-300 active:scale-90 ${
                 activeTab === 'gold' ? 'text-amber-400' : 'text-zinc-500 hover:text-zinc-400'
               }`}
             >
@@ -3018,7 +3086,7 @@ export default function App() {
             {/* Tab: Converter */}
             <button
               onClick={() => { triggerHaptic(8); setActiveTab('converter'); }}
-              className={`relative flex flex-col items-center justify-center h-14 w-[72px] rounded-[1.5rem] transition-colors duration-300 active:scale-90 ${
+              className={`relative flex flex-col items-center justify-center h-14 flex-1 mx-0.5 rounded-[1.5rem] transition-colors duration-300 active:scale-90 ${
                 activeTab === 'converter' ? 'text-blue-400' : 'text-zinc-500 hover:text-zinc-400'
               }`}
             >
@@ -3028,11 +3096,24 @@ export default function App() {
               <Calculator className="w-5 h-5 relative z-10 mb-1" />
               <span className="text-[10px] font-bold tracking-wide relative z-10" style={{ fontFamily: 'Cairo, sans-serif' }}>المحول</span>
             </button>
+            {/* Tab: Charts */}
+            <button
+              onClick={() => { triggerHaptic(8); setActiveTab('charts'); }}
+              className={`relative flex flex-col items-center justify-center h-14 flex-1 mx-0.5 rounded-[1.5rem] transition-colors duration-300 active:scale-90 ${
+                activeTab === 'charts' ? 'text-fuchsia-400' : 'text-zinc-500 hover:text-zinc-400'
+              }`}
+            >
+              {activeTab === 'charts' && (
+                <div className="absolute inset-0 bg-fuchsia-500/10 border border-fuchsia-500/20 rounded-[1.5rem]" />
+              )}
+              <LineChart className="w-5 h-5 relative z-10 mb-1" />
+              <span className="text-[10px] font-bold tracking-wide relative z-10" style={{ fontFamily: 'Cairo, sans-serif' }}>التحليل</span>
+            </button>
 
             {/* Tab: More */}
             <button
               onClick={() => { triggerHaptic(8); setActiveTab('more'); }}
-              className={`relative flex flex-col items-center justify-center h-14 w-[72px] rounded-[1.5rem] transition-colors duration-300 active:scale-90 ${
+              className={`relative flex flex-col items-center justify-center h-14 flex-1 mx-0.5 rounded-[1.5rem] transition-colors duration-300 active:scale-90 ${
                 activeTab === 'more' ? 'text-indigo-400' : 'text-zinc-500 hover:text-zinc-400'
               }`}
             >

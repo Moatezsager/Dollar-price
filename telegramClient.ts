@@ -36,6 +36,16 @@ export class TelegramManager {
    * Implements connection stability and authorization checks.
    */
   public async getClient(): Promise<TelegramClient | null> {
+    if (this.isConnecting) {
+      console.log("[TelegramManager] Already connecting, waiting...");
+      // Simple wait loop to avoid parallel connections
+      for (let i = 0; i < 20; i++) {
+        await new Promise(r => setTimeout(r, 500));
+        if (!this.isConnecting) break;
+      }
+      if (this.client && this.client.connected) return this.client;
+    }
+
     // If already connected and authorized, return it
     if (this.client && this.client.connected) {
       try {

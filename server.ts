@@ -5224,7 +5224,10 @@ ${updates.join('\n')}
   } else {
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath, { index: false }));
-    app.get("*", (req, res) => {
+    
+    // Handle SPA fallback, but ignore static file extensions to prevent redirect/html serving for missing static files
+    app.get(/^(?!.*\.(js|css|json|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|webmanifest|xml)$).*$/, (req, res, next) => {
+
       let html = fs.readFileSync(path.join(distPath, "index.html"), 'utf8');
       
       // Dynamic SEO Injection
