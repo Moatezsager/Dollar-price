@@ -1,3 +1,4 @@
+import About from "./components/About";
 import React, { useEffect, useState, useRef, useMemo } from "react";
 import { motion, AnimatePresence, useMotionValue, useTransform, animate, MotionConfig } from "motion/react";
 import { toPng } from "html-to-image";
@@ -2012,6 +2013,17 @@ export default function App() {
                         onClick={() => {
                           triggerHaptic(10);
                           setShowMoreMenu(false);
+                          setCurrentPage('about');
+                        }}
+                        className="flex items-center gap-3 px-4 py-3 text-sm text-zinc-300 hover:text-white hover:bg-white/5 transition-colors w-full text-right"
+                      >
+                        <Info className="w-4 h-4 text-blue-400" />
+                        <span className="font-medium">عن المنصة</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          triggerHaptic(10);
+                          setShowMoreMenu(false);
                           setCurrentPage('contact');
                         }}
                         className="flex items-center gap-3 px-4 py-3 text-sm text-zinc-300 hover:text-white hover:bg-white/5 transition-colors w-full text-right"
@@ -2990,6 +3002,19 @@ export default function App() {
                 </button>
 
                 <button
+                  onClick={() => { triggerHaptic(10); setCurrentPage('about'); }}
+                  className="w-full flex items-center gap-4 p-4 hover:bg-white/[0.02] active:bg-white/[0.05] transition-colors border-b border-white/5 text-right"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center shrink-0">
+                    <Info className="w-5 h-5 text-blue-400" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-bold text-white">عن المنصة</p>
+                    <p className="text-xs text-zinc-400 mt-0.5">من نحن وكيف نعمل</p>
+                  </div>
+                  <ArrowRight className="w-4 h-4 text-zinc-600" />
+                </button>
+                <button
                   onClick={() => { triggerHaptic(10); setCurrentPage('terms'); }}
                   className="w-full flex items-center gap-4 p-4 hover:bg-white/[0.02] active:bg-white/[0.05] transition-colors border-b border-white/5 text-right"
                 >
@@ -3093,7 +3118,7 @@ export default function App() {
           <button onClick={() => { window.scrollTo(0,0); setCurrentPage('contact'); }} className="text-sm font-medium text-zinc-400 hover:text-emerald-400 transition-colors">
             اتصل بنا
           </button>
-          <button onClick={() => { window.scrollTo(0,0); setCurrentPage('api'); }} className="text-sm font-medium text-zinc-400 hover:text-emerald-400 transition-colors">
+          <button onClick={() => { window.scrollTo(0,0); setCurrentPage('about'); }} className="text-sm font-medium text-zinc-400 hover:text-emerald-400 transition-colors">
             عن المنصة
           </button>
         </div>

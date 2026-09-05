@@ -43,6 +43,11 @@ export default defineConfig(({mode}) => {
         },
         injectManifest: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,webp}'],
+        },
+        devOptions: {
+          enabled: true,
+          type: 'module',
+          navigateFallback: 'index.html',
         }
       })
     ],
