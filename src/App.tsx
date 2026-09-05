@@ -292,7 +292,7 @@ export default function App() {
   const [isIOS, setIsIOS] = useState(false);
   const [showIOSPrompt, setShowIOSPrompt] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
-  const [currentPage, setCurrentPage] = useState<'dashboard' | 'api' | 'contact' | 'terms' | 'privacy'>('dashboard');
+  const [currentPage, setCurrentPage] = useState<'dashboard' | 'api' | 'contact' | 'terms' | 'privacy' | 'about'>('dashboard');
   const [activeTab, setActiveTab] = useState<'main' | 'gold' | 'charts' | 'converter' | 'more'>('main');
 
 
@@ -2055,6 +2055,8 @@ export default function App() {
           <motion.div key="privacy" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}><Privacy onBack={() => setCurrentPage('dashboard')} /></motion.div>
         ) : currentPage === 'contact' ? (
           <motion.div key="contact" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}><Contact onBack={() => setCurrentPage('dashboard')} /></motion.div>
+        ) : currentPage === 'about' ? (
+          <motion.div key="about" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}><About onBack={() => setCurrentPage('dashboard')} /></motion.div>
         ) : (
           <motion.main 
             key="dashboard"
@@ -3082,16 +3084,16 @@ export default function App() {
         </div>
         
         <div className="flex items-center justify-center gap-8 mb-8">
-          <button onClick={() => setActiveTab('terms')} className="text-sm font-medium text-zinc-400 hover:text-emerald-400 transition-colors">
+          <button onClick={() => { window.scrollTo(0,0); setCurrentPage('terms'); }} className="text-sm font-medium text-zinc-400 hover:text-emerald-400 transition-colors">
             شروط الاستخدام
           </button>
-          <button onClick={() => setActiveTab('privacy')} className="text-sm font-medium text-zinc-400 hover:text-emerald-400 transition-colors">
+          <button onClick={() => { window.scrollTo(0,0); setCurrentPage('privacy'); }} className="text-sm font-medium text-zinc-400 hover:text-emerald-400 transition-colors">
             سياسة الخصوصية
           </button>
-          <button onClick={() => setActiveTab('contact')} className="text-sm font-medium text-zinc-400 hover:text-emerald-400 transition-colors">
+          <button onClick={() => { window.scrollTo(0,0); setCurrentPage('contact'); }} className="text-sm font-medium text-zinc-400 hover:text-emerald-400 transition-colors">
             اتصل بنا
           </button>
-          <button onClick={() => setActiveTab('developers')} className="text-sm font-medium text-zinc-400 hover:text-emerald-400 transition-colors">
+          <button onClick={() => { window.scrollTo(0,0); setCurrentPage('api'); }} className="text-sm font-medium text-zinc-400 hover:text-emerald-400 transition-colors">
             عن المنصة
           </button>
         </div>
