@@ -67,6 +67,7 @@ import { io } from "socket.io-client";
 import { RateCell } from "./components/RateCell";
 import { usePriceFlash } from "./hooks/usePriceFlash";
 import InstallPrompt from "./components/InstallPrompt";
+import AppInstallUninstall from "./components/AppInstallUninstall";
 import PushNotificationPrompt from "./components/PushNotificationPrompt";
 
 
@@ -2862,6 +2863,9 @@ export default function App() {
                   </div>
                 </div>
               </div>
+              <div className="mt-6 pt-6 border-t border-white/5">
+                <AppInstallUninstall />
+              </div>
             </div>
 
             {/* Section: أدوات المنصة */}
@@ -3069,6 +3073,14 @@ export default function App() {
 
       {/* ====== DESKTOP FOOTER (Hidden on Mobile) ====== */}
       <footer className="hidden md:flex flex-col items-center justify-center py-10 mt-12 border-t border-white/10 bg-[#050505] relative z-10 w-full px-6 max-w-7xl mx-auto">
+        <div className="w-full max-w-2xl mx-auto mb-10 pb-10 border-b border-white/5">
+           <div className="text-center mb-4">
+             <h3 className="text-lg font-bold text-white mb-2">تطبيق مؤشر الدينار</h3>
+             <p className="text-zinc-400 text-sm">احصل على أسرع وأفضل تجربة للمنصة من خلال التثبيت على جهازك.</p>
+           </div>
+           <AppInstallUninstall />
+        </div>
+        
         <div className="flex items-center justify-center gap-8 mb-8">
           <button onClick={() => setActiveTab('terms')} className="text-sm font-medium text-zinc-400 hover:text-emerald-400 transition-colors">
             شروط الاستخدام
