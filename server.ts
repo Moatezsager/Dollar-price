@@ -1162,10 +1162,23 @@ async function broadcastToSocialMedia(message: string, isTest: boolean = false, 
      try {
        const targetId = appConfig.facebookPageId.trim() || 'me';
        let url = `https://graph.facebook.com/v20.0/${targetId}/feed`;
+       
+       // Extract link for Facebook rich preview
+       let linkToAttach = null;
+       const urlMatch = fbMessage.match(/https?:\/\/[^\s]+/);
+       if (urlMatch) {
+         linkToAttach = urlMatch[0];
+       }
+       
+       const payload: any = { message: fbMessage, access_token: appConfig.facebookAccessToken };
+       if (linkToAttach) {
+         payload.link = linkToAttach;
+       }
+
        let fbRes = await fetch(url, {
          method: 'POST',
          headers: { 'Content-Type': 'application/json' },
-         body: JSON.stringify({ message: fbMessage, access_token: appConfig.facebookAccessToken })
+         body: JSON.stringify(payload)
        });
        let fbData = await fbRes.json();
 
