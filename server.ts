@@ -1040,7 +1040,7 @@ async function fetchHistoryFromSupabase() {
 
 // Fetch official rates from Central Bank of Libya website
 
-async function fetchFromCBL(): Promise<RateMap | null> {
+async function fetchFromCBL(): Promise<{ cblDate: string, rates: RateMap } | null> {
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000);
@@ -1069,6 +1069,7 @@ async function fetchFromCBL(): Promise<RateMap | null> {
     ];
 
     const results: RateMap = {};
+    let cblDateStr = "";
     
     // Split by rows to ensure we only match numbers within the correct row
     const rows = html.split(/<tr[^>]*>/i);
@@ -1078,6 +1079,12 @@ async function fetchFromCBL(): Promise<RateMap | null> {
       
       const tds = row.match(/<td[^>]*>([\s\S]*?)<\/td>/gi);
       if (tds && tds.length >= 6) {
+        const dateHtml = tds[0];
+        const dateMatch = dateHtml.match(/\d{4}-\d{2}-\d{2}/);
+        if (dateMatch && !cblDateStr) {
+          cblDateStr = dateMatch[0];
+        }
+        
         const currencyHtml = tds[1];
         let currencyId = null;
         
@@ -1133,7 +1140,7 @@ async function fetchFromCBL(): Promise<RateMap | null> {
 
 async function broadcastToSocialMedia(message: string, isTest: boolean = false, target: 'all' | 'telegram' | 'facebook' = 'all') {
   // Telegram
-  const shouldPostTg = (!isTest && appConfig.telegramAutoPost) || (isTest && (target === 'telegram' || target === 'all'));
+  const shouldPostTg = (target === 'telegram' || target === 'all') && ((!isTest && appConfig.telegramAutoPost) || isTest);
   if (shouldPostTg) {
     try {
       if (appConfig.telegramPostChannel && telegramManager) {
@@ -1147,7 +1154,7 @@ async function broadcastToSocialMedia(message: string, isTest: boolean = false, 
   }
 
   // Facebook
-  const shouldPostFb = (!isTest && appConfig.facebookAutoPost) || (isTest && (target === 'facebook' || target === 'all'));
+  const shouldPostFb = (target === 'facebook' || target === 'all') && ((!isTest && appConfig.facebookAutoPost) || isTest);
   if (shouldPostFb && appConfig.facebookPageId && appConfig.facebookAccessToken) {
      let fbMessage = message.replace(/[*_`]/g, '');
      
@@ -1270,19 +1277,37 @@ async function broadcastOfficialRates(isTest: boolean = false) {
   }
 }
 
+let lastOfficialFetchDate = "";
+
 async function fetchOfficialRates(): Promise<boolean> {
   console.log("[Official] Starting official rates fetch cycle...");
 
-  // Stop fetching official rates on Fridays (5) and Saturdays (6)
   const libyaFormatter = new Intl.DateTimeFormat('en-US', { timeZone: 'Africa/Tripoli' });
-  const dayIndex = new Date(libyaFormatter.format(new Date())).getDay();
+  const now = new Date();
+  const dayIndex = new Date(libyaFormatter.format(now)).getDay();
+  
+  // Create YYYY-MM-DD for Libya
+  const libyaDateObj = new Date(now.toLocaleString('en-US', { timeZone: 'Africa/Tripoli' }));
+  const yyyy = libyaDateObj.getFullYear();
+  const mm = String(libyaDateObj.getMonth() + 1).padStart(2, '0');
+  const dd = String(libyaDateObj.getDate()).padStart(2, '0');
+  const currentLibyaDate = `${yyyy}-${mm}-${dd}`;
+
+  if (lastOfficialFetchDate === currentLibyaDate) {
+    console.log(`[Official] Already successfully updated rates for today (${currentLibyaDate}). Skipping.`);
+    return false;
+  }
+
+  // Stop fetching official rates on Fridays (5) and Saturdays (6)
   if (dayIndex === 5 || dayIndex === 6) {
     console.log("[Official] Skipping fetch. Official markets (CBL) are closed on Friday and Saturday.");
     return false;
   }
+
   // 1. Try CBL Website First (Most Accurate for Libya)
-  const cblRates = await fetchFromCBL();
-  if (cblRates) {
+  const cblResult = await fetchFromCBL();
+  if (cblResult) {
+    const { cblDate, rates: cblRates } = cblResult;
     let anyChanged = false;
     Object.entries(cblRates).forEach(([key, val]) => {
       if (isSignificantChange(rates.official[key], val)) {
@@ -1299,6 +1324,13 @@ async function fetchOfficialRates(): Promise<boolean> {
       console.log(`[Official] Rates updated via CBL Scraper`);
       broadcastOfficialRates(false).catch(console.error);
     }
+    
+    // If the CBL website has published today's rates, we stop checking for the rest of the day
+    if (cblDate === currentLibyaDate) {
+      console.log(`[Official] CBL published rates for today (${cblDate}). Locking updates until tomorrow.`);
+      lastOfficialFetchDate = currentLibyaDate;
+    }
+    
     return anyChanged;
   }
   
