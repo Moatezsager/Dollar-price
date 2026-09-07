@@ -1210,7 +1210,7 @@ async function broadcastToSocialMedia(message: string, isTest: boolean = false, 
          console.log("[Facebook Broadcast] Successfully posted, ID:", fbData.id);
          
          // Automatically add a comment to the post
-         const commentMessage = `📢 تابعنا على تيليجرام لتصلك التحديثات فوراً:\n👉 https://t.me/libya_index_dollar\n\n🌐 للمزيد من التفاصيل والرسوم البيانية، تفضل بزيارة موقعنا:\n👉 https://tinyurl.com/2j7667u2`;
+         const commentMessage = `📢 تابعنا على تيليجرام لتصلك التحديثات فوراً:\n👉 https://t.me/libya_index_dollar\n\n🌐 للمزيد من التفاصيل والرسوم البيانية، تفضل بزيارة موقعنا:\n👉 https://dollar-price-qp14.onrender.com/?v=${Math.floor(Date.now() / 60000)}`;
          const commentUrl = `https://graph.facebook.com/v20.0/${fbData.id}/comments`;
          const commentRes = await fetch(commentUrl, {
            method: 'POST',
@@ -1276,7 +1276,7 @@ async function broadcastOfficialRates(isTest: boolean = false) {
   }
 
   message += `\n━━━━━━━━━━━━━━━━━━━\n`;
-  message += `🔗 *لمزيد من التفاصيل والبيانات الحية:*\n🌐 https://tinyurl.com/2j7667u2\n`;
+  message += `🔗 *لمزيد من التفاصيل والبيانات الحية:*\n🌐 https://dollar-price-qp14.onrender.com/?v=${Math.floor(Date.now() / 60000)}\n`;
   message += `📱 *المصدر:* مصرف ليبيا المركزي`;
 
   try {
@@ -1399,7 +1399,7 @@ async function broadcastSuddenChangeAlert(u: {id?: string, name: string, oldVal:
   message += `السعر الجديد: *${u.newVal.toFixed(3)}*\n`;
   message += `السعر القديم: ${u.oldVal.toFixed(3)}\n`;
   message += `نسبة التغيير: ${isUp ? '📈 ارتفع' : '📉 انخفض'} بمقدار ${pct.toFixed(2)}%\n\n`;
-  message += `🔗 التفاصيل: https://tinyurl.com/2j7667u2`;
+  message += `🔗 التفاصيل: https://dollar-price-qp14.onrender.com/?v=${Math.floor(Date.now() / 60000)}`;
   
   try {
     await broadcastToSocialMedia(message, typeof isTest !== "undefined" ? isTest : false);
@@ -1454,7 +1454,7 @@ async function broadcastDailyReport() {
     }
   }
   
-  message += `━━━━━━━━━━━━━━━━━\n📡 *مؤشر الدينار | الدقة والسرعة*\n🔗 https://tinyurl.com/2j7667u2`;
+  message += `━━━━━━━━━━━━━━━━━\n📡 *مؤشر الدينار | الدقة والسرعة*\n🔗 https://dollar-price-qp14.onrender.com/?v=${Math.floor(Date.now() / 60000)}`;
   
   try {
     await broadcastToSocialMedia(message, typeof isTest !== "undefined" ? isTest : false);
@@ -1563,7 +1563,7 @@ async function broadcastWeeklyReport(isTest: boolean = false) {
   message += `━━━━━━━━━━━━━━━━━━━\n`;
   message += `💡 التقرير مبني على سجلات قاعدة البيانات طوال الأسبوع الماضي.\n\n`;
   message += `🌐 للمزيد من التفاصيل والرسوم البيانية:\n`;
-  message += `👉 https://tinyurl.com/2j7667u2`;
+  message += `👉 https://dollar-price-qp14.onrender.com/?v=${Math.floor(Date.now() / 60000)}`;
   
   if (isTest) {
     await broadcastToSocialMedia(message, true, 'all');
@@ -1746,7 +1746,7 @@ async function broadcastRateChanges(updates: {id?: string, name: string, oldVal:
 
   message += `━━━━━━━━━━━━━━━━━━━\n`;
   message += `🔗 *المتابعة الحية والرسوم البيانية:*\n`;
-  message += `🌐 https://tinyurl.com/2j7667u2\n`;
+  message += `🌐 https://dollar-price-qp14.onrender.com/?v=${Math.floor(Date.now() / 60000)}\n`;
   message += `📱 *المصدر:* شبكة مؤشر الدينار`;
 
   if (isTest) {
@@ -4568,7 +4568,7 @@ ${updates.join('\n')}
       finalMessage += `━━━━━━━━━━━━━━━━━\n`;
       finalMessage += `${text?.trim()}\n`;
       finalMessage += `━━━━━━━━━━━━━━━━━\n`;
-      finalMessage += `🔗 تابع التحديثات الحية على منصتنا:\n🌐 https://tinyurl.com/2j7667u2\n\n`;
+      finalMessage += `🔗 تابع التحديثات الحية على منصتنا:\n🌐 https://dollar-price-qp14.onrender.com/?v=${Math.floor(Date.now() / 60000)}\n\n`;
       finalMessage += `📱 المصدر: شبكة مراسلي مؤشر الدينار | الدقة والسرعة`;
 
       res.json({ success: true, message: finalMessage });
@@ -4630,7 +4630,7 @@ ${updates.join('\n')}
       finalMessage += `━━━━━━━━━━━━━━━━━\n`;
       finalMessage += `${text?.trim()}\n`;
       finalMessage += `━━━━━━━━━━━━━━━━━\n`;
-      finalMessage += `🔗 تابع التحديثات الحية على منصتنا:\n🌐 https://tinyurl.com/2j7667u2\n\n`;
+      finalMessage += `🔗 تابع التحديثات الحية على منصتنا:\n🌐 https://dollar-price-qp14.onrender.com/?v=${Math.floor(Date.now() / 60000)}\n\n`;
       finalMessage += `📱 المصدر: شبكة مراسلي مؤشر الدينار | الدقة والسرعة`;
 
       const success = await telegramManager.sendMessage(targetChannel, finalMessage);
