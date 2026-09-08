@@ -2141,7 +2141,7 @@ const extractRatesFromText = (originalText: string) => {
       }
     }
   }
-  return { cblDate: cblDateStr || new Date().toISOString().split('T')[0], rates: results };
+  return results;
 };
 
 async function fetchParallelRatesFromTelegram(): Promise<boolean | null> {
