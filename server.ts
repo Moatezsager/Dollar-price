@@ -1123,7 +1123,7 @@ async function fetchFromCBL(): Promise<{ cblDate: string, rates: RateMap } | nul
 
     if (results.USD && results.USD > 4.0 && results.USD < 8.0) {
       console.log(`[CBL Scraper] Successfully extracted ${Object.keys(results).length} rates from CBL website (USD: ${results.USD})`);
-      return results;
+      return { cblDate: cblDateStr || new Date().toISOString().split('T')[0], rates: results };
     }
     
     console.warn("[CBL Scraper] Could not find valid USD rate in the HTML. Results:", results);
@@ -2141,7 +2141,7 @@ const extractRatesFromText = (originalText: string) => {
       }
     }
   }
-  return results;
+  return { cblDate: cblDateStr || new Date().toISOString().split('T')[0], rates: results };
 };
 
 async function fetchParallelRatesFromTelegram(): Promise<boolean | null> {
