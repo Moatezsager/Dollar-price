@@ -1573,6 +1573,55 @@ async function broadcastWeeklyReport(isTest: boolean = false) {
 }
 
 // Setup CRON jobs
+cron.schedule('*/5 * * * *', async () => {
+  if (!appConfig.telegramAutoPost) return;
+  
+  const nowMs = Date.now();
+  const delayedUpdates = [];
+  
+  for (const term of appConfig.terms) {
+    const currentVal = rates.parallel[term.id];
+    if (currentVal === undefined) continue;
+    
+    const history = lastBroadcastState[term.id] || { price: currentVal, time: 0 };
+    const diff = Math.abs(currentVal - history.price);
+    
+    if (diff === 0) continue;
+    
+    const lastChangedIso = rates.lastChanged.parallel[term.id];
+    if (!lastChangedIso) continue;
+    
+    const lastChangedMs = new Date(lastChangedIso).getTime();
+    const hoursSinceLastChange = (nowMs - lastChangedMs) / (1000 * 60 * 60);
+    
+    const isMetal = term.id.startsWith('GOLD') || term.id.startsWith('SILVER');
+    let shouldPublish = false;
+    
+    if (isMetal) {
+       const pctChange = history.price > 0 ? (diff / history.price) * 100 : 0;
+       if (pctChange >= 0.2 && hoursSinceLastChange >= 1.0) shouldPublish = true;
+    } else {
+       if (diff >= 0.01 && hoursSinceLastChange >= 1.0) shouldPublish = true;
+    }
+    
+    if (shouldPublish) {
+      delayedUpdates.push({
+        id: term.id,
+        name: term.name,
+        oldVal: history.price,
+        newVal: currentVal,
+        flag: term.flag,
+        delayed: true
+      });
+    }
+  }
+  
+  if (delayedUpdates.length > 0) {
+    console.log(`[Smart Broadcast] Found ${delayedUpdates.length} delayed updates that matured (1 hour passed since price change). Publishing now.`);
+    await broadcastRateChanges(delayedUpdates, false, 'all');
+  }
+});
+
 // cron.schedule('59 23 * * *', () => {
 //   broadcastDailyReport().catch(console.error);
 // }, {
@@ -1679,13 +1728,25 @@ async function broadcastRateChanges(updates: {id?: string, name: string, oldVal:
       const isMetal = u.id.startsWith('GOLD') || u.id.startsWith('SILVER');
       const pctChange = history.price > 0 ? (diffFromLastBroadcast / history.price) * 100 : 0;
       
-      // The user requested >= 2 piasters (0.02)
-      const hasSignificantPriceChange = isMetal ? (pctChange >= 0.4) : (diffFromLastBroadcast >= 0.02);
+      // قواعد النشر الجديدة المبسطة (حسب طلب المستخدم)
+      // 1. تغيير بقرشين (0.02) فأكثر: ينشر فوراً.
+      // 2. تغيير بقرش واحد (0.01) فأكثر: ينشر بشرط مرور ساعة كاملة.
+      // ملاحظة: يتم التحقق من مرور الساعة بناءً على "آخر تحديث للعملة" عبر وظيفة المراقبة الدورية (Cron)
       
-      // If 3 hours have passed since we last talked about this currency AND there's ANY change
-      const hasTimePassed = hoursSinceLast >= 3 && diffFromLastBroadcast > 0;
+      let shouldPublish = false;
       
-      if (hasSignificantPriceChange || hasTimePassed || history.time === 0) {
+      if ((u as any).delayed) {
+         // This is a delayed update coming from the cron job (meaning 1 hour has already passed since currency was updated)
+         shouldPublish = true;
+      } else {
+        if (isMetal) {
+           if (pctChange >= 0.4) shouldPublish = true; // تغير كبير للذهب
+        } else {
+           if (diffFromLastBroadcast >= 0.02) shouldPublish = true; // فرق قرشين ينشر دائما
+        }
+      }
+      
+      if (shouldPublish || history.time === 0) {
         qualifiedUpdates.push(u);
       }
     }
