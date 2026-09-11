@@ -106,20 +106,20 @@ const RegexEditor = ({ regex, onChange }: { regex: string, onChange: (val: strin
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">محرر REGEX المتقدم</label>
+          <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">محرر REGEX المتقدم</label>
           <Info className="w-4 h-4 text-zinc-700 hover:text-emerald-400 cursor-help" />
         </div>
         <div className="flex items-center gap-2">
           <button 
             onClick={() => setMode('bubbles')} 
-            className={`text-[10px] px-2 py-1 rounded-md transition-colors ${mode === 'bubbles' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/5 text-zinc-400 hover:bg-white/10'}`}
+            className={`text-[10px] px-2 py-1 rounded-md transition-colors ${mode === 'bubbles' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/5 text-slate-400 hover:bg-white/10'}`}
             disabled={!parsed}
           >
             فقاعات
           </button>
           <button 
             onClick={() => setMode('raw')} 
-            className={`text-[10px] px-2 py-1 rounded-md transition-colors ${mode === 'raw' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/5 text-zinc-400 hover:bg-white/10'}`}
+            className={`text-[10px] px-2 py-1 rounded-md transition-colors ${mode === 'raw' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/5 text-slate-400 hover:bg-white/10'}`}
           >
             نص خام
           </button>
@@ -127,10 +127,10 @@ const RegexEditor = ({ regex, onChange }: { regex: string, onChange: (val: strin
       </div>
 
       {mode === 'bubbles' && parsed ? (
-        <div className="bg-black/40 border border-white/10 rounded-xl p-4 flex flex-col gap-4">
+        <div className="bg-black/40 border border-slate-700/50 rounded-xl p-4 flex flex-col gap-4">
           <div className="flex flex-wrap gap-2">
             {parsed.alternatives.map((alt, i) => (
-              <div key={i} className="flex items-center gap-1 bg-white/10 border border-white/10 rounded-lg px-2 py-1 text-xs text-emerald-400 font-mono">
+              <div key={i} className="flex items-center gap-1 bg-white/10 border border-slate-700/50 rounded-lg px-2 py-1 text-xs text-emerald-400 font-mono">
                 <span dir="ltr">{alt}</span>
                 <button 
                   onClick={() => removeWord(i)}
@@ -148,7 +148,7 @@ const RegexEditor = ({ regex, onChange }: { regex: string, onChange: (val: strin
               onChange={(e) => setNewWord(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && addWord()}
               placeholder="إضافة كلمة جديدة..."
-              className="flex-1 bg-white/5 border border-white/5 rounded-lg px-3 py-2 text-xs outline-none focus:border-emerald-500/30 text-white font-mono"
+              className="flex-1 bg-white/5 border border-slate-800/60 rounded-lg px-3 py-2 text-xs outline-none focus:border-emerald-500/30 text-white font-mono"
               dir="ltr"
             />
             <button 
@@ -163,7 +163,7 @@ const RegexEditor = ({ regex, onChange }: { regex: string, onChange: (val: strin
         <textarea
           value={regex}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full h-24 bg-transparent border border-white/10 rounded-xl px-4 py-3 text-xs font-mono text-emerald-400 focus:border-emerald-500/50 outline-none resize-none leading-relaxed"
+          className="w-full h-24 bg-transparent border border-slate-700/50 rounded-xl px-4 py-3 text-xs font-mono text-emerald-400 focus:border-emerald-500/50 outline-none resize-none leading-relaxed"
           dir="ltr"
         />
       )}
@@ -427,7 +427,7 @@ export default function Admin() {
         { id: 'database', label: 'الأسعار السابقة', icon: Database },
         { id: 'changes', label: 'حركة الأسعار', icon: HistoryIcon },
         { id: 'messages', label: 'رسائل الزوار', icon: Mail },
-        { id: 'tracking', label: 'زوار الموقع', icon: Users },
+        { id: 'tracking', label: 'سجل الزوار الدقيق', icon: Users },
       ]
     },
     {
@@ -1142,7 +1142,7 @@ export default function Admin() {
 
   if (!isLoggedIn) {
     return (
-      <div className="min-h-screen bg-[#050505] flex items-center justify-center p-4 font-sans selection:bg-emerald-500/30" dir="rtl">
+      <div className="min-h-screen bg-[#020617] flex items-center justify-center p-4 font-sans selection:bg-emerald-500/30" dir="rtl">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-500/10 blur-[120px] rounded-full"></div>
           <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-600/10 blur-[120px] rounded-full"></div>
@@ -1151,7 +1151,7 @@ export default function Admin() {
         <motion.div 
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="w-full max-w-md bg-white/[0.03] backdrop-blur-3xl border border-white/10 rounded-[2.5rem] p-8 md:p-10 shadow-2xl relative z-10"
+          className="w-full max-w-md bg-white/[0.03] backdrop-blur-3xl border border-slate-700/50 rounded-[2.5rem] p-8 md:p-10 shadow-2xl relative z-10"
         >
           <div className="flex justify-center mb-8">
             <div className="relative">
@@ -1164,7 +1164,7 @@ export default function Admin() {
 
           <div className="text-center mb-10">
             <h1 className="text-3xl font-black text-white mb-3 tracking-tight">الدخول الآمن</h1>
-            <p className="text-zinc-500 text-sm leading-relaxed">يرجى إدخال مفتاح الوصول الإداري للمتابعة</p>
+            <p className="text-slate-500 text-sm leading-relaxed">يرجى إدخال مفتاح الوصول الإداري للمتابعة</p>
           </div>
           
           <form onSubmit={handleLogin} className="space-y-6">
@@ -1174,7 +1174,7 @@ export default function Admin() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full bg-black/40 border border-white/10 rounded-2xl px-6 py-5 text-white focus:outline-none focus:border-emerald-500/50 focus:bg-black/60 transition-all text-center text-2xl tracking-[0.3em] font-mono placeholder:tracking-normal placeholder:font-sans placeholder:text-zinc-700"
+                className="w-full bg-black/40 border border-slate-700/50 rounded-2xl px-6 py-5 text-white focus:outline-none focus:border-emerald-500/50 focus:bg-black/60 transition-all text-center text-2xl tracking-[0.3em] font-mono placeholder:tracking-normal placeholder:font-sans placeholder:text-zinc-700"
                 dir="ltr"
                 required
               />
@@ -1195,7 +1195,7 @@ export default function Admin() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:bg-zinc-800 text-black font-black py-5 rounded-2xl transition-all shadow-xl shadow-emerald-500/20 active:scale-[0.98] flex items-center justify-center gap-3 group overflow-hidden relative"
+              className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-800 text-black font-black py-5 rounded-2xl transition-all shadow-xl shadow-emerald-500/20 active:scale-[0.98] flex items-center justify-center gap-3 group overflow-hidden relative"
             >
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
               {loading ? (
@@ -1215,19 +1215,19 @@ export default function Admin() {
 
   if (!config) {
     return (
-      <div className="min-h-screen bg-[#050505] flex items-center justify-center p-4 font-sans" dir="rtl">
+      <div className="min-h-screen bg-[#020617] flex items-center justify-center p-4 font-sans" dir="rtl">
         <div className="text-center">
           <RefreshCw className="w-12 h-12 text-emerald-500 animate-spin mx-auto mb-4" />
-          <p className="text-zinc-500 text-sm">جاري تحميل الإعدادات...</p>
+          <p className="text-slate-500 text-sm">جاري تحميل الإعدادات...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white flex font-sans selection:bg-emerald-500/30 overflow-hidden" dir="rtl">
+    <div className="min-h-screen bg-[#020617] text-white flex font-sans selection:bg-emerald-500/30 overflow-hidden" dir="rtl">
       {/* Sidebar - Desktop */}
-      <aside className="hidden lg:flex flex-col w-72 bg-[#080808] border-l border-white/5 relative z-[60] pt-safe pb-safe overflow-y-auto">
+      <aside className="hidden lg:flex flex-col w-72 bg-[#080808] border-l border-slate-800/60 relative z-[60] pt-safe pb-safe overflow-y-auto">
         <div className="p-8">
           <div className="flex items-center gap-4 mb-10">
             <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-blue-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
@@ -1242,7 +1242,7 @@ export default function Admin() {
           <nav className="space-y-6">
             {navGroups.map((group, idx) => (
               <div key={idx}>
-                <h3 className="text-[11px] font-bold text-zinc-500 mb-3 px-4 uppercase tracking-widest">{group.group}</h3>
+                <h3 className="text-[11px] font-bold text-slate-500 mb-3 px-4 uppercase tracking-widest">{group.group}</h3>
                 <div className="space-y-1.5">
                   {group.items.map(item => (
                     <button
@@ -1251,7 +1251,7 @@ export default function Admin() {
                       className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-sm font-bold transition-all group ${
                         activeTab === item.id 
                           ? 'bg-emerald-500 text-black shadow-lg shadow-emerald-500/20' 
-                          : 'text-zinc-500 hover:text-white hover:bg-white/5'
+                          : 'text-slate-500 hover:text-white hover:bg-white/5'
                       }`}
                     >
                       <item.icon className={`w-5 h-5 ${activeTab === item.id ? 'stroke-[2.5]' : 'group-hover:scale-110 transition-transform'}`} />
@@ -1264,23 +1264,23 @@ export default function Admin() {
           </nav>
         </div>
 
-        <div className="mt-auto p-6 border-t border-white/5">
+        <div className="mt-auto p-6 border-t border-slate-800/60">
            <div className="bg-white/5 rounded-2xl p-4 mb-4">
               <div className="flex items-center gap-3 mb-3">
                  <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
                     <Database className="w-4 h-4 text-blue-400" />
                  </div>
-                 <span className="text-xs font-bold text-zinc-400">حالة النظام</span>
+                 <span className="text-xs font-bold text-slate-400">حالة النظام</span>
               </div>
               <div className="space-y-2">
                  <div className="flex justify-between text-[10px]">
-                    <span className="text-zinc-500">الاتصال:</span>
+                    <span className="text-slate-500">الاتصال:</span>
                     <span className={connectionStatus === 'online' ? 'text-emerald-400' : 'text-rose-400'}>
                        {connectionStatus === 'online' ? 'متصل' : 'منقطع'}
                     </span>
                  </div>
                  <div className="flex justify-between text-[10px]">
-                    <span className="text-zinc-500">الذاكرة:</span>
+                    <span className="text-slate-500">الذاكرة:</span>
                     <span className="text-blue-400">{stats?.memoryUsage ? `${Math.round(stats.memoryUsage.heapUsed / 1024 / 1024)}MB` : '...'}</span>
                  </div>
               </div>
@@ -1299,23 +1299,23 @@ export default function Admin() {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
         {/* Top Header */}
-        <header className="h-[calc(5rem+env(safe-area-inset-top))] bg-[#050505]/80 backdrop-blur-2xl border-b border-white/5 flex items-center justify-between px-6 shrink-0 relative z-50 pt-safe">
+        <header className="h-[calc(5rem+env(safe-area-inset-top))] bg-[#020617]/80 backdrop-blur-2xl border-b border-slate-800/60 flex items-center justify-between px-6 shrink-0 relative z-50 pt-safe">
           <div className="flex items-center gap-4">
             <button 
               onClick={() => setIsSidebarOpen(true)}
-              className="lg:hidden p-2.5 rounded-xl bg-white/5 text-zinc-400 hover:text-white transition-all"
+              className="lg:hidden p-2.5 rounded-xl bg-white/5 text-slate-400 hover:text-white transition-all"
             >
               <Menu className="w-6 h-6" />
             </button>
             
             <div className="hidden md:flex items-center gap-3">
-               <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 border border-white/5 rounded-full">
+               <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 border border-slate-800/60 rounded-full">
                   <div className={`w-2 h-2 rounded-full ${stats?.minutesSinceLastScrape && stats.minutesSinceLastScrape < 15 ? 'bg-emerald-500' : 'bg-rose-500 animate-pulse'}`}></div>
-                  <span className="text-[10px] font-bold text-zinc-400">تيليجرام: {stats?.minutesSinceLastScrape ? `منذ ${stats.minutesSinceLastScrape}د` : '---'}</span>
+                  <span className="text-[10px] font-bold text-slate-400">تيليجرام: {stats?.minutesSinceLastScrape ? `منذ ${stats.minutesSinceLastScrape}د` : '---'}</span>
                </div>
-               <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 border border-white/5 rounded-full">
+               <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 border border-slate-800/60 rounded-full">
                   <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-                  <span className="text-[10px] font-bold text-zinc-400">المستخدمين: {stats?.onlineUsers || 0}</span>
+                  <span className="text-[10px] font-bold text-slate-400">المستخدمين: {stats?.onlineUsers || 0}</span>
                </div>
             </div>
           </div>
@@ -1364,7 +1364,7 @@ export default function Admin() {
                 <nav className="space-y-6">
                   {navGroups.map((group, idx) => (
                     <div key={idx}>
-                      <h3 className="text-[11px] font-bold text-zinc-500 mb-3 px-4 uppercase tracking-widest">{group.group}</h3>
+                      <h3 className="text-[11px] font-bold text-slate-500 mb-3 px-4 uppercase tracking-widest">{group.group}</h3>
                       <div className="space-y-2">
                         {group.items.map(item => (
                           <button
@@ -1376,7 +1376,7 @@ export default function Admin() {
                             className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-sm font-bold transition-all ${
                               activeTab === item.id 
                                 ? 'bg-emerald-500 text-black shadow-lg shadow-emerald-500/20' 
-                                : 'text-zinc-500 hover:text-white hover:bg-white/5'
+                                : 'text-slate-500 hover:text-white hover:bg-white/5'
                             }`}
                           >
                             <item.icon className={`w-5 h-5 ${activeTab === item.id ? 'stroke-[2.5]' : ''}`} />
@@ -1416,7 +1416,7 @@ export default function Admin() {
                 <div className="flex items-center justify-between mb-8">
                   <div>
                     <h2 className="text-3xl font-black text-white tracking-tight">المطورين و API</h2>
-                    <p className="text-zinc-400 mt-2">إدارة واجهة برمجة التطبيقات للمطورين والإحصائيات</p>
+                    <p className="text-slate-400 mt-2">إدارة واجهة برمجة التطبيقات للمطورين والإحصائيات</p>
                   </div>
                   <button
                     onClick={async () => {
@@ -1425,7 +1425,7 @@ export default function Admin() {
                       setRefreshing(false);
                     }}
                     disabled={refreshing}
-                    className="flex items-center gap-2 px-4 py-2 bg-zinc-800/50 hover:bg-zinc-800 border border-white/10 rounded-xl text-white transition-all disabled:opacity-50"
+                    className="flex items-center gap-2 px-4 py-2 bg-slate-800/50 hover:bg-slate-800 border border-slate-700/50 rounded-xl text-white transition-all disabled:opacity-50"
                   >
                     <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
                     تحديث
@@ -1440,30 +1440,30 @@ export default function Admin() {
                       إحصائيات الرابط المجاني (Public API)
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="bg-zinc-900/50 border border-white/5 p-6 rounded-2xl">
+                      <div className="bg-slate-900/80/50 border border-slate-800/60 p-6 rounded-2xl">
                         <div className="flex items-center gap-3 mb-4">
                           <div className="p-2 bg-emerald-500/10 rounded-lg">
                             <Activity className="w-5 h-5 text-emerald-400" />
                           </div>
-                          <h3 className="text-zinc-400 font-medium">إجمالي الطلبات</h3>
+                          <h3 className="text-slate-400 font-medium">إجمالي الطلبات</h3>
                         </div>
                         <p className="text-3xl font-black text-white">{apiStatsData?.public?.totalRequests || 0}</p>
                       </div>
-                      <div className="bg-zinc-900/50 border border-white/5 p-6 rounded-2xl">
+                      <div className="bg-slate-900/80/50 border border-slate-800/60 p-6 rounded-2xl">
                         <div className="flex items-center gap-3 mb-4">
                           <div className="p-2 bg-blue-500/10 rounded-lg">
                             <CheckCircle2 className="w-5 h-5 text-blue-400" />
                           </div>
-                          <h3 className="text-zinc-400 font-medium">الطلبات الناجحة</h3>
+                          <h3 className="text-slate-400 font-medium">الطلبات الناجحة</h3>
                         </div>
                         <p className="text-3xl font-black text-white">{apiStatsData?.public?.successfulRequests || 0}</p>
                       </div>
-                      <div className="bg-zinc-900/50 border border-white/5 p-6 rounded-2xl">
+                      <div className="bg-slate-900/80/50 border border-slate-800/60 p-6 rounded-2xl">
                         <div className="flex items-center gap-3 mb-4">
                           <div className="p-2 bg-rose-500/10 rounded-lg">
                             <AlertTriangle className="w-5 h-5 text-rose-400" />
                           </div>
-                          <h3 className="text-zinc-400 font-medium">الطلبات الفاشلة</h3>
+                          <h3 className="text-slate-400 font-medium">الطلبات الفاشلة</h3>
                         </div>
                         <p className="text-3xl font-black text-white">{apiStatsData?.public?.failedRequests || 0}</p>
                       </div>
@@ -1477,30 +1477,30 @@ export default function Admin() {
                       إحصائيات رابط الاشتراك (Premium API)
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="bg-zinc-900/50 border border-white/5 p-6 rounded-2xl">
+                      <div className="bg-slate-900/80/50 border border-slate-800/60 p-6 rounded-2xl">
                         <div className="flex items-center gap-3 mb-4">
                           <div className="p-2 bg-emerald-500/10 rounded-lg">
                             <Activity className="w-5 h-5 text-emerald-400" />
                           </div>
-                          <h3 className="text-zinc-400 font-medium">إجمالي الطلبات</h3>
+                          <h3 className="text-slate-400 font-medium">إجمالي الطلبات</h3>
                         </div>
                         <p className="text-3xl font-black text-white">{apiStatsData?.premium?.totalRequests || 0}</p>
                       </div>
-                      <div className="bg-zinc-900/50 border border-white/5 p-6 rounded-2xl">
+                      <div className="bg-slate-900/80/50 border border-slate-800/60 p-6 rounded-2xl">
                         <div className="flex items-center gap-3 mb-4">
                           <div className="p-2 bg-blue-500/10 rounded-lg">
                             <CheckCircle2 className="w-5 h-5 text-blue-400" />
                           </div>
-                          <h3 className="text-zinc-400 font-medium">الطلبات الناجحة</h3>
+                          <h3 className="text-slate-400 font-medium">الطلبات الناجحة</h3>
                         </div>
                         <p className="text-3xl font-black text-white">{apiStatsData?.premium?.successfulRequests || 0}</p>
                       </div>
-                      <div className="bg-zinc-900/50 border border-white/5 p-6 rounded-2xl">
+                      <div className="bg-slate-900/80/50 border border-slate-800/60 p-6 rounded-2xl">
                         <div className="flex items-center gap-3 mb-4">
                           <div className="p-2 bg-rose-500/10 rounded-lg">
                             <AlertTriangle className="w-5 h-5 text-rose-400" />
                           </div>
-                          <h3 className="text-zinc-400 font-medium">الطلبات الفاشلة</h3>
+                          <h3 className="text-slate-400 font-medium">الطلبات الفاشلة</h3>
                         </div>
                         <p className="text-3xl font-black text-white">{apiStatsData?.premium?.failedRequests || 0}</p>
                       </div>
@@ -1508,22 +1508,22 @@ export default function Admin() {
                   </div>
 
                   {/* Security Stats */}
-                  <div className="bg-zinc-900/50 border border-white/5 p-6 rounded-2xl">
+                  <div className="bg-slate-900/80/50 border border-slate-800/60 p-6 rounded-2xl">
                     <div className="flex items-center gap-3 mb-4">
                       <div className="p-2 bg-orange-500/10 rounded-lg">
                         <Shield className="w-5 h-5 text-orange-400" />
                       </div>
-                      <h3 className="text-zinc-400 font-medium">عناوين IP المحظورة (Rate Limit)</h3>
+                      <h3 className="text-slate-400 font-medium">عناوين IP المحظورة (Rate Limit)</h3>
                     </div>
                     <p className="text-3xl font-black text-white">{apiStatsData?.bannedIPsCount || 0}</p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <div className="bg-zinc-900/50 border border-white/5 rounded-2xl overflow-hidden flex flex-col">
-                    <div className="p-6 border-b border-white/5 flex items-center justify-between">
+                  <div className="bg-slate-900/80/50 border border-slate-800/60 rounded-2xl overflow-hidden flex flex-col">
+                    <div className="p-6 border-b border-slate-800/60 flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <Settings className="w-5 h-5 text-zinc-400" />
+                        <Settings className="w-5 h-5 text-slate-400" />
                         <h3 className="text-lg font-bold text-white">إعدادات API</h3>
                       </div>
                       <button
@@ -1555,10 +1555,10 @@ export default function Admin() {
                       </button>
                     </div>
                     <div className="p-6 space-y-6 flex-1">
-                      <div className="flex items-center justify-between p-4 bg-black/20 rounded-xl border border-white/5">
+                      <div className="flex items-center justify-between p-4 bg-black/20 rounded-xl border border-slate-800/60">
                         <div>
                           <h4 className="text-white font-medium">تفعيل API</h4>
-                          <p className="text-xs text-zinc-500 mt-1">السماح للمطورين بالوصول إلى البيانات</p>
+                          <p className="text-xs text-slate-500 mt-1">السماح للمطورين بالوصول إلى البيانات</p>
                         </div>
                         <label className="relative inline-flex items-center cursor-pointer">
                           <input 
@@ -1573,21 +1573,21 @@ export default function Admin() {
 
                       <div className="space-y-4">
                         <div>
-                          <label className="block text-sm font-medium text-zinc-400 mb-2">الحد الأقصى للطلبات (في الدقيقة)</label>
+                          <label className="block text-sm font-medium text-slate-400 mb-2">الحد الأقصى للطلبات (في الدقيقة)</label>
                           <input 
                             type="number" 
                             value={config?.apiConfig?.rateLimitMaxRequests ?? 20}
                             onChange={(e) => setConfig({...config, apiConfig: {...config?.apiConfig, rateLimitMaxRequests: parseInt(e.target.value)}})}
-                            className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500/50 transition-colors"
+                            className="w-full bg-black/20 border border-slate-700/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500/50 transition-colors"
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-zinc-400 mb-2">مدة الحظر (بالدقائق)</label>
+                          <label className="block text-sm font-medium text-slate-400 mb-2">مدة الحظر (بالدقائق)</label>
                           <input 
                             type="number" 
                             value={config?.apiConfig?.banDurationMinutes ?? 5}
                             onChange={(e) => setConfig({...config, apiConfig: {...config?.apiConfig, banDurationMinutes: parseInt(e.target.value)}})}
-                            className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500/50 transition-colors"
+                            className="w-full bg-black/20 border border-slate-700/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500/50 transition-colors"
                           />
                         </div>
                       </div>
@@ -1608,7 +1608,7 @@ export default function Admin() {
                                 setSuccess("تم نسخ الرابط");
                                 setTimeout(() => setSuccess(""), 2000);
                               }}
-                              className="p-3 bg-white/5 hover:bg-white/10 rounded-lg text-zinc-400 transition-colors"
+                              className="p-3 bg-white/5 hover:bg-white/10 rounded-lg text-slate-400 transition-colors"
                             >
                               <Copy className="w-4 h-4" />
                             </button>
@@ -1631,7 +1631,7 @@ export default function Admin() {
                                 setSuccess("تم نسخ الرابط");
                                 setTimeout(() => setSuccess(""), 2000);
                               }}
-                              className="p-3 bg-white/5 hover:bg-white/10 rounded-lg text-zinc-400 transition-colors"
+                              className="p-3 bg-white/5 hover:bg-white/10 rounded-lg text-slate-400 transition-colors"
                             >
                               <Copy className="w-4 h-4" />
                             </button>
@@ -1641,16 +1641,16 @@ export default function Admin() {
                     </div>
                   </div>
 
-                  <div className="bg-zinc-900/50 border border-white/5 rounded-2xl overflow-hidden flex flex-col">
-                    <div className="p-6 border-b border-white/5 flex items-center gap-3">
-                      <HistoryIcon className="w-5 h-5 text-zinc-400" />
+                  <div className="bg-slate-900/80/50 border border-slate-800/60 rounded-2xl overflow-hidden flex flex-col">
+                    <div className="p-6 border-b border-slate-800/60 flex items-center gap-3">
+                      <HistoryIcon className="w-5 h-5 text-slate-400" />
                       <h3 className="text-lg font-bold text-white">سجل الطلبات الأخيرة</h3>
                     </div>
                     <div className="flex-1 overflow-y-auto max-h-[600px] p-0">
                       <div className="grid grid-cols-1 lg:grid-cols-2 divide-x divide-white/5 rtl:divide-x-reverse">
                         {/* Public Requests */}
                         <div className="flex flex-col">
-                          <div className="p-4 bg-blue-500/5 border-b border-white/5">
+                          <div className="p-4 bg-blue-500/5 border-b border-slate-800/60">
                             <h4 className="text-sm font-bold text-blue-400">الطلبات المجانية الأخيرة</h4>
                           </div>
                           {apiStatsData?.public?.recentRequests?.length > 0 ? (
@@ -1666,24 +1666,24 @@ export default function Admin() {
                                           {req.status}
                                         </span>
                                       </div>
-                                      <p className="text-xs text-zinc-500 mt-1 max-w-[150px] truncate" title={req.userAgent}>{req.userAgent}</p>
+                                      <p className="text-xs text-slate-500 mt-1 max-w-[150px] truncate" title={req.userAgent}>{req.userAgent}</p>
                                     </div>
                                   </div>
                                   <div className="text-left">
-                                    <p className="text-[10px] text-zinc-400">{formatDistanceToNow(new Date(req.timestamp), { addSuffix: true, locale: ar })}</p>
-                                    <p className="text-[10px] text-zinc-500 font-mono mt-1">{req.responseTime}ms</p>
+                                    <p className="text-[10px] text-slate-400">{formatDistanceToNow(new Date(req.timestamp), { addSuffix: true, locale: ar })}</p>
+                                    <p className="text-[10px] text-slate-500 font-mono mt-1">{req.responseTime}ms</p>
                                   </div>
                                 </div>
                               ))}
                             </div>
                           ) : (
-                            <div className="p-8 text-center text-zinc-500">لا توجد طلبات</div>
+                            <div className="p-8 text-center text-slate-500">لا توجد طلبات</div>
                           )}
                         </div>
 
                         {/* Premium Requests */}
                         <div className="flex flex-col">
-                          <div className="p-4 bg-amber-500/5 border-b border-white/5">
+                          <div className="p-4 bg-amber-500/5 border-b border-slate-800/60">
                             <h4 className="text-sm font-bold text-amber-400">طلبات الاشتراك الأخيرة</h4>
                           </div>
                           {apiStatsData?.premium?.recentRequests?.length > 0 ? (
@@ -1699,18 +1699,18 @@ export default function Admin() {
                                           {req.status}
                                         </span>
                                       </div>
-                                      <p className="text-xs text-zinc-500 mt-1 max-w-[150px] truncate" title={req.userAgent}>{req.userAgent}</p>
+                                      <p className="text-xs text-slate-500 mt-1 max-w-[150px] truncate" title={req.userAgent}>{req.userAgent}</p>
                                     </div>
                                   </div>
                                   <div className="text-left">
-                                    <p className="text-[10px] text-zinc-400">{formatDistanceToNow(new Date(req.timestamp), { addSuffix: true, locale: ar })}</p>
-                                    <p className="text-[10px] text-zinc-500 font-mono mt-1">{req.responseTime}ms</p>
+                                    <p className="text-[10px] text-slate-400">{formatDistanceToNow(new Date(req.timestamp), { addSuffix: true, locale: ar })}</p>
+                                    <p className="text-[10px] text-slate-500 font-mono mt-1">{req.responseTime}ms</p>
                                   </div>
                                 </div>
                               ))}
                             </div>
                           ) : (
-                            <div className="p-8 text-center text-zinc-500">لا توجد طلبات</div>
+                            <div className="p-8 text-center text-slate-500">لا توجد طلبات</div>
                           )}
                         </div>
                       </div>
@@ -1728,7 +1728,7 @@ export default function Admin() {
               className="space-y-6 md:space-y-8 pb-24"
             >
               {/* Data Sources Section */}
-              <section className="bg-white/[0.02] border border-white/5 rounded-[2rem] p-6 md:p-8">
+              <section className="bg-white/[0.02] border border-slate-800/60 rounded-[2rem] p-6 md:p-8">
                 <div className="flex items-center justify-between mb-8">
                   <h2 className="text-lg md:text-xl font-black flex items-center gap-3 text-blue-400">
                     <Globe className="w-5 h-5 md:w-6 md:h-6" />
@@ -1744,7 +1744,7 @@ export default function Admin() {
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {config.channels.map((ch: string, i: number) => (
-                    <div key={i} className="flex items-center gap-3 p-3 rounded-2xl bg-white/[0.03] border border-white/5 group hover:bg-white/[0.05] transition-all">
+                    <div key={i} className="flex items-center gap-3 p-3 rounded-2xl bg-white/[0.03] border border-slate-800/60 group hover:bg-white/[0.05] transition-all">
                       <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-400 shrink-0">
                         <Send className="w-5 h-5" />
                       </div>
@@ -1772,8 +1772,8 @@ export default function Admin() {
                   ))}
                 </div>
                 <div className="mt-6 flex flex-col gap-4">
-                  <div className="flex items-center justify-between p-4 rounded-2xl bg-white/[0.03] border border-white/5">
-                    <span className="text-sm font-bold text-zinc-400">تفعيل الكاشط التقليدي (احتياطي)</span>
+                  <div className="flex items-center justify-between p-4 rounded-2xl bg-white/[0.03] border border-slate-800/60">
+                    <span className="text-sm font-bold text-slate-400">تفعيل الكاشط التقليدي (احتياطي)</span>
                     <button 
                       onClick={() => setConfig({...config, enableHttpScraper: !config.enableHttpScraper})}
                       className={`w-14 h-8 rounded-full transition-colors ${config.enableHttpScraper ? 'bg-emerald-500' : 'bg-zinc-700'}`}
@@ -1781,8 +1781,8 @@ export default function Admin() {
                       <div className={`w-6 h-6 rounded-full bg-white transition-transform ${config.enableHttpScraper ? 'translate-x-7' : 'translate-x-1'}`} />
                     </button>
                   </div>
-                  <div className="flex items-center justify-between p-4 rounded-2xl bg-white/[0.03] border border-white/5">
-                    <span className="text-sm font-bold text-zinc-400">تفعيل تتبع الأجهزة المتصلة (Online Tracking)</span>
+                  <div className="flex items-center justify-between p-4 rounded-2xl bg-white/[0.03] border border-slate-800/60">
+                    <span className="text-sm font-bold text-slate-400">تفعيل تتبع الأجهزة المتصلة (Online Tracking)</span>
                     <button 
                       onClick={() => setConfig({...config, enableUserTracking: !config.enableUserTracking})}
                       className={`w-14 h-8 rounded-full transition-colors ${config.enableUserTracking ? 'bg-emerald-500' : 'bg-zinc-700'}`}
@@ -1794,14 +1794,14 @@ export default function Admin() {
               </section>
 
               {/* Intelligent Recognition System */}
-              <section className="bg-white/[0.02] border border-white/5 rounded-[2rem] p-6 md:p-8">
+              <section className="bg-white/[0.02] border border-slate-800/60 rounded-[2rem] p-6 md:p-8">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
                   <div>
                     <h2 className="text-lg md:text-xl font-black flex items-center gap-3 text-emerald-400">
                       <Zap className="w-5 h-5 md:w-6 md:h-6" />
                       نظام التعرف الذكي (Smart Extraction)
                     </h2>
-                    <p className="text-zinc-500 text-xs mt-1 font-medium">تحديد القواعد والكلمات المفتاحية لاستخراج الأسعار آلياً</p>
+                    <p className="text-slate-500 text-xs mt-1 font-medium">تحديد القواعد والكلمات المفتاحية لاستخراج الأسعار آلياً</p>
                   </div>
                   <button 
                     onClick={() => setConfig({
@@ -1823,7 +1823,7 @@ export default function Admin() {
                     placeholder="ابحث عن عملة أو معرف..."
                     value={searchPath}
                     onChange={(e) => setSearchPath(e.target.value)}
-                    className="w-full bg-white/[0.03] border border-white/10 rounded-2xl pr-12 pl-4 py-4 text-sm focus:outline-none focus:border-emerald-500/50 transition-all focus:bg-white/5"
+                    className="w-full bg-white/[0.03] border border-slate-700/50 rounded-2xl pr-12 pl-4 py-4 text-sm focus:outline-none focus:border-emerald-500/50 transition-all focus:bg-white/5"
                   />
                 </div>
 
@@ -1862,7 +1862,7 @@ export default function Admin() {
                       <div 
                         key={`term-${idx}`} 
                         className={`rounded-3xl border transition-all duration-300 ${
-                          isExpanded ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-white/5 bg-white/[0.01] hover:bg-white/[0.03]'
+                          isExpanded ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-slate-800/60 bg-white/[0.01] hover:bg-white/[0.03]'
                         }`}
                       >
                         <div 
@@ -1870,20 +1870,20 @@ export default function Admin() {
                           onClick={() => setExpandedTermIdx(isExpanded ? null : idx)}
                         >
                           <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center border border-white/10 overflow-hidden">
+                            <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center border border-slate-700/50 overflow-hidden">
                               <FlagIcon flagCode={term.flag} name="flag" className="w-8 h-8" fallbackType="coins" />
                             </div>
                             <div>
                               <h3 className="text-lg font-black text-white">{term.name}</h3>
                               <div className="flex items-center gap-2 mt-0.5">
                                 <span className="text-[10px] font-mono text-zinc-600 uppercase tracking-widest">{term.id}</span>
-                                <span className="w-1 h-1 bg-zinc-800 rounded-full"></span>
-                                <span className="text-[10px] text-zinc-500 font-mono" dir="ltr">{term.min}-{term.max}</span>
+                                <span className="w-1 h-1 bg-slate-800 rounded-full"></span>
+                                <span className="text-[10px] text-slate-500 font-mono" dir="ltr">{term.min}-{term.max}</span>
                               </div>
                             </div>
                           </div>
                           <div className="flex items-center gap-3">
-                            {isExpanded ? <ChevronUp className="w-5 h-5 text-zinc-400" /> : <ChevronDown className="w-5 h-5 text-zinc-600" />}
+                            {isExpanded ? <ChevronUp className="w-5 h-5 text-slate-400" /> : <ChevronDown className="w-5 h-5 text-zinc-600" />}
                           </div>
                         </div>
 
@@ -1895,12 +1895,12 @@ export default function Admin() {
                               exit={{ height: 0, opacity: 0 }}
                               className="overflow-hidden"
                             >
-                              <div className="p-6 pt-0 border-t border-white/5 mt-2">
+                              <div className="p-6 pt-0 border-t border-slate-800/60 mt-2">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-6">
                                   <div className="space-y-6">
                                     <div className="grid grid-cols-2 gap-4">
                                       <div>
-                                        <label className="block text-[10px] text-zinc-500 font-bold uppercase mb-2 tracking-widest px-1">المعرف البرمجي (ID)</label>
+                                        <label className="block text-[10px] text-slate-500 font-bold uppercase mb-2 tracking-widest px-1">المعرف البرمجي (ID)</label>
                                         <input
                                           type="text"
                                           value={term.id}
@@ -1909,12 +1909,12 @@ export default function Admin() {
                                             newTerms[idx].id = e.target.value;
                                             setConfig({ ...config, terms: newTerms });
                                           }}
-                                          className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm font-mono focus:border-emerald-500/50 outline-none text-white"
+                                          className="w-full bg-black/40 border border-slate-700/50 rounded-xl px-4 py-2.5 text-sm font-mono focus:border-emerald-500/50 outline-none text-white"
                                           dir="ltr"
                                         />
                                       </div>
                                       <div>
-                                        <label className="block text-[10px] text-zinc-500 font-bold uppercase mb-2 tracking-widest px-1">الاسم التجاري</label>
+                                        <label className="block text-[10px] text-slate-500 font-bold uppercase mb-2 tracking-widest px-1">الاسم التجاري</label>
                                         <input
                                           type="text"
                                           value={term.name}
@@ -1923,14 +1923,14 @@ export default function Admin() {
                                             newTerms[idx].name = e.target.value;
                                             setConfig({ ...config, terms: newTerms });
                                           }}
-                                          className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm font-bold outline-none focus:border-emerald-500/50 text-white"
+                                          className="w-full bg-black/40 border border-slate-700/50 rounded-xl px-4 py-2.5 text-sm font-bold outline-none focus:border-emerald-500/50 text-white"
                                         />
                                       </div>
                                     </div>
 
                                     <div className="grid grid-cols-2 gap-4">
                                       <div>
-                                        <label className="block text-[10px] text-zinc-500 font-bold uppercase mb-2 tracking-widest px-1">الحد الأدنى (د.ل)</label>
+                                        <label className="block text-[10px] text-slate-500 font-bold uppercase mb-2 tracking-widest px-1">الحد الأدنى (د.ل)</label>
                                         <input
                                           type="number"
                                           step="0.01"
@@ -1940,12 +1940,12 @@ export default function Admin() {
                                             newTerms[idx].min = parseFloat(e.target.value);
                                             setConfig({ ...config, terms: newTerms });
                                           }}
-                                          className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-center font-mono outline-none text-white"
+                                          className="w-full bg-black/40 border border-slate-700/50 rounded-xl px-4 py-2.5 text-sm text-center font-mono outline-none text-white"
                                           dir="ltr"
                                         />
                                       </div>
                                       <div>
-                                        <label className="block text-[10px] text-zinc-500 font-bold uppercase mb-2 tracking-widest px-1">الحد الأقصى (د.ل)</label>
+                                        <label className="block text-[10px] text-slate-500 font-bold uppercase mb-2 tracking-widest px-1">الحد الأقصى (د.ل)</label>
                                         <input
                                           type="number"
                                           step="0.01"
@@ -1955,14 +1955,14 @@ export default function Admin() {
                                             newTerms[idx].max = parseFloat(e.target.value);
                                             setConfig({ ...config, terms: newTerms });
                                           }}
-                                          className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-center font-mono outline-none text-white"
+                                          className="w-full bg-black/40 border border-slate-700/50 rounded-xl px-4 py-2.5 text-sm text-center font-mono outline-none text-white"
                                           dir="ltr"
                                         />
                                       </div>
                                     </div>
 
                                     <div>
-                                      <label className="block text-[10px] text-zinc-500 font-bold uppercase mb-2 tracking-widest px-1">كود العلم (Flags)</label>
+                                      <label className="block text-[10px] text-slate-500 font-bold uppercase mb-2 tracking-widest px-1">كود العلم (Flags)</label>
                                       <div className="flex items-center gap-3">
                                         <input
                                           type="text"
@@ -1973,10 +1973,10 @@ export default function Admin() {
                                             setConfig({ ...config, terms: newTerms });
                                           }}
                                           placeholder="eg, us, eu, tr, ae, cn"
-                                          className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm font-mono outline-none text-white"
+                                          className="flex-1 bg-black/40 border border-slate-700/50 rounded-xl px-4 py-2.5 text-sm font-mono outline-none text-white"
                                           dir="ltr"
                                         />
-                                        <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center overflow-hidden">
+                                        <div className="w-10 h-10 rounded-xl bg-white/5 border border-slate-700/50 flex items-center justify-center overflow-hidden">
                                           <FlagIcon flagCode={term.flag} name="flag" className="w-6 h-6" fallbackType="coins" />
                                         </div>
                                       </div>
@@ -1984,7 +1984,7 @@ export default function Admin() {
                                   </div>
 
                                   <div className="space-y-6 flex flex-col">
-                                    <div className="bg-black/40 border border-white/5 rounded-2xl p-4 flex-1">
+                                    <div className="bg-black/40 border border-slate-800/60 rounded-2xl p-4 flex-1">
                                       <RegexEditor 
                                         regex={term.regex} 
                                         onChange={(val) => {
@@ -1995,13 +1995,13 @@ export default function Admin() {
                                       />
                                       
                                       <div className="mt-6 flex flex-col gap-3">
-                                        <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">تجربة فورية</label>
+                                        <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">تجربة فورية</label>
                                         <input
                                           type="text"
                                           placeholder="أدخل نصًا للتجربة..."
                                           value={testText}
                                           onChange={(e) => setTestTexts({ ...testTexts, [idx]: e.target.value })}
-                                          className="w-full bg-white/5 border border-white/5 rounded-xl px-4 py-3 text-xs outline-none focus:border-emerald-500/30 text-white"
+                                          className="w-full bg-white/5 border border-slate-800/60 rounded-xl px-4 py-3 text-xs outline-none focus:border-emerald-500/30 text-white"
                                         />
                                         {testText && (
                                           <div className={`px-4 py-2 rounded-xl text-xs font-bold font-mono text-right transition-colors ${
@@ -2058,8 +2058,8 @@ export default function Admin() {
               className="space-y-6 md:space-y-8"
             >
               {/* Quick Actions Control Center - Perfect for Mobile */}
-              <section className="bg-white/[0.03] border border-white/10 rounded-[2rem] p-6 shadow-2xl">
-                <h3 className="text-sm font-black text-zinc-500 uppercase tracking-widest mb-6 px-1">التحكم السريع بالسيرفر</h3>
+              <section className="bg-white/[0.03] border border-slate-700/50 rounded-[2rem] p-6 shadow-2xl">
+                <h3 className="text-sm font-black text-slate-500 uppercase tracking-widest mb-6 px-1">التحكم السريع بالسيرفر</h3>
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                    <button 
                      onClick={triggerRefresh}
@@ -2101,23 +2101,23 @@ export default function Admin() {
               </section>
 
               {/* Server Status Hero Card */}
-              <div className="bg-gradient-to-br from-emerald-500/10 to-blue-600/10 border border-white/10 rounded-[2rem] p-6 md:p-8 relative overflow-hidden">
+              <div className="bg-gradient-to-br from-emerald-500/10 to-blue-600/10 border border-slate-700/50 rounded-[2rem] p-6 md:p-8 relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 blur-[100px] rounded-full -mr-32 -mt-32"></div>
                 <div className="relative flex flex-col md:items-center lg:flex-row justify-between gap-6">
                   <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 md:w-16 md:h-16 rounded-2xl bg-white/5 flex items-center justify-center text-emerald-400 border border-white/10 shadow-xl">
+                    <div className="w-14 h-14 md:w-16 md:h-16 rounded-2xl bg-white/5 flex items-center justify-center text-emerald-400 border border-slate-700/50 shadow-xl">
                       <Cpu className="w-7 h-7 md:w-8 md:h-8" />
                     </div>
                     <div>
                       <h2 className="text-lg md:text-2xl font-black text-white mb-1">صحة النظام (Engine Status)</h2>
-                      <p className="text-zinc-500 text-[10px] md:text-sm flex items-center gap-2">
+                      <p className="text-slate-500 text-[10px] md:text-sm flex items-center gap-2">
                         <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                         سيرفر Render نشط ويعمل بكفاءة عالية
                       </p>
                     </div>
                   </div>
-                  <div className="flex flex-col items-start lg:items-end gap-1 bg-black/20 p-4 rounded-2xl border border-white/5 w-full lg:w-auto">
-                    <span className="text-zinc-500 text-[9px] uppercase tracking-widest font-black">وقت التشغيل المتواصل</span>
+                  <div className="flex flex-col items-start lg:items-end gap-1 bg-black/20 p-4 rounded-2xl border border-slate-800/60 w-full lg:w-auto">
+                    <span className="text-slate-500 text-[9px] uppercase tracking-widest font-black">وقت التشغيل المتواصل</span>
                     <span className="text-xl md:text-3xl font-black text-white font-mono tracking-tighter tabular-nums">{uptimeDisplay || "..."}</span>
                     <div className="flex items-center gap-2 mt-1">
                        <Clock className="w-3 h-3 text-zinc-600" />
@@ -2134,34 +2134,34 @@ export default function Admin() {
                   { label: "الأصول", value: stats?.termsCount || 0, icon: Layers, color: "purple" },
                   { label: "الذاكرة", value: stats?.memoryUsage ? (stats.memoryUsage.heapUsed / 1024 / 1024).toFixed(0) + "MB" : "---", icon: Zap, color: "amber" }
                 ].map((stat, i) => (
-                  <div key={i} className="bg-white/[0.02] border border-white/5 rounded-[2rem] p-6 relative overflow-hidden group hover:bg-white/[0.04] transition-all">
+                  <div key={i} className="bg-white/[0.02] border border-slate-800/60 rounded-[2rem] p-6 relative overflow-hidden group hover:bg-white/[0.04] transition-all">
                     <div className="flex items-center justify-between mb-4">
                       <div className={`w-10 h-10 rounded-xl bg-${stat.color}-500/10 flex items-center justify-center text-${stat.color}-400 border border-${stat.color}-500/20 shadow-lg`}>
                         <stat.icon className="w-5 h-5" />
                       </div>
                       <div className={`w-1.5 h-1.5 rounded-full bg-${stat.color}-500 animate-pulse`}></div>
                     </div>
-                    <p className="text-zinc-500 text-[11px] font-black uppercase tracking-wider mb-1">{stat.label}</p>
+                    <p className="text-slate-500 text-[11px] font-black uppercase tracking-wider mb-1">{stat.label}</p>
                     <h3 className="text-2xl md:text-3xl font-black text-white font-mono">{stat.value}</h3>
                   </div>
                 ))}
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
-                <section className="bg-white/[0.02] border border-white/5 rounded-[2rem] p-6 md:p-8">
+                <section className="bg-white/[0.02] border border-slate-800/60 rounded-[2rem] p-6 md:p-8">
                   <h2 className="text-lg md:text-xl font-black mb-6 md:mb-8 flex items-center gap-3">
                     <Zap className="w-5 h-5 md:w-6 md:h-6 text-emerald-400" />
                     كفاءة النظام (Performance)
                   </h2>
                   <div className="space-y-6">
-                    <div className="p-5 rounded-2xl bg-white/[0.03] border border-white/5">
+                    <div className="p-5 rounded-2xl bg-white/[0.03] border border-slate-800/60">
                       <div className="flex justify-between items-center mb-4">
-                        <span className="text-zinc-500 text-xs md:text-sm">استهلاك الذاكرة (Memory)</span>
+                        <span className="text-slate-500 text-xs md:text-sm">استهلاك الذاكرة (Memory)</span>
                         <span className="text-white text-xs md:text-sm font-mono font-bold">
                           {stats?.memoryUsage ? (stats.memoryUsage.heapUsed / 1024 / 1024).toFixed(1) : 0} MB
                         </span>
                       </div>
-                      <div className="w-full h-2 bg-zinc-800 rounded-full overflow-hidden">
+                      <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
                         <motion.div 
                           initial={{ width: 0 }}
                           animate={{ width: stats?.memoryUsage ? `${(stats.memoryUsage.heapUsed / stats.memoryUsage.heapTotal) * 100}%` : 0 }}
@@ -2170,9 +2170,9 @@ export default function Admin() {
                       </div>
                     </div>
 
-                    <div className="p-5 rounded-2xl bg-white/[0.03] border border-white/5">
+                    <div className="p-5 rounded-2xl bg-white/[0.03] border border-slate-800/60">
                       <div className="flex justify-between items-center mb-2">
-                        <span className="text-zinc-500 text-xs md:text-sm">حالة آخر تحديث تلقائي</span>
+                        <span className="text-slate-500 text-xs md:text-sm">حالة آخر تحديث تلقائي</span>
                         <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md ${stats && stats.minutesSinceLastScrape > 720 ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'}`}>
                            {stats && stats.minutesSinceLastScrape > 720 ? 'Stale' : 'Active'}
                         </span>
@@ -2189,7 +2189,7 @@ export default function Admin() {
 
                 {/* Database Stats */}
                 {stats?.dbStats && (
-                  <section className="bg-[#0a0a0a] border border-white/10 rounded-[2.5rem] p-6 md:p-8 shadow-2xl relative overflow-hidden">
+                  <section className="glass-panel-heavy premium-border border border-slate-700/50 rounded-[2.5rem] p-6 md:p-8 shadow-2xl relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 blur-[80px] rounded-full pointer-events-none"></div>
                     <div className="relative">
                       <h2 className="text-lg md:text-xl font-black flex items-center gap-3 text-white mb-6 md:mb-8">
@@ -2198,32 +2198,32 @@ export default function Admin() {
                       </h2>
                       
                       <div className="grid grid-cols-2 gap-4 md:gap-6">
-                        <div className="bg-white/[0.02] border border-white/5 p-4 md:p-6 rounded-3xl">
-                          <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-black mb-2">سجلات الأسعار</p>
+                        <div className="bg-white/[0.02] border border-slate-800/60 p-4 md:p-6 rounded-3xl">
+                          <p className="text-[10px] text-slate-500 uppercase tracking-widest font-black mb-2">سجلات الأسعار</p>
                           <p className="text-xl md:text-2xl font-black text-white font-mono">{stats.dbStats.parallelRatesCount.toLocaleString()}</p>
                         </div>
-                        <div className="bg-white/[0.02] border border-white/5 p-4 md:p-6 rounded-3xl">
-                          <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-black mb-2">السعر الرسمي</p>
+                        <div className="bg-white/[0.02] border border-slate-800/60 p-4 md:p-6 rounded-3xl">
+                          <p className="text-[10px] text-slate-500 uppercase tracking-widest font-black mb-2">السعر الرسمي</p>
                           <p className="text-xl md:text-2xl font-black text-white font-mono">{stats.dbStats.officialRatesCount.toLocaleString()}</p>
                         </div>
-                        <div className="bg-white/[0.02] border border-white/5 p-4 md:p-6 rounded-3xl">
-                          <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-black mb-2">سجل التغيرات</p>
+                        <div className="bg-white/[0.02] border border-slate-800/60 p-4 md:p-6 rounded-3xl">
+                          <p className="text-[10px] text-slate-500 uppercase tracking-widest font-black mb-2">سجل التغيرات</p>
                           <p className="text-xl md:text-2xl font-black text-blue-400 font-mono">{stats.dbStats.priceChangesCount.toLocaleString()}</p>
                         </div>
-                        <div className="bg-white/[0.02] border border-white/5 p-4 md:p-6 rounded-3xl">
-                          <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-black mb-2">سجلات الأخطاء</p>
+                        <div className="bg-white/[0.02] border border-slate-800/60 p-4 md:p-6 rounded-3xl">
+                          <p className="text-[10px] text-slate-500 uppercase tracking-widest font-black mb-2">سجلات الأخطاء</p>
                           <p className="text-xl md:text-2xl font-black text-rose-400 font-mono">{stats.dbStats.errorLogsCount.toLocaleString()}</p>
                         </div>
                       </div>
 
-                      <div className="mt-6 md:mt-8 pt-6 md:pt-8 border-t border-white/5">
+                      <div className="mt-6 md:mt-8 pt-6 md:pt-8 border-t border-slate-800/60">
                         <button 
                           onClick={handleCleanup}
                           disabled={loading}
                           className={`w-full py-3 md:py-4 rounded-2xl font-black flex items-center justify-center gap-2 transition-all text-xs md:text-sm ${
                             confirmCleanup 
                               ? 'bg-rose-500 text-black shadow-lg shadow-rose-500/20' 
-                              : 'bg-white/5 text-zinc-400 hover:text-white border border-white/5'
+                              : 'bg-white/5 text-slate-400 hover:text-white border border-slate-800/60'
                           }`}
                         >
                           <Trash2 className="w-4 h-4 md:w-5 h-5" />
@@ -2250,14 +2250,14 @@ export default function Admin() {
               exit={{ opacity: 0, y: -10 }}
               className="space-y-6"
             >
-              <section className="bg-[#0a0a0a] border border-white/10 rounded-[2.5rem] overflow-hidden shadow-2xl">
-                <div className="p-8 border-b border-white/5 flex items-center justify-between">
+              <section className="glass-panel-heavy premium-border border border-slate-700/50 rounded-[2.5rem] overflow-hidden shadow-2xl">
+                <div className="p-8 border-b border-slate-800/60 flex items-center justify-between">
                   <div>
                     <h2 className="text-xl font-black flex items-center gap-3 text-blue-400">
                       <HistoryIcon className="w-6 h-6" />
                       سجل التغيرات
                     </h2>
-                    <p className="text-sm text-zinc-500 mt-1">يعرض أحدث التغيرات في الأسعار مع ذكر المصادر</p>
+                    <p className="text-sm text-slate-500 mt-1">يعرض أحدث التغيرات في الأسعار مع ذكر المصادر</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <button 
@@ -2273,7 +2273,7 @@ export default function Admin() {
                     </button>
                     <button 
                       onClick={fetchRecentChanges}
-                      className="p-3 rounded-xl bg-white/5 text-zinc-400 hover:text-white transition-all border border-white/5"
+                      className="p-3 rounded-xl bg-white/5 text-slate-400 hover:text-white transition-all border border-slate-800/60"
                     >
                       <RefreshCw className="w-5 h-5" />
                     </button>
@@ -2289,7 +2289,7 @@ export default function Admin() {
                   ) : (
                     <div className="space-y-4">
                       {recentChanges.map((change, i) => (
-                        <div key={change.id || i} className="border border-white/5 bg-white/[0.02] p-5 rounded-2xl hover:bg-white/[0.04] transition-all flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div key={change.id || i} className="border border-slate-800/60 bg-white/[0.02] p-5 rounded-2xl hover:bg-white/[0.04] transition-all flex flex-col md:flex-row md:items-center justify-between gap-4">
                           <div className="flex items-center gap-4">
                             <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center border border-blue-500/20 shrink-0">
                               <TrendingUp className="w-6 h-6 text-blue-400" />
@@ -2297,10 +2297,10 @@ export default function Admin() {
                             <div>
                               <div className="flex items-center gap-2 mb-1">
                                 <span className="text-white font-bold text-lg">{change.currencyName}</span>
-                                <span className="text-xs font-mono px-2 py-0.5 bg-white/10 rounded-md text-zinc-400">{change.currencyCode}</span>
+                                <span className="text-xs font-mono px-2 py-0.5 bg-white/10 rounded-md text-slate-400">{change.currencyCode}</span>
                               </div>
                               <div className="flex items-center gap-2 text-sm">
-                                <span className="text-zinc-500 line-through">{change.oldPrice}</span>
+                                <span className="text-slate-500 line-through">{change.oldPrice}</span>
                                 <ArrowLeftRight className="w-3 h-3 text-zinc-600" />
                                 <span className={`font-black ${change.newPrice > change.oldPrice ? 'text-emerald-400' : 'text-rose-400'}`}>
                                   {change.newPrice}
@@ -2309,13 +2309,13 @@ export default function Admin() {
                             </div>
                           </div>
                           
-                          <div className="flex flex-col md:items-end gap-2 border-t md:border-t-0 md:border-r border-white/5 pt-4 md:pt-0 md:pr-6">
-                            <div className="flex items-center gap-2 text-xs text-zinc-400 bg-black/40 px-3 py-1.5 rounded-lg border border-white/5">
+                          <div className="flex flex-col md:items-end gap-2 border-t md:border-t-0 md:border-r border-slate-800/60 pt-4 md:pt-0 md:pr-6">
+                            <div className="flex items-center gap-2 text-xs text-slate-400 bg-black/40 px-3 py-1.5 rounded-lg border border-slate-800/60">
                               <Globe className="w-3 h-3 text-blue-400" />
                               <span className="truncate max-w-[150px] md:max-w-[200px]" dir="ltr">{change.source}</span>
                             </div>
                             <div className="flex flex-col md:items-end gap-1">
-                              <div className="flex items-center gap-1 text-[11px] text-zinc-500 font-mono" dir="ltr">
+                              <div className="flex items-center gap-1 text-[11px] text-slate-500 font-mono" dir="ltr">
                                 {format(new Date(change.timestamp), "yyyy-MM-dd HH:mm:ss")}
                               </div>
                               <div className="flex items-center gap-1 text-[11px] font-medium text-emerald-500/70">
@@ -2341,15 +2341,15 @@ export default function Admin() {
               exit={{ opacity: 0, y: -10 }}
               className="space-y-6"
             >
-              <section className="bg-[#0a0a0a] border border-white/10 rounded-[2.5rem] overflow-hidden shadow-2xl">
-                <div className="p-8 border-b border-white/5 flex items-center justify-between">
+              <section className="glass-panel-heavy premium-border border border-slate-700/50 rounded-[2.5rem] overflow-hidden shadow-2xl">
+                <div className="p-8 border-b border-slate-800/60 flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center">
                       <Mail className="w-6 h-6 text-emerald-400" />
                     </div>
                     <div>
                       <h2 className="text-xl font-black text-white mb-1">البريد الوارد</h2>
-                      <p className="text-sm text-zinc-400">إدارة رسائل واستفسارات المستخدمين</p>
+                      <p className="text-sm text-slate-400">إدارة رسائل واستفسارات المستخدمين</p>
                     </div>
                   </div>
                   <button
@@ -2363,31 +2363,31 @@ export default function Admin() {
 
                 <div className="p-8">
                   {messages.length === 0 ? (
-                    <div className="text-center py-12 text-zinc-500">
+                    <div className="text-center py-12 text-slate-500">
                       <Mail className="w-12 h-12 mx-auto mb-4 opacity-20" />
                       <p>لا توجد رسائل واردة</p>
                     </div>
                   ) : (
                     <div className="space-y-4">
                       {messages.map(msg => (
-                        <div key={msg.id} className={`p-6 rounded-2xl border transition-all ${msg.status === 'new' ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-white/5 border-white/10'}`}>
+                        <div key={msg.id} className={`p-6 rounded-2xl border transition-all ${msg.status === 'new' ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-white/5 border-slate-700/50'}`}>
                           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
                             <div className="flex items-center gap-3">
                               <div className={`w-3 h-3 rounded-full ${msg.status === 'new' ? 'bg-emerald-500 animate-pulse' : msg.status === 'replied' ? 'bg-blue-500' : 'bg-zinc-500'}`} />
                               <div>
                                 <h3 className="font-bold text-white">{msg.email}</h3>
-                                <p className="text-xs text-zinc-400" dir="ltr">{msg.phone}</p>
+                                <p className="text-xs text-slate-400" dir="ltr">{msg.phone}</p>
                               </div>
                             </div>
                             <div className="flex items-center gap-2">
-                              <span className="text-xs text-zinc-500">
+                              <span className="text-xs text-slate-500">
                                 {formatDistanceToNow(new Date(msg.created_at), { addSuffix: true, locale: ar })}
                               </span>
                               <div className="h-4 w-px bg-white/10 mx-2"></div>
                               <select
                                 value={msg.status}
                                 onChange={(e) => handleUpdateMessageStatus(msg.id, e.target.value)}
-                                className="bg-black/50 border border-white/10 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-emerald-500"
+                                className="bg-black/50 border border-slate-700/50 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-emerald-500"
                               >
                                 <option value="new">جديدة</option>
                                 <option value="read">مقروءة</option>
@@ -2402,7 +2402,7 @@ export default function Admin() {
                               </button>
                             </div>
                           </div>
-                          <div className="bg-black/30 rounded-xl p-4 text-sm text-zinc-300 leading-relaxed whitespace-pre-wrap">
+                          <div className="bg-black/30 rounded-xl p-4 text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">
                             {msg.message}
                           </div>
                           <div className="mt-4 flex items-center gap-3">
@@ -2441,7 +2441,7 @@ export default function Admin() {
               className="space-y-6"
             >
               {/* Analytics Dashboard Header */}
-              <div className="bg-black/40 backdrop-blur-md rounded-3xl border border-white/10 p-6 md:p-8 overflow-hidden relative">
+              <div className="bg-black/40 backdrop-blur-md rounded-3xl border border-slate-700/50 p-6 md:p-8 overflow-hidden relative">
                 <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-[80px] -mr-32 -mt-32 pointer-events-none" />
                 
                 <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 relative z-10">
@@ -2457,8 +2457,8 @@ export default function Admin() {
                           {userLogs.filter(l => l.status === 'online').length} مباشر
                         </span>
                       </h2>
-                      <p className="text-sm text-zinc-400 mt-1">
-                        نظام إحصائيات متقدم لتتبع الزيارات، الأجهزة، المتصفحات، وأنظمة التشغيل بدقة عالية.
+                      <p className="text-sm text-slate-400 mt-1">
+                        نظام إحصائيات متقدم محمي بالذكاء الاصطناعي ضد الروبوتات (مفلتر بنسبة 100% من روبوتات فيسبوك، تيليجرام وغيرها لضمان أقصى دقة).
                       </p>
                     </div>
                   </div>
@@ -2467,7 +2467,7 @@ export default function Admin() {
                     <select 
                       value={analyticsDays}
                       onChange={(e) => setAnalyticsDays(parseInt(e.target.value))}
-                      className="px-4 py-2.5 bg-black/50 border border-white/10 rounded-xl text-white font-medium focus:outline-none focus:border-emerald-500/50"
+                      className="px-4 py-2.5 bg-black/50 border border-slate-700/50 rounded-xl text-white font-medium focus:outline-none focus:border-emerald-500/50"
                     >
                       <option value="1">آخر 24 ساعة</option>
                       <option value="7">آخر 7 أيام</option>
@@ -2487,7 +2487,7 @@ export default function Admin() {
               {analyticsData && (
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                   {/* Main Trend Chart */}
-                  <div className="lg:col-span-2 bg-black/40 border border-white/10 rounded-3xl p-6">
+                  <div className="lg:col-span-2 bg-black/40 border border-slate-700/50 rounded-3xl p-6">
                     <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
                       <LineChart className="w-5 h-5 text-emerald-400" />
                       الزيارات والزوار (أخر {analyticsDays} أيام)
@@ -2532,13 +2532,13 @@ export default function Admin() {
                   </div>
                   
                   {/* Device Types Pie/Bar */}
-                  <div className="bg-black/40 border border-white/10 rounded-3xl p-6">
+                  <div className="bg-black/40 border border-slate-700/50 rounded-3xl p-6">
                      <h3 className="text-lg font-bold text-white mb-6">أنواع الأجهزة</h3>
                      <div className="space-y-4">
                        {Object.entries(analyticsData.deviceTypes).sort((a:any, b:any) => b[1] - a[1]).map(([device, count]: any) => (
                          <div key={device}>
                            <div className="flex justify-between text-sm mb-2">
-                             <span className="text-zinc-300">{device === 'Mobile' ? 'هاتف ذكي' : device === 'Desktop' ? 'حاسوب' : device === 'Tablet' ? 'جهاز لوحي' : 'بوتات وبرمجيات'}</span>
+                             <span className="text-slate-300">{device === 'Mobile' ? 'هاتف ذكي' : device === 'Desktop' ? 'حاسوب' : device === 'Tablet' ? 'جهاز لوحي' : 'بوتات وبرمجيات'}</span>
                              <span className="font-bold text-white">{count}</span>
                            </div>
                            <div className="w-full bg-white/5 rounded-full h-2">
@@ -2550,13 +2550,13 @@ export default function Admin() {
                   </div>
 
                   {/* Top Browsers */}
-                  <div className="bg-black/40 border border-white/10 rounded-3xl p-6">
+                  <div className="bg-black/40 border border-slate-700/50 rounded-3xl p-6">
                      <h3 className="text-lg font-bold text-white mb-6">المتصفحات</h3>
                      <div className="space-y-4">
                        {Object.entries(analyticsData.browsers).sort((a:any, b:any) => b[1] - a[1]).slice(0, 5).map(([browser, count]: any) => (
                          <div key={browser}>
                            <div className="flex justify-between text-sm mb-2">
-                             <span className="text-zinc-300">{browser}</span>
+                             <span className="text-slate-300">{browser}</span>
                              <span className="font-bold text-white">{count}</span>
                            </div>
                            <div className="w-full bg-white/5 rounded-full h-2">
@@ -2568,13 +2568,13 @@ export default function Admin() {
                   </div>
 
                   {/* Top OS */}
-                  <div className="bg-black/40 border border-white/10 rounded-3xl p-6">
+                  <div className="bg-black/40 border border-slate-700/50 rounded-3xl p-6">
                      <h3 className="text-lg font-bold text-white mb-6">أنظمة التشغيل</h3>
                      <div className="space-y-4">
                        {Object.entries(analyticsData.os).sort((a:any, b:any) => b[1] - a[1]).slice(0, 5).map(([os, count]: any) => (
                          <div key={os}>
                            <div className="flex justify-between text-sm mb-2">
-                             <span className="text-zinc-300">{os}</span>
+                             <span className="text-slate-300">{os}</span>
                              <span className="font-bold text-white">{count}</span>
                            </div>
                            <div className="w-full bg-white/5 rounded-full h-2">
@@ -2588,7 +2588,7 @@ export default function Admin() {
               )}
 
               {/* Title for Realtime Logs */}
-              <div className="flex items-center gap-3 pt-6 border-t border-white/10">
+              <div className="flex items-center gap-3 pt-6 border-t border-slate-700/50">
                  <Radio className="w-5 h-5 text-red-500 animate-pulse" />
                  <h3 className="text-xl font-bold text-white">سجل الزوار المباشر (Real-time Live Logs)</h3>
               </div>
@@ -2597,23 +2597,23 @@ export default function Admin() {
               {/* Grid of Visitors */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {userLogs.length === 0 ? (
-                  <div className="col-span-full py-20 text-center bg-white/[0.02] border border-white/5 rounded-3xl">
+                  <div className="col-span-full py-20 text-center bg-white/[0.02] border border-slate-800/60 rounded-3xl">
                     <div className="flex flex-col items-center gap-4">
                       <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center">
-                        <Users className="w-8 h-8 text-zinc-500" />
+                        <Users className="w-8 h-8 text-slate-500" />
                       </div>
-                      <p className="text-zinc-500 font-bold">لا يوجد زوار مسجلين حالياً</p>
+                      <p className="text-slate-500 font-bold">لا يوجد زوار مسجلين حالياً</p>
                     </div>
                   </div>
                 ) : (
                   userLogs.map((log: any, idx: number) => (
-                    <div key={idx} className="bg-white/[0.02] border border-white/5 rounded-3xl p-5 hover:bg-white/[0.04] transition-colors relative overflow-hidden group">
+                    <div key={idx} className="bg-white/[0.02] border border-slate-800/60 rounded-3xl p-5 hover:bg-white/[0.04] transition-colors relative overflow-hidden group">
                        <div className={`absolute top-0 right-0 w-32 h-32 rounded-full blur-[60px] -mr-16 -mt-16 transition-all pointer-events-none ${log.isOnline ? 'bg-emerald-500/10 group-hover:bg-emerald-500/20' : 'bg-blue-500/5 group-hover:bg-blue-500/10'}`}></div>
                        
                        {/* Header: IP + Status */}
                        <div className="flex items-start justify-between mb-5 relative z-10">
                           <div className="flex items-center gap-3">
-                             <div className={`relative flex items-center justify-center w-12 h-12 rounded-2xl border ${log.isOnline ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-white/5 border-white/10 text-zinc-400'}`}>
+                             <div className={`relative flex items-center justify-center w-12 h-12 rounded-2xl border ${log.isOnline ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-white/5 border-slate-700/50 text-slate-400'}`}>
                                 {log.deviceType === 'Mobile' ? <Smartphone className="w-6 h-6" /> : log.deviceType === 'Tablet' ? <Layout className="w-6 h-6" /> : <Monitor className="w-6 h-6" />}
                                 {log.isOnline && (
                                    <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 border-[3px] border-[#0a0a0a]"></span>
@@ -2621,42 +2621,42 @@ export default function Admin() {
                              </div>
                              <div>
                                 <span className="text-white font-mono font-bold text-[13px] block">{log.ip}</span>
-                                <span className={`text-[9px] font-black uppercase tracking-widest ${log.isOnline ? 'text-emerald-500' : 'text-zinc-500'}`}>{log.isOnline ? 'متصل الآن' : 'غير متصل'}</span>
+                                <span className={`text-[9px] font-black uppercase tracking-widest ${log.isOnline ? 'text-emerald-500' : 'text-slate-500'}`}>{log.isOnline ? 'متصل الآن' : 'غير متصل'}</span>
                              </div>
                           </div>
                           <div className="flex flex-col items-end">
-                             <span className="text-[10px] font-black text-white bg-white/10 px-2.5 py-1 rounded-lg border border-white/10">{log.visits || 1} زيارة</span>
+                             <span className="text-[10px] font-black text-white bg-white/10 px-2.5 py-1 rounded-lg border border-slate-700/50">{log.visits || 1} زيارة</span>
                           </div>
                        </div>
 
                        {/* Body: Location, OS, Browser */}
                        <div className="space-y-2 relative z-10 mb-5">
-                          <div className="flex items-center gap-3 bg-black/40 p-2.5 rounded-xl border border-white/5">
+                          <div className="flex items-center gap-3 bg-black/40 p-2.5 rounded-xl border border-slate-800/60">
                              <MapPin className="w-4 h-4 text-blue-400 shrink-0" />
-                             <span className="text-xs text-zinc-300 font-bold truncate">{log.location || 'غير معروف'}</span>
+                             <span className="text-xs text-slate-300 font-bold truncate">{log.location || 'غير معروف'}</span>
                           </div>
                           
-                          <div className="flex items-center gap-3 bg-black/40 p-2.5 rounded-xl border border-white/5">
+                          <div className="flex items-center gap-3 bg-black/40 p-2.5 rounded-xl border border-slate-800/60">
                              <AppWindow className="w-4 h-4 text-purple-400 shrink-0" />
                              <div className="flex flex-col overflow-hidden">
-                                <span className="text-xs text-zinc-300 font-bold truncate">{log.browser || 'غير معروف'}</span>
-                                <span className="text-[9px] text-zinc-500 font-medium truncate">{log.os || 'غير معروف'} - {log.deviceName || 'جهاز غير معروف'}</span>
+                                <span className="text-xs text-slate-300 font-bold truncate">{log.browser || 'غير معروف'}</span>
+                                <span className="text-[9px] text-slate-500 font-medium truncate">{log.os || 'غير معروف'} - {log.deviceName || 'جهاز غير معروف'}</span>
                              </div>
                           </div>
                        </div>
 
                        {/* Footer: Times */}
-                       <div className="flex items-center justify-between pt-4 border-t border-white/5 relative z-10">
+                       <div className="flex items-center justify-between pt-4 border-t border-slate-800/60 relative z-10">
                           <div className="flex flex-col">
-                             <span className="text-[9px] text-zinc-500 uppercase tracking-widest font-black mb-1">آخر نشاط</span>
-                             <span className="text-[11px] text-zinc-300 font-bold flex items-center gap-1.5">
-                                <Clock className="w-3 h-3 text-zinc-500" />
+                             <span className="text-[9px] text-slate-500 uppercase tracking-widest font-black mb-1">آخر نشاط</span>
+                             <span className="text-[11px] text-slate-300 font-bold flex items-center gap-1.5">
+                                <Clock className="w-3 h-3 text-slate-500" />
                                 <span dir="rtl">{log.last_active ? formatDistanceToNow(new Date(log.last_active), { addSuffix: true, locale: ar }) : 'غير محدد'}</span>
                              </span>
                           </div>
                           <div className="flex flex-col items-end">
-                             <span className="text-[9px] text-zinc-500 uppercase tracking-widest font-black mb-1">أول زيارة</span>
-                             <span className="text-[10px] text-zinc-400 font-mono font-bold">
+                             <span className="text-[9px] text-slate-500 uppercase tracking-widest font-black mb-1">أول زيارة</span>
+                             <span className="text-[10px] text-slate-400 font-mono font-bold">
                                 {log.firstVisit ? format(new Date(log.firstVisit), 'yyyy/MM/dd') : '---'}
                              </span>
                           </div>
@@ -2681,7 +2681,7 @@ export default function Admin() {
                     <Terminal className="w-8 h-8 text-blue-400" />
                     تقرير حالة النظام
                   </h2>
-                  <p className="text-sm text-zinc-400 mt-2">عرض تقرير تشخيصي شامل لحالة الخوادم وقواعد البيانات والأخطاء</p>
+                  <p className="text-sm text-slate-400 mt-2">عرض تقرير تشخيصي شامل لحالة الخوادم وقواعد البيانات والأخطاء</p>
                 </div>
                 <button 
                   onClick={async () => {
@@ -2701,18 +2701,18 @@ export default function Admin() {
               </div>
 
               {systemReport ? (
-                <div className="bg-[#0a0a0a] border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
-                  <div className="flex items-center justify-between p-4 border-b border-white/5 bg-white/5">
+                <div className="glass-panel-heavy premium-border border border-slate-700/50 rounded-3xl overflow-hidden shadow-2xl">
+                  <div className="flex items-center justify-between p-4 border-b border-slate-800/60 bg-white/5">
                     <div className="flex items-center gap-2">
                       <div className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></div>
-                      <span className="text-xs font-mono text-zinc-400">REPORT_GENERATED_AT: {systemReport.generated_at}</span>
+                      <span className="text-xs font-mono text-slate-400">REPORT_GENERATED_AT: {systemReport.generated_at}</span>
                     </div>
                     <button 
                       onClick={() => {
                         navigator.clipboard.writeText(JSON.stringify(systemReport, null, 2));
                         alert('تم نسخ التقرير بنجاح!');
                       }}
-                      className="flex items-center gap-2 text-xs font-bold text-zinc-400 hover:text-white bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-xl transition-all"
+                      className="flex items-center gap-2 text-xs font-bold text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-xl transition-all"
                     >
                       <Copy className="w-4 h-4" />
                       نسخ JSON
@@ -2725,10 +2725,10 @@ export default function Admin() {
                   </div>
                 </div>
               ) : (
-                <div className="text-center py-20 bg-[#0a0a0a] rounded-3xl border border-white/5 border-dashed">
+                <div className="text-center py-20 glass-panel-heavy premium-border rounded-3xl border border-slate-800/60 border-dashed">
                   <Terminal className="w-16 h-16 text-zinc-800 mx-auto mb-4" />
                   <h3 className="text-xl font-bold text-white mb-2">لا يوجد تقرير حالياً</h3>
-                  <p className="text-zinc-500 text-sm">اضغط على زر تحديث التقرير في الأعلى لجلب البيانات</p>
+                  <p className="text-slate-500 text-sm">اضغط على زر تحديث التقرير في الأعلى لجلب البيانات</p>
                 </div>
               )}
             </motion.div>
@@ -2741,14 +2741,14 @@ export default function Admin() {
               exit={{ opacity: 0, y: -10 }}
               className="space-y-6"
             >
-              <section className="bg-[#0a0a0a] border border-white/10 rounded-[2.5rem] overflow-hidden shadow-2xl">
-                <div className="p-8 border-b border-white/5 flex items-center justify-between">
+              <section className="glass-panel-heavy premium-border border border-slate-700/50 rounded-[2.5rem] overflow-hidden shadow-2xl">
+                <div className="p-8 border-b border-slate-800/60 flex items-center justify-between">
                   <div>
                     <h2 className="text-xl font-black flex items-center gap-3 text-rose-400">
                       <Terminal className="w-6 h-6" />
                       سجلات النظام (Console Logs)
                     </h2>
-                    <p className="text-sm text-zinc-500 mt-1">آخر 20 رسالة خطأ أو تحذير من السيرفر والمستخدمين</p>
+                    <p className="text-sm text-slate-500 mt-1">آخر 20 رسالة خطأ أو تحذير من السيرفر والمستخدمين</p>
                   </div>
                   <div className="flex items-center gap-3">
                     <button 
@@ -2776,7 +2776,7 @@ export default function Admin() {
                     </button>
                     <button 
                       onClick={fetchLogs}
-                      className="p-3 rounded-xl bg-white/5 text-zinc-400 hover:text-white transition-all border border-white/5"
+                      className="p-3 rounded-xl bg-white/5 text-slate-400 hover:text-white transition-all border border-slate-800/60"
                     >
                       <RefreshCw className="w-5 h-5" />
                     </button>
@@ -2792,12 +2792,12 @@ export default function Admin() {
                   ) : (
                     <div className="space-y-4">
                       {logs.map((log, i) => (
-                        <div key={i} className="border-b border-white/5 pb-4 last:border-0 hover:bg-white/[0.02] p-4 rounded-2xl transition-all">
+                        <div key={i} className="border-b border-slate-800/60 pb-4 last:border-0 hover:bg-white/[0.02] p-4 rounded-2xl transition-all">
                           <div className="flex items-start justify-between mb-2">
                             <span className="text-rose-500 font-black text-xs uppercase px-2 py-0.5 bg-rose-500/10 rounded">Error</span>
                             <span className="text-zinc-600 text-[10px]">{log.created_at ? format(new Date(log.created_at), "yyyy-MM-dd HH:mm:ss") : "---"}</span>
                           </div>
-                          <p className="text-zinc-200 font-bold mb-1 selection:bg-rose-500/30">{log.message || "Unknown error"}</p>
+                          <p className="text-slate-200 font-bold mb-1 selection:bg-rose-500/30">{log.message || "Unknown error"}</p>
                           <div className="flex flex-wrap gap-x-6 gap-y-2 mt-2">
                              <div className="flex flex-col">
                                <span className="text-[10px] text-zinc-600 uppercase">Context</span>
@@ -2812,11 +2812,11 @@ export default function Admin() {
                           </div>
                           {log.stack && (
                              <details className="mt-4 group">
-                               <summary className="text-[10px] text-zinc-700 cursor-pointer hover:text-zinc-400 transition-colors uppercase tracking-widest font-black list-none flex items-center gap-2">
+                               <summary className="text-[10px] text-zinc-700 cursor-pointer hover:text-slate-400 transition-colors uppercase tracking-widest font-black list-none flex items-center gap-2">
                                  <ChevronDown className="w-3 h-3 group-open:rotate-180 transition-transform" />
                                  Show Stack Trace
                                </summary>
-                               <pre className="mt-3 p-4 bg-black/60 rounded-xl border border-white/5 text-[10px] text-zinc-500 overflow-x-auto selection:bg-rose-500/20">
+                               <pre className="mt-3 p-4 bg-black/60 rounded-xl border border-slate-800/60 text-[10px] text-slate-500 overflow-x-auto selection:bg-rose-500/20">
                                  {log.stack}
                                </pre>
                              </details>
@@ -2839,7 +2839,7 @@ export default function Admin() {
               className="space-y-6"
             >
               {/* Header */}
-              <section className="bg-white/[0.02] border border-white/5 rounded-[2rem] p-6 md:p-8 relative overflow-hidden">
+              <section className="bg-white/[0.02] border border-slate-800/60 rounded-[2rem] p-6 md:p-8 relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-500/5 blur-[100px] rounded-full pointer-events-none"></div>
                 <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-500/5 blur-[80px] rounded-full pointer-events-none"></div>
                 
@@ -2849,7 +2849,7 @@ export default function Admin() {
                   </div>
                   <div className="flex-1">
                     <h2 className="text-2xl font-black text-white mb-1">استخراج الأسعار من النصوص</h2>
-                    <p className="text-sm text-zinc-500 leading-relaxed">
+                    <p className="text-sm text-slate-500 leading-relaxed">
                       الصق رسالة السوق هنا، وسيقوم النظام بقراءة وتحليل جميع الأسعار تلقائياً واستخراج <span className="text-emerald-400 font-bold">سعر البيع</span> (الرقم الثاني) لكل عملة.
                     </p>
                   </div>
@@ -2861,13 +2861,13 @@ export default function Admin() {
                     value={aiText}
                     onChange={(e) => setAiText(e.target.value)}
                     placeholder={`الصق رسالة السوق هنا... مثال:\nUSD دولار 10.2800 10.2775 down\njbank صكوك الجمهورية 11.1800 11.1775 fixed\nدينار حوالة دبي 10.1700 10.1675 down`}
-                    className="w-full h-48 bg-black/40 border border-white/10 rounded-2xl p-5 text-sm text-white focus:outline-none focus:border-emerald-500/40 focus:ring-1 focus:ring-emerald-500/20 transition-all resize-none font-mono leading-relaxed placeholder:text-zinc-700 placeholder:font-sans"
+                    className="w-full h-48 bg-black/40 border border-slate-700/50 rounded-2xl p-5 text-sm text-white focus:outline-none focus:border-emerald-500/40 focus:ring-1 focus:ring-emerald-500/20 transition-all resize-none font-mono leading-relaxed placeholder:text-zinc-700 placeholder:font-sans"
                     dir="auto"
                   />
                   {aiText && (
                     <button
                       onClick={() => { setAiText(''); setExtractedRates(null); }}
-                      className="absolute top-3 left-3 w-7 h-7 rounded-full bg-white/5 hover:bg-white/10 transition-all flex items-center justify-center text-zinc-500 hover:text-white"
+                      className="absolute top-3 left-3 w-7 h-7 rounded-full bg-white/5 hover:bg-white/10 transition-all flex items-center justify-center text-slate-500 hover:text-white"
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
@@ -2913,7 +2913,7 @@ export default function Admin() {
                   </button>
                 </div>
                 
-                <label className="flex items-center gap-2 cursor-pointer text-sm text-zinc-300 hover:text-white transition-colors mt-4">
+                <label className="flex items-center gap-2 cursor-pointer text-sm text-slate-300 hover:text-white transition-colors mt-4">
                   <input
                     type="checkbox"
                     className="w-4 h-4 rounded accent-emerald-500"
@@ -2931,10 +2931,10 @@ export default function Admin() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -20 }}
-                    className="bg-white/[0.02] border border-white/5 rounded-[2rem] overflow-hidden"
+                    className="bg-white/[0.02] border border-slate-800/60 rounded-[2rem] overflow-hidden"
                   >
                     {/* Table Header */}
-                    <div className="p-6 border-b border-white/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div className="p-6 border-b border-slate-800/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                       <div>
                         <h3 className="text-lg font-black text-white flex items-center gap-3">
                           <CheckCircle2 className="w-5 h-5 text-emerald-400" />
@@ -2948,7 +2948,7 @@ export default function Admin() {
                       
                       {/* Select All */}
                       <div className="flex items-center gap-3">
-                        <label className="flex items-center gap-2 cursor-pointer text-sm text-zinc-400 hover:text-white transition-colors">
+                        <label className="flex items-center gap-2 cursor-pointer text-sm text-slate-400 hover:text-white transition-colors">
                           <input
                             type="checkbox"
                             className="w-4 h-4 rounded accent-emerald-500"
@@ -2971,7 +2971,7 @@ export default function Admin() {
                     <div className="overflow-x-auto">
                       <table className="w-full">
                         <thead>
-                          <tr className="border-b border-white/5 text-[10px] text-zinc-600 font-black uppercase tracking-widest">
+                          <tr className="border-b border-slate-800/60 text-[10px] text-zinc-600 font-black uppercase tracking-widest">
                             <th className="p-4 text-right">✓</th>
                             <th className="p-4 text-right">العملة</th>
                             <th className="p-4 text-center">السعر الحالي (ق.البيانات)</th>
@@ -3015,7 +3015,7 @@ export default function Admin() {
                                   {/* Currency Info */}
                                   <td className="p-4">
                                     <div className="flex items-center gap-3">
-                                      <div className="w-9 h-9 rounded-xl overflow-hidden border border-white/10 shrink-0">
+                                      <div className="w-9 h-9 rounded-xl overflow-hidden border border-slate-700/50 shrink-0">
                                         <FlagIcon flagCode={term?.flag} name={term?.name || key} className="w-9 h-9" fallbackType="coins" />
                                       </div>
                                       <div>
@@ -3027,7 +3027,7 @@ export default function Admin() {
 
                                   {/* Current Price */}
                                   <td className="p-4 text-center">
-                                    <span className="font-mono text-zinc-400 text-sm">
+                                    <span className="font-mono text-slate-400 text-sm">
                                       {currentVal > 0 ? currentVal.toFixed(4) : <span className="text-zinc-700">—</span>}
                                     </span>
                                   </td>
@@ -3050,7 +3050,7 @@ export default function Admin() {
 
                                   {/* Last Update Date */}
                                   <td className="p-4 text-center">
-                                    <span className="text-xs text-zinc-500 font-mono">
+                                    <span className="text-xs text-slate-500 font-mono">
                                       {extractedDates && extractedDates[key] ? format(new Date(extractedDates[key]), "yyyy-MM-dd HH:mm") : <span className="text-zinc-700">—</span>}
                                     </span>
                                   </td>
@@ -3061,7 +3061,7 @@ export default function Admin() {
                                       <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-black ${
                                         isUp ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
                                         isDown ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' :
-                                        'bg-zinc-800 text-zinc-500 border border-white/5'
+                                        'bg-slate-800 text-slate-500 border border-slate-800/60'
                                       }`}>
                                         {isUp && <ArrowUpRight className="w-3 h-3" />}
                                         {isDown && <ArrowDownRight className="w-3 h-3" />}
@@ -3080,7 +3080,7 @@ export default function Admin() {
                     </div>
 
                     {/* Approve & Save Button */}
-                    <div className="p-6 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div className="p-6 border-t border-slate-800/60 flex flex-col sm:flex-row items-center justify-between gap-4">
                       <p className="text-xs text-zinc-600">
                         سيتم حفظ <span className="text-white font-bold">{Object.keys(extractedRates).filter(k => !k.startsWith('_skip_') && !(extractedRates as any)[`_skip_${k}`] && !k.startsWith('_')).length}</span> أسعار في قاعدة البيانات
                       </p>
@@ -3124,7 +3124,7 @@ export default function Admin() {
               exit={{ opacity: 0, y: -10 }}
               className="space-y-6"
             >
-              <section className="bg-white/[0.02] border border-white/5 rounded-[2rem] p-6 md:p-8 relative overflow-hidden">
+              <section className="bg-white/[0.02] border border-slate-800/60 rounded-[2rem] p-6 md:p-8 relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/5 blur-[100px] rounded-full pointer-events-none"></div>
                 
                 <div className="flex flex-col md:flex-row items-start md:items-center gap-6 mb-8 relative">
@@ -3133,7 +3133,7 @@ export default function Admin() {
                   </div>
                   <div className="flex-1">
                     <h2 className="text-2xl font-black text-white mb-1">ربط حساب تليجرام (MTProto)</h2>
-                    <p className="text-sm text-zinc-500 leading-relaxed">
+                    <p className="text-sm text-slate-500 leading-relaxed">
                       قم بربط حساب تليجرام الخاص بك لتجاوز حظر الكاشط (Anti-bot) وجلب الأسعار بسرعة وموثوقية عالية.
                     </p>
                   </div>
@@ -3178,11 +3178,11 @@ export default function Admin() {
                 {/* Auto Post Settings */}
                 <div className="mt-8 space-y-6">
                   <h3 className="text-xl font-bold text-white mb-4">إعدادات النشر التلقائي عبر تيليجرام</h3>
-                  <div className="bg-black/20 border border-white/5 rounded-2xl p-6 space-y-4">
+                  <div className="bg-black/20 border border-slate-800/60 rounded-2xl p-6 space-y-4">
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-white font-bold">النشر التلقائي للأسعار</p>
-                        <p className="text-sm text-zinc-500">نشر تحديثات الأسعار تلقائياً عند تغييرها</p>
+                        <p className="text-sm text-slate-500">نشر تحديثات الأسعار تلقائياً عند تغييرها</p>
                       </div>
                       <label className="relative inline-flex items-center cursor-pointer">
                         <input 
@@ -3199,36 +3199,36 @@ export default function Admin() {
                     </div>
                     
                     <div>
-                      <label className="block text-sm font-bold text-zinc-400 mb-2">رابط القناة للذكاء الاصطناعي</label>
+                      <label className="block text-sm font-bold text-slate-400 mb-2">رابط القناة للذكاء الاصطناعي</label>
                       <input
                         type="text"
                         value={config?.telegramPostChannel || ''}
                         onChange={(e) => setConfig({ ...config, telegramPostChannel: e.target.value })}
                         placeholder="مثال: https://t.me/djheih2026 أو @djheih2026"
-                        className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-black/40 border border-slate-700/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500/50"
                         dir="ltr"
                       />
-                      <p className="text-xs text-zinc-500 mt-2">انسخ الرابط (مثل https://t.me/djheih2026) أو ضع المعرف، ويجب أن يكون حسابك لديه صلاحيات النشر (أدمن).</p>
+                      <p className="text-xs text-slate-500 mt-2">انسخ الرابط (مثل https://t.me/djheih2026) أو ضع المعرف، ويجب أن يكون حسابك لديه صلاحيات النشر (أدمن).</p>
                     </div>
 
                     <div>
-                      <label className="block text-sm font-bold text-zinc-400 mb-2">تنسيق رسالة النشر (قالب النشر تلقائي/تجريبي)</label>
+                      <label className="block text-sm font-bold text-slate-400 mb-2">تنسيق رسالة النشر (قالب النشر تلقائي/تجريبي)</label>
                       <select
                         value={config?.telegramTemplateStyle || 'classic'}
                         onChange={(e) => setConfig({ ...config, telegramTemplateStyle: e.target.value })}
-                        className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-black/40 border border-slate-700/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500/50"
                         dir="rtl"
                       >
-                        <option value="random" className="bg-zinc-900 text-white text-emerald-400 font-bold">اختيار عشوائي ذكي 🎲 (ينصح به لكسر الروتين)</option>
-                        <option value="classic" className="bg-zinc-900 text-white">النمط الكلاسيكي 📊 (تفصيلي بالأسعار السابقة)</option>
-                        <option value="modern" className="bg-zinc-900 text-white">النمط الحديث 📈 (مؤشر نسب التغيير)</option>
-                        <option value="professional" className="bg-zinc-900 text-white">النمط المهني 💎 (الأكثر احترافية للاقتصاد)</option>
-                        <option value="urgent" className="bg-zinc-900 text-white">النمط العاجل 🔴 (للتحديثات السريعة)</option>
-                        <option value="compact" className="bg-zinc-900 text-white">النمط المختصر ⚡ (سريع القراءة)</option>
-                        <option value="market_alert" className="bg-zinc-900 text-white">نمط جرس السوق 🔔 (مختصر للمتداولين)</option>
-                        <option value="elegant" className="bg-zinc-900 text-white">النمط الأنيق ⚜️ (تصميم جمالي وجذاب)</option>
+                        <option value="random" className="bg-slate-900/80 text-white text-emerald-400 font-bold">اختيار عشوائي ذكي 🎲 (ينصح به لكسر الروتين)</option>
+                        <option value="classic" className="bg-slate-900/80 text-white">النمط الكلاسيكي 📊 (تفصيلي بالأسعار السابقة)</option>
+                        <option value="modern" className="bg-slate-900/80 text-white">النمط الحديث 📈 (مؤشر نسب التغيير)</option>
+                        <option value="professional" className="bg-slate-900/80 text-white">النمط المهني 💎 (الأكثر احترافية للاقتصاد)</option>
+                        <option value="urgent" className="bg-slate-900/80 text-white">النمط العاجل 🔴 (للتحديثات السريعة)</option>
+                        <option value="compact" className="bg-slate-900/80 text-white">النمط المختصر ⚡ (سريع القراءة)</option>
+                        <option value="market_alert" className="bg-slate-900/80 text-white">نمط جرس السوق 🔔 (مختصر للمتداولين)</option>
+                        <option value="elegant" className="bg-slate-900/80 text-white">النمط الأنيق ⚜️ (تصميم جمالي وجذاب)</option>
                       </select>
-                      <p className="text-xs text-zinc-500 mt-2">اختر التنسيق المفضل لإرساله تلقائياً أو تجريبياً إلى قناتك على تيليجرام.</p>
+                      <p className="text-xs text-slate-500 mt-2">اختر التنسيق المفضل لإرساله تلقائياً أو تجريبياً إلى قناتك على تيليجرام.</p>
                     </div>
                     
 
@@ -3240,15 +3240,15 @@ export default function Admin() {
                            <h4 className="font-bold text-white">حساس حالة النشر (Facebook Sensor)</h4>
                         </div>
                         <div className="text-sm space-y-1">
-                          <p className="text-zinc-300">
-                             <span className="text-zinc-500">الحالة:</span> 
+                          <p className="text-slate-300">
+                             <span className="text-slate-500">الحالة:</span> 
                              <span className={config.facebookBroadcastStatus.status === 'ok' ? 'text-emerald-400 mr-2' : 'text-red-400 mr-2'}>
                                 {config.facebookBroadcastStatus.status === 'ok' ? 'يعمل بشكل سليم' : 'يوجد خطأ'}
                              </span>
                           </p>
                           {config.facebookBroadcastStatus.lastSuccessTime && (
-                            <p className="text-zinc-300">
-                               <span className="text-zinc-500">آخر نجاح:</span> 
+                            <p className="text-slate-300">
+                               <span className="text-slate-500">آخر نجاح:</span> 
                                <span className="mr-2" dir="ltr">{new Date(config.facebookBroadcastStatus.lastSuccessTime).toLocaleString('ar-LY')}</span>
                             </p>
                           )}
@@ -3256,7 +3256,7 @@ export default function Admin() {
                             <div className="mt-2 p-2 bg-black/40 rounded border border-red-500/30 text-red-400 text-xs text-left" dir="ltr">
                                {config.facebookBroadcastStatus.lastError}
                                {config.facebookBroadcastStatus.lastErrorTime && (
-                                  <div className="text-zinc-500 mt-1">Time: {new Date(config.facebookBroadcastStatus.lastErrorTime).toLocaleString('en-US')}</div>
+                                  <div className="text-slate-500 mt-1">Time: {new Date(config.facebookBroadcastStatus.lastErrorTime).toLocaleString('en-US')}</div>
                                )}
                             </div>
                           )}
@@ -3264,7 +3264,7 @@ export default function Admin() {
                       </div>
                     )}
                     
-                    <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4 border-t border-white/5">
+                    <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4 border-t border-slate-800/60">
                       <button
                         onClick={async () => {
                           try {
@@ -3334,11 +3334,11 @@ export default function Admin() {
                     </svg>
                     إعدادات النشر التلقائي - فيسبوك
                   </h3>
-                  <div className="bg-black/20 border border-white/5 rounded-2xl p-6 space-y-4">
+                  <div className="bg-black/20 border border-slate-800/60 rounded-2xl p-6 space-y-4">
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-white font-bold">النشر التلقائي على فيسبوك</p>
-                        <p className="text-sm text-zinc-500">نشر التحديثات لصفحة فيسبوك في نفس لحظة النشر لتيليجرام</p>
+                        <p className="text-sm text-slate-500">نشر التحديثات لصفحة فيسبوك في نفس لحظة النشر لتيليجرام</p>
                       </div>
                       <label className="relative inline-flex items-center cursor-pointer">
                         <input 
@@ -3354,29 +3354,29 @@ export default function Admin() {
                     </div>
                     
                     <div>
-                      <label className="block text-sm font-bold text-zinc-400 mb-2">مُعرف الصفحة (Page ID)</label>
+                      <label className="block text-sm font-bold text-slate-400 mb-2">مُعرف الصفحة (Page ID)</label>
                       <input
                         type="text"
                         value={config?.facebookPageId || ''}
                         onChange={(e) => setConfig({ ...config, facebookPageId: e.target.value })}
                         placeholder="مثال: 104523521235"
-                        className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-black/40 border border-slate-700/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500/50"
                         dir="ltr"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-bold text-zinc-400 mb-2">رمز وصول الصفحة (Page Access Token)</label>
+                      <label className="block text-sm font-bold text-slate-400 mb-2">رمز وصول الصفحة (Page Access Token)</label>
                       <input
                         type="password"
                         value={config?.facebookAccessToken || ''}
                         onChange={(e) => setConfig({ ...config, facebookAccessToken: e.target.value })}
                         placeholder="EAABw..."
-                        className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-black/40 border border-slate-700/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500/50"
                         dir="ltr"
                       />
                     </div>
                     
-                    <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4 border-t border-white/5">
+                    <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4 border-t border-slate-800/60">
                       <button
                         onClick={async () => {
                           try {
@@ -3411,47 +3411,47 @@ export default function Admin() {
                 </div>
 
 {!config?.telegramSessionString && (
-                  <div className="max-w-xl mx-auto space-y-6 mt-12 bg-white/[0.02] p-8 border border-white/5 rounded-3xl">
+                  <div className="max-w-xl mx-auto space-y-6 mt-12 bg-white/[0.02] p-8 border border-slate-800/60 rounded-3xl">
                     <h3 className="text-xl font-bold text-white mb-4">ربط حساب لأول مرة</h3>
                     {tgStep === 'init' && (
                       <div className="space-y-4">
                         <div>
-                          <label className="block text-sm font-bold text-zinc-400 mb-2">API ID</label>
+                          <label className="block text-sm font-bold text-slate-400 mb-2">API ID</label>
                           <input
                             type="text"
                             value={tgApiId}
                             onChange={(e) => setTgApiId(e.target.value)}
                             placeholder="مثال: 1234567"
-                            className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500/50"
+                            className="w-full bg-black/40 border border-slate-700/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500/50"
                             dir="ltr"
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-bold text-zinc-400 mb-2">API Hash</label>
+                          <label className="block text-sm font-bold text-slate-400 mb-2">API Hash</label>
                           <input
                             type="text"
                             value={tgApiHash}
                             onChange={(e) => setTgApiHash(e.target.value)}
                             placeholder="مثال: 0123456789abcdef0123456789abcdef"
-                            className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500/50"
+                            className="w-full bg-black/40 border border-slate-700/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500/50"
                             dir="ltr"
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-bold text-zinc-400 mb-2">رقم الهاتف (مع رمز الدولة)</label>
+                          <label className="block text-sm font-bold text-slate-400 mb-2">رقم الهاتف (مع رمز الدولة)</label>
                           <input
                             type="text"
                             value={tgPhoneNumber}
                             onChange={(e) => setTgPhoneNumber(e.target.value)}
                             placeholder="مثال: +218912345678"
-                            className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500/50"
+                            className="w-full bg-black/40 border border-slate-700/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500/50"
                             dir="ltr"
                           />
                         </div>
                         <button
                           onClick={handleTgSendCode}
                           disabled={tgLoading || !tgPhoneNumber || !tgApiId || !tgApiHash}
-                          className="w-full py-4 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-800 text-white font-bold transition-all flex items-center justify-center gap-2 mt-4"
+                          className="w-full py-4 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 text-white font-bold transition-all flex items-center justify-center gap-2 mt-4"
                         >
                           {tgLoading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
                           إرسال كود التحقق
@@ -3465,13 +3465,13 @@ export default function Admin() {
                           تم إرسال كود التحقق إلى تطبيق تليجرام الخاص بك ({tgPhoneNumber}).
                         </div>
                         <div>
-                          <label className="block text-sm font-bold text-zinc-400 mb-2">كود التحقق</label>
+                          <label className="block text-sm font-bold text-slate-400 mb-2">كود التحقق</label>
                           <input
                             type="text"
                             value={tgCode}
                             onChange={(e) => setTgCode(e.target.value)}
                             placeholder="أدخل الكود المكون من 5 أرقام"
-                            className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500/50 text-center tracking-[0.5em] font-mono text-lg"
+                            className="w-full bg-black/40 border border-slate-700/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500/50 text-center tracking-[0.5em] font-mono text-lg"
                             dir="ltr"
                           />
                         </div>
@@ -3485,7 +3485,7 @@ export default function Admin() {
                           <button
                             onClick={handleTgVerifyCode}
                             disabled={tgLoading || !tgCode}
-                            className="flex-1 py-4 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-800 text-white font-bold transition-all flex items-center justify-center gap-2"
+                            className="flex-1 py-4 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 text-white font-bold transition-all flex items-center justify-center gap-2"
                           >
                             {tgLoading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
                             تأكيد الكود
@@ -3500,13 +3500,13 @@ export default function Admin() {
                           هذا الحساب محمي بكلمة مرور التحقق بخطوتين (2FA). يرجى إدخالها للمتابعة.
                         </div>
                         <div>
-                          <label className="block text-sm font-bold text-zinc-400 mb-2">كلمة المرور (2FA)</label>
+                          <label className="block text-sm font-bold text-slate-400 mb-2">كلمة المرور (2FA)</label>
                           <input
                             type="password"
                             value={tgPassword}
                             onChange={(e) => setTgPassword(e.target.value)}
                             placeholder="أدخل كلمة المرور"
-                            className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500/50"
+                            className="w-full bg-black/40 border border-slate-700/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500/50"
                             dir="ltr"
                           />
                         </div>
@@ -3520,7 +3520,7 @@ export default function Admin() {
                           <button
                             onClick={handleTgVerifyCode}
                             disabled={tgLoading || !tgPassword}
-                            className="flex-1 py-4 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-800 text-white font-bold transition-all flex items-center justify-center gap-2"
+                            className="flex-1 py-4 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 text-white font-bold transition-all flex items-center justify-center gap-2"
                           >
                             {tgLoading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
                             تسجيل الدخول
@@ -3542,7 +3542,7 @@ export default function Admin() {
               exit={{ opacity: 0, y: -10 }}
               className="space-y-6"
             >
-              <section className="bg-white/[0.02] border border-white/5 rounded-[2rem] p-6 md:p-8 relative overflow-hidden">
+              <section className="bg-white/[0.02] border border-slate-800/60 rounded-[2rem] p-6 md:p-8 relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-500/5 blur-[100px] rounded-full pointer-events-none"></div>
                 
                 <div className="flex flex-col md:flex-row items-start md:items-center gap-6 mb-8 relative">
@@ -3551,28 +3551,28 @@ export default function Admin() {
                   </div>
                   <div>
                     <h2 className="text-2xl font-bold text-white mb-2">قاعدة البيانات</h2>
-                    <p className="text-zinc-400">عرض وتعديل السجلات التاريخية للأسعار</p>
+                    <p className="text-slate-400">عرض وتعديل السجلات التاريخية للأسعار</p>
                   </div>
                 </div>
 
                 <div className="flex flex-col md:flex-row gap-4 mb-6 relative">
                   <div className="flex-1">
-                    <label className="block text-sm font-medium text-zinc-400 mb-2">السوق</label>
+                    <label className="block text-sm font-medium text-slate-400 mb-2">السوق</label>
                     <select
                       value={dbMarket}
                       onChange={(e) => setDbMarket(e.target.value as 'parallel' | 'official')}
-                      className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500 transition-colors"
+                      className="w-full bg-black/50 border border-slate-700/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500 transition-colors"
                     >
                       <option value="parallel">السوق الموازي</option>
                       <option value="official">السوق الرسمي</option>
                     </select>
                   </div>
                   <div className="flex-1">
-                    <label className="block text-sm font-medium text-zinc-400 mb-2">العملة / الصنف</label>
+                    <label className="block text-sm font-medium text-slate-400 mb-2">العملة / الصنف</label>
                     <select
                       value={dbCurrency}
                       onChange={(e) => setDbCurrency(e.target.value)}
-                      className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500 transition-colors"
+                      className="w-full bg-black/50 border border-slate-700/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500 transition-colors"
                     >
                       {config?.terms.map(t => (
                         <option key={t.id} value={t.id}>{t.name} ({t.id})</option>
@@ -3594,7 +3594,7 @@ export default function Admin() {
                 <div className="overflow-x-auto relative">
                   <table className="w-full text-right">
                     <thead>
-                      <tr className="bg-white/[0.02] text-zinc-500 text-[10px] uppercase tracking-widest font-black">
+                      <tr className="bg-white/[0.02] text-slate-500 text-[10px] uppercase tracking-widest font-black">
                         <th className="px-6 py-4">التاريخ والوقت</th>
                         <th className="px-6 py-4">السعر</th>
                         <th className="px-6 py-4">الإجراءات</th>
@@ -3618,7 +3618,7 @@ export default function Admin() {
                                 <span className="text-sm font-bold text-white">
                                   {new Date(record.recorded_at).toLocaleDateString('ar-LY')}
                                 </span>
-                                <span className="text-[10px] text-zinc-500 pr-1">
+                                <span className="text-[10px] text-slate-500 pr-1">
                                   {new Date(record.recorded_at).toLocaleTimeString('ar-LY')}
                                 </span>
                               </div>
@@ -3652,7 +3652,7 @@ export default function Admin() {
                                     </button>
                                     <button
                                       onClick={() => setEditingRecord(null)}
-                                      className="p-2 rounded-lg bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white transition-colors"
+                                      className="p-2 rounded-lg bg-slate-800 text-slate-400 hover:bg-zinc-700 hover:text-white transition-colors"
                                       title="إلغاء"
                                     >
                                       <X className="w-4 h-4" />
@@ -3665,14 +3665,14 @@ export default function Admin() {
                                         setEditingRecord(record.id);
                                         setEditValue(record.value.toString());
                                       }}
-                                      className="p-2 rounded-lg bg-white/5 text-zinc-400 hover:bg-blue-500/20 hover:text-blue-400 transition-colors"
+                                      className="p-2 rounded-lg bg-white/5 text-slate-400 hover:bg-blue-500/20 hover:text-blue-400 transition-colors"
                                       title="تعديل السعر"
                                     >
                                       <Edit2 className="w-4 h-4" />
                                     </button>
                                     <button
                                       onClick={() => handleDeleteRecord(record.id)}
-                                      className="p-2 rounded-lg bg-white/5 text-zinc-400 hover:bg-red-500/20 hover:text-red-400 transition-colors"
+                                      className="p-2 rounded-lg bg-white/5 text-slate-400 hover:bg-red-500/20 hover:text-red-400 transition-colors"
                                       title="حذف السجل"
                                     >
                                       <Trash2 className="w-4 h-4" />
@@ -3699,7 +3699,7 @@ export default function Admin() {
               exit={{ opacity: 0, y: -10 }}
               className="space-y-6"
             >
-              <section className="bg-white/[0.02] border border-white/5 rounded-[2rem] p-6 md:p-8 relative overflow-hidden">
+              <section className="bg-white/[0.02] border border-slate-800/60 rounded-[2rem] p-6 md:p-8 relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-96 h-96 bg-purple-500/5 blur-[100px] rounded-full pointer-events-none"></div>
                 
                 <div className="flex flex-col md:flex-row items-start md:items-center gap-6 mb-8 relative">
@@ -3708,7 +3708,7 @@ export default function Admin() {
                   </div>
                   <div className="flex-1">
                     <h2 className="text-2xl font-black text-white mb-1">أدوات النظام والتشخيص</h2>
-                    <p className="text-sm text-zinc-500 leading-relaxed">
+                    <p className="text-sm text-slate-500 leading-relaxed">
                       أدوات متقدمة لفحص صحة النظام، إدارة الذاكرة، ومراقبة الرسائل الحية.
                     </p>
                   </div>
@@ -3716,14 +3716,14 @@ export default function Admin() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative">
                   {/* Self-Diagnosis Tool */}
-                  <div className="bg-black/40 border border-white/5 rounded-2xl p-6 flex flex-col">
+                  <div className="bg-black/40 border border-slate-800/60 rounded-2xl p-6 flex flex-col">
                     <div className="flex items-center gap-4 mb-4">
                       <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center border border-blue-500/20">
                         <Stethoscope className="w-6 h-6 text-blue-400" />
                       </div>
                       <div>
                         <h3 className="text-lg font-bold text-white">التحقق من صحة الربط</h3>
-                        <p className="text-xs text-zinc-500">فحص شامل لقاعدة البيانات وتليجرام والـ Regex</p>
+                        <p className="text-xs text-slate-500">فحص شامل لقاعدة البيانات وتليجرام والـ Regex</p>
                       </div>
                     </div>
                     
@@ -3743,24 +3743,24 @@ export default function Admin() {
                         ) : (
                           <div className="space-y-2">
                             <div className="flex justify-between items-center">
-                              <span className="text-zinc-400">قاعدة البيانات:</span>
+                              <span className="text-slate-400">قاعدة البيانات:</span>
                               <span className={diagnosticsResult.db === 'ok' ? 'text-emerald-400' : 'text-rose-400'}>
                                 {diagnosticsResult.db === 'ok' ? 'متصل ✅' : 'خطأ ❌'}
                               </span>
                             </div>
                             <div className="flex justify-between items-center">
-                              <span className="text-zinc-400">تليجرام:</span>
+                              <span className="text-slate-400">تليجرام:</span>
                               <span className={diagnosticsResult.telegram === 'ok' ? 'text-emerald-400' : 'text-rose-400'}>
                                 {diagnosticsResult.telegram === 'ok' ? 'متصل ✅' : 'غير متصل ❌'}
                               </span>
                             </div>
                             <div className="flex justify-between items-center">
-                              <span className="text-zinc-400">الـ Regex:</span>
+                              <span className="text-slate-400">الـ Regex:</span>
                               <span className={diagnosticsResult.regex === 'ok' ? 'text-emerald-400' : 'text-rose-400'}>
                                 {diagnosticsResult.regex === 'ok' ? 'سليم ✅' : 'خطأ ❌'}
                               </span>
                             </div>
-                            <div className="pt-2 mt-2 border-t border-white/10 text-center font-bold text-emerald-400">
+                            <div className="pt-2 mt-2 border-t border-slate-700/50 text-center font-bold text-emerald-400">
                               {diagnosticsResult.status === 'ok' ? 'الكل جاهز ✅' : 'يوجد أخطاء ❌'}
                             </div>
                           </div>
@@ -3770,14 +3770,14 @@ export default function Admin() {
                   </div>
 
                   {/* RAM Cleanup */}
-                  <div className="bg-black/40 border border-white/5 rounded-2xl p-6 flex flex-col">
+                  <div className="bg-black/40 border border-slate-800/60 rounded-2xl p-6 flex flex-col">
                     <div className="flex items-center gap-4 mb-4">
                       <div className="w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center border border-amber-500/20">
                         <Cpu className="w-6 h-6 text-amber-400" />
                       </div>
                       <div>
                         <h3 className="text-lg font-bold text-white">تنظيف الذاكرة (RAM)</h3>
-                        <p className="text-xs text-zinc-500">تفريغ الذاكرة العشوائية للسيرفر</p>
+                        <p className="text-xs text-slate-500">تفريغ الذاكرة العشوائية للسيرفر</p>
                       </div>
                     </div>
                     
@@ -3792,7 +3792,7 @@ export default function Admin() {
                 </div>
               </section>
 
-              <section className="bg-white/[0.02] border border-white/5 rounded-[2rem] p-6 md:p-8 relative overflow-hidden">
+              <section className="bg-white/[0.02] border border-slate-800/60 rounded-[2rem] p-6 md:p-8 relative overflow-hidden">
                 <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 mb-8 relative">
                   <div className="flex items-center gap-4">
                     <div className="w-12 h-12 rounded-xl bg-rose-500/10 flex items-center justify-center border border-rose-500/20">
@@ -3800,7 +3800,7 @@ export default function Admin() {
                     </div>
                     <div>
                       <h3 className="text-xl font-bold text-white">إدارة الرسائل المعلقة</h3>
-                      <p className="text-sm text-zinc-500">مراقبة وتفريغ طابور الرسائل القادمة من تليجرام</p>
+                      <p className="text-sm text-slate-500">مراقبة وتفريغ طابور الرسائل القادمة من تليجرام</p>
                     </div>
                   </div>
                   
@@ -3841,21 +3841,21 @@ export default function Admin() {
                 {/* Filters */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                     <input
                       type="text"
                       placeholder="بحث في محتوى الرسائل..."
                       value={feedSearch}
                       onChange={(e) => setFeedSearch(e.target.value)}
-                      className="w-full bg-black/40 border border-white/5 rounded-xl py-2 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all"
+                      className="w-full bg-black/40 border border-slate-800/60 rounded-xl py-2 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all"
                     />
                   </div>
                   <div className="relative">
-                    <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                    <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                     <select
                       value={feedChannelFilter}
                       onChange={(e) => setFeedChannelFilter(e.target.value)}
-                      className="w-full bg-black/40 border border-white/5 rounded-xl py-2 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all appearance-none"
+                      className="w-full bg-black/40 border border-slate-800/60 rounded-xl py-2 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all appearance-none"
                     >
                       <option value="all">جميع القنوات</option>
                       {Array.from(new Set(liveFeed.map(m => m.channel))).map(c => (
@@ -3864,11 +3864,11 @@ export default function Admin() {
                     </select>
                   </div>
                   <div className="relative">
-                    <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                    <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                     <select
                       value={feedStatusFilter}
                       onChange={(e) => setFeedStatusFilter(e.target.value)}
-                      className="w-full bg-black/40 border border-white/5 rounded-xl py-2 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all appearance-none"
+                      className="w-full bg-black/40 border border-slate-800/60 rounded-xl py-2 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all appearance-none"
                     >
                       <option value="all">جميع الحالات</option>
                       <option value="processed">تم الاستخراج</option>
@@ -3878,8 +3878,8 @@ export default function Admin() {
                   </div>
                 </div>
 
-                <div className="bg-black/40 border border-white/5 rounded-2xl p-4">
-                  <h4 className="text-sm font-bold text-zinc-400 mb-4 flex items-center justify-between">
+                <div className="bg-black/40 border border-slate-800/60 rounded-2xl p-4">
+                  <h4 className="text-sm font-bold text-slate-400 mb-4 flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <div className={`w-2 h-2 rounded-full ${isFeedPaused ? 'bg-amber-500' : 'bg-emerald-500 animate-pulse'}`}></div>
                       سجل الرسائل الأخيرة ({liveFeed.length})
@@ -3898,7 +3898,7 @@ export default function Admin() {
 
                       if (filteredFeed.length === 0) {
                         return (
-                          <div className="text-center py-12 text-zinc-500 text-sm">
+                          <div className="text-center py-12 text-slate-500 text-sm">
                             <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-4">
                               <Search className="w-6 h-6 opacity-20" />
                             </div>
@@ -3908,7 +3908,7 @@ export default function Admin() {
                       }
 
                       return filteredFeed.map((msg, idx) => (
-                        <div key={msg.id || idx} className="bg-white/[0.02] rounded-2xl p-5 border border-white/5 hover:bg-white/[0.04] hover:border-white/10 transition-all group relative overflow-hidden">
+                        <div key={msg.id || idx} className="bg-white/[0.02] rounded-2xl p-5 border border-slate-800/60 hover:bg-white/[0.04] hover:border-slate-700/50 transition-all group relative overflow-hidden">
                           <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 blur-3xl rounded-full pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity"></div>
                           <div className="flex justify-between items-start mb-4 relative z-10">
                             <div className="flex items-center gap-3">
@@ -3919,7 +3919,7 @@ export default function Admin() {
                                 <span className="text-sm font-bold text-white tracking-tight">
                                   {msg.channel}
                                 </span>
-                                <span className="text-[10px] text-zinc-500 font-mono">
+                                <span className="text-[10px] text-slate-500 font-mono">
                                   {formatDistanceToNow(new Date(msg.time), { addSuffix: true, locale: ar })}
                                 </span>
                               </div>
@@ -3928,7 +3928,7 @@ export default function Admin() {
                               <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold border ${
                                 msg.status === 'processed' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
                                 msg.status === 'error' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
-                                'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'
+                                'bg-zinc-500/10 text-slate-400 border-zinc-500/20'
                               }`}>
                                 {msg.status === 'processed' ? <CheckCircle2 className="w-3 h-3" /> : 
                                  msg.status === 'error' ? <XCircle className="w-3 h-3" /> : 
@@ -3942,7 +3942,7 @@ export default function Admin() {
                                   setSuccess("تم نسخ النص");
                                   setTimeout(() => setSuccess(""), 2000);
                                 }}
-                                className="opacity-0 group-hover:opacity-100 transition-all p-1.5 rounded-lg bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10"
+                                className="opacity-0 group-hover:opacity-100 transition-all p-1.5 rounded-lg bg-white/5 text-slate-400 hover:text-white hover:bg-white/10"
                                 title="نسخ النص"
                               >
                                 <Copy className="w-4 h-4" />
@@ -3957,14 +3957,14 @@ export default function Admin() {
                             </div>
                           </div>
                           
-                          <div className="bg-black/40 rounded-xl p-4 border border-white/5 relative z-10">
-                            <p className="text-sm text-zinc-300 whitespace-pre-wrap break-words leading-relaxed" dir="auto">
+                          <div className="bg-black/40 rounded-xl p-4 border border-slate-800/60 relative z-10">
+                            <p className="text-sm text-slate-300 whitespace-pre-wrap break-words leading-relaxed" dir="auto">
                               {msg.text}
                             </p>
                           </div>
 
                           {msg.extractedRates && msg.extractedRates.length > 0 && (
-                            <div className="flex flex-wrap gap-2 pt-4 mt-4 border-t border-white/5 relative z-10">
+                            <div className="flex flex-wrap gap-2 pt-4 mt-4 border-t border-slate-800/60 relative z-10">
                               {msg.extractedRates.map((rate: any, rIdx: number) => (
                                 <div key={rIdx} className="flex items-center gap-2 bg-emerald-500/10 rounded-lg px-3 py-1.5 border border-emerald-500/20">
                                   <span className="text-[11px] font-bold text-emerald-500/70">{rate.code}:</span>
@@ -3994,18 +3994,18 @@ export default function Admin() {
 
       {/* Floating Status Bar - Bottom (Desktop Only) */}
       <footer className="hidden md:flex fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] w-fit">
-         <div className="bg-black/80 backdrop-blur-2xl border border-white/10 px-6 py-3 rounded-2xl flex items-center gap-6 shadow-2xl">
+         <div className="bg-black/80 backdrop-blur-2xl border border-slate-700/50 px-6 py-3 rounded-2xl flex items-center gap-6 shadow-2xl">
             <div className="flex items-center gap-2">
                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]"></div>
-               <span className="text-[10px] font-black uppercase text-zinc-400">System Ready</span>
+               <span className="text-[10px] font-black uppercase text-slate-400">System Ready</span>
             </div>
-            <div className="w-px h-3 bg-zinc-800"></div>
-            <div className="flex items-center gap-2 text-[10px] font-mono text-zinc-500">
+            <div className="w-px h-3 bg-slate-800"></div>
+            <div className="flex items-center gap-2 text-[10px] font-mono text-slate-500">
                <span className="uppercase text-zinc-600">Instance:</span>
                <span className="text-emerald-500/70 font-bold">NODE_PROD_1</span>
             </div>
-            <div className="w-px h-3 bg-zinc-800"></div>
-             <div className="flex items-center gap-2 text-[10px] font-mono text-zinc-500">
+            <div className="w-px h-3 bg-slate-800"></div>
+             <div className="flex items-center gap-2 text-[10px] font-mono text-slate-500">
                <span className="uppercase text-zinc-600">Region:</span>
                <span className="text-blue-500/70 font-bold">GER_FRA_01</span>
             </div>
@@ -4013,7 +4013,7 @@ export default function Admin() {
       </footer>
 
       {/* Mobile Bottom Navigation */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-[#080808]/90 backdrop-blur-xl border-t border-white/10 z-[100] px-6 py-3 flex items-center justify-between shadow-[0_-10px_40px_rgba(0,0,0,0.5)] pb-safe">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-[#080808]/90 backdrop-blur-xl border-t border-slate-700/50 z-[100] px-6 py-3 flex items-center justify-between shadow-[0_-10px_40px_rgba(0,0,0,0.5)] pb-safe">
         {[
           { id: 'dashboard', icon: LayoutDashboard, label: 'الرئيسية' },
           { id: 'database', icon: Database, label: 'البيانات' },
@@ -4026,7 +4026,7 @@ export default function Admin() {
             className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-all ${
               activeTab === item.id 
                 ? 'text-emerald-400' 
-                : 'text-zinc-500 hover:text-zinc-300'
+                : 'text-slate-500 hover:text-slate-300'
             }`}
           >
             <div className={`p-2 rounded-xl ${activeTab === item.id ? 'bg-emerald-500/10' : 'bg-transparent'}`}>

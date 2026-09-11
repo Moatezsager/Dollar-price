@@ -3313,6 +3313,16 @@ async function startServer() {
       const stmt = db.prepare('INSERT INTO messages (email, phone, message) VALUES (?, ?, ?)');
       stmt.run(email, phone, message);
       
+      // التزامن مع قاعدة البيانات السحابية (Supabase)
+      if (supabase) {
+        supabase.from('visitor_messages').insert([{
+          email,
+          phone,
+          message,
+          status: 'new'
+        }]).catch(e => console.error("Supabase Visitor Message sync failed:", e.message));
+      }
+      
       res.json({ success: true, message: "تم إرسال رسالتك بنجاح. سيتم الرد عليك في أقل من 24 ساعة." });
     } catch (error) {
       console.error("Error saving message:", error);
@@ -3775,8 +3785,14 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
          else deviceType = 'Desktop';
       }
       
-      if (/bot|crawler|spider|googlebot|bingbot/i.test(uaString)) deviceType = 'Bot';
+      // نظام حماية متقدم لمنع الروبوتات من تسجيل الزيارات (تحسين الدقة)
+      const botRegex = /bot|crawler|spider|googlebot|bingbot|facebookexternalhit|Facebot|TelegramBot|Twitterbot|WhatsApp|Slackbot|Discordbot|SkypeUriPreview|LinkedInBot|Viber/i;
+      if (botRegex.test(uaString) || uaString.includes('http')) {
+        // نرد بنجاح ولكن لا نسجل الروبوت في قاعدة البيانات نهائياً للحفاظ على دقة الإحصائيات
+        return res.json({ success: true, ignored: true, reason: 'bot_detected' });
+      }
 
+      // إدخال في سجل الزوار (الجدول المحلي)
       db.prepare(`
         INSERT INTO analytics_events 
         (visitor_id, session_id, page_path, referrer, device_type, device_vendor, device_model, os_name, os_version, browser_name, browser_version)
@@ -3794,6 +3810,19 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
         result.browser.name || '',
         result.browser.version || ''
       );
+      
+      // التزامن مع Supabase لسجل الزوار (إذا كان متوفراً)
+      if (supabase) {
+        supabase.from('visitor_logs').insert([{
+          visitor_id: visitorId,
+          session_id: sessionId || visitorId,
+          page_path: pagePath || '/',
+          referrer: referrer || '',
+          device_type: deviceType,
+          os_name: result.os.name || '',
+          browser_name: result.browser.name || ''
+        }]).catch(e => console.error("Supabase Visitor Log sync failed:", e.message));
+      }
       
       res.json({ success: true });
     } catch (err) {

@@ -146,7 +146,7 @@ const PostInstallNotification = ({ onClose }: { onClose: () => void }) => {
       exit={{ opacity: 0, y: 20, scale: 0.9 }}
       className="fixed bottom-6 left-6 right-6 md:left-auto md:right-8 md:w-[400px] z-[100]"
     >
-      <div className="relative overflow-hidden rounded-3xl bg-[#0a0a0a] border border-emerald-500/30 shadow-[0_20px_50px_-12px_rgba(16,185,129,0.3)] p-6 backdrop-blur-xl">
+      <div className="relative overflow-hidden rounded-3xl  glass-panel-heavy premium-border  border border-emerald-500/30 shadow-[0_20px_50px_-12px_rgba(16,185,129,0.3)] p-6 backdrop-blur-xl">
         {/* Background glow */}
         <div className="absolute -top-24 -right-24 w-48 h-48 bg-emerald-500/10 blur-[80px] rounded-full" />
         
@@ -158,24 +158,24 @@ const PostInstallNotification = ({ onClose }: { onClose: () => void }) => {
               </div>
               <div className="text-right">
                 <h3 className="text-white font-bold text-lg">تم التثبيت بنجاح!</h3>
-                <p className="text-zinc-400 text-xs">شكراً لتثبيت تطبيق مؤشر الدينار</p>
+                <p className="text-slate-400 text-xs">شكراً لتثبيت تطبيق مؤشر الدينار</p>
               </div>
             </div>
             <button 
               onClick={onClose}
-              className="p-2 hover:bg-white/5 rounded-xl transition-colors text-zinc-500 hover:text-white"
+              className="p-2 hover:bg-white/5 rounded-xl transition-colors text-slate-500 hover:text-white"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
 
-          <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/5 text-right">
-            <p className="text-zinc-300 text-sm leading-relaxed mb-4">
+          <div className="p-4 rounded-2xl bg-white/[0.03] border border-slate-800/60 text-right">
+            <p className="text-slate-300 text-sm leading-relaxed mb-4">
               يمكنك الآن الوصول السريع لأسعار الصرف من شاشتك الرئيسية. شارك التطبيق مع أصدقائك!
             </p>
             
             <div className="flex items-center gap-2">
-              <div className="flex-1 px-4 py-2.5 rounded-xl bg-black/40 border border-white/5 text-zinc-500 text-xs font-mono truncate text-left">
+              <div className="flex-1 px-4 py-2.5 rounded-xl bg-black/40 border border-slate-800/60 text-slate-500 text-xs font-mono truncate text-left">
                 {window.location.origin}
               </div>
               <button
@@ -618,7 +618,7 @@ export default function App() {
     return (
       <div 
         {...tooltipProps} 
-        className="relative bg-zinc-900/95 backdrop-blur-xl border border-white/10 rounded-2xl sm:rounded-3xl p-4 sm:p-6 w-[360px] max-w-[92vw] shadow-[0_30px_60px_-15px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(255,255,255,0.1)] overflow-hidden" 
+        className="relative glass-panel-heavy premium-border rounded-2xl sm:rounded-3xl p-4 sm:p-6 w-[360px] max-w-[92vw] shadow-[0_30px_60px_-15px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(255,255,255,0.1)] overflow-hidden" 
         dir="rtl"
       >
         {/* Glow effect */}
@@ -638,7 +638,7 @@ export default function App() {
           
           <button 
             {...closeProps} 
-            className="text-zinc-500 hover:text-white hover:bg-white/10 transition-all p-1 sm:p-1.5 rounded-full shrink-0 group -mr-1"
+            className="text-slate-500 hover:text-white hover:bg-white/10 transition-all p-1 sm:p-1.5 rounded-full shrink-0 group -mr-1"
             onClick={(e) => {
               if (closeProps.onClick) closeProps.onClick(e);
               setRunTour(false);
@@ -650,7 +650,7 @@ export default function App() {
         </div>
 
         {/* Content */}
-        <div className="text-zinc-400 text-sm leading-relaxed mb-6 sm:mb-8 font-medium relative z-10 px-1 sm:px-2">
+        <div className="text-slate-400 text-sm leading-relaxed mb-6 sm:mb-8 font-medium relative z-10 px-1 sm:px-2">
           {step.content}
         </div>
 
@@ -670,12 +670,12 @@ export default function App() {
           <div className="flex flex-row items-center justify-between mt-1 sm:mt-2">
             <div className="flex items-center gap-1 sm:gap-2">
               {!isFirstStep && (
-                <button {...backProps} className="px-2 sm:px-3 py-2 text-[10px] sm:text-xs font-bold text-zinc-500 hover:text-white hover:bg-white/5 rounded-lg sm:rounded-xl transition-all uppercase tracking-widest">
+                <button {...backProps} className="px-2 sm:px-3 py-2 text-[10px] sm:text-xs font-bold text-slate-500 hover:text-white hover:bg-white/5 rounded-lg sm:rounded-xl transition-all uppercase tracking-widest">
                   السابق
                 </button>
               )}
               {isFirstStep && (
-                <button {...skipProps} className="px-2 sm:px-3 py-2 text-[10px] sm:text-xs font-bold text-zinc-500 hover:text-white hover:bg-white/5 rounded-lg sm:rounded-xl transition-all uppercase tracking-widest">
+                <button {...skipProps} className="px-2 sm:px-3 py-2 text-[10px] sm:text-xs font-bold text-slate-500 hover:text-white hover:bg-white/5 rounded-lg sm:rounded-xl transition-all uppercase tracking-widest">
                   تخطي
                 </button>
               )}
@@ -1636,7 +1636,13 @@ export default function App() {
 
   return (
     <MotionConfig transition={animationsEnabled ? undefined : { duration: 0 }}>
-      <div className="min-h-screen bg-[#050505] text-white font-sans selection:bg-emerald-500/20 relative overflow-hidden" dir="rtl">
+      <div className="min-h-screen bg-[#020617] text-white font-sans selection:bg-emerald-500/20 relative overflow-hidden" dir="rtl">
+        {/* Ambient Background Glows */}
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-emerald-500/10 rounded-full blur-[120px] pointer-events-none" />
+        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-[120px] pointer-events-none" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-indigo-500/5 rounded-full blur-[150px] pointer-events-none" />
+        <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 pointer-events-none mix-blend-overlay" />
+
         <InstallPrompt />
         <PushNotificationPrompt />
         {/* No more Splash Screen - Skeletons show the structure immediately */}
@@ -1685,7 +1691,7 @@ export default function App() {
         transition={{ type: "spring", stiffness: 260, damping: 20, delay: 1 }}
         whileHover={{ scale: 1.1, y: -4 }}
         whileTap={{ scale: 0.9 }}
-        className={`fixed left-6 z-[999] md:flex hidden items-center justify-center w-14 h-14 bg-[#24A1DE] text-white rounded-full shadow-[0_8px_30px_rgb(36,161,222,0.4)] hover:shadow-[0_8px_40px_rgb(36,161,222,0.6)] border border-white/10 group overflow-hidden transition-all duration-500 ${isInstallPromptVisible ? 'bottom-56 md:bottom-52' : 'bottom-48 md:bottom-24'}`}
+        className={`fixed left-6 z-[999] md:flex hidden items-center justify-center w-14 h-14 bg-[#24A1DE] text-white rounded-full shadow-[0_8px_30px_rgb(36,161,222,0.4)] hover:shadow-[0_8px_40px_rgb(36,161,222,0.6)] border border-slate-700/50 group overflow-hidden transition-all duration-500 ${isInstallPromptVisible ? 'bottom-56 md:bottom-52' : 'bottom-48 md:bottom-24'}`}
       >
         <div className="absolute inset-0 bg-gradient-to-tr from-black/10 to-transparent"></div>
         <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.2)_0%,transparent_100%)]"></div>
@@ -1702,7 +1708,7 @@ export default function App() {
         transition={{ type: "spring", stiffness: 260, damping: 20, delay: 1.1 }}
         whileHover={{ scale: 1.1, y: -4 }}
         whileTap={{ scale: 0.9 }}
-        className={`fixed left-6 z-[999] md:flex hidden items-center justify-center w-14 h-14 bg-[#1877F2] text-white rounded-full shadow-[0_8px_30px_rgb(24,119,242,0.4)] hover:shadow-[0_8px_40px_rgb(24,119,242,0.6)] border border-white/10 group overflow-hidden transition-all duration-500 ${isInstallPromptVisible ? 'bottom-36 md:bottom-32' : 'bottom-28 md:bottom-6'}`}
+        className={`fixed left-6 z-[999] md:flex hidden items-center justify-center w-14 h-14 bg-[#1877F2] text-white rounded-full shadow-[0_8px_30px_rgb(24,119,242,0.4)] hover:shadow-[0_8px_40px_rgb(24,119,242,0.6)] border border-slate-700/50 group overflow-hidden transition-all duration-500 ${isInstallPromptVisible ? 'bottom-36 md:bottom-32' : 'bottom-28 md:bottom-6'}`}
       >
         <div className="absolute inset-0 bg-gradient-to-tr from-black/10 to-transparent"></div>
         <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.2)_0%,transparent_100%)]"></div>
@@ -1766,25 +1772,25 @@ export default function App() {
             initial={{ y: 100, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 100, opacity: 0 }}
-            className="fixed bottom-6 left-4 right-4 z-[100] bg-zinc-900/98 border border-white/10 p-5 rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.5)] backdrop-blur-2xl"
+            className="fixed bottom-6 left-4 right-4 z-[100] bg-slate-900/80/98 border border-slate-700/50 p-5 rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.5)] backdrop-blur-2xl"
           >
             <div className="flex items-start gap-4">
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-blue-500/20 flex items-center justify-center border border-white/10 shrink-0">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-blue-500/20 flex items-center justify-center border border-slate-700/50 shrink-0">
                 <img src="/logo.png" alt="App Icon" className="w-10 h-10 rounded-full shadow-lg" />
               </div>
               <div className="flex-1">
                 <h4 className="text-white font-bold text-base">ثبّت "مؤشر الدينار" على هاتفك</h4>
-                <p className="text-zinc-400 text-xs mt-1.5 leading-relaxed">
+                <p className="text-slate-400 text-xs mt-1.5 leading-relaxed">
                   للوصول السريع ومتابعة الأسعار حتى بدون إنترنت:
                 </p>
                 <div className="mt-3 flex flex-col gap-2">
-                  <div className="flex items-center gap-2 text-xs text-zinc-300 bg-white/5 p-2 rounded-xl">
+                  <div className="flex items-center gap-2 text-xs text-slate-300 bg-white/5 p-2 rounded-xl">
                     <div className="w-6 h-6 rounded-lg bg-white/10 flex items-center justify-center">
                       <Share2 className="w-3.5 h-3.5 text-blue-400" />
                     </div>
                     <span>اضغط على زر المشاركة في متصفح سفاري</span>
                   </div>
-                  <div className="flex items-center gap-2 text-xs text-zinc-300 bg-white/5 p-2 rounded-xl">
+                  <div className="flex items-center gap-2 text-xs text-slate-300 bg-white/5 p-2 rounded-xl">
                     <div className="w-6 h-6 rounded-lg bg-white/10 flex items-center justify-center">
                       <PlusSquare className="w-3.5 h-3.5 text-emerald-400" />
                     </div>
@@ -1798,13 +1804,13 @@ export default function App() {
                   setShowIOSPrompt(false);
                   localStorage.setItem('iosPromptDismissed', 'true');
                 }}
-                className="p-2 -mr-2 text-zinc-500 hover:text-white transition-colors"
+                className="p-2 -mr-2 text-slate-500 hover:text-white transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
             {/* Indicator Arrow for Safari Share Button */}
-            <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-zinc-900 rotate-45 border-r border-b border-white/10"></div>
+            <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-slate-900/80 rotate-45 border-r border-b border-slate-700/50"></div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -1817,12 +1823,12 @@ export default function App() {
             animate={{ scale: 1, opacity: 1 }}
             className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-black/80 backdrop-blur-sm"
           >
-            <div className="bg-zinc-900 border border-white/10 p-8 rounded-[2.5rem] max-w-sm w-full text-center shadow-2xl">
+            <div className="glass-panel premium-border p-8 rounded-[2.5rem] max-w-sm w-full text-center shadow-2xl">
               <div className="w-20 h-20 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-6 border border-emerald-500/20">
                 <CheckCircle2 className="w-10 h-10 text-emerald-400" />
               </div>
-              <h3 className="text-2xl font-bold text-white mb-3">تم التثبيت بنجاح!</h3>
-              <p className="text-zinc-400 text-sm leading-relaxed mb-8">
+              <h3 className="text-2xl font-bold text-gradient tracking-tight mb-3">تم التثبيت بنجاح!</h3>
+              <p className="text-slate-400 text-sm leading-relaxed mb-8">
                 شكراً لتثبيت تطبيق مؤشر الدينار. يمكنك الآن متابعة الأسعار مباشرة من شاشتك الرئيسية في أي وقت.
               </p>
               <button
@@ -1873,7 +1879,7 @@ export default function App() {
       </motion.div>
 
       {/* Header */}
-      <header className="border-b border-white/5 sticky top-0 z-50 bg-[#050505]/80 backdrop-blur-xl pt-safe">
+      <header className="border-b border-slate-800/60 sticky top-0 z-50 bg-[#020617]/80 backdrop-blur-xl pt-safe">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 sm:h-20 flex items-center justify-between">
           <div className="flex items-center gap-3 sm:gap-4">
             <div 
@@ -1894,7 +1900,7 @@ export default function App() {
           </div>
           
           <div className="flex items-center gap-1.5 sm:gap-3">
-            <div className="flex items-center gap-2 px-2 sm:px-3 py-1.5 rounded-full border border-white/5 bg-white/[0.02]">
+            <div className="flex items-center gap-2 px-2 sm:px-3 py-1.5 rounded-full border border-slate-800/60 bg-white/[0.02]">
               {isRefreshing ? (
                 <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
               ) : (
@@ -1903,7 +1909,7 @@ export default function App() {
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                 </span>
               )}
-              <span className="text-[9px] sm:text-[10px] font-mono text-zinc-400 tracking-wider uppercase hidden sm:block" dir="ltr">
+              <span className="text-[9px] sm:text-[10px] font-mono text-slate-400 tracking-wider uppercase hidden sm:block" dir="ltr">
                 {isRefreshing ? "جاري التحديث..." : (lastFetchTime ? format(lastFetchTime, "HH:mm:ss") : "...")}
               </span>
             </div>
@@ -1915,7 +1921,7 @@ export default function App() {
                 setRunTour(true);
                 localStorage.removeItem('tourCompleted');
               }}
-              className="flex items-center justify-center w-8 h-8 sm:w-auto sm:h-auto sm:px-3 sm:py-1.5 rounded-full bg-white/5 border border-white/10 text-zinc-400 hover:text-white hover:bg-white/10 transition-all"
+              className="flex items-center justify-center w-8 h-8 sm:w-auto sm:h-auto sm:px-3 sm:py-1.5 rounded-full bg-white/5 border border-slate-700/50 text-slate-400 hover:text-white hover:bg-white/10 transition-all"
               title="جولة تعريفية"
             >
               <Info className="w-4 h-4" />
@@ -1940,7 +1946,7 @@ export default function App() {
                 triggerHaptic(10);
                 fetchData(true);
               }}
-              className={`flex items-center justify-center w-8 h-8 sm:w-auto sm:h-auto sm:px-3 sm:py-1.5 rounded-full bg-white/5 border border-white/10 text-zinc-400 hover:text-white hover:bg-white/10 transition-all ${isRefreshing ? 'animate-spin' : ''}`}
+              className={`flex items-center justify-center w-8 h-8 sm:w-auto sm:h-auto sm:px-3 sm:py-1.5 rounded-full bg-white/5 border border-slate-700/50 text-slate-400 hover:text-white hover:bg-white/10 transition-all ${isRefreshing ? 'animate-spin' : ''}`}
               title="تحديث البيانات"
             >
               <RefreshCw className="w-4 h-4" />
@@ -1954,7 +1960,7 @@ export default function App() {
                   triggerHaptic(10);
                   setShowMoreMenu(!showMoreMenu);
                 }}
-                className="flex items-center justify-center w-8 h-8 sm:w-auto sm:h-auto sm:px-3 sm:py-1.5 rounded-full bg-white/5 border border-white/10 text-zinc-400 hover:text-white hover:bg-white/10 transition-all"
+                className="flex items-center justify-center w-8 h-8 sm:w-auto sm:h-auto sm:px-3 sm:py-1.5 rounded-full bg-white/5 border border-slate-700/50 text-slate-400 hover:text-white hover:bg-white/10 transition-all"
                 title="المزيد"
               >
                 <MoreVertical className="w-4 h-4" />
@@ -1968,7 +1974,7 @@ export default function App() {
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 10, scale: 0.95 }}
                     transition={{ duration: 0.15 }}
-                    className="absolute left-0 top-full mt-2 w-48 rounded-2xl bg-[#1a1a1a] border border-white/10 shadow-xl overflow-hidden z-50"
+                    className="absolute left-0 top-full mt-2 w-48 rounded-2xl glass-panel border border-slate-700/50 shadow-xl overflow-hidden z-50"
                   >
                     <div className="py-1 flex flex-col">
                       <button
@@ -1979,7 +1985,7 @@ export default function App() {
                           setShowCurrencyModal(true);
                         }}
                         disabled={isGeneratingPDF}
-                        className={`flex items-center gap-3 px-4 py-3 text-sm text-zinc-300 hover:text-white hover:bg-white/5 transition-colors w-full text-right ${isGeneratingPDF ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        className={`flex items-center gap-3 px-4 py-3 text-sm text-slate-300 hover:text-white hover:bg-white/5 transition-colors w-full text-right ${isGeneratingPDF ? 'opacity-50 cursor-not-allowed' : ''}`}
                       >
                         <FileText className="w-4 h-4 text-blue-400" />
                         <span className="font-medium">{isGeneratingPDF ? 'جاري التحميل...' : 'طباعة PDF'}</span>
@@ -1991,7 +1997,7 @@ export default function App() {
                           setShowMoreMenu(false);
                           handleShare();
                         }}
-                        className="flex items-center gap-3 px-4 py-3 text-sm text-zinc-300 hover:text-white hover:bg-white/5 transition-colors w-full text-right"
+                        className="flex items-center gap-3 px-4 py-3 text-sm text-slate-300 hover:text-white hover:bg-white/5 transition-colors w-full text-right"
                       >
                         <Share2 className="w-4 h-4 text-emerald-400" />
                         <span className="font-medium">مشاركة التطبيق</span>
@@ -2003,7 +2009,7 @@ export default function App() {
                           setShowMoreMenu(false);
                           setCurrentPage('api');
                         }}
-                        className="flex items-center gap-3 px-4 py-3 text-sm text-zinc-300 hover:text-white hover:bg-white/5 transition-colors w-full text-right"
+                        className="flex items-center gap-3 px-4 py-3 text-sm text-slate-300 hover:text-white hover:bg-white/5 transition-colors w-full text-right"
                       >
                         <Code2 className="w-4 h-4 text-purple-400" />
                         <span className="font-medium">بوابة المطورين</span>
@@ -2015,7 +2021,7 @@ export default function App() {
                           setShowMoreMenu(false);
                           setCurrentPage('about');
                         }}
-                        className="flex items-center gap-3 px-4 py-3 text-sm text-zinc-300 hover:text-white hover:bg-white/5 transition-colors w-full text-right"
+                        className="flex items-center gap-3 px-4 py-3 text-sm text-slate-300 hover:text-white hover:bg-white/5 transition-colors w-full text-right"
                       >
                         <Info className="w-4 h-4 text-blue-400" />
                         <span className="font-medium">عن المنصة</span>
@@ -2026,7 +2032,7 @@ export default function App() {
                           setShowMoreMenu(false);
                           setCurrentPage('contact');
                         }}
-                        className="flex items-center gap-3 px-4 py-3 text-sm text-zinc-300 hover:text-white hover:bg-white/5 transition-colors w-full text-right"
+                        className="flex items-center gap-3 px-4 py-3 text-sm text-slate-300 hover:text-white hover:bg-white/5 transition-colors w-full text-right"
                       >
                         <Mail className="w-4 h-4 text-emerald-400" />
                         <span className="font-medium">اتصل بنا</span>
@@ -2041,9 +2047,9 @@ export default function App() {
                           setShowMoreMenu(false);
                           setShowSettingsModal(true);
                         }}
-                        className="flex items-center gap-3 px-4 py-3 text-sm text-zinc-300 hover:text-white hover:bg-white/5 transition-colors w-full text-right"
+                        className="flex items-center gap-3 px-4 py-3 text-sm text-slate-300 hover:text-white hover:bg-white/5 transition-colors w-full text-right"
                       >
-                        <Settings2 className="w-4 h-4 text-zinc-400" />
+                        <Settings2 className="w-4 h-4 text-slate-400" />
                         <span className="font-medium">الإعدادات</span>
                       </button>
 
@@ -2096,7 +2102,7 @@ export default function App() {
             <div className="flex items-center gap-2">
               <h3 className={`text-xs sm:text-sm font-bold ${marketStatus.color}`}>حالة السوق: {marketStatus.label}</h3>
             </div>
-            <p className="text-[10px] sm:text-xs text-zinc-400 mt-0.5">{marketStatus.description}</p>
+            <p className="text-[10px] sm:text-xs text-slate-400 mt-0.5">{marketStatus.description}</p>
           </div>
         </div>
 
@@ -2142,7 +2148,7 @@ export default function App() {
                   </motion.span>
                 </AnimatePresence>
               )}
-              <span className="text-xl sm:text-3xl lg:text-4xl text-zinc-500 font-light">د.ل</span>
+              <span className="text-xl sm:text-3xl lg:text-4xl text-slate-500 font-light">د.ل</span>
               
               {rates && <LastChangedBadge date={rates?.lastChanged?.parallel["USD"]} className="absolute -bottom-6 right-0" />}
 
@@ -2163,8 +2169,8 @@ export default function App() {
             
             <div className="flex flex-wrap items-center gap-4 sm:gap-6 mt-6 sm:mt-8">
               <div className="flex items-center gap-2 text-sm">
-                <span className="text-zinc-500">السعر السابق</span>
-                <span className="font-mono text-zinc-300 text-base" dir="ltr">{prevUsdRate.toFixed(2)}</span>
+                <span className="text-slate-500">السعر السابق</span>
+                <span className="font-mono text-slate-300 text-base" dir="ltr">{prevUsdRate.toFixed(2)}</span>
               </div>
               {usdIsUp ? (
                 <div className="flex items-center gap-1.5 text-rose-400 text-sm font-medium bg-rose-500/10 px-2.5 py-1 rounded-full border border-rose-500/20">
@@ -2177,14 +2183,14 @@ export default function App() {
                   <span className="font-mono" dir="ltr">-{usdChange.toFixed(2)}</span>
                 </div>
               ) : (
-                <div className="flex items-center gap-1.5 text-zinc-400 text-sm font-medium bg-zinc-500/10 px-2.5 py-1 rounded-full border border-zinc-500/20">
+                <div className="flex items-center gap-1.5 text-slate-400 text-sm font-medium bg-zinc-500/10 px-2.5 py-1 rounded-full border border-zinc-500/20">
                   <span className="font-mono" dir="ltr">0.00</span>
                 </div>
               )}
               
               <button 
                 onClick={(e) => { e.stopPropagation(); handleShareCardImage('USD_CASH', 'دولار أمريكي', usdRate, false); }}
-                className="mr-auto w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-zinc-400 hover:text-white hover:bg-emerald-500/20 hover:border-emerald-500/30 transition-all shadow-[0_0_15px_rgba(0,0,0,0.5)]"
+                className="mr-auto w-10 h-10 rounded-full bg-white/5 border border-slate-700/50 flex items-center justify-center text-slate-400 hover:text-white hover:bg-emerald-500/20 hover:border-emerald-500/30 transition-all shadow-[0_0_15px_rgba(0,0,0,0.5)]"
                 title="مشاركة الصورة"
               >
                 {isGeneratingShareImage && shareData?.code === 'USD_CASH' ? <div className="w-4 h-4 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin"></div> : <Share2 className="w-4 h-4" />}
@@ -2194,14 +2200,14 @@ export default function App() {
             {/* USD Checks Card */}
             <div 
               onClick={() => setSelectedRate({ code: 'USD_CHECKS', name: 'دولار أمريكي (صكوك)', market: 'parallel' })}
-              className="mt-8 flex items-center gap-4 sm:gap-6 bg-white/[0.02] border border-white/5 rounded-2xl p-4 sm:p-5 w-full sm:w-fit hover:bg-white/[0.04] transition-colors cursor-pointer group"
+              className="mt-8 flex items-center gap-4 sm:gap-6 bg-white/[0.02] border border-slate-800/60 rounded-2xl p-4 sm:p-5 w-full sm:w-fit hover:bg-white/[0.04] transition-colors cursor-pointer group"
             >
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-400 shrink-0">
                   <FlagIcon flagCode="us" name="دولار أمريكي (صكوك)" className="w-10 h-10" fallbackType="building" />
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-xs text-zinc-500 font-medium mb-1">دولار (صكوك)</span>
+                  <span className="text-xs text-slate-500 font-medium mb-1">دولار (صكوك)</span>
                   <div className="flex items-center gap-2">
                     <span className="text-3xl font-light text-white font-mono leading-none group-hover:text-emerald-400 transition-colors">{usdChecksRate.toFixed(2)}</span>
                     {usdChecksIsUp ? <ArrowUpRight className="w-4 h-4 text-rose-400" /> : usdChecksIsDown ? <ArrowDownRight className="w-4 h-4 text-emerald-400" /> : null}
@@ -2212,11 +2218,11 @@ export default function App() {
               <div className="w-px h-12 bg-white/10 mx-2"></div>
               <div className="flex flex-col justify-center">
                 <span className="text-[10px] text-zinc-600 mb-1">السعر السابق</span>
-                <span className="text-sm text-zinc-400 font-mono" dir="ltr">{prevUsdChecksRate.toFixed(2)}</span>
+                <span className="text-sm text-slate-400 font-mono" dir="ltr">{prevUsdChecksRate.toFixed(2)}</span>
               </div>
               <button 
                 onClick={(e) => { e.stopPropagation(); handleShareCardImage('USD_CHECKS', 'دولار أمريكي (صكوك)', usdChecksRate, false); }}
-                className="mr-auto w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-zinc-400 hover:text-white hover:bg-emerald-500/20 hover:border-emerald-500/30 transition-all"
+                className="mr-auto w-10 h-10 rounded-full bg-white/5 border border-slate-700/50 flex items-center justify-center text-slate-400 hover:text-white hover:bg-emerald-500/20 hover:border-emerald-500/30 transition-all"
                 title="مشاركة الصورة"
               >
                 {isGeneratingShareImage && shareData?.code === 'USD_CHECKS' ? <div className="w-4 h-4 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin"></div> : <Share2 className="w-4 h-4" />}
@@ -2224,7 +2230,7 @@ export default function App() {
             </div>
 
             {rates?.lastUpdated && (
-              <div className="flex flex-wrap items-center gap-2 mt-6 text-[11px] sm:text-xs text-zinc-500 bg-white/5 w-fit px-3 py-1.5 rounded-full border border-white/5">
+              <div className="flex flex-wrap items-center gap-2 mt-6 text-[11px] sm:text-xs text-slate-500 bg-white/5 w-fit px-3 py-1.5 rounded-full border border-slate-800/60">
                 <Clock className="w-3.5 h-3.5 text-emerald-500/70" />
                 <span>آخر تحديث: {formatDistanceToNow(new Date(rates.lastUpdated), { addSuffix: true, locale: ar })}</span>
                 <div className="w-1 h-1 rounded-full bg-zinc-600 hidden sm:block"></div>
@@ -2247,7 +2253,7 @@ export default function App() {
                     className={`px-3 py-1 text-[10px] font-medium rounded-full transition-all border ${
                       chartRange === range 
                         ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400' 
-                        : 'bg-white/5 border-white/5 text-zinc-500 hover:bg-white/10'
+                        : 'bg-white/5 border-slate-800/60 text-slate-500 hover:bg-white/10'
                     }`}
                   >
                     {range === '24h' ? '24 ساعة' : range === '7d' ? '7 أيام' : 'الكل'}
@@ -2294,16 +2300,16 @@ export default function App() {
 
               {/* Advanced Stats Dashboard */}
               <div className="mt-4 grid grid-cols-3 gap-2 w-full lg:w-[400px]">
-                <div className="bg-white/5 rounded-2xl p-3 text-center border border-white/5 flex flex-col justify-center">
-                  <p className="text-[10px] text-zinc-400 font-medium mb-1">متوسط 30 يوم</p>
+                <div className="bg-white/5 rounded-2xl p-3 text-center border border-slate-800/60 flex flex-col justify-center">
+                  <p className="text-[10px] text-slate-400 font-medium mb-1">متوسط 30 يوم</p>
                   <p className="text-sm font-mono font-bold text-white">{advancedStats.ma30 > 0 ? advancedStats.ma30.toFixed(4) : '-'}</p>
                 </div>
                 <div className="bg-emerald-500/5 rounded-2xl p-3 text-center border border-emerald-500/10 flex flex-col justify-center">
-                  <p className="text-[10px] text-zinc-400 font-medium mb-1">مقاومة (أعلى سعر)</p>
+                  <p className="text-[10px] text-slate-400 font-medium mb-1">مقاومة (أعلى سعر)</p>
                   <p className="text-sm font-mono font-bold text-emerald-400">{advancedStats.resistance > 0 ? advancedStats.resistance.toFixed(4) : '-'}</p>
                 </div>
                 <div className="bg-rose-500/5 rounded-2xl p-3 text-center border border-rose-500/10 flex flex-col justify-center">
-                  <p className="text-[10px] text-zinc-400 font-medium mb-1">دعم (أدنى سعر)</p>
+                  <p className="text-[10px] text-slate-400 font-medium mb-1">دعم (أدنى سعر)</p>
                   <p className="text-sm font-mono font-bold text-rose-400">{advancedStats.support > 0 ? advancedStats.support.toFixed(4) : '-'}</p>
                 </div>
               </div>
@@ -2321,12 +2327,12 @@ export default function App() {
                   <Globe className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-white tracking-wide">السوق الموازي</h3>
-                  <p className="text-[11px] text-zinc-400 font-medium mt-0.5">عملات أجنبية</p>
+                  <h3 className="text-lg font-bold text-gradient tracking-wide">السوق الموازي</h3>
+                  <p className="text-[11px] text-slate-400 font-medium mt-0.5">عملات أجنبية</p>
                 </div>
               </div>
-              <div className="w-8 h-8 rounded-full bg-zinc-800/50 flex items-center justify-center group-hover:bg-zinc-700 transition-colors">
-                <ChevronDown className={`w-4 h-4 text-zinc-400 transition-transform duration-300 ${expandedSections.foreign ? 'rotate-180' : ''}`} />
+              <div className="w-8 h-8 rounded-full bg-slate-800/50 flex items-center justify-center group-hover:bg-zinc-700 transition-colors">
+                <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-300 ${expandedSections.foreign ? 'rotate-180' : ''}`} />
               </div>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-8 gap-y-12">
@@ -2366,12 +2372,12 @@ export default function App() {
                   <FileText className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-white tracking-wide">صكوك المصارف</h3>
-                  <p className="text-[11px] text-zinc-400 font-medium mt-0.5">دولار أمريكي (USD)</p>
+                  <h3 className="text-lg font-bold text-gradient tracking-wide">صكوك المصارف</h3>
+                  <p className="text-[11px] text-slate-400 font-medium mt-0.5">دولار أمريكي (USD)</p>
                 </div>
               </div>
-              <div className="w-8 h-8 rounded-full bg-zinc-800/50 flex items-center justify-center group-hover:bg-zinc-700 transition-colors">
-                <ChevronDown className={`w-4 h-4 text-zinc-400 transition-transform duration-300 ${expandedSections.checks ? 'rotate-180' : ''}`} />
+              <div className="w-8 h-8 rounded-full bg-slate-800/50 flex items-center justify-center group-hover:bg-zinc-700 transition-colors">
+                <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-300 ${expandedSections.checks ? 'rotate-180' : ''}`} />
               </div>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-8 gap-y-12">
@@ -2411,12 +2417,12 @@ export default function App() {
                   <ArrowLeftRight className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-white tracking-wide">حوالات العملة</h3>
-                  <p className="text-[11px] text-zinc-400 font-medium mt-0.5">تحويلات خارج ليبيا</p>
+                  <h3 className="text-lg font-bold text-gradient tracking-wide">حوالات العملة</h3>
+                  <p className="text-[11px] text-slate-400 font-medium mt-0.5">تحويلات خارج ليبيا</p>
                 </div>
               </div>
-              <div className="w-8 h-8 rounded-full bg-zinc-800/50 flex items-center justify-center group-hover:bg-zinc-700 transition-colors">
-                <ChevronDown className={`w-4 h-4 text-zinc-400 transition-transform duration-300 ${expandedSections.transfers ? 'rotate-180' : ''}`} />
+              <div className="w-8 h-8 rounded-full bg-slate-800/50 flex items-center justify-center group-hover:bg-zinc-700 transition-colors">
+                <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-300 ${expandedSections.transfers ? 'rotate-180' : ''}`} />
               </div>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-8 gap-y-12">
@@ -2457,12 +2463,12 @@ export default function App() {
                 <Building2 className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-white tracking-wide">السوق الرسمي</h3>
-                <p className="text-[11px] text-zinc-400 font-medium mt-0.5">مصرف ليبيا المركزي</p>
+                <h3 className="text-lg font-bold text-gradient tracking-wide">السوق الرسمي</h3>
+                <p className="text-[11px] text-slate-400 font-medium mt-0.5">مصرف ليبيا المركزي</p>
               </div>
             </div>
-            <div className="w-8 h-8 rounded-full bg-zinc-800/50 flex items-center justify-center group-hover:bg-zinc-700 transition-colors">
-              <ChevronDown className={`w-4 h-4 text-zinc-400 transition-transform duration-300 ${expandedSections.official ? 'rotate-180' : ''}`} />
+            <div className="w-8 h-8 rounded-full bg-slate-800/50 flex items-center justify-center group-hover:bg-zinc-700 transition-colors">
+              <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-300 ${expandedSections.official ? 'rotate-180' : ''}`} />
             </div>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-x-8 gap-y-12">
@@ -2503,7 +2509,7 @@ export default function App() {
             </div>
             <div>
               <h2 className="text-xl font-black text-white">المعادن الثمينة</h2>
-              <p className="text-xs text-zinc-400 mt-0.5">أسعار الذهب والفضة لحظياً</p>
+              <p className="text-xs text-slate-400 mt-0.5">أسعار الذهب والفضة لحظياً</p>
             </div>
           </div>
 
@@ -2514,8 +2520,8 @@ export default function App() {
                   <Coins className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-white tracking-wide">المعادن الثمينة</h3>
-                  <p className="text-[11px] text-zinc-400 font-medium mt-0.5">أسعار الذهب والفضة</p>
+                  <h3 className="text-lg font-bold text-gradient tracking-wide">المعادن الثمينة</h3>
+                  <p className="text-[11px] text-slate-400 font-medium mt-0.5">أسعار الذهب والفضة</p>
                 </div>
               </div>
             </div>
@@ -2554,26 +2560,26 @@ export default function App() {
         {/* التحليل والرسوم البيانية */}
         <section id="charts-section" className={`mt-16 ${activeTab === 'charts' ? '' : 'hidden md:block'}`}>
           <div className="mb-8">
-            <h2 className="text-3xl font-black text-white tracking-tight flex items-center gap-3 mb-2">
+            <h2 className="text-3xl font-black text-gradient tracking-tight tracking-tight flex items-center gap-3 mb-2">
               <LineChart className="w-8 h-8 text-fuchsia-500" />
               التحليل المتقدم
             </h2>
-            <p className="text-zinc-400">تابع اتجاهات السوق وحركة الأسعار زمنياً</p>
+            <p className="text-slate-400">تابع اتجاهات السوق وحركة الأسعار زمنياً</p>
           </div>
           
-          <div className="bg-[#0a0a0a] rounded-3xl border border-white/5 p-4 sm:p-6 shadow-2xl relative overflow-hidden">
+          <div className=" glass-panel-heavy rounded-3xl premium-border  p-4 sm:p-6 shadow-2xl relative overflow-hidden">
             {/* الخلفية الزخرفية */}
             <div className="absolute top-0 right-0 w-64 h-64 bg-fuchsia-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
             
             <div className="relative z-10 flex flex-col gap-6">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 {/* العملة */}
-                <div className="flex bg-white/5 p-1 rounded-2xl border border-white/5 w-full sm:w-auto overflow-x-auto">
+                <div className="flex bg-white/5 p-1 rounded-2xl border border-slate-800/60 w-full sm:w-auto overflow-x-auto">
                   {['USD_CASH', 'USD_CHECKS', 'EUR', 'GOLD_SCRAP_18'].map(curr => (
                     <button
                       key={curr}
                       onClick={() => setChartAnalysisCurrency(curr)}
-                      className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-sm font-bold transition-all ${chartAnalysisCurrency === curr ? 'bg-fuchsia-500/20 text-fuchsia-400' : 'text-zinc-400 hover:text-zinc-200'}`}
+                      className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-sm font-bold transition-all ${chartAnalysisCurrency === curr ? 'bg-fuchsia-500/20 text-fuchsia-400' : 'text-slate-400 hover:text-slate-200'}`}
                     >
                       {curr === 'USD_CASH' ? 'دولار كاش' : curr === 'USD_CHECKS' ? 'دولار شيك' : curr === 'EUR' ? 'يورو' : curr === 'GOLD_SCRAP_18' ? 'ذهب كسر 18' : curr}
                     </button>
@@ -2581,7 +2587,7 @@ export default function App() {
                 </div>
                 
                 {/* النطاق الزمني */}
-                <div className="flex bg-white/5 p-1 rounded-2xl border border-white/5 w-full sm:w-auto">
+                <div className="flex bg-white/5 p-1 rounded-2xl border border-slate-800/60 w-full sm:w-auto">
                   {[
                     { id: '1w', label: 'أسبوع' },
                     { id: '1m', label: 'شهر' },
@@ -2592,7 +2598,7 @@ export default function App() {
                     <button
                       key={range.id}
                       onClick={() => setChartAnalysisRange(range.id as any)}
-                      className={`flex-1 sm:flex-none px-3 py-2 rounded-xl text-xs font-bold transition-all ${chartAnalysisRange === range.id ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+                      className={`flex-1 sm:flex-none px-3 py-2 rounded-xl text-xs font-bold transition-all ${chartAnalysisRange === range.id ? 'bg-white/10 text-white' : 'text-slate-500 hover:text-slate-300'}`}
                     >
                       {range.label}
                     </button>
@@ -2629,7 +2635,7 @@ export default function App() {
                     .filter(d => d.value > 0);
 
                   if (filteredData.length < 2) {
-                    return <div className="w-full h-full flex items-center justify-center text-zinc-500">لا توجد بيانات كافية لهذه الفترة</div>;
+                    return <div className="w-full h-full flex items-center justify-center text-slate-500">لا توجد بيانات كافية لهذه الفترة</div>;
                   }
 
                   const firstVal = filteredData[0].value;
@@ -2721,8 +2727,8 @@ export default function App() {
                     const isPositive = val > 0;
                     
                     return (
-                      <div key={i} className="bg-white/5 rounded-2xl p-3 border border-white/5 flex flex-col items-center justify-center text-center">
-                        <span className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider mb-1">{stat.label}</span>
+                      <div key={i} className="bg-white/5 rounded-2xl p-3 border border-slate-800/60 flex flex-col items-center justify-center text-center">
+                        <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mb-1">{stat.label}</span>
                         <span className={`font-mono font-bold ${isChange ? (isPositive ? 'text-emerald-400' : 'text-rose-400') : 'text-white'}`}>
                           {isChange ? (isPositive ? '+' : '') : ''}{val.toFixed(2)}
                         </span>
@@ -2737,7 +2743,7 @@ export default function App() {
 
 
         <section id="currency-converter-section" className={`mt-16 ${activeTab === 'converter' ? '' : 'hidden md:block'}`}>
-          <div className="bg-gradient-to-br from-white/[0.05] to-transparent border border-white/10 rounded-[3rem] p-8 sm:p-12 shadow-2xl relative overflow-hidden group text-right" dir="rtl">
+          <div className="bg-gradient-to-br from-white/[0.05] to-transparent border border-slate-700/50 rounded-[3rem] p-8 sm:p-12 shadow-2xl relative overflow-hidden group text-right" dir="rtl">
             {/* Background elements */}
             <div className="absolute top-0 left-0 p-12 opacity-5 group-hover:opacity-10 transition-opacity duration-1000">
               <RefreshCw className="w-48 h-48 text-white rotate-45" />
@@ -2751,16 +2757,16 @@ export default function App() {
                   </div>
                   <div>
                     <h3 className="text-2xl font-black text-white tracking-tight">محول العملات</h3>
-                    <p className="text-[11px] text-zinc-500 uppercase tracking-[0.2em] font-mono font-bold">Smart Exchange Calculator</p>
+                    <p className="text-[11px] text-slate-500 uppercase tracking-[0.2em] font-mono font-bold">Smart Exchange Calculator</p>
                   </div>
                 </div>
               </div>
 
               <div className="flex flex-col gap-6">
                 {/* Smart Input Area */}
-                <div id="converter-input" className="flex flex-col sm:flex-row items-center gap-4 bg-white/[0.02] p-4 sm:p-6 rounded-3xl border border-white/5 relative z-20">
+                <div id="converter-input" className="flex flex-col sm:flex-row items-center gap-4 bg-white/[0.02] p-4 sm:p-6 rounded-3xl border border-slate-800/60 relative z-20">
                   <div className="flex-1 w-full">
-                    <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-2 block">
+                    <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2 block">
                       المبلغ (اكتب الرقم أو العملة، مثال: 100$ أو 50 دينار)
                     </label>
                     <input 
@@ -2791,7 +2797,7 @@ export default function App() {
                           setConvInputValue(topAmount.toString());
                         }
                       }}
-                      className="w-full sm:w-auto bg-white/[0.05] border border-white/10 rounded-2xl p-4 text-white font-bold focus:outline-none appearance-none cursor-pointer hover:bg-white/[0.1] transition-colors text-center"
+                      className="w-full sm:w-auto bg-white/[0.05] border border-slate-700/50 rounded-2xl p-4 text-white font-bold focus:outline-none appearance-none cursor-pointer hover:bg-white/[0.1] transition-colors text-center"
                     >
                       {configTerms.filter(t => !METAL_IDS.includes(t.id) && t.id !== "OFFICIAL_USD").map(t => (
                         <option key={t.id} value={t.id} className="bg-[#121212]">{t.name}</option>
@@ -2821,7 +2827,7 @@ export default function App() {
                       />
                     </div>
                     <div className="mt-auto w-full">
-                      <div className="w-full bg-white/[0.02] border border-white/5 rounded-xl p-3 text-zinc-400 text-sm font-bold text-center">
+                      <div className="w-full bg-white/[0.02] border border-slate-800/60 rounded-xl p-3 text-slate-400 text-sm font-bold text-center">
                         دينار ليبي (LYD)
                       </div>
                     </div>
@@ -2846,7 +2852,7 @@ export default function App() {
                       />
                     </div>
                     <div className="mt-auto w-full">
-                      <div className="w-full bg-white/[0.02] border border-white/5 rounded-xl p-3 text-zinc-400 text-sm font-bold text-center">
+                      <div className="w-full bg-white/[0.02] border border-slate-800/60 rounded-xl p-3 text-slate-400 text-sm font-bold text-center">
                         دينار ليبي (LYD)
                       </div>
                     </div>
@@ -2861,10 +2867,10 @@ export default function App() {
           <div className="space-y-6 pt-2 pb-8">
 
             {/* App Info Card */}
-            <div className="relative overflow-hidden rounded-[2rem] bg-[#111111] border border-white/5 p-6 shadow-2xl">
+            <div className="relative overflow-hidden rounded-[2rem] bg-[#111111] border border-slate-800/60 p-6 shadow-2xl">
               <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-emerald-500/20 to-transparent" />
               <div className="flex items-center gap-5">
-                <div className="w-20 h-20 rounded-[1.5rem] bg-gradient-to-br from-emerald-500/10 to-blue-500/10 border border-white/10 flex items-center justify-center shadow-lg relative overflow-hidden">
+                <div className="w-20 h-20 rounded-[1.5rem] bg-gradient-to-br from-emerald-500/10 to-blue-500/10 border border-slate-700/50 flex items-center justify-center shadow-lg relative overflow-hidden">
                   <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-white/10 via-transparent to-transparent"></div>
                   <img src="/logo.png" alt="App" className="w-12 h-12 rounded-full relative z-10 drop-shadow-md" />
                 </div>
@@ -2872,23 +2878,23 @@ export default function App() {
                   <h2 className="text-2xl font-black text-white tracking-tight">مؤشر الدينار</h2>
                   <p className="text-[11px] text-emerald-400 font-mono mt-1 uppercase tracking-[0.2em]">Dinar Index Libya</p>
                   <div className="flex items-center gap-2 mt-2">
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-zinc-400 font-medium">v2.1.0</span>
-                    <span className="text-[10px] text-zinc-500">by GreenBox © 2026</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-slate-400 font-medium">v2.1.0</span>
+                    <span className="text-[10px] text-slate-500">by GreenBox © 2026</span>
                   </div>
                 </div>
               </div>
-              <div className="mt-6 pt-6 border-t border-white/5">
+              <div className="mt-6 pt-6 border-t border-slate-800/60">
                 <AppInstallUninstall />
               </div>
             </div>
 
             {/* Section: أدوات المنصة */}
             <div className="space-y-3">
-              <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-wider px-2">أدوات المنصة</h3>
+              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider px-2">أدوات المنصة</h3>
               <div className="grid grid-cols-2 gap-3">
                 <button
                   onClick={() => { triggerHaptic(10); setShowSettingsModal(true); }}
-                  className="flex flex-col items-center gap-3 p-5 rounded-3xl bg-[#111111] border border-white/5 active:scale-95 transition-transform"
+                  className="flex flex-col items-center gap-3 p-5 rounded-3xl bg-[#111111] border border-slate-800/60 active:scale-95 transition-transform"
                 >
                   <div className="w-12 h-12 rounded-[1rem] bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center">
                     <Settings2 className="w-6 h-6 text-indigo-400" />
@@ -2898,7 +2904,7 @@ export default function App() {
 
                 <button
                   onClick={() => { triggerHaptic(10); setShowCurrencyModal(true); }}
-                  className="flex flex-col items-center gap-3 p-5 rounded-3xl bg-[#111111] border border-white/5 active:scale-95 transition-transform"
+                  className="flex flex-col items-center gap-3 p-5 rounded-3xl bg-[#111111] border border-slate-800/60 active:scale-95 transition-transform"
                 >
                   <div className="w-12 h-12 rounded-[1rem] bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
                     <FileText className="w-6 h-6 text-blue-400" />
@@ -2908,7 +2914,7 @@ export default function App() {
 
                 <button
                   onClick={() => { triggerHaptic(10); handleShare(); }}
-                  className="flex flex-col items-center gap-3 p-5 rounded-3xl bg-[#111111] border border-white/5 active:scale-95 transition-transform"
+                  className="flex flex-col items-center gap-3 p-5 rounded-3xl bg-[#111111] border border-slate-800/60 active:scale-95 transition-transform"
                 >
                   <div className="w-12 h-12 rounded-[1rem] bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
                     <Share2 className="w-6 h-6 text-emerald-400" />
@@ -2918,7 +2924,7 @@ export default function App() {
 
                 <button
                   onClick={() => { triggerHaptic(10); setShowSettingsModal(true); setSettingsTab('notifications'); }}
-                  className="flex flex-col items-center gap-3 p-5 rounded-3xl bg-[#111111] border border-white/5 active:scale-95 transition-transform relative overflow-hidden"
+                  className="flex flex-col items-center gap-3 p-5 rounded-3xl bg-[#111111] border border-slate-800/60 active:scale-95 transition-transform relative overflow-hidden"
                 >
                   {Notification.permission !== 'granted' && (
                     <div className="absolute top-3 right-3 w-2 h-2 rounded-full bg-amber-500 animate-pulse"></div>
@@ -2933,20 +2939,20 @@ export default function App() {
 
             {/* Section: تواصل معنا */}
             <div className="space-y-3">
-              <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-wider px-2">التواصل والمتابعة</h3>
-              <div className="bg-[#111111] rounded-3xl border border-white/5 overflow-hidden">
+              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider px-2">التواصل والمتابعة</h3>
+              <div className="bg-[#111111] rounded-3xl border border-slate-800/60 overflow-hidden">
                 <a
                   href="https://t.me/libya_index_dollar"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-full flex items-center gap-4 p-4 hover:bg-white/[0.02] active:bg-white/[0.05] transition-colors border-b border-white/5 text-right"
+                  className="w-full flex items-center gap-4 p-4 hover:bg-white/[0.02] active:bg-white/[0.05] transition-colors border-b border-slate-800/60 text-right"
                 >
                   <div className="w-10 h-10 rounded-xl bg-[#24A1DE]/10 flex items-center justify-center shrink-0">
                     <Send className="w-5 h-5 text-[#24A1DE]" />
                   </div>
                   <div className="flex-1">
                     <p className="text-sm font-bold text-white">قناة التيليجرام</p>
-                    <p className="text-xs text-zinc-400 mt-0.5">@libya_index_dollar</p>
+                    <p className="text-xs text-slate-400 mt-0.5">@libya_index_dollar</p>
                   </div>
                   <ArrowRight className="w-4 h-4 text-zinc-600" />
                 </a>
@@ -2955,14 +2961,14 @@ export default function App() {
                   href="https://www.facebook.com/profile.php?id=61593953519936"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-full flex items-center gap-4 p-4 hover:bg-white/[0.02] active:bg-white/[0.05] transition-colors border-b border-white/5 text-right"
+                  className="w-full flex items-center gap-4 p-4 hover:bg-white/[0.02] active:bg-white/[0.05] transition-colors border-b border-slate-800/60 text-right"
                 >
                   <div className="w-10 h-10 rounded-xl bg-[#1877F2]/10 flex items-center justify-center shrink-0">
                     <Facebook className="w-5 h-5 text-[#1877F2]" />
                   </div>
                   <div className="flex-1">
                     <p className="text-sm font-bold text-white">صفحة الفيسبوك</p>
-                    <p className="text-xs text-zinc-400 mt-0.5">مؤشر الدينار</p>
+                    <p className="text-xs text-slate-400 mt-0.5">مؤشر الدينار</p>
                   </div>
                   <ArrowRight className="w-4 h-4 text-zinc-600" />
                 </a>
@@ -2976,7 +2982,7 @@ export default function App() {
                   </div>
                   <div className="flex-1">
                     <p className="text-sm font-bold text-white">اتصل بنا</p>
-                    <p className="text-xs text-zinc-400 mt-0.5">للتواصل مع فريق التطوير</p>
+                    <p className="text-xs text-slate-400 mt-0.5">للتواصل مع فريق التطوير</p>
                   </div>
                   <ArrowRight className="w-4 h-4 text-zinc-600" />
                 </button>
@@ -2985,45 +2991,45 @@ export default function App() {
 
             {/* Section: قانوني ومطورين */}
             <div className="space-y-3">
-              <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-wider px-2">معلومات أخرى</h3>
-              <div className="bg-[#111111] rounded-3xl border border-white/5 overflow-hidden">
+              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider px-2">معلومات أخرى</h3>
+              <div className="bg-[#111111] rounded-3xl border border-slate-800/60 overflow-hidden">
                 <button
                   onClick={() => { triggerHaptic(10); setCurrentPage('api'); }}
-                  className="w-full flex items-center gap-4 p-4 hover:bg-white/[0.02] active:bg-white/[0.05] transition-colors border-b border-white/5 text-right"
+                  className="w-full flex items-center gap-4 p-4 hover:bg-white/[0.02] active:bg-white/[0.05] transition-colors border-b border-slate-800/60 text-right"
                 >
                   <div className="w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center shrink-0">
                     <Code2 className="w-5 h-5 text-purple-400" />
                   </div>
                   <div className="flex-1">
                     <p className="text-sm font-bold text-white">بوابة المطورين (API)</p>
-                    <p className="text-xs text-zinc-400 mt-0.5">الوصول البرمجي للأسعار</p>
+                    <p className="text-xs text-slate-400 mt-0.5">الوصول البرمجي للأسعار</p>
                   </div>
                   <ArrowRight className="w-4 h-4 text-zinc-600" />
                 </button>
 
                 <button
                   onClick={() => { triggerHaptic(10); setCurrentPage('about'); }}
-                  className="w-full flex items-center gap-4 p-4 hover:bg-white/[0.02] active:bg-white/[0.05] transition-colors border-b border-white/5 text-right"
+                  className="w-full flex items-center gap-4 p-4 hover:bg-white/[0.02] active:bg-white/[0.05] transition-colors border-b border-slate-800/60 text-right"
                 >
                   <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center shrink-0">
                     <Info className="w-5 h-5 text-blue-400" />
                   </div>
                   <div className="flex-1">
                     <p className="text-sm font-bold text-white">عن المنصة</p>
-                    <p className="text-xs text-zinc-400 mt-0.5">من نحن وكيف نعمل</p>
+                    <p className="text-xs text-slate-400 mt-0.5">من نحن وكيف نعمل</p>
                   </div>
                   <ArrowRight className="w-4 h-4 text-zinc-600" />
                 </button>
                 <button
                   onClick={() => { triggerHaptic(10); setCurrentPage('terms'); }}
-                  className="w-full flex items-center gap-4 p-4 hover:bg-white/[0.02] active:bg-white/[0.05] transition-colors border-b border-white/5 text-right"
+                  className="w-full flex items-center gap-4 p-4 hover:bg-white/[0.02] active:bg-white/[0.05] transition-colors border-b border-slate-800/60 text-right"
                 >
                   <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center shrink-0">
                     <ShieldAlert className="w-5 h-5 text-indigo-400" />
                   </div>
                   <div className="flex-1">
                     <p className="text-sm font-bold text-white">سياسة الاستخدام</p>
-                    <p className="text-xs text-zinc-400 mt-0.5">الشروط والأحكام</p>
+                    <p className="text-xs text-slate-400 mt-0.5">الشروط والأحكام</p>
                   </div>
                   <ArrowRight className="w-4 h-4 text-zinc-600" />
                 </button>
@@ -3037,7 +3043,7 @@ export default function App() {
                   </div>
                   <div className="flex-1">
                     <p className="text-sm font-bold text-white">سياسة الخصوصية</p>
-                    <p className="text-xs text-zinc-400 mt-0.5">كيفية حماية بياناتك</p>
+                    <p className="text-xs text-slate-400 mt-0.5">كيفية حماية بياناتك</p>
                   </div>
                   <ArrowRight className="w-4 h-4 text-zinc-600" />
                 </button>
@@ -3046,13 +3052,13 @@ export default function App() {
 
             {/* Online count */}
             <div className="flex items-center justify-center pt-2">
-              <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-[#111111] border border-white/5 shadow-inner">
+              <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-[#111111] border border-slate-800/60 shadow-inner">
                 <div className="relative flex h-2 w-2">
                   <div className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-40" />
                   <div className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
                 </div>
-                <span className="text-xs font-mono text-zinc-300 tracking-wider">{onlineCount.toLocaleString()}</span>
-                <span className="text-[10px] text-zinc-500 uppercase">متواجد الآن</span>
+                <span className="text-xs font-mono text-slate-300 tracking-wider">{onlineCount.toLocaleString()}</span>
+                <span className="text-[10px] text-slate-500 uppercase">متواجد الآن</span>
               </div>
             </div>
 
@@ -3060,30 +3066,30 @@ export default function App() {
         </div>
 
         {/* Footer - Desktop only */}
-        <footer className="hidden md:flex pt-16 pb-12 border-t border-white/5 flex-col items-center gap-8">
+        <footer className="hidden md:flex pt-16 pb-12 border-t border-slate-800/60 flex-col items-center gap-8">
           <div className="flex flex-col items-center gap-4">
             <div className="flex items-center gap-4 opacity-40 grayscale hover:opacity-100 hover:grayscale-0 transition-all duration-500">
-              <span className="text-[10px] font-mono tracking-[0.2em] uppercase text-zinc-400">Dinar Index Libya</span>
+              <span className="text-[10px] font-mono tracking-[0.2em] uppercase text-slate-400">Dinar Index Libya</span>
             </div>
             
             {/* Online Count Badge - Elegant Style */}
-            <div className="flex items-center gap-3 px-4 py-2 rounded-2xl bg-white/[0.03] border border-white/5 shadow-inner">
+            <div className="flex items-center gap-3 px-4 py-2 rounded-2xl bg-white/[0.03] border border-slate-800/60 shadow-inner">
               <div className="flex items-center gap-2">
                 <div className="relative flex h-2 w-2">
                   <div className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-40"></div>
                   <div className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></div>
                 </div>
-                <span className="text-[11px] font-mono text-zinc-300 tracking-tighter">
+                <span className="text-[11px] font-mono text-slate-300 tracking-tighter">
                   {onlineCount.toLocaleString()}
                 </span>
               </div>
               <div className="w-px h-3 bg-white/10"></div>
-              <span className="text-[9px] font-medium text-zinc-500 uppercase tracking-widest">متواجد الآن</span>
+              <span className="text-[9px] font-medium text-slate-500 uppercase tracking-widest">متواجد الآن</span>
             </div>
           </div>
           
           <div className="flex flex-col items-center gap-2">
-            <p className="text-[11px] text-zinc-500 font-light tracking-wide">
+            <p className="text-[11px] text-slate-500 font-light tracking-wide">
               by <span className="text-white font-medium">GreenBox</span> © 2026
             </p>
             <div className="flex items-center gap-3 mt-2">
@@ -3099,34 +3105,34 @@ export default function App() {
 
 
       {/* ====== DESKTOP FOOTER (Hidden on Mobile) ====== */}
-      <footer className="hidden md:flex flex-col items-center justify-center py-10 mt-12 border-t border-white/10 bg-[#050505] relative z-10 w-full px-6 max-w-7xl mx-auto">
-        <div className="w-full max-w-2xl mx-auto mb-10 pb-10 border-b border-white/5">
+      <footer className="hidden md:flex flex-col items-center justify-center py-10 mt-12 border-t border-slate-700/50 bg-[#020617] relative z-10 w-full px-6 max-w-7xl mx-auto">
+        <div className="w-full max-w-2xl mx-auto mb-10 pb-10 border-b border-slate-800/60">
            <div className="text-center mb-4">
              <h3 className="text-lg font-bold text-white mb-2">تطبيق مؤشر الدينار</h3>
-             <p className="text-zinc-400 text-sm">احصل على أسرع وأفضل تجربة للمنصة من خلال التثبيت على جهازك.</p>
+             <p className="text-slate-400 text-sm">احصل على أسرع وأفضل تجربة للمنصة من خلال التثبيت على جهازك.</p>
            </div>
            <AppInstallUninstall />
         </div>
         
         <div className="flex items-center justify-center gap-8 mb-8">
-          <button onClick={() => { window.scrollTo(0,0); setCurrentPage('terms'); }} className="text-sm font-medium text-zinc-400 hover:text-emerald-400 transition-colors">
+          <button onClick={() => { window.scrollTo(0,0); setCurrentPage('terms'); }} className="text-sm font-medium text-slate-400 hover:text-emerald-400 transition-colors">
             شروط الاستخدام
           </button>
-          <button onClick={() => { window.scrollTo(0,0); setCurrentPage('privacy'); }} className="text-sm font-medium text-zinc-400 hover:text-emerald-400 transition-colors">
+          <button onClick={() => { window.scrollTo(0,0); setCurrentPage('privacy'); }} className="text-sm font-medium text-slate-400 hover:text-emerald-400 transition-colors">
             سياسة الخصوصية
           </button>
-          <button onClick={() => { window.scrollTo(0,0); setCurrentPage('contact'); }} className="text-sm font-medium text-zinc-400 hover:text-emerald-400 transition-colors">
+          <button onClick={() => { window.scrollTo(0,0); setCurrentPage('contact'); }} className="text-sm font-medium text-slate-400 hover:text-emerald-400 transition-colors">
             اتصل بنا
           </button>
-          <button onClick={() => { window.scrollTo(0,0); setCurrentPage('about'); }} className="text-sm font-medium text-zinc-400 hover:text-emerald-400 transition-colors">
+          <button onClick={() => { window.scrollTo(0,0); setCurrentPage('about'); }} className="text-sm font-medium text-slate-400 hover:text-emerald-400 transition-colors">
             عن المنصة
           </button>
         </div>
         <div className="flex flex-col items-center gap-3 opacity-60 hover:opacity-100 transition-opacity">
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-blue-500/20 flex items-center justify-center border border-white/10">
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-blue-500/20 flex items-center justify-center border border-slate-700/50">
             <img src="/logo.png" alt="Logo" className="w-6 h-6 rounded-full" />
           </div>
-          <span className="text-xs text-zinc-500 font-medium">مؤشر الدينار &copy; {new Date().getFullYear()} - جميع الحقوق محفوظة</span>
+          <span className="text-xs text-slate-500 font-medium">مؤشر الدينار &copy; {new Date().getFullYear()} - جميع الحقوق محفوظة</span>
         </div>
       </footer>
 
@@ -3134,13 +3140,13 @@ export default function App() {
       <div className="md:hidden fixed bottom-5 left-4 right-4 z-[90] pb-safe pointer-events-none flex justify-center">
           <nav
             dir="ltr"
-            className="pointer-events-auto w-full max-w-[360px] bg-[#111111]/90 backdrop-blur-3xl border border-white/10 rounded-[2rem] p-1.5 flex items-center justify-between shadow-[0_24px_40px_-12px_rgba(0,0,0,0.8)]"
+            className="pointer-events-auto w-full max-w-[360px] bg-[#111111]/90 backdrop-blur-3xl border border-slate-700/50 rounded-[2rem] p-1.5 flex items-center justify-between shadow-[0_24px_40px_-12px_rgba(0,0,0,0.8)]"
           >
             {/* Tab: Main */}
             <button
               onClick={() => { triggerHaptic(8); setActiveTab('main'); }}
               className={`relative flex flex-col items-center justify-center h-14 flex-1 mx-0.5 rounded-[1.5rem] transition-colors duration-300 active:scale-90 ${
-                activeTab === 'main' ? 'text-emerald-400' : 'text-zinc-500 hover:text-zinc-400'
+                activeTab === 'main' ? 'text-emerald-400' : 'text-slate-500 hover:text-slate-400'
               }`}
             >
               {activeTab === 'main' && (
@@ -3154,7 +3160,7 @@ export default function App() {
             <button
               onClick={() => { triggerHaptic(8); setActiveTab('gold'); }}
               className={`relative flex flex-col items-center justify-center h-14 flex-1 mx-0.5 rounded-[1.5rem] transition-colors duration-300 active:scale-90 ${
-                activeTab === 'gold' ? 'text-amber-400' : 'text-zinc-500 hover:text-zinc-400'
+                activeTab === 'gold' ? 'text-amber-400' : 'text-slate-500 hover:text-slate-400'
               }`}
             >
               {activeTab === 'gold' && (
@@ -3168,7 +3174,7 @@ export default function App() {
             <button
               onClick={() => { triggerHaptic(8); setActiveTab('converter'); }}
               className={`relative flex flex-col items-center justify-center h-14 flex-1 mx-0.5 rounded-[1.5rem] transition-colors duration-300 active:scale-90 ${
-                activeTab === 'converter' ? 'text-blue-400' : 'text-zinc-500 hover:text-zinc-400'
+                activeTab === 'converter' ? 'text-blue-400' : 'text-slate-500 hover:text-slate-400'
               }`}
             >
               {activeTab === 'converter' && (
@@ -3181,7 +3187,7 @@ export default function App() {
             <button
               onClick={() => { triggerHaptic(8); setActiveTab('charts'); }}
               className={`relative flex flex-col items-center justify-center h-14 flex-1 mx-0.5 rounded-[1.5rem] transition-colors duration-300 active:scale-90 ${
-                activeTab === 'charts' ? 'text-fuchsia-400' : 'text-zinc-500 hover:text-zinc-400'
+                activeTab === 'charts' ? 'text-fuchsia-400' : 'text-slate-500 hover:text-slate-400'
               }`}
             >
               {activeTab === 'charts' && (
@@ -3195,7 +3201,7 @@ export default function App() {
             <button
               onClick={() => { triggerHaptic(8); setActiveTab('more'); }}
               className={`relative flex flex-col items-center justify-center h-14 flex-1 mx-0.5 rounded-[1.5rem] transition-colors duration-300 active:scale-90 ${
-                activeTab === 'more' ? 'text-indigo-400' : 'text-zinc-500 hover:text-zinc-400'
+                activeTab === 'more' ? 'text-indigo-400' : 'text-slate-500 hover:text-slate-400'
               }`}
             >
               {activeTab === 'more' && (
@@ -3216,7 +3222,7 @@ export default function App() {
               initial={{ opacity: 0, x: -50, scale: 0.9 }}
               animate={{ opacity: 1, x: 0, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.2 } }}
-              className="pointer-events-auto bg-[#0a0a0a]/90 backdrop-blur-xl border border-white/10 rounded-2xl p-4 shadow-2xl flex items-start gap-4"
+              className="pointer-events-auto  glass-panel-heavy premium-border /90 backdrop-blur-xl border border-slate-700/50 rounded-2xl p-4 shadow-2xl flex items-start gap-4"
             >
               <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
                 toast.type === 'up' ? 'bg-rose-500/10 text-rose-400' : 
@@ -3229,7 +3235,7 @@ export default function App() {
               </div>
               <div className="flex-1 min-w-0">
                 <h4 className="text-sm font-medium text-white mb-1">{toast.title}</h4>
-                <p className="text-xs text-zinc-400 leading-relaxed">{toast.body}</p>
+                <p className="text-xs text-slate-400 leading-relaxed">{toast.body}</p>
               </div>
               <button 
                 onClick={() => setToasts(prev => prev.filter(t => t.id !== toast.id))}
@@ -3264,43 +3270,43 @@ export default function App() {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-md bg-[#0a0a0a] border border-white/10 rounded-3xl overflow-hidden shadow-2xl"
+              className="relative w-full max-w-md  glass-panel-heavy premium-border  border border-slate-700/50 rounded-3xl overflow-hidden shadow-2xl"
             >
-              <div className="p-6 border-b border-white/5 flex items-center justify-between">
+              <div className="p-6 border-b border-slate-800/60 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full bg-indigo-500/10 flex items-center justify-center text-indigo-400">
                     <Settings2 className="w-4 h-4" />
                   </div>
                   <h3 className="text-lg font-medium">الإعدادات</h3>
                 </div>
-                <button onClick={() => setShowSettingsModal(false)} className="text-zinc-500 hover:text-white">
+                <button onClick={() => setShowSettingsModal(false)} className="text-slate-500 hover:text-white">
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
               {/* Tabs */}
-              <div className="flex border-b border-white/5 overflow-x-auto custom-scrollbar">
+              <div className="flex border-b border-slate-800/60 overflow-x-auto custom-scrollbar">
                 <button
                   onClick={() => setSettingsTab('general')}
-                  className={`flex-none px-4 py-3 text-sm font-medium transition-colors border-b-2 whitespace-nowrap ${settingsTab === 'general' ? 'border-indigo-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
+                  className={`flex-none px-4 py-3 text-sm font-medium transition-colors border-b-2 whitespace-nowrap ${settingsTab === 'general' ? 'border-indigo-500 text-white' : 'border-transparent text-slate-500 hover:text-slate-300'}`}
                 >
                   عام
                 </button>
                 <button
                   onClick={() => setSettingsTab('notifications')}
-                  className={`flex-none px-4 py-3 text-sm font-medium transition-colors border-b-2 whitespace-nowrap ${settingsTab === 'notifications' ? 'border-indigo-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
+                  className={`flex-none px-4 py-3 text-sm font-medium transition-colors border-b-2 whitespace-nowrap ${settingsTab === 'notifications' ? 'border-indigo-500 text-white' : 'border-transparent text-slate-500 hover:text-slate-300'}`}
                 >
                   التنبيهات
                 </button>
                 <button
                   onClick={() => setSettingsTab('appearance')}
-                  className={`flex-none px-4 py-3 text-sm font-medium transition-colors border-b-2 whitespace-nowrap ${settingsTab === 'appearance' ? 'border-indigo-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
+                  className={`flex-none px-4 py-3 text-sm font-medium transition-colors border-b-2 whitespace-nowrap ${settingsTab === 'appearance' ? 'border-indigo-500 text-white' : 'border-transparent text-slate-500 hover:text-slate-300'}`}
                 >
                   المظهر
                 </button>
                 <button
                   onClick={() => setSettingsTab('advanced')}
-                  className={`flex-none px-4 py-3 text-sm font-medium transition-colors border-b-2 whitespace-nowrap ${settingsTab === 'advanced' ? 'border-indigo-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
+                  className={`flex-none px-4 py-3 text-sm font-medium transition-colors border-b-2 whitespace-nowrap ${settingsTab === 'advanced' ? 'border-indigo-500 text-white' : 'border-transparent text-slate-500 hover:text-slate-300'}`}
                 >
                   متقدم
                 </button>
@@ -3312,8 +3318,8 @@ export default function App() {
                     {/* Haptic Toggle */}
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-medium text-zinc-200">الاهتزاز (Haptic Feedback)</p>
-                        <p className="text-[10px] text-zinc-500 mt-1">تفعيل أو تعطيل الاهتزاز عند التفاعل مع التطبيق</p>
+                        <p className="text-sm font-medium text-slate-200">الاهتزاز (Haptic Feedback)</p>
+                        <p className="text-[10px] text-slate-500 mt-1">تفعيل أو تعطيل الاهتزاز عند التفاعل مع التطبيق</p>
                       </div>
                       <button
                         onClick={() => {
@@ -3331,8 +3337,8 @@ export default function App() {
                     {/* Sound Toggle */}
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-medium text-zinc-200">المؤثرات الصوتية</p>
-                        <p className="text-[10px] text-zinc-500 mt-1">تفعيل أو تعطيل الأصوات عند تغير الأسعار</p>
+                        <p className="text-sm font-medium text-slate-200">المؤثرات الصوتية</p>
+                        <p className="text-[10px] text-slate-500 mt-1">تفعيل أو تعطيل الأصوات عند تغير الأسعار</p>
                       </div>
                       <button
                         onClick={() => {
@@ -3350,8 +3356,8 @@ export default function App() {
                     {/* Auto Refresh Toggle */}
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-medium text-zinc-200">التحديث التلقائي</p>
-                        <p className="text-[10px] text-zinc-500 mt-1">تحديث الأسعار تلقائياً كل 10 ثوانٍ</p>
+                        <p className="text-sm font-medium text-slate-200">التحديث التلقائي</p>
+                        <p className="text-[10px] text-slate-500 mt-1">تحديث الأسعار تلقائياً كل 10 ثوانٍ</p>
                       </div>
                       <button
                         onClick={() => {
@@ -3369,8 +3375,8 @@ export default function App() {
                     {/* Show Chart Toggle */}
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-medium text-zinc-200">المخطط البياني</p>
-                        <p className="text-[10px] text-zinc-500 mt-1">إظهار المخطط البياني المصغر في الشاشة الرئيسية</p>
+                        <p className="text-sm font-medium text-slate-200">المخطط البياني</p>
+                        <p className="text-[10px] text-slate-500 mt-1">إظهار المخطط البياني المصغر في الشاشة الرئيسية</p>
                       </div>
                       <button
                         onClick={() => {
@@ -3386,7 +3392,7 @@ export default function App() {
                     </div>
 
                     {/* Clear Cache */}
-                    <div className="pt-4 border-t border-white/5">
+                    <div className="pt-4 border-t border-slate-800/60">
                       <button
                         onClick={() => {
                           triggerHaptic(10);
@@ -3406,7 +3412,7 @@ export default function App() {
                 {settingsTab === 'notifications' && (
                   <>
                     {/* Permission Status */}
-                    <div className="flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-white/5">
+                    <div className="flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-slate-800/60">
                       <div className="flex items-center gap-3">
                         {notificationsEnabled ? (
                           <CheckCircle2 className="w-5 h-5 text-emerald-500" />
@@ -3415,7 +3421,7 @@ export default function App() {
                         )}
                         <div>
                           <p className="text-sm font-medium">حالة التنبيهات</p>
-                          <p className="text-[10px] text-zinc-500">{notificationsEnabled ? 'مفعلة على هذا الجهاز' : 'غير مفعلة حالياً'}</p>
+                          <p className="text-[10px] text-slate-500">{notificationsEnabled ? 'مفعلة على هذا الجهاز' : 'غير مفعلة حالياً'}</p>
                         </div>
                       </div>
                       {!notificationsEnabled && (
@@ -3431,7 +3437,7 @@ export default function App() {
                     {/* Threshold Slider */}
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
-                        <label className="text-sm font-medium text-zinc-300">حساسية التنبيه (Threshold)</label>
+                        <label className="text-sm font-medium text-slate-300">حساسية التنبيه (Threshold)</label>
                         <span className="text-xs font-mono text-indigo-400 bg-indigo-500/10 px-2 py-1 rounded-lg">
                           {notificationThreshold.toFixed(2)} د.ل
                         </span>
@@ -3445,7 +3451,7 @@ export default function App() {
                         onChange={(e) => setNotificationThreshold(parseFloat(e.target.value))}
                         className="w-full h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer accent-indigo-500"
                       />
-                      <p className="text-[10px] text-zinc-500 leading-relaxed">
+                      <p className="text-[10px] text-slate-500 leading-relaxed">
                         سيقوم التطبيق بإرسال تنبيه فقط إذا تغير السعر بمقدار أكبر من القيمة المحددة أعلاه. القيمة الحالية ({notificationThreshold.toFixed(3)}) تجعل التنبيهات حساسة جداً لأي تغيير.
                       </p>
                     </div>
@@ -3457,8 +3463,8 @@ export default function App() {
                     {/* Compact Mode Toggle */}
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-medium text-zinc-200">الوضع المضغوط</p>
-                        <p className="text-[10px] text-zinc-500 mt-1">تصغير حجم البطاقات لعرض المزيد من البيانات</p>
+                        <p className="text-sm font-medium text-slate-200">الوضع المضغوط</p>
+                        <p className="text-[10px] text-slate-500 mt-1">تصغير حجم البطاقات لعرض المزيد من البيانات</p>
                       </div>
                       <button
                         onClick={() => {
@@ -3476,8 +3482,8 @@ export default function App() {
                     {/* Animations Toggle */}
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-medium text-zinc-200">الحركات التفاعلية</p>
-                        <p className="text-[10px] text-zinc-500 mt-1">تفعيل أو تعطيل الحركات والانتقالات في التطبيق</p>
+                        <p className="text-sm font-medium text-slate-200">الحركات التفاعلية</p>
+                        <p className="text-[10px] text-slate-500 mt-1">تفعيل أو تعطيل الحركات والانتقالات في التطبيق</p>
                       </div>
                       <button
                         onClick={() => {
@@ -3499,8 +3505,8 @@ export default function App() {
                     {/* Data Saver Toggle */}
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-medium text-zinc-200">توفير البيانات</p>
-                        <p className="text-[10px] text-zinc-500 mt-1">تقليل استهلاك البيانات بإيقاف التحديثات التلقائية السريعة</p>
+                        <p className="text-sm font-medium text-slate-200">توفير البيانات</p>
+                        <p className="text-[10px] text-slate-500 mt-1">تقليل استهلاك البيانات بإيقاف التحديثات التلقائية السريعة</p>
                       </div>
                       <button
                         onClick={() => {
@@ -3518,8 +3524,8 @@ export default function App() {
                     {/* Default Market Select */}
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-medium text-zinc-200">السوق الافتراضي</p>
-                        <p className="text-[10px] text-zinc-500 mt-1">تحديد السوق المفضل لعرض الأسعار</p>
+                        <p className="text-sm font-medium text-slate-200">السوق الافتراضي</p>
+                        <p className="text-[10px] text-slate-500 mt-1">تحديد السوق المفضل لعرض الأسعار</p>
                       </div>
                       <select
                         value={defaultMarket}
@@ -3529,7 +3535,7 @@ export default function App() {
                           localStorage.setItem('defaultMarket', val);
                           triggerHaptic(10);
                         }}
-                        className="bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white outline-none focus:border-indigo-500/50"
+                        className="bg-white/5 border border-slate-700/50 rounded-xl px-3 py-1.5 text-xs text-white outline-none focus:border-indigo-500/50"
                       >
                         <option value="parallel">السوق الموازي</option>
                         <option value="official">السوق الرسمي</option>
@@ -3539,7 +3545,7 @@ export default function App() {
                 )}
               </div>
 
-              <div className="p-6 bg-white/[0.02] border-t border-white/5">
+              <div className="p-6 bg-white/[0.02] border-t border-slate-800/60">
                 <button 
                   onClick={() => setShowSettingsModal(false)}
                   className="w-full py-3 bg-white text-black text-sm font-bold rounded-2xl hover:bg-zinc-200 transition-colors"
@@ -3567,9 +3573,9 @@ export default function App() {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-4xl bg-[#0a0a0a] border border-white/10 rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
+              className="relative w-full max-w-4xl  glass-panel-heavy premium-border  border border-slate-700/50 rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
             >
-              <div className="p-6 border-b border-white/5 flex items-center justify-between shrink-0 relative overflow-hidden">
+              <div className="p-6 border-b border-slate-800/60 flex items-center justify-between shrink-0 relative overflow-hidden">
                 <div className={`absolute inset-0 opacity-10 ${chartStats.isUp ? 'bg-gradient-to-r from-rose-500/50 to-transparent' : 'bg-gradient-to-r from-emerald-500/50 to-transparent'}`}></div>
                 <div className="flex items-center gap-4 relative z-10">
                   <FlagIcon 
@@ -3580,14 +3586,14 @@ export default function App() {
                   />
                   <div>
                     <h3 className="text-xl font-bold text-white">{selectedRate.name}</h3>
-                    <p className="text-xs text-zinc-500 uppercase tracking-widest mt-0.5">
+                    <p className="text-xs text-slate-500 uppercase tracking-widest mt-0.5">
                       {selectedRate.market === 'parallel' ? 'السوق الموازي' : 'السوق الرسمي'} • {selectedRate.code}
                     </p>
                   </div>
                 </div>
                 <button 
                   onClick={() => setSelectedRate(null)} 
-                  className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/10 transition-all relative z-10"
+                  className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-all relative z-10"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -3596,12 +3602,12 @@ export default function App() {
               <div className="p-6 flex-1 overflow-y-auto custom-scrollbar flex flex-col">
                 <div className="flex items-center justify-between mb-8">
                   <div className="flex flex-col">
-                    <span className="text-xs text-zinc-500 mb-1">سعر الصرف الحالي</span>
+                    <span className="text-xs text-slate-500 mb-1">سعر الصرف الحالي</span>
                     <div className="flex items-baseline gap-3">
                       <span className="text-4xl sm:text-5xl font-mono font-bold text-white tracking-tight">
                         {(selectedRate.market === 'parallel' ? rates?.parallel[selectedRate.code] : rates?.official[selectedRate.code])?.toFixed(2)}
                       </span>
-                      <span className="text-sm text-zinc-500">د.ل</span>
+                      <span className="text-sm text-slate-500">د.ل</span>
                     </div>
                     {chartStats.change !== 0 && (
                       <div className={`flex items-center gap-1.5 mt-2 text-sm font-medium ${chartStats.isUp ? 'text-rose-400' : 'text-emerald-400'}`}>
@@ -3624,7 +3630,7 @@ export default function App() {
                         className={`px-3 py-1 text-[10px] font-medium rounded-full transition-all border ${
                           chartRange === range 
                             ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400' 
-                            : 'bg-white/5 border-white/5 text-zinc-500 hover:bg-white/10'
+                            : 'bg-white/5 border-slate-800/60 text-slate-500 hover:bg-white/10'
                         }`}
                       >
                         {range === '24h' ? '24 ساعة' : range === '7d' ? '7 أيام' : 'الكل'}
@@ -3704,20 +3710,20 @@ export default function App() {
                 </div>
 
                 <div className="mt-8 grid grid-cols-3 gap-3 sm:gap-4">
-                  <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 flex flex-col items-center text-center">
-                    <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-2">أعلى قيمة</p>
+                  <div className="p-4 rounded-2xl bg-white/[0.02] border border-slate-800/60 flex flex-col items-center text-center">
+                    <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-2">أعلى قيمة</p>
                     <p className="text-lg sm:text-xl font-mono font-bold text-white">
                       {chartStats.max.toFixed(2)}
                     </p>
                   </div>
-                  <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 flex flex-col items-center text-center">
-                    <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-2">أدنى قيمة</p>
+                  <div className="p-4 rounded-2xl bg-white/[0.02] border border-slate-800/60 flex flex-col items-center text-center">
+                    <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-2">أدنى قيمة</p>
                     <p className="text-lg sm:text-xl font-mono font-bold text-white">
                       {chartStats.min.toFixed(2)}
                     </p>
                   </div>
-                  <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 flex flex-col items-center text-center">
-                    <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-2">المتوسط</p>
+                  <div className="p-4 rounded-2xl bg-white/[0.02] border border-slate-800/60 flex flex-col items-center text-center">
+                    <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-2">المتوسط</p>
                     <p className="text-lg sm:text-xl font-mono font-bold text-white">
                       {chartStats.avg.toFixed(2)}
                     </p>
@@ -3738,8 +3744,8 @@ export default function App() {
                       {advancedStats.support > 0 ? advancedStats.support.toFixed(4) : '-'}
                     </p>
                   </div>
-                  <div className="p-4 rounded-2xl bg-white/5 border border-white/10 flex flex-col items-center text-center">
-                    <p className="text-[10px] text-zinc-400 font-medium mb-1 line-clamp-1">متوسط (30 يوم)</p>
+                  <div className="p-4 rounded-2xl bg-white/5 border border-slate-700/50 flex flex-col items-center text-center">
+                    <p className="text-[10px] text-slate-400 font-medium mb-1 line-clamp-1">متوسط (30 يوم)</p>
                     <p className="text-sm sm:text-base font-mono font-bold text-white">
                       {advancedStats.ma30 > 0 ? advancedStats.ma30.toFixed(4) : '-'}
                     </p>
@@ -3747,8 +3753,8 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="p-6 bg-white/[0.02] border-t border-white/5 flex items-center justify-between shrink-0">
-                <div className="flex items-center gap-2 text-[10px] text-zinc-500">
+              <div className="p-6 bg-white/[0.02] border-t border-slate-800/60 flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-2 text-[10px] text-slate-500">
                   <Info className="w-3 h-3" />
                   <span>تحديثات السوق لآخر 24 ساعة</span>
                 </div>
@@ -3772,10 +3778,10 @@ export default function App() {
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
-              className="bg-[#1a1a1a] border border-white/10 rounded-3xl p-6 w-full max-w-md shadow-2xl"
+              className="glass-panel border border-slate-700/50 rounded-3xl p-6 w-full max-w-md shadow-2xl"
             >
               <h2 className="text-xl font-bold text-white mb-6 text-right">تخصيص تقرير PDF</h2>
-              <p className="text-sm text-zinc-400 mb-6 text-right">اختر العملات التي ترغب في تضمينها في التقرير:</p>
+              <p className="text-sm text-slate-400 mb-6 text-right">اختر العملات التي ترغب في تضمينها في التقرير:</p>
               
               <div className="grid grid-cols-2 gap-3 mb-8 max-h-[300px] overflow-y-auto pr-2">
                 {configTerms.filter(c => c.id !== 'OFFICIAL_USD' && !staleCurrencies.has(c.id)).map(c => (
@@ -3791,7 +3797,7 @@ export default function App() {
                     className={`p-3 rounded-xl border text-right flex items-center justify-between transition-colors ${
                       selectedCurrencies.includes(c.id)
                         ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400'
-                        : 'bg-white/5 border-white/5 text-zinc-400 hover:bg-white/10'
+                        : 'bg-white/5 border-slate-800/60 text-slate-400 hover:bg-white/10'
                     }`}
                   >
                     <span className="text-xs font-bold">{c.name}</span>
