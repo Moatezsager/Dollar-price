@@ -3320,13 +3320,15 @@ async function startServer() {
           phone,
           message,
           status: 'new'
-        }]).catch(e => console.error("Supabase Visitor Message sync failed:", e.message));
+        }]).then(({error}) => {
+          if (error) console.error("Supabase Visitor Message sync failed:", error.message);
+        });
       }
       
       res.json({ success: true, message: "تم إرسال رسالتك بنجاح. سيتم الرد عليك في أقل من 24 ساعة." });
     } catch (error) {
       console.error("Error saving message:", error);
-      res.status(500).json({ error: "حدث خطأ أثناء حفظ الرسالة" });
+      res.status(500).json({ error: "حدث خطأ أثناء حفظ الرسالة", details: error.message || error.toString() });
     }
   });
 

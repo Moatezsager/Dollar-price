@@ -45,12 +45,12 @@ export const Contact = ({ onBack }: { onBack?: () => void }) => {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
-      className="max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-16 space-y-8"
+      className="max-w-3xl mx-auto px-4 sm:px-6 py-8 pb-32 sm:py-16 sm:pb-16 space-y-6 sm:space-y-8"
     >
       {onBack && (
         <button 
           onClick={onBack}
-          className="flex items-center gap-2 text-zinc-400 hover:text-white transition-colors"
+          className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors"
         >
           <ArrowRight className="w-5 h-5" />
           <span>العودة</span>
@@ -60,15 +60,15 @@ export const Contact = ({ onBack }: { onBack?: () => void }) => {
         <div className="w-16 h-16 mx-auto bg-emerald-500/10 rounded-2xl flex items-center justify-center mb-6">
           <Mail className="w-8 h-8 text-emerald-400" />
         </div>
-        <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
+        <h1 className="text-3xl sm:text-4xl font-black text-gradient tracking-tight">
           اتصل بنا
         </h1>
-        <p className="text-zinc-400 text-sm sm:text-base max-w-xl mx-auto leading-relaxed">
+        <p className="text-slate-400 text-sm sm:text-base max-w-xl mx-auto leading-relaxed">
           نحن هنا لمساعدتك. أرسل لنا استفسارك وسنقوم بالرد عليك في أقرب وقت ممكن.
         </p>
       </div>
 
-      <div className="bg-[#0a0a0a] border border-white/10 rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden">
+      <div className="glass-panel-heavy premium-border rounded-3xl p-5 sm:p-8 shadow-2xl relative overflow-hidden">
         {/* Decorative elements */}
         <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
         
@@ -93,11 +93,11 @@ export const Contact = ({ onBack }: { onBack?: () => void }) => {
             <div className="w-20 h-20 bg-emerald-500/20 rounded-full flex items-center justify-center mb-4">
               <CheckCircle2 className="w-10 h-10 text-emerald-400" />
             </div>
-            <h3 className="text-2xl font-bold text-white">تم الإرسال بنجاح!</h3>
-            <p className="text-zinc-400">شكراً لتواصلك معنا. سنتصل بك قريباً.</p>
+            <h3 className="text-2xl font-bold text-gradient">تم الإرسال بنجاح!</h3>
+            <p className="text-slate-400">شكراً لتواصلك معنا. سنتصل بك قريباً.</p>
             <button 
               onClick={() => setStatus('idle')}
-              className="mt-6 px-6 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-white transition-colors"
+              className="mt-6 px-6 py-2 glass-panel hover-lift rounded-xl text-white transition-colors"
             >
               إرسال رسالة أخرى
             </button>
@@ -112,7 +112,7 @@ export const Contact = ({ onBack }: { onBack?: () => void }) => {
             )}
 
             <div className="space-y-2">
-              <label className="text-sm font-medium text-zinc-300 flex items-center gap-2">
+              <label className="text-sm font-medium text-slate-300 flex items-center gap-2">
                 <Mail className="w-4 h-4 text-emerald-400" />
                 البريد الإلكتروني
               </label>
@@ -122,13 +122,13 @@ export const Contact = ({ onBack }: { onBack?: () => void }) => {
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 placeholder="example@domain.com"
-                className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-zinc-600 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all text-left"
+                className="w-full bg-[#0f172a]/40 border border-slate-700/50 rounded-2xl px-4 py-3.5 sm:py-4 text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 focus:bg-[#1e293b]/60 transition-all text-base sm:text-sm text-left"
                 dir="ltr"
               />
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium text-zinc-300 flex items-center gap-2">
+              <label className="text-sm font-medium text-slate-300 flex items-center gap-2">
                 <Phone className="w-4 h-4 text-emerald-400" />
                 رقم الهاتف (واتساب)
               </label>
@@ -138,13 +138,13 @@ export const Contact = ({ onBack }: { onBack?: () => void }) => {
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                 placeholder="+218 9X XXX XXXX"
-                className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-zinc-600 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all text-left"
+                className="w-full bg-[#0f172a]/40 border border-slate-700/50 rounded-2xl px-4 py-3.5 sm:py-4 text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 focus:bg-[#1e293b]/60 transition-all text-base sm:text-sm text-left"
                 dir="ltr"
               />
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium text-zinc-300 flex items-center gap-2">
+              <label className="text-sm font-medium text-slate-300 flex items-center gap-2">
                 <MessageSquare className="w-4 h-4 text-emerald-400" />
                 الرسالة
               </label>
@@ -154,14 +154,14 @@ export const Contact = ({ onBack }: { onBack?: () => void }) => {
                 onChange={(e) => setFormData({ ...formData, message: e.target.value })}
                 placeholder="اكتب رسالتك أو استفسارك هنا..."
                 rows={5}
-                className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-zinc-600 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all resize-none"
+                className="w-full bg-[#0f172a]/40 border border-slate-700/50 rounded-2xl px-4 py-3.5 sm:py-4 text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 focus:bg-[#1e293b]/60 transition-all text-base sm:text-sm resize-none"
               />
             </div>
 
             <button
               type="submit"
               disabled={status === 'loading'}
-              className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed mt-4"
+              className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-bold py-4 rounded-2xl text-lg flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed mt-4"
             >
               {status === 'loading' ? (
                 <div className="w-6 h-6 border-2 border-black/20 border-t-black rounded-full animate-spin" />
