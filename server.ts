@@ -3324,6 +3324,22 @@ async function startServer() {
           if (error) console.error("Supabase Visitor Message sync failed:", error.message);
         });
       }
+
+      // إرسال تنبيه احترافي على تيليجرام (الرسائل المحفوظة)
+      if (telegramManager && telegramManager.client && telegramManager.client.connected) {
+        const tgMsg = `📬 *رسالة جديدة من زائر*
+━━━━━━━━━━━━━━━━━
+👤 *البريد:* ${email}
+📱 *الهاتف:* ${phone}
+📝 *الرسالة:*
+${message}
+━━━━━━━━━━━━━━━━━
+⏰ *التوقيت:* ${new Date().toLocaleString('ar-LY', { timeZone: 'Africa/Tripoli' })}`;
+
+        telegramManager.sendMessage('me', tgMsg).catch(err => {
+          console.error("Failed to send visitor message to Telegram Saved Messages:", err);
+        });
+      }
       
       res.json({ success: true, message: "تم إرسال رسالتك بنجاح. سيتم الرد عليك في أقل من 24 ساعة." });
     } catch (error) {
