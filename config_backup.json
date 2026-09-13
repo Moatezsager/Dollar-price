@@ -6,7 +6,7 @@
     "suqalmushir"
   ],
   "telegramPostChannel": "lydollar",
-  "telegramAutoPost": true,
+  "telegramAutoPost": false,
   "telegramTemplateStyle": "classic",
   "enableHttpScraper": true,
   "enableUserTracking": true,
@@ -46,7 +46,7 @@
     },
     {
       "id": "TND",
-      "max": 400,
+      "max": 4,
       "min": 0.1,
       "flag": "tn",
       "name": "دينار تونسي",
@@ -181,178 +181,172 @@
     },
     {
       "id": "USD_CHECKS",
+      "max": 11,
+      "min": 8,
+      "flag": "us",
       "name": "دولار أمريكي (صكوك)",
       "regex": "(?:صكوك|صك|بصك|بنوك|شيك|شيكات|مصرف|مصارف|بنوك|الجمهورية|جمهورية|تجاري|التجاري|بشيك|الصكوك|الشيكات)\\s*[=:]?\\s*(\\d{1,2}(?:[\\.,]\\d{1,3})?)",
-      "min": 8,
-      "max": 11,
-      "isInverse": false,
-      "flag": "us"
+      "isInverse": false
     },
     {
       "id": "USD_TR",
+      "max": 25,
+      "min": 5,
+      "flag": "tr",
       "name": "حوالات تركيا",
       "regex": "(?:حوالة تركي[اة]|حوالات تركي[اة]|🇹🇷)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?",
-      "min": 5,
-      "max": 25,
-      "isInverse": false,
-      "flag": "tr"
+      "isInverse": false
     },
     {
       "id": "USD_AE",
+      "max": 25,
+      "min": 5,
+      "flag": "ae",
       "name": "حوالات دبي",
       "regex": "(?:دبي|امارات|الإمارات|حوالة دبي|حوالات دبي|🇦🇪)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?",
-      "min": 5,
-      "max": 25,
-      "isInverse": false,
-      "flag": "ae"
+      "isInverse": false
     },
     {
       "id": "USD_JBANK",
+      "max": 25,
+      "min": 5,
+      "flag": "us",
       "name": "صكوك الجمهورية",
       "regex": "(?:jbank|الجمهورية|صكوك الجمهورية|بصك الجمهورية)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?",
-      "min": 5,
-      "max": 25,
-      "isInverse": false,
-      "flag": "us"
+      "isInverse": false
     },
     {
       "id": "USD_BCD",
+      "max": 25,
+      "min": 5,
+      "flag": "us",
       "name": "صكوك التجارة",
       "regex": "(?:bcd|التجارة والتنمية|صكوك التجارة|بصك التجارة)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?",
-      "min": 5,
-      "max": 25,
-      "isInverse": false,
-      "flag": "us"
+      "isInverse": false
     },
     {
       "id": "USD_NCB",
+      "max": 25,
+      "min": 5,
+      "flag": "us",
       "name": "صكوك التجاري",
       "regex": "(?:NCB|التجاري الوطني|صكوك التجاري|بصك التجاري)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?",
-      "min": 5,
-      "max": 25,
-      "isInverse": false,
-      "flag": "us"
+      "isInverse": false
     },
     {
       "id": "USD_AB",
+      "max": 25,
+      "min": 5,
+      "flag": "us",
       "name": "صكوك الأمان",
       "regex": "(?:AB|الأمان|الامان|صكوك الأمان|صكوك الامان)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?",
-      "min": 5,
-      "max": 25,
-      "isInverse": false,
-      "flag": "us"
+      "isInverse": false
     },
     {
       "id": "USD_WB",
+      "max": 25,
+      "min": 5,
+      "flag": "us",
       "name": "صكوك الوحدة",
       "regex": "(?:WB|الوحدة|صكوك الوحدة|بصك الوحدة)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?",
-      "min": 5,
-      "max": 25,
-      "isInverse": false,
-      "flag": "us"
+      "isInverse": false
     },
     {
       "id": "USD_CN",
+      "max": 25,
+      "min": 5,
+      "flag": "cn",
       "name": "حوالات الصين",
       "regex": "(?:الصين|صينية|حوالة الصين|حوالات الصين|🇨🇳)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?",
-      "min": 5,
-      "max": 25,
-      "isInverse": false,
-      "flag": "cn"
+      "isInverse": false
     },
     {
       "id": "OFFICIAL_USD",
+      "max": 6,
+      "min": 4,
+      "flag": "us",
       "name": "الدولار الرسمي",
       "regex": "(?:الرسمي|المركزي)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)",
-      "min": 4,
-      "max": 6,
-      "isInverse": false,
-      "flag": "us"
+      "isInverse": false
     },
     {
       "id": "GOLD_EXT_18",
+      "max": 5000,
+      "min": 1,
+      "flag": "ly",
       "name": "ذهب خارجي 18",
       "regex": "(?:ذهب خارجي\\s*18|خارجي\\s*18|عيار\\s*18\\s*خارجي|18\\s*خارجي)[^\\d]{0,40}(\\d{1,5}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,5}(?:[\\.,]\\d+)?))?",
-      "min": 1,
-      "max": 5000,
-      "isInverse": false,
-      "flag": "ly"
+      "isInverse": false
     },
     {
       "id": "GOLD_EXT_21",
+      "max": 5000,
+      "min": 1,
+      "flag": "ly",
       "name": "ذهب خارجي 21",
       "regex": "(?:ذهب خارجي\\s*21|خارجي\\s*21|عيار\\s*21\\s*خارجي|21\\s*خارجي)[^\\d]{0,40}(\\d{1,5}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,5}(?:[\\.,]\\d+)?))?",
-      "min": 1,
-      "max": 5000,
-      "isInverse": false,
-      "flag": "ly"
+      "isInverse": false
     },
     {
       "id": "GOLD_SCRAP_18",
+      "max": 5000,
+      "min": 1,
+      "flag": "ly",
       "name": "ذهب كسر 18",
       "regex": "(?:ذهب كسر\\s*18|كسر\\s*18|عيار\\s*18\\s*كسر|18\\s*كسر|كسر الذهب عيار\\s*18|كسر ذهب عيار\\s*18)[^\\d]{0,40}(\\d{1,5}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,5}(?:[\\.,]\\d+)?))?",
-      "min": 1,
-      "max": 5000,
-      "isInverse": false,
-      "flag": "ly"
+      "isInverse": false
     },
     {
       "id": "GOLD_SCRAP_21",
+      "max": 5000,
+      "min": 1,
+      "flag": "ly",
       "name": "ذهب كسر 21",
       "regex": "(?:ذهب كسر\\s*21|كسر\\s*21|عيار\\s*21\\s*كسر|21\\s*كسر|كسر الذهب عيار\\s*21|كسر ذهب عيار\\s*21)[^\\d]{0,40}(\\d{1,5}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,5}(?:[\\.,]\\d+)?))?",
-      "min": 1,
-      "max": 5000,
-      "isInverse": false,
-      "flag": "ly"
+      "isInverse": false
     },
     {
       "id": "GOLD_LIRA_8G",
+      "max": 20000,
+      "min": 1,
+      "flag": "ly",
       "name": "ليرة ذهب 8 جرام",
       "regex": "(?:ليرة ذهب\\s*8(?:\\s*جرام|ج)?|ليرة ذهب|ليرة\\s*8(?:\\s*جرام|ج)?)[^\\d]{0,40}(\\d{1,5}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,5}(?:[\\.,]\\d+)?))?",
-      "min": 1,
-      "max": 20000,
-      "isInverse": false,
-      "flag": "ly"
+      "isInverse": false
     },
     {
       "id": "GOLD_MUJARA_14G",
+      "max": 35000,
+      "min": 1,
+      "flag": "ly",
       "name": "مجارة ذهب 14 جرام",
       "regex": "(?:مجارة ذهب\\s*14(?:\\s*جرام|ج)?|مجارة\\s*14(?:\\s*جرام|ج)?|ليرة ذهب\\s*14(?:\\s*جرام|ج)?|ليرة\\s*14(?:\\s*جرام|ج)?)[^\\d]{0,40}(\\d{1,5}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,5}(?:[\\.,]\\d+)?))?",
-      "min": 1,
-      "max": 35000,
-      "isInverse": false,
-      "flag": "ly"
+      "isInverse": false
     },
     {
       "id": "SILVER_CAST_1000",
+      "max": 500,
+      "min": 1,
+      "flag": "ly",
       "name": "مسبوك فضة عيار 1000",
       "regex": "(?:مسبوك فضة عيار 1000|مسبوك فضة 1000|فضة 1000|مسبوك فضة)[^\\d]{0,40}(\\d{1,5}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,5}(?:[\\.,]\\d+)?))?",
-      "min": 1,
-      "max": 500,
-      "isInverse": false,
-      "flag": "ly"
+      "isInverse": false
     },
     {
       "id": "SILVER_SCRAP",
+      "max": 500,
+      "min": 1,
+      "flag": "ly",
       "name": "كسر فضة",
       "regex": "(?:كسر فضة|كسر الفضة|فضة كسر)[^\\d]{0,40}(\\d{1,5}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,5}(?:[\\.,]\\d+)?))?",
-      "min": 1,
-      "max": 500,
-      "isInverse": false,
-      "flag": "ly"
+      "isInverse": false
     }
   ],
-  "telegramApiId": 37876956,
-  "facebookPageId": "1340772592445016",
-  "serverStartTime": "2026-09-13T12:43:29.059Z",
-  "telegramApiHash": "0e9d1601dd10c87ca3b3b6886cb53cb2",
-  "facebookAutoPost": true,
-  "facebookAccessToken": "EAAjIZCQ4kAq4BSQLwQH0JrZASN3S5Bp58WOyC8TOoJEpP2OUrmKyRJEZAcSWICK7KQmnOVEnxk4ziZBBNNgZCALn2YgyNEZBGpyrJSoPzeWGn6vgvva5dGfyXD94yZBKuU0qTpShjUyTOz5D0wiBGrLbaGJPD4Hd9ZAtbAQhxxbfiMNy2bOodpvPc22HYn4CZBQlGJt4nuPaF",
-  "telegramSessionString": "1BAAOMTQ5LjE1NC4xNjcuOTEAUFOEMhxyMuvjSxi7yTLRidjr+PBRD9AYceT7vU8lg/Wx+DRYk1NRgWi2gSUPPYcP/giyqG0gDkRmwSYISF9v94h+YBuxq3XSHsS7IiTr9R0q1+6jEgVP+o1hcZSu0oAw+c80bcyrkBzKIRxIoFzndKU4XVRCZVAIkEK8xPG9FdrMA7vb2r+j8zLFbxDGTwKANYXzDmiZ8ErWEJbR3rGiUSOyXmRr4PAmbtWepHa7KpNBw8BHY8DxlOQnmjiucHpyMVdA8bjVhzQxvGDDM/OC3j1BtXJLJzQY50oUc6PAFyasENeDNiA1kCvW31m6Q6wgADltvgNpmOkjc/4j9XxB/10=",
+  "facebookAutoPost": false,
   "facebookBroadcastStatus": {
-    "status": "idle",
+    "status": "ok",
     "lastError": "",
     "lastErrorTime": "",
-    "lastSuccessTime": ""
+    "lastSuccessTime": "2026-09-13T12:47:32.158Z"
   }
 }
