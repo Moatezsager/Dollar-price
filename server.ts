@@ -1443,7 +1443,7 @@ async function broadcastRateChanges(updates: {id: string, name: string, oldVal: 
       // Publish immediately
       qualifiedUpdates.push(item);
       if (!isTest) lastBroadcastState[item.id] = { price: item.newVal, time: nowMs };
-    } else if (diff >= (isMetal ? 0.2 : 0.005) && hoursSinceLastBroadcast >= 1.0) {
+    } else if (diff > 0 && hoursSinceLastBroadcast >= 1.0) {
       // Small change, but 1 hour has passed
       qualifiedUpdates.push(item);
       if (!isTest) lastBroadcastState[item.id] = { price: item.newVal, time: nowMs };
