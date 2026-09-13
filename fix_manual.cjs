@@ -1,10 +1,11 @@
 const fs = require('fs');
 let c = fs.readFileSync('server.ts', 'utf8');
 
-const oldCronRegex = /\/\/ Setup CRON jobs[\s\S]*?cron\.schedule\('\*\/5 \* \* \* \*', async \(\) => \{[\s\S]*?if \(delayedUpdates\.length > 0\) \{[\s\S]*?\}\n\}\);/g;
+// The original cron job should be:
+const cronStart = c.indexOf("cron.schedule('*/5 * * * *'");
+const cronEnd = c.indexOf("});", cronStart) + 3;
 
-const newCron = `// Setup CRON jobs
-cron.schedule('*/5 * * * *', async () => {
+const correctCron = `cron.schedule('*/5 * * * *', async () => {
   if (!appConfig.telegramAutoPost) return;
   
   const nowMs = Date.now();
@@ -14,15 +15,12 @@ cron.schedule('*/5 * * * *', async () => {
     const currentVal = rates.parallel[term.id];
     if (currentVal === undefined) continue;
     
-    // history.time holds the timestamp of the last time this currency was broadcasted
     const history = lastBroadcastState[term.id] || { price: currentVal, time: 0 };
     const diff = Math.abs(currentVal - history.price);
     
     if (diff === 0) continue;
     
-    // Check time passed since LAST BROADCAST
     const hoursSinceLastBroadcast = history.time === 0 ? 999 : (nowMs - history.time) / (1000 * 60 * 60);
-    
     const isMetal = term.id.startsWith('GOLD') || term.id.startsWith('SILVER');
     let shouldPublish = false;
     
@@ -30,7 +28,6 @@ cron.schedule('*/5 * * * *', async () => {
        const pctChange = history.price > 0 ? (diff / history.price) * 100 : 0;
        if (pctChange >= 0.2 && hoursSinceLastBroadcast >= 1.0) shouldPublish = true;
     } else {
-       // As per user request: if more than 1 hour passed since last broadcast, publish if diff is >= 0.005
        if (diff >= 0.005 && hoursSinceLastBroadcast >= 1.0) shouldPublish = true;
     }
     
@@ -47,16 +44,11 @@ cron.schedule('*/5 * * * *', async () => {
   }
   
   if (delayedUpdates.length > 0) {
-    console.log(\`[Smart Broadcast] Found \${delayedUpdates.length} delayed updates that matured (1 hour passed since last broadcast). Publishing now.\`);
+    console.log(\`[Smart Broadcast] Found \${delayedUpdates.length} delayed updates that matured (1 hour passed). Publishing now.\`);
     await broadcastRateChanges(delayedUpdates, false, 'all');
   }
 });`;
 
-if(oldCronRegex.test(c)) {
-   c = c.replace(oldCronRegex, newCron);
-   fs.writeFileSync('server.ts', c);
-   console.log("Cron logic successfully patched.");
-} else {
-   console.log("Could not find cron logic to replace.");
-}
+c = c.substring(0, cronStart) + correctCron + c.substring(cronEnd);
 
+fs.writeFileSync('server.ts', c);

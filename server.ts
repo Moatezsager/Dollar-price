@@ -1588,20 +1588,15 @@ cron.schedule('*/5 * * * *', async () => {
     
     if (diff === 0) continue;
     
-    const lastChangedIso = rates.lastChanged.parallel[term.id];
-    if (!lastChangedIso) continue;
-    
-    const lastChangedMs = new Date(lastChangedIso).getTime();
-    const hoursSinceLastChange = (nowMs - lastChangedMs) / (1000 * 60 * 60);
-    
+    const hoursSinceLastBroadcast = history.time === 0 ? 999 : (nowMs - history.time) / (1000 * 60 * 60);
     const isMetal = term.id.startsWith('GOLD') || term.id.startsWith('SILVER');
     let shouldPublish = false;
     
     if (isMetal) {
        const pctChange = history.price > 0 ? (diff / history.price) * 100 : 0;
-       if (pctChange >= 0.2 && hoursSinceLastChange >= 1.0) shouldPublish = true;
+       if (pctChange >= 0.2 && hoursSinceLastBroadcast >= 1.0) shouldPublish = true;
     } else {
-       if (diff >= 0.01 && hoursSinceLastChange >= 1.0) shouldPublish = true;
+       if (diff >= 0.005 && hoursSinceLastBroadcast >= 1.0) shouldPublish = true;
     }
     
     if (shouldPublish) {
@@ -1617,7 +1612,7 @@ cron.schedule('*/5 * * * *', async () => {
   }
   
   if (delayedUpdates.length > 0) {
-    console.log(`[Smart Broadcast] Found ${delayedUpdates.length} delayed updates that matured (1 hour passed since price change). Publishing now.`);
+    console.log(`[Smart Broadcast] Found ${delayedUpdates.length} delayed updates that matured (1 hour passed). Publishing now.`);
     await broadcastRateChanges(delayedUpdates, false, 'all');
   }
 });
@@ -1659,208 +1654,39 @@ let appConfig: AppConfig = {
     { id: "JOD", name: "دينار أردني", regex: "(?:JOD|jod|أردني|🇯🇴)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 30.0, isInverse: false, flag: "jo" },
     { id: "BHD", name: "دينار بحريني", regex: "(?:BHD|bhd|بحريني|🇧🇭)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 10.0, max: 50.0, isInverse: false, flag: "bh" },
     { id: "KWD", name: "دينار كويتي", regex: "(?:KWD|kwd|كويتي|🇰🇼)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 10.0, max: 60.0, isInverse: false, flag: "kw" },
-    { id: "AED", name: "درهم إماراتي", regex: "(?:AED|aed|إماراتي|امارات|🇦🇪)[^\\d]{0,40}(\\d{0,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{0,2}(?:[\\.,]\\d{1,4})?))?", min: 0.5, max: 10.0, isInverse: false, flag: "ae" },
-    { id: "SAR", name: "ريال سعودي", regex: "(?:SAR|sar|سعودي|ريال|🇸🇦)[^\\d]{0,40}(\\d{0,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{0,2}(?:[\\.,]\\d{1,4})?))?", min: 0.5, max: 10.0, isInverse: false, flag: "sa" },
-    { id: "QAR", name: "ريال قطري", regex: "(?:QAR|qar|قطري|🇶🇦)[^\\d]{0,40}(\\d{0,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{0,2}(?:[\\.,]\\d{1,4})?))?", min: 0.5, max: 10.0, isInverse: false, flag: "qa" },
-    { id: "USD_JBANK", name: "صكوك الجمهورية", regex: "(?:jbank|الجمهورية|صكوك الجمهورية|بصك الجمهورية)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
-    { id: "USD_BCD", name: "صكوك التجارة", regex: "(?:bcd|التجارة والتنمية|صكوك التجارة|بصك التجارة)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
-    { id: "USD_NCB", name: "صكوك التجاري", regex: "(?:NCB|التجاري الوطني|صكوك التجاري|بصك التجاري)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
-    { id: "USD_AB", name: "صكوك الأمان", regex: "(?:AB|الأمان|الامان|صكوك الأمان|صكوك الامان)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
-    { id: "USD_WB", name: "صكوك الوحدة", regex: "(?:WB|الوحدة|صكوك الوحدة|بصك الوحدة)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
-    { id: "USD_AE", name: "حوالات دبي", regex: "(?:دبي|امارات|الإمارات|حوالة دبي|حوالات دبي|🇦🇪)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "ae" },
-    { id: "USD_TR", name: "حوالات تركيا", regex: "(?:(?<!فضة\\s*)تركيا|(?<!فضة\\s*)تركي(?![ا-ي])|حوالة تركي[اة]|حوالات تركي[اة]|🇹🇷)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "tr" },
-    { id: "USD_CN", name: "حوالات الصين", regex: "(?:الصين|صينية|حوالة الصين|حوالات الصين|🇨🇳)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "cn" },
-    { id: "CNY", name: "يوان صيني", regex: "(?:CNY|cny|يوان|🇨🇳)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 0.5, max: 5.0, isInverse: false, flag: "cn" },
-    { id: "GOLD_EXT_18", name: "ذهب خارجي 18", regex: "(?:ذهب خارجي\\s*18|خارجي\\s*18|عيار\\s*18\\s*خارجي|18\\s*خارجي)[^\\d]{0,40}(\\d{1,5}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 5000, isInverse: false, flag: "gold" },
-    { id: "GOLD_EXT_21", name: "ذهب خارجي 21", regex: "(?:ذهب خارجي\\s*21|خارجي\\s*21|عيار\\s*21\\s*خارجي|21\\s*خارجي)[^\\d]{0,40}(\\d{1,5}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 5000, isInverse: false, flag: "gold" },
-    { id: "GOLD_SCRAP_18", name: "ذهب كسر 18", regex: "(?:ذهب كسر\\s*18|كسر\\s*18|عيار\\s*18\\s*كسر|18\\s*كسر|كسر الذهب عيار\\s*18|كسر ذهب عيار\\s*18)[^\\d]{0,40}(\\d{1,5}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 5000, isInverse: false, flag: "gold" },
-    { id: "GOLD_SCRAP_21", name: "ذهب كسر 21", regex: "(?:ذهب كسر\\s*21|كسر\\s*21|عيار\\s*21\\s*كسر|21\\s*كسر|كسر الذهب عيار\\s*21|كسر ذهب عيار\\s*21)[^\\d]{0,40}(\\d{1,5}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 5000, isInverse: false, flag: "gold" },
-    { id: "GOLD_CAST_18", name: "ذهب مسبوك 18", regex: "(?:ذهب مسبوك\\s*18|مسبوك\\s*18|عيار\\s*18\\s*مسبوك|18\\s*مسبوك)[^\\d]{0,40}(\\d{1,5}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 5000, isInverse: false, flag: "gold" },
-    { id: "GOLD_CAST_21", name: "ذهب مسبوك 21", regex: "(?:ذهب مسبوك\\s*21|مسبوك\\s*21|عيار\\s*21\\s*مسبوك|21\\s*مسبوك)[^\\d]{0,40}(\\d{1,5}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 5000, isInverse: false, flag: "gold" },
-    { id: "GOLD_CAST_24", name: "ذهب مسبوك 24", regex: "(?:ذهب مسبوك\\s*24|مسبوك\\s*24|عيار\\s*24\\s*مسبوك|24\\s*مسبوك)[^\\d]{0,40}(\\d{1,5}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 5000, isInverse: false, flag: "gold" },
-    { id: "GOLD_LIRA_8G", name: "ليرة ذهب 8 جرام", regex: "(?:ليرة ذهب\\s*8(?:\\s*جرام|ج)?|ليرة ذهب|ليرة\\s*8(?:\\s*جرام|ج)?)[^\\d]{0,40}(\\d{1,5}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 20000, isInverse: false, flag: "gold" },
-    { id: "GOLD_MUJARA_14G", name: "مجارة ذهب 14 جرام", regex: "(?:مجارة ذهب\\s*14(?:\\s*جرام|ج)?|مجارة\\s*14(?:\\s*جرام|ج)?|ليرة ذهب\\s*14(?:\\s*جرام|ج)?|ليرة\\s*14(?:\\s*جرام|ج)?)[^\\d]{0,40}(\\d{1,5}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 35000, isInverse: false, flag: "gold" },
-    { id: "GOLD", name: "كسر الذهب", regex: "(?:كسر الذهب|ذهبي|(?<!ليرة\\s*)(?<!مجارة\\s*)(?<!مسبوك\\s*)ذهب(?!\\s*كسر)(?!\\s*مسبوك)(?!\\s*خارجي)|💎)[^\\d]{0,40}(\\d{1,5}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 5000, isInverse: false, flag: "gold" },
-    { id: "SILVER_CAST_1000", name: "مسبوك فضة عيار 1000", regex: "(?:مسبوك فضة عيار 1000|مسبوك فضة 1000|فضة 1000|مسبوك فضة)[^\\d]{0,40}(\\d{1,5}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 500, isInverse: false, flag: "silver" },
-    { id: "SILVER_SCRAP", name: "كسر فضة", regex: "(?:كسر فضة|كسر الفضة|فضة كسر)[^\\d]{0,40}(\\d{1,5}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 500, isInverse: false, flag: "silver" },
-    { id: "OFFICIAL_USD", name: "الدولار الرسمي", regex: "(?:الرسمي|المركزي)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 4.0, max: 6.0, isInverse: false, flag: "us" }
+    { id: "AED", name: "درهم إماراتي", regex: "(?:AED|aed|اماراتي|إماراتي|🇦🇪)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 1.0, max: 20.0, isInverse: false, flag: "ae" },
+    { id: "SAR", name: "ريال سعودي", regex: "(?:SAR|sar|سعودي|🇸🇦)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 1.0, max: 20.0, isInverse: false, flag: "sa" },
+    { id: "QAR", name: "ريال قطري", regex: "(?:QAR|qar|قطري|🇶🇦)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 1.0, max: 20.0, isInverse: false, flag: "qa" },
+    { id: "CNY", name: "يوان صيني", regex: "(?:CNY|cny|صيني|🇨🇳)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 0.1, max: 5.0, isInverse: false, flag: "cn" },
+    { id: "GOLD_CAST_24", name: "ذهب كسر 24", regex: "(?:ذهب\\s+كسر\\s+24|كسر\\s+24)[^\\d]{0,40}?(\\d{3}(?:[\\.,]\\d{1,4})?)", min: 100.0, max: 1000.0, isInverse: false, flag: "gold" },
+    { id: "GOLD_CAST_21", name: "ذهب كسر 21", regex: "(?:ذهب\\s+كسر\\s+21|كسر\\s+21)[^\\d]{0,40}?(\\d{3}(?:[\\.,]\\d{1,4})?)", min: 100.0, max: 1000.0, isInverse: false, flag: "gold" },
+    { id: "GOLD_CAST_18", name: "ذهب كسر 18", regex: "(?:ذهب\\s+كسر\\s+18|كسر\\s+18)[^\\d]{0,40}?(\\d{3}(?:[\\.,]\\d{1,4})?)", min: 100.0, max: 1000.0, isInverse: false, flag: "gold" },
+    { id: "GOLD", name: "ذهب جديد", regex: "(?:GOLD|gold|ذهب(?![\\s_]*كسر)|الذهب(?![\\s_]*كسر)|✨)(?!\\s*كسر)[^\\d]{0,40}(\\d{3}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{3}(?:[\\.,]\\d{1,4})?))?", min: 100.0, max: 1000.0, isInverse: false, flag: "gold" },
+    { id: "SILVER", name: "فضة كسر", regex: "(?:SILVER|silver|فضة|الفضة|🪙)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 1.0, max: 50.0, isInverse: false, flag: "silver" }
   ]
 };
 
-let facebookBroadcastStatus = {
-  status: 'ok',
-  lastError: '',
-  lastErrorTime: '',
-  lastSuccessTime: ''
-};
-
-let lastSocialBroadcastTime = 0;
-let lastBroadcastState: Record<string, { price: number, time: number }> = {};
-let lastSuccessfulFetchTime = Date.now();
-let telegramManager: TelegramManager | null = null;
-
-async function broadcastRateChanges(updates: {id?: string, name: string, oldVal: number, newVal: number, flag: string}[], isTest: boolean = false, target: 'all' | 'telegram' | 'facebook' = 'all') {
-  if (target !== 'facebook' && (!appConfig.telegramPostChannel || !telegramManager)) {
-    if (target === 'telegram') return;
-  }
-  if (!isTest && !appConfig.telegramAutoPost && !appConfig.facebookAutoPost) {
-    return;
-  }
-  if (updates.length === 0) {
-    return;
-  }
-  
-  const now = new Date();
-  const dateStr = now.toLocaleDateString('ar-LY', { timeZone: 'Africa/Tripoli' });
-  const timeStr = now.toLocaleTimeString('ar-LY', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit' });
-  
-  // --- SMART BROADCAST COOLDOWN V2 (Per Currency) ---
-  if (!isTest) {
-    const nowMs = Date.now();
-    const qualifiedUpdates = [];
-    
-    for (const u of updates) {
-      // Get the last broadcasted state for this specific currency. If none, assume it's oldVal and time=0
-      const history = lastBroadcastState[u.id] || { price: u.oldVal, time: 0 };
-      const diffFromLastBroadcast = Math.abs(u.newVal - history.price);
-      const hoursSinceLast = history.time === 0 ? 999 : (nowMs - history.time) / (1000 * 60 * 60);
-      
-      const isMetal = u.id.startsWith('GOLD') || u.id.startsWith('SILVER');
-      const pctChange = history.price > 0 ? (diffFromLastBroadcast / history.price) * 100 : 0;
-      
-      // قواعد النشر الجديدة المبسطة (حسب طلب المستخدم)
-      // 1. تغيير بقرشين (0.02) فأكثر: ينشر فوراً.
-      // 2. تغيير بقرش واحد (0.01) فأكثر: ينشر بشرط مرور ساعة كاملة.
-      // ملاحظة: يتم التحقق من مرور الساعة بناءً على "آخر تحديث للعملة" عبر وظيفة المراقبة الدورية (Cron)
-      
-      let shouldPublish = false;
-      
-      if ((u as any).delayed) {
-         // This is a delayed update coming from the cron job (meaning 1 hour has already passed since currency was updated)
-         shouldPublish = true;
-      } else {
-        if (isMetal) {
-           if (pctChange >= 0.4) shouldPublish = true; // تغير كبير للذهب
-        } else {
-           if (diffFromLastBroadcast >= 0.02) shouldPublish = true; // فرق قرشين ينشر دائما
-        }
-      }
-      
-      if (shouldPublish || history.time === 0) {
-        qualifiedUpdates.push(u);
-      }
-    }
-    
-    if (qualifiedUpdates.length === 0) {
-      console.log(`[Smart Broadcast] Cooldown active. Changes (< 0.02) and time (< 3 hrs). Skipping social post.`);
-      return; // Skip broadcast completely
-    }
-    
-    // Update the global state ONLY for the currencies we are about to broadcast
-    for (const u of qualifiedUpdates) {
-      lastBroadcastState[u.id] = { price: u.newVal, time: nowMs };
-    }
-    
-    // Replace updates with only the ones that qualified, so the message is clean!
-    updates = qualifiedUpdates;
-  }
-  // ------------------------------------------------
-
-  const dayNames = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
-  let dayName = "الخميس";
-  try {
-    const dayIndex = new Date(now.toLocaleString('en-US', { timeZone: 'Africa/Tripoli' })).getDay();
-    dayName = dayNames[dayIndex];
-  } catch (e) {}
-
-  const flagMap: Record<string, string> = {
-    'us': '🇺🇸', 'eu': '🇪🇺', 'gb': '🇬🇧', 'tn': '🇹🇳', 'eg': '🇪🇬', 
-    'tr': '🇹🇷', 'ly': '🇱🇾', 'jo': '🇯🇴', 'bh': '🇧🇭', 'kw': '🇰🇼',
-    'ae': '🇦🇪', 'sa': '🇸🇦', 'qa': '🇶🇦', 'cn': '🇨🇳',
-    'gold': '✨', 'silver': '🪙'
-  };
-
-  let message = `📊 *مؤشر الدينار | تحديث السوق الموازي*\n`;
-  message += `━━━━━━━━━━━━━━━━━━━\n`;
-  message += `📅 ${dayName}، ${dateStr} | ⏰ ${timeStr}\n\n`;
-
-  for (const u of updates) {
-    const isUp = u.newVal > u.oldVal;
-    const isDown = u.newVal < u.oldVal;
-    const diff = Math.abs(u.newVal - u.oldVal);
-    let fe = flagMap[u.flag] || '💰';
-    if (u.id.startsWith('GOLD')) fe = '✨';
-    if (u.id.startsWith('SILVER')) fe = '🪙';
-    
-    let changeText = '➖ استقرار';
-    if (isUp) changeText = `🔺 ارتفاع بمقدار ${diff.toFixed(3)}`;
-    if (isDown) changeText = `🔻 انخفاض بمقدار ${diff.toFixed(3)}`;
-
-    message += `${fe} *${u.name}*\n`;
-    message += `💵 السعر: *${u.newVal.toFixed(3)} د.ل*\n`;
-    if (isUp || isDown) {
-      message += `📊 التغير: ${changeText} (كان ${u.oldVal.toFixed(3)})\n\n`;
-    } else {
-      message += `📊 التغير: ${changeText}\n\n`;
-    }
-  }
-
-  message += `━━━━━━━━━━━━━━━━━━━\n`;
-  message += `🔗 *المتابعة الحية والرسوم البيانية:*\n`;
-  message += `🌐 https://dollar-price-qp14.onrender.com/?v=${Math.floor(Date.now() / 60000)}\n`;
-  message += `📱 *المصدر:* شبكة مؤشر الدينار`;
-
-  if (isTest) {
-    await broadcastToSocialMedia(message, isTest, target);
-  } else {
-    broadcastToSocialMedia(message, isTest, target).catch(e => console.error("[Background Broadcast] Error:", e));
-  }
-
-  // SEND PUSH NOTIFICATION
-  if (!isTest) {
-    const mainUpdates = updates.filter(u => u.id === 'USD' || u.id === 'EUR' || u.id === 'GOLD' || u.id === 'GOLD_CAST_21').slice(0, 2);
-    if (mainUpdates.length > 0) {
-      const pushTitle = 'تحديث جديد لأسعار السوق';
-      const pushBody = mainUpdates.map(u => `${u.name}: ${u.newVal.toFixed(3)}`).join(' | ');
-      sendPushNotificationToAll(pushTitle, pushBody);
-    } else {
-      sendPushNotificationToAll('تحديث جديد', 'تم تحديث أسعار السوق الموازي');
-    }
-  }
-}
-
 function loadConfigFromStorage() {
   try {
-    // 1. Try loading from SQLite first (local durable cache)
-    const stored = db.prepare('SELECT value FROM server_config WHERE key = ?').get('app_config') as any;
-    if (stored && stored.value) {
-      const parsedConfig = JSON.parse(stored.value) as AppConfig;
-      if (parsedConfig && Array.isArray(parsedConfig.terms) && Array.isArray(parsedConfig.channels)) {
-        applyLoadedConfig(parsedConfig, "SQLite");
+    if (fs.existsSync(DB_FILE)) {
+      const db = new Database(DB_FILE);
+      const row = db.prepare("SELECT data FROM kv_store WHERE key = 'appConfig'").get() as any;
+      if (row) {
+        applyConfig(JSON.parse(row.data), 'LocalSQLite');
       }
+      db.close();
     }
-  } catch (e) {
-    console.error("[Storage] Failed to read config from SQLite:", e);
+  } catch (error) {
+    console.error("[Config] Error loading from SQLite:", error);
   }
 }
 
-function applyLoadedConfig(loadedConfig: AppConfig, source: string) {
-  // 1. Merge terms: respect saved values from DB (min, max, regex, isInverse, name, flag)
-  const existingIds = new Set<string>();
+function applyConfig(loadedConfig: Partial<AppConfig>, source: string) {
+  if (!loadedConfig) return;
   
-  const mergedTerms = loadedConfig.terms.map(dbTerm => {
-    existingIds.add(dbTerm.id);
-    const defaultTerm = appConfig.terms.find(t => t.id === dbTerm.id);
-    return {
-      id: dbTerm.id,
-      name: dbTerm.name || defaultTerm?.name || dbTerm.id,
-      regex: dbTerm.regex || defaultTerm?.regex || "",
-      min: (typeof dbTerm.min === 'number' && !isNaN(dbTerm.min)) ? dbTerm.min : (defaultTerm?.min ?? 0),
-      max: (typeof dbTerm.max === 'number' && !isNaN(dbTerm.max)) ? dbTerm.max : (defaultTerm?.max ?? 10000),
-      isInverse: typeof dbTerm.isInverse === 'boolean' ? dbTerm.isInverse : (defaultTerm?.isInverse ?? false),
-      flag: (dbTerm.flag && dbTerm.flag !== "undefined" && dbTerm.flag !== "null") ? dbTerm.flag : (defaultTerm?.flag || "ly")
-    };
-  });
+  const existingIds = new Set(loadedConfig.terms?.map((t: any) => t.id) || []);
+  let mergedTerms = loadedConfig.terms || [];
+
 
   // 2. Add any newly introduced code terms that are missing in saved config
   for (const defaultTerm of appConfig.terms) {

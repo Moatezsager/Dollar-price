@@ -1,7 +1,8 @@
 const fs = require('fs');
 let c = fs.readFileSync('server.ts', 'utf8');
 
-const oldCronRegex = /\/\/ Setup CRON jobs[\s\S]*?cron\.schedule\('\*\/5 \* \* \* \*', async \(\) => \{[\s\S]*?if \(delayedUpdates\.length > 0\) \{[\s\S]*?\}\n\}\);/g;
+// 1. Fix the cron job
+const cronRegex = /\/\/ Setup CRON jobs[\s\S]*?if \(delayedUpdates\.length > 0\) \{[\s\S]*?\}\n\}\);/g;
 
 const newCron = `// Setup CRON jobs
 cron.schedule('*/5 * * * *', async () => {
@@ -52,11 +53,30 @@ cron.schedule('*/5 * * * *', async () => {
   }
 });`;
 
-if(oldCronRegex.test(c)) {
-   c = c.replace(oldCronRegex, newCron);
-   fs.writeFileSync('server.ts', c);
-   console.log("Cron logic successfully patched.");
-} else {
-   console.log("Could not find cron logic to replace.");
-}
+c = c.replace(cronRegex, newCron);
+
+// 2. Fix the broadcastRateChanges logic
+const broadcastRegex = /let shouldPublish = false;\s+if \(\(u as any\)\.delayed\) \{[\s\S]*?\}\n\s+if \(shouldPublish \|\| history\.time === 0\)/g;
+
+const newBroadcast = `let shouldPublish = false;
+            
+      if ((u as any).delayed) {
+         // This is a delayed update coming from the cron job (meaning 1 hour has already passed)
+         shouldPublish = true;
+      } else {
+        if (isMetal) {
+           if (pctChange >= 0.4) shouldPublish = true; // تغير كبير للذهب
+           else if (pctChange >= 0.2 && hoursSinceLast >= 1.0) shouldPublish = true; // اذا مر ساعة
+        } else {
+           if (diffFromLastBroadcast >= 0.02) shouldPublish = true; // فرق قرشين ينشر دائما
+           else if (diffFromLastBroadcast >= 0.005 && hoursSinceLast >= 1.0) shouldPublish = true; // فرق بسيط بس مرت ساعة
+        }
+      }
+      
+      if (shouldPublish || history.time === 0)`;
+
+c = c.replace(broadcastRegex, newBroadcast);
+
+fs.writeFileSync('server.ts', c);
+console.log("Fixed cron and broadcast logics successfully!");
 
