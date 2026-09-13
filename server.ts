@@ -3100,15 +3100,21 @@ async function startServer() {
     console.error("CRITICAL: ADMIN_PASSWORD not set. Admin features will be disabled for security.");
   }
 
-  let adminToken = Math.random().toString(36).substring(2) + Date.now().toString(36);
+    const adminTokens = new Map<string, number>();
+  const ADMIN_SESSION_DURATION = 24 * 60 * 60 * 1000;
 
   const requireAdmin = (req: express.Request, res: express.Response, next: express.NextFunction) => {
     const authHeader = req.headers.authorization;
-    if (authHeader === `Bearer ${adminToken}`) {
-      next();
-    } else {
-      res.status(401).json({ success: false, message: "غير مصرح" });
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      const expiry = adminTokens.get(token);
+      if (expiry && expiry > Date.now()) {
+        return next();
+      } else if (expiry) {
+        adminTokens.delete(token);
+      }
     }
+    res.status(401).json({ success: false, message: "غير مصرح" });
   };
 
   // Spam protection words
@@ -3170,7 +3176,7 @@ ${message}
       res.json({ success: true, message: "تم إرسال رسالتك بنجاح. سيتم الرد عليك في أقل من 24 ساعة." });
     } catch (error) {
       console.error("Error saving message:", error);
-      res.status(500).json({ error: "حدث خطأ أثناء حفظ الرسالة", details: error.message || error.toString() });
+      res.status(500).json({ error: "حدث خطأ أثناء حفظ الرسالة" });
     }
   });
 
@@ -3216,10 +3222,30 @@ ${message}
     }
   });
 
-  app.post("/api/admin/login", (req: express.Request, res: express.Response) => {
+    const adminLoginRateLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 5,
+    message: { success: false, message: "لقد تجاوزت الحد المسموح به لمحاولات تسجيل الدخول. يرجى المحاولة بعد 15 دقيقة." }
+  });
+
+  app.post("/api/admin/login", adminLoginRateLimiter, (req: express.Request, res: express.Response) => {
     const { password } = req.body;
-    if (password === effectiveAdminPassword) {
-      res.json({ success: true, token: adminToken });
+    
+    const expected = effectiveAdminPassword || "";
+    const provided = password || "";
+    
+    const expectedHash = crypto.createHash('sha256').update(expected).digest();
+    const providedHash = crypto.createHash('sha256').update(provided).digest();
+    
+    if (expected && crypto.timingSafeEqual(expectedHash, providedHash)) {
+      const token = crypto.randomBytes(32).toString('hex');
+      adminTokens.set(token, Date.now() + ADMIN_SESSION_DURATION);
+      
+      for (const [t, exp] of adminTokens.entries()) {
+        if (exp < Date.now()) adminTokens.delete(t);
+      }
+      
+      res.json({ success: true, token: token });
     } else {
       res.status(401).json({ success: false, message: "كلمة المرور غير صحيحة" });
     }
@@ -3260,7 +3286,7 @@ app.post('/api/push/subscribe', (req: express.Request, res: express.Response) =>
     res.json({ success: true, total });
   } catch (err: any) {
     console.error('[Push] Subscribe error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: "حدث خطأ في الخادم" });
   }
 });
 
@@ -3511,7 +3537,7 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
     } catch (err: any) {
       console.error("Telegram send code error:", err);
       if (!res.headersSent) {
-        res.status(500).json({ success: false, message: err.message || "فشل إرسال الكود" });
+        res.status(500).json({ success: false, message: "فشل إرسال الكود" });
       }
     }
   });
@@ -3568,7 +3594,7 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
     } catch (err: any) {
       console.error("Telegram verify code error:", err);
       if (!res.headersSent) {
-        res.status(500).json({ success: false, message: err.message || "فشل التحقق من الكود" });
+        res.status(500).json({ success: false, message: "فشل التحقق من الكود" });
       }
     }
   });
@@ -3843,7 +3869,7 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
       res.json({ success: true, records });
     } catch (err: any) {
       if (!res.headersSent) {
-        res.status(500).json({ success: false, message: err.message });
+        res.status(500).json({ success: false, message: "حدث خطأ في الخادم" });
       }
     }
   });
@@ -3905,7 +3931,7 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
       res.json({ success: true });
     } catch (err: any) {
       if (!res.headersSent) {
-        res.status(500).json({ success: false, message: err.message });
+        res.status(500).json({ success: false, message: "حدث خطأ في الخادم" });
       }
     }
   });
@@ -3956,7 +3982,7 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
       res.json({ success: true });
     } catch (err: any) {
       if (!res.headersSent) {
-        res.status(500).json({ success: false, message: err.message });
+        res.status(500).json({ success: false, message: "حدث خطأ في الخادم" });
       }
     }
   });
@@ -4172,7 +4198,7 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
     } catch (err: any) {
       console.error("Essale fetch failed:", err);
       if (!res.headersSent) {
-        res.status(500).json({ success: false, message: `خطأ في جلب البيانات: ${err.message || 'فشل العملية'}` });
+        res.status(500).json({ success: false, message: "حدث خطأ في جلب البيانات" });
       }
     }
   });
@@ -4204,7 +4230,7 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
     } catch (err: any) {
       console.error("Extraction failed:", err);
       if (!res.headersSent) {
-        res.status(500).json({ success: false, message: `خطأ في الاستخراج: ${err.message || 'فشل العملية'}` });
+        res.status(500).json({ success: false, message: "حدث خطأ في الاستخراج" });
       }
     }
   });
@@ -4345,7 +4371,7 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
     } catch (error: any) {
       console.error(`[API] Error fetching messages for ${channel}:`, error);
       if (!res.headersSent) {
-        res.status(500).json({ success: false, error: error.message || "Failed to fetch messages" });
+        res.status(500).json({ success: false, error: "Failed to fetch messages" });
       }
     }
   });
@@ -4376,7 +4402,7 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
       
       res.json({ success: true, message: "تم إرسال أسعار المصرف المركزي بنجاح" });
     } catch (err: any) {
-      res.status(500).json({ success: false, error: err.message || "Failed to broadcast official rates" });
+      res.status(500).json({ success: false, error: "Failed to broadcast official rates" });
     }
   });
 
@@ -4424,7 +4450,7 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
       
       res.json({ success: true, message: "تم إرسال رسالة تجريبية" });
     } catch (err: any) {
-      res.status(500).json({ success: false, error: err.message || "Failed to broadcast" });
+      res.status(500).json({ success: false, error: "Failed to broadcast" });
     }
   });
 
@@ -4457,7 +4483,7 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
       
       res.json({ success: true, message: "تم إرسال رسالة تجريبية إلى فيسبوك بنجاح" });
     } catch (err: any) {
-      res.status(500).json({ success: false, error: err.message || "Failed to broadcast to Facebook" });
+      res.status(500).json({ success: false, error: "Failed to broadcast to Facebook" });
     }
   });
 
@@ -4508,7 +4534,7 @@ ${updates.join('\n')}
       res.json({ success: true, message: finalMessage });
     } catch (err: any) {
       console.error('Error generating analysis:', err);
-      res.status(500).json({ success: false, error: err.message || "Failed to generate analysis" });
+      res.status(500).json({ success: false, error: "Failed to generate analysis" });
     }
   });
 
@@ -4576,7 +4602,7 @@ ${updates.join('\n')}
       }
     } catch (err: any) {
       console.error('Error generating and publishing analysis:', err);
-      res.status(500).json({ success: false, error: err.message || "Failed to generate analysis" });
+      res.status(500).json({ success: false, error: "Failed to generate analysis" });
     }
   });
 
@@ -4602,7 +4628,7 @@ ${updates.join('\n')}
     } catch (error: any) {
       console.error(`[API] Error sending message to ${channel}:`, error);
       if (!res.headersSent) {
-        res.status(500).json({ success: false, error: error.message || "Failed to send message" });
+        res.status(500).json({ success: false, error: "Failed to send message" });
       }
     }
   });
@@ -4672,7 +4698,7 @@ ${updates.join('\n')}
     } catch (error: any) {
       console.error(`[API] Error updating from ${channel}:`, error);
       if (!res.headersSent) {
-        res.status(500).json({ success: false, error: error.message || "Failed to update from channel" });
+        res.status(500).json({ success: false, error: "Failed to update from channel" });
       }
     }
   });
@@ -4694,7 +4720,7 @@ ${updates.join('\n')}
       res.json({ success: true });
     } catch (err: any) {
       console.error("Error tracking install:", err);
-      res.status(500).json({ success: false, error: err.message });
+      res.status(500).json({ success: false, error: "حدث خطأ في الخادم" });
     }
   });
 
