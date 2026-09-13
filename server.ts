@@ -1,3 +1,4 @@
+let facebookBroadcastStatus: any = { status: 'idle', lastError: '', lastErrorTime: '', lastSuccessTime: '' };
 let lastBroadcastState: Record<string, { price: number; time: number }> = {};
 import "dotenv/config";
 import webpush from "web-push";
@@ -3700,14 +3701,17 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
 
   app.post("/api/analytics/track", analyticsRateLimiter, (req: express.Request, res: express.Response) => {
     try {
-      const { sessionId, pagePath, referrer } = req.body;
+      const { sessionId, visitorClientId, pagePath, referrer } = req.body;
       const uaString = req.headers['user-agent'] || '';
       const ip = (req.headers["x-forwarded-for"] || req.socket.remoteAddress || "").toString().split(',')[0].trim();
       
       const parser = new UAParser(uaString);
       const result = parser.getResult();
       
-      const visitorId = crypto.createHash('sha256').update(ip + result.browser.name + result.os.name).digest('hex').substring(0, 16);
+      let visitorId = visitorClientId;
+      if (!visitorId || typeof visitorId !== 'string') {
+        visitorId = crypto.createHash('sha256').update(ip + result.browser.name + result.os.name).digest('hex').substring(0, 16);
+      }
       
       let deviceType = result.device.type || 'Desktop';
       if (!result.device.type) {
@@ -3752,7 +3756,7 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
           device_type: deviceType,
           os_name: result.os.name || '',
           browser_name: result.browser.name || ''
-        }]).catch(e => console.error("Supabase Visitor Log sync failed:", e.message));
+        }]).then(({error}) => { if (error && error.code !== '42P01') console.error('Supabase Visitor Log sync failed:', error.message); });
       }
       
       res.json({ success: true });
@@ -3782,7 +3786,9 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
             .order('created_at', { ascending: true });
             
           if (error) {
-             console.error("[Analytics] Supabase query failed, falling back to local SQLite", error);
+             if (error.code !== '42P01') {
+                 console.error("[Analytics] Supabase query failed, falling back to local SQLite:", error.message);
+             }
           } else if (data) {
              events = data;
              usedSupabase = true;
