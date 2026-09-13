@@ -44,8 +44,13 @@ db.exec(`
 `);
 
 
-// Initialize Push Notifications
+// Initialize Broadcast State and Push Notifications
 db.exec(`
+  CREATE TABLE IF NOT EXISTS broadcast_state (
+    term_id TEXT PRIMARY KEY,
+    last_price REAL NOT NULL,
+    last_broadcast_time INTEGER NOT NULL
+  );
   CREATE TABLE IF NOT EXISTS server_config (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -59,6 +64,39 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 `);
+
+function loadBroadcastStateFromStorage() {
+  try {
+    const rows = db.prepare("SELECT term_id, last_price, last_broadcast_time FROM broadcast_state").all() as { term_id: string; last_price: number; last_broadcast_time: number }[];
+    if (rows && rows.length > 0) {
+      for (const row of rows) {
+        lastBroadcastState[row.term_id] = {
+          price: Number(row.last_price),
+          time: Number(row.last_broadcast_time)
+        };
+      }
+      console.log(`[BroadcastState] Loaded ${rows.length} items from SQLite.`);
+      return;
+    }
+  } catch (err) {
+    console.error("[BroadcastState] Error loading from SQLite:", err);
+  }
+
+  // Backup check: restore from server_config if table was empty
+  try {
+    const row = db.prepare("SELECT value FROM server_config WHERE key = 'broadcast_state'").get() as any;
+    if (row && row.value) {
+      const parsed = JSON.parse(row.value);
+      if (parsed && typeof parsed === 'object') {
+        Object.assign(lastBroadcastState, parsed);
+        console.log(`[BroadcastState] Restored ${Object.keys(parsed).length} items from server_config backup.`);
+      }
+    }
+  } catch (e) {}
+}
+
+// Synchronously restore broadcast state from SQLite on server start
+loadBroadcastStateFromStorage();
 
 // -----------------------------------------------------------------------
 // VAPID Keys — يقرأ من Environment Variables أولاً (مهم على Render)
@@ -1161,7 +1199,7 @@ async function broadcastToSocialMedia(message: string, isTest: boolean = false, 
   // Facebook
   const shouldPostFb = (target === 'facebook' || target === 'all') && ((!isTest && appConfig.facebookAutoPost) || isTest);
   if (shouldPostFb && appConfig.facebookPageId && appConfig.facebookAccessToken) {
-     let fbMessage = message.replace(/[*_`]/g, '');
+     let fbMessage = message;
      
      // Optionally adjust some emojis or formatting for FB if needed
      try {
@@ -1418,6 +1456,185 @@ async function broadcastSuddenChangeAlert(u: {id?: string, name: string, oldVal:
   sendPushNotificationToAll(pushTitle, pushBody);
 }
 
+function saveBroadcastStateItem(termId: string, price: number, time: number) {
+  // 1. Update in-memory state
+  lastBroadcastState[termId] = { price, time };
+
+  // 2. Persist to SQLite broadcast_state table
+  try {
+    db.prepare(`
+      INSERT INTO broadcast_state (term_id, last_price, last_broadcast_time)
+      VALUES (?, ?, ?)
+      ON CONFLICT(term_id) DO UPDATE SET
+        last_price = excluded.last_price,
+        last_broadcast_time = excluded.last_broadcast_time
+    `).run(termId, price, time);
+  } catch (err) {
+    console.error(`[BroadcastState] Error saving ${termId} to SQLite:`, err);
+  }
+
+  // 3. Backup snapshot to server_config
+  try {
+    db.prepare(`
+      INSERT INTO server_config (key, value) VALUES ('broadcast_state', ?)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value
+    `).run(JSON.stringify(lastBroadcastState));
+  } catch (e) {}
+
+  // 4. Sync to Supabase table broadcast_state for persistence across full deploys
+  if (supabase && supabaseAnonKey && !supabaseAnonKey.includes('dummy')) {
+    supabase
+      .from('broadcast_state')
+      .upsert([
+        {
+          term_id: termId,
+          last_price: price,
+          last_broadcast_time: time
+        }
+      ], { onConflict: 'term_id' })
+      .then(({ error }) => {
+        if (error && !error.message.includes('does not exist')) {
+          console.warn(`[BroadcastState] Supabase sync warning for ${termId}:`, error.message);
+        }
+      })
+      .catch((e: any) => {
+        console.warn(`[BroadcastState] Supabase sync network error for ${termId}:`, e?.message || e);
+      });
+  }
+}
+
+async function syncBroadcastStateFromSupabase() {
+  if (!supabase || !supabaseAnonKey || supabaseAnonKey.includes('dummy')) return;
+  try {
+    const { data, error } = await supabase
+      .from('broadcast_state')
+      .select('term_id, last_price, last_broadcast_time');
+      
+    if (error) {
+      if (!error.message.includes('does not exist')) {
+        console.warn("[BroadcastState] Supabase load warning:", error.message);
+      }
+      return;
+    }
+
+    if (data && Array.isArray(data) && data.length > 0) {
+      const insertStmt = db.prepare(`
+        INSERT INTO broadcast_state (term_id, last_price, last_broadcast_time)
+        VALUES (?, ?, ?)
+        ON CONFLICT(term_id) DO UPDATE SET
+          last_price = excluded.last_price,
+          last_broadcast_time = excluded.last_broadcast_time
+      `);
+
+      let count = 0;
+      for (const item of data) {
+        if (!item.term_id) continue;
+        const time = Number(item.last_broadcast_time) || 0;
+        const price = Number(item.last_price) || 0;
+
+        if (!lastBroadcastState[item.term_id] || lastBroadcastState[item.term_id].time < time) {
+          lastBroadcastState[item.term_id] = { price, time };
+          try {
+            insertStmt.run(item.term_id, price, time);
+            count++;
+          } catch (e) {}
+        }
+      }
+      console.log(`[BroadcastState] Synced ${data.length} items from Supabase (${count} updated in local SQLite).`);
+    }
+  } catch (err) {
+    console.error("[BroadcastState] Error syncing from Supabase:", err);
+  }
+}
+
+function getCurrencyFlag(flagCode: string, id: string = ''): string {
+  const clean = (flagCode || id || '').toLowerCase().trim();
+  const flagMap: Record<string, string> = {
+    'us': '🇺🇸',
+    'usd': '🇺🇸',
+    'usd_checks': '🇺🇸',
+    'usd_cash': '🇺🇸',
+    'eu': '🇪🇺',
+    'eur': '🇪🇺',
+    'gb': '🇬🇧',
+    'gbp': '🇬🇧',
+    'eg': '🇪🇬',
+    'egp': '🇪🇬',
+    'tr': '🇹🇷',
+    'try': '🇹🇷',
+    'tn': '🇹🇳',
+    'tnd': '🇹🇳',
+    'jo': '🇯🇴',
+    'jod': '🇯🇴',
+    'bh': '🇧🇭',
+    'bhd': '🇧🇭',
+    'kw': '🇰🇼',
+    'kwd': '🇰🇼',
+    'ae': '🇦🇪',
+    'aed': '🇦🇪',
+    'sa': '🇸🇦',
+    'sar': '🇸🇦',
+    'qa': '🇶🇦',
+    'qar': '🇶🇦',
+    'cn': '🇨🇳',
+    'cny': '🇨🇳',
+    'ca': '🇨🇦',
+    'cad': '🇨🇦',
+    'ch': '🇨🇭',
+    'chf': '🇨🇭',
+    'gold': '🥇',
+    'gold_cast_24': '🥇',
+    'gold_cast_21': '🥇',
+    'gold_cast_18': '🥇',
+    'silver': '🥈'
+  };
+
+  if (flagMap[clean]) return flagMap[clean];
+  
+  if (/[\uD800-\uDFFF]/.test(flagCode)) return flagCode;
+  
+  if (/^[a-z]{2}$/i.test(flagCode)) {
+    const code = flagCode.toUpperCase();
+    return String.fromCodePoint(127397 + code.charCodeAt(0), 127397 + code.charCodeAt(1));
+  }
+
+  return '💵';
+}
+
+function formatBroadcastDateTime(date: Date = new Date()): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Africa/Tripoli',
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+    weekday: 'long'
+  }).formatToParts(date);
+
+  const getPart = (type: string) => parts.find(p => p.type === type)?.value || '';
+  const dayNameEn = getPart('weekday');
+  const dayNameMap: Record<string, string> = {
+    'Sunday': 'الأحد',
+    'Monday': 'الاثنين',
+    'Tuesday': 'الثلاثاء',
+    'Wednesday': 'الأربعاء',
+    'Thursday': 'الخميس',
+    'Friday': 'الجمعة',
+    'Saturday': 'السبت'
+  };
+  const dayName = dayNameMap[dayNameEn] || 'اليوم';
+  const day = getPart('day');
+  const month = getPart('month');
+  const year = getPart('year');
+  const hour = getPart('hour');
+  const minute = getPart('minute');
+  const dayPeriod = getPart('dayPeriod').toUpperCase();
+  const amPm = (dayPeriod === 'AM' || dayPeriod.includes('A')) ? 'ص' : 'م';
+
+  return `📅 ${dayName}، ${day}/${month}/${year} | ⏰ ${hour}:${minute} ${amPm}`;
+}
 
 async function broadcastRateChanges(updates: {id: string, name: string, oldVal: number, newVal: number, flag: string}[], isTest: boolean = false, target: string = 'all') {
   if (updates.length === 0) return;
@@ -1426,12 +1643,16 @@ async function broadcastRateChanges(updates: {id: string, name: string, oldVal: 
   const qualifiedUpdates = [];
   
   for (const item of updates) {
+    if (isTest) {
+      qualifiedUpdates.push(item);
+      continue;
+    }
+
     const state = lastBroadcastState[item.id];
     
     if (!state) {
       // First time publishing this currency
       qualifiedUpdates.push(item);
-      if (!isTest) lastBroadcastState[item.id] = { price: item.newVal, time: nowMs };
       continue;
     }
     
@@ -1446,50 +1667,62 @@ async function broadcastRateChanges(updates: {id: string, name: string, oldVal: 
     if (isSuddenChange) {
       // Publish immediately
       qualifiedUpdates.push(item);
-      if (!isTest) lastBroadcastState[item.id] = { price: item.newVal, time: nowMs };
     } else if (diff > 0 && hoursSinceLastBroadcast >= 1.0) {
       // Small change, but 1 hour has passed
       qualifiedUpdates.push(item);
-      if (!isTest) lastBroadcastState[item.id] = { price: item.newVal, time: nowMs };
     } else {
-      // Small change, hour not passed. Update the memory price ONLY IF we didn't just publish it 
-      // (This part is tricky, the instruction said "سجّل السعر الحالي في الذاكرة لتُستخدم كمرجع للمقارنة لاحقاً 
-      // لكن لا تحدّث lastBroadcastState لأنه يُحدَّث فقط عند النشر الفعلي", which contradicts itself slightly.
-      // I will only update lastBroadcastState on ACTUAL publish to ensure we measure diff against the LAST PUBLISHED price.)
+      // Small change, hour not passed.
     }
   }
 
   if (qualifiedUpdates.length === 0) return;
 
-  const now = new Date();
-  const dateStr = now.toLocaleDateString('ar-LY', { timeZone: 'Africa/Tripoli' });
-  const timeStr = now.toLocaleTimeString('ar-LY', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit' });
+  const dateTimeFormatted = formatBroadcastDateTime();
+  const header = `📊 *مؤشر الدينار | تحديث السوق الموازي*`;
   
-  let message = isTest ? `🛠️ *رسالة تجريبية | نظام النشر الذكي*
-
-` : `⏱️ *تحديث دوري لأسعار السوق الموازي*
-📅 ${dateStr} - ${timeStr}
-━━━━━━━━━━━━━━━━━
-
-`;
+  let message = `${header}\n━━━━━━━━━━━━━━━━━━━\n${dateTimeFormatted}\n\n`;
   
+  const blocks: string[] = [];
   for (const u of qualifiedUpdates) {
-    const isUp = u.newVal > u.oldVal;
-    const emoji = isUp ? '📈' : (u.newVal < u.oldVal ? '📉' : '➖');
-    message += `💵 *${u.name}*: ${u.newVal.toFixed(3)} ${emoji}
-`;
+    const flag = getCurrencyFlag(u.flag, u.id);
+    const currentVal = u.newVal;
+    let oldVal = u.oldVal;
+
+    if (isTest && (!oldVal || oldVal === currentVal)) {
+      const sampleDiff = u.id === 'USD' ? 0.015 : (u.id === 'EUR' ? 0.030 : 0.050);
+      oldVal = Math.round((currentVal - sampleDiff) * 1000) / 1000;
+    }
+
+    let changeText = '';
+    if (oldVal && oldVal > 0 && oldVal !== currentVal) {
+      const diff = Math.abs(currentVal - oldVal);
+      if (currentVal > oldVal) {
+        changeText = `🔺 ارتفاع بمقدار ${diff.toFixed(3)} (كان ${oldVal.toFixed(3)})`;
+      } else {
+        changeText = `🔻 انخفاض بمقدار ${diff.toFixed(3)} (كان ${oldVal.toFixed(3)})`;
+      }
+    } else {
+      changeText = `➖ استقرار عند ${currentVal.toFixed(3)}`;
+    }
+
+    blocks.push(`${flag} *${u.name}*\n💵 السعر: *${currentVal.toFixed(3)} د.ل*\n📊 التغير: ${changeText}`);
   }
-  
-  message += `
-━━━━━━━━━━━━━━━━━
-📡 *مؤشر الدينار | الدقة والسرعة*
-🔗 https://dollar-price-qp14.onrender.com/?v=${Math.floor(Date.now() / 60000)}`;
+
+  message += blocks.join('\n\n');
+  message += `\n\n━━━━━━━━━━━━━━━━━━━\n🔗 *المتابعة الحية والرسوم البيانية:*\n🌐 https://dollar-price-qp14.onrender.com/?v=${Math.floor(Date.now() / 60000)}\n📱 *المصدر:* شبكة مؤشر الدينار`;
 
   try {
-    await broadcastToSocialMedia(message, isTest, target);
+    await broadcastToSocialMedia(message, isTest, target as any);
   } catch (e) {
     console.error("[Smart Broadcast] Failed to send:", e);
     if (isTest) throw e;
+  }
+
+  // Persist state for items actually published (not isTest)
+  if (!isTest && qualifiedUpdates.length > 0) {
+    for (const item of qualifiedUpdates) {
+      saveBroadcastStateItem(item.id, item.newVal, nowMs);
+    }
   }
 }
 
@@ -2721,6 +2954,7 @@ try {
 // Initial fetch and setup
 initializeRatesFromDB().then(() => {
   loadConfigFromSupabase().then(() => {
+    syncBroadcastStateFromSupabase().catch(() => {});
     console.log("Server initialized. Waiting for cron job to trigger /api/refresh.");
   });
 });
@@ -4671,19 +4905,34 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
       appConfig.telegramPostChannel = targetChannel;
       
       const sampleUpdates: {id: string, name: string, oldVal: number, newVal: number, flag: string}[] = [];
-      for (const t of appConfig.terms) {
-        if (true) {
-           const currentR = rates.parallel[t.id];
-           const prevR = rates.previousParallel[t.id];
-           if (currentR) {
-              sampleUpdates.push({ 
-                id: t.id,
-                name: t.name, 
-                oldVal: prevR || currentR, 
-                newVal: currentR, 
-                flag: t.flag || 'us' 
-              });
-           }
+      const priorityIds = ['USD', 'EUR', 'GBP'];
+      for (const pid of priorityIds) {
+        const t = appConfig.terms.find(term => term.id === pid);
+        if (t && rates.parallel[t.id]) {
+          const currentR = rates.parallel[t.id];
+          const prevR = rates.previousParallel[t.id];
+          sampleUpdates.push({ 
+            id: t.id,
+            name: t.name, 
+            oldVal: prevR || currentR, 
+            newVal: currentR, 
+            flag: t.flag || 'us' 
+          });
+        }
+      }
+      if (sampleUpdates.length === 0) {
+        for (const t of appConfig.terms) {
+          const currentR = rates.parallel[t.id];
+          if (currentR) {
+            sampleUpdates.push({ 
+              id: t.id,
+              name: t.name, 
+              oldVal: rates.previousParallel[t.id] || currentR, 
+              newVal: currentR, 
+              flag: t.flag || 'us' 
+            });
+            if (sampleUpdates.length >= 3) break;
+          }
         }
       }
       
@@ -4708,18 +4957,35 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
       }
       
       const sampleUpdates: {id: string, name: string, oldVal: number, newVal: number, flag: string}[] = [];
-      for (const t of appConfig.terms) {
-           const currentR = rates.parallel[t.id];
-           const prevR = rates.previousParallel[t.id];
-           if (currentR) {
-              sampleUpdates.push({ 
-                id: t.id,
-                name: t.name, 
-                oldVal: prevR || currentR, 
-                newVal: currentR, 
-                flag: t.flag || 'us' 
-              });
-           }
+      const priorityIds = ['USD', 'EUR', 'GBP'];
+      for (const pid of priorityIds) {
+        const t = appConfig.terms.find(term => term.id === pid);
+        if (t && rates.parallel[t.id]) {
+          const currentR = rates.parallel[t.id];
+          const prevR = rates.previousParallel[t.id];
+          sampleUpdates.push({ 
+            id: t.id,
+            name: t.name, 
+            oldVal: prevR || currentR, 
+            newVal: currentR, 
+            flag: t.flag || 'us' 
+          });
+        }
+      }
+      if (sampleUpdates.length === 0) {
+        for (const t of appConfig.terms) {
+          const currentR = rates.parallel[t.id];
+          if (currentR) {
+            sampleUpdates.push({ 
+              id: t.id,
+              name: t.name, 
+              oldVal: rates.previousParallel[t.id] || currentR, 
+              newVal: currentR, 
+              flag: t.flag || 'us' 
+            });
+            if (sampleUpdates.length >= 3) break;
+          }
+        }
       }
       
       if (sampleUpdates.length === 0) {
