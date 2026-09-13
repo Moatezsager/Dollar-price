@@ -1,5 +1,3 @@
-let facebookBroadcastStatus: any = { status: 'idle', lastError: '', lastErrorTime: '', lastSuccessTime: '' };
-let lastBroadcastState: Record<string, { price: number; time: number }> = {};
 import "dotenv/config";
 import webpush from "web-push";
 import cron from "node-cron";
@@ -28,9 +26,6 @@ db.pragma('cache_size = 32000');
 db.pragma('synchronous = NORMAL');
 db.pragma('temp_store = MEMORY');
 
-let telegramManager: TelegramManager | null = null;
-const CONFIG_BACKUP_FILE = path.join(process.cwd(), 'config_backup.json');
-
 // Create messages table if not exists
 db.exec(`
   CREATE TABLE IF NOT EXISTS messages (
@@ -44,13 +39,8 @@ db.exec(`
 `);
 
 
-// Initialize Broadcast State and Push Notifications
+// Initialize Push Notifications
 db.exec(`
-  CREATE TABLE IF NOT EXISTS broadcast_state (
-    term_id TEXT PRIMARY KEY,
-    last_price REAL NOT NULL,
-    last_broadcast_time INTEGER NOT NULL
-  );
   CREATE TABLE IF NOT EXISTS server_config (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -64,39 +54,6 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 `);
-
-function loadBroadcastStateFromStorage() {
-  try {
-    const rows = db.prepare("SELECT term_id, last_price, last_broadcast_time FROM broadcast_state").all() as { term_id: string; last_price: number; last_broadcast_time: number }[];
-    if (rows && rows.length > 0) {
-      for (const row of rows) {
-        lastBroadcastState[row.term_id] = {
-          price: Number(row.last_price),
-          time: Number(row.last_broadcast_time)
-        };
-      }
-      console.log(`[BroadcastState] Loaded ${rows.length} items from SQLite.`);
-      return;
-    }
-  } catch (err) {
-    console.error("[BroadcastState] Error loading from SQLite:", err);
-  }
-
-  // Backup check: restore from server_config if table was empty
-  try {
-    const row = db.prepare("SELECT value FROM server_config WHERE key = 'broadcast_state'").get() as any;
-    if (row && row.value) {
-      const parsed = JSON.parse(row.value);
-      if (parsed && typeof parsed === 'object') {
-        Object.assign(lastBroadcastState, parsed);
-        console.log(`[BroadcastState] Restored ${Object.keys(parsed).length} items from server_config backup.`);
-      }
-    }
-  } catch (e) {}
-}
-
-// Synchronously restore broadcast state from SQLite on server start
-loadBroadcastStateFromStorage();
 
 // -----------------------------------------------------------------------
 // VAPID Keys — يقرأ من Environment Variables أولاً (مهم على Render)
@@ -1199,7 +1156,7 @@ async function broadcastToSocialMedia(message: string, isTest: boolean = false, 
   // Facebook
   const shouldPostFb = (target === 'facebook' || target === 'all') && ((!isTest && appConfig.facebookAutoPost) || isTest);
   if (shouldPostFb && appConfig.facebookPageId && appConfig.facebookAccessToken) {
-     let fbMessage = message;
+     let fbMessage = message.replace(/[*_`]/g, '');
      
      // Optionally adjust some emojis or formatting for FB if needed
      try {
@@ -1456,276 +1413,6 @@ async function broadcastSuddenChangeAlert(u: {id?: string, name: string, oldVal:
   sendPushNotificationToAll(pushTitle, pushBody);
 }
 
-function saveBroadcastStateItem(termId: string, price: number, time: number) {
-  // 1. Update in-memory state
-  lastBroadcastState[termId] = { price, time };
-
-  // 2. Persist to SQLite broadcast_state table
-  try {
-    db.prepare(`
-      INSERT INTO broadcast_state (term_id, last_price, last_broadcast_time)
-      VALUES (?, ?, ?)
-      ON CONFLICT(term_id) DO UPDATE SET
-        last_price = excluded.last_price,
-        last_broadcast_time = excluded.last_broadcast_time
-    `).run(termId, price, time);
-  } catch (err) {
-    console.error(`[BroadcastState] Error saving ${termId} to SQLite:`, err);
-  }
-
-  // 3. Backup snapshot to server_config
-  try {
-    db.prepare(`
-      INSERT INTO server_config (key, value) VALUES ('broadcast_state', ?)
-      ON CONFLICT(key) DO UPDATE SET value = excluded.value
-    `).run(JSON.stringify(lastBroadcastState));
-  } catch (e) {}
-
-  // 4. Sync to Supabase table broadcast_state for persistence across full deploys
-  if (supabase && supabaseAnonKey && !supabaseAnonKey.includes('dummy')) {
-    supabase
-      .from('broadcast_state')
-      .upsert([
-        {
-          term_id: termId,
-          last_price: price,
-          last_broadcast_time: time
-        }
-      ], { onConflict: 'term_id' })
-      .then(({ error }) => {
-        if (error && !error.message.includes('does not exist')) {
-          console.warn(`[BroadcastState] Supabase sync warning for ${termId}:`, error.message);
-        }
-      })
-      .catch((e: any) => {
-        console.warn(`[BroadcastState] Supabase sync network error for ${termId}:`, e?.message || e);
-      });
-  }
-}
-
-async function syncBroadcastStateFromSupabase() {
-  if (!supabase || !supabaseAnonKey || supabaseAnonKey.includes('dummy')) return;
-  try {
-    const { data, error } = await supabase
-      .from('broadcast_state')
-      .select('term_id, last_price, last_broadcast_time');
-      
-    if (error) {
-      if (!error.message.includes('does not exist')) {
-        console.warn("[BroadcastState] Supabase load warning:", error.message);
-      }
-      return;
-    }
-
-    if (data && Array.isArray(data) && data.length > 0) {
-      const insertStmt = db.prepare(`
-        INSERT INTO broadcast_state (term_id, last_price, last_broadcast_time)
-        VALUES (?, ?, ?)
-        ON CONFLICT(term_id) DO UPDATE SET
-          last_price = excluded.last_price,
-          last_broadcast_time = excluded.last_broadcast_time
-      `);
-
-      let count = 0;
-      for (const item of data) {
-        if (!item.term_id) continue;
-        const time = Number(item.last_broadcast_time) || 0;
-        const price = Number(item.last_price) || 0;
-
-        if (!lastBroadcastState[item.term_id] || lastBroadcastState[item.term_id].time < time) {
-          lastBroadcastState[item.term_id] = { price, time };
-          try {
-            insertStmt.run(item.term_id, price, time);
-            count++;
-          } catch (e) {}
-        }
-      }
-      console.log(`[BroadcastState] Synced ${data.length} items from Supabase (${count} updated in local SQLite).`);
-    }
-  } catch (err) {
-    console.error("[BroadcastState] Error syncing from Supabase:", err);
-  }
-}
-
-function getCurrencyFlag(flagCode: string, id: string = ''): string {
-  const clean = (flagCode || id || '').toLowerCase().trim();
-  const flagMap: Record<string, string> = {
-    'us': '🇺🇸',
-    'usd': '🇺🇸',
-    'usd_checks': '🇺🇸',
-    'usd_cash': '🇺🇸',
-    'eu': '🇪🇺',
-    'eur': '🇪🇺',
-    'gb': '🇬🇧',
-    'gbp': '🇬🇧',
-    'eg': '🇪🇬',
-    'egp': '🇪🇬',
-    'tr': '🇹🇷',
-    'try': '🇹🇷',
-    'tn': '🇹🇳',
-    'tnd': '🇹🇳',
-    'jo': '🇯🇴',
-    'jod': '🇯🇴',
-    'bh': '🇧🇭',
-    'bhd': '🇧🇭',
-    'kw': '🇰🇼',
-    'kwd': '🇰🇼',
-    'ae': '🇦🇪',
-    'aed': '🇦🇪',
-    'sa': '🇸🇦',
-    'sar': '🇸🇦',
-    'qa': '🇶🇦',
-    'qar': '🇶🇦',
-    'cn': '🇨🇳',
-    'cny': '🇨🇳',
-    'ca': '🇨🇦',
-    'cad': '🇨🇦',
-    'ch': '🇨🇭',
-    'chf': '🇨🇭',
-    'gold': '🥇',
-    'gold_cast_24': '🥇',
-    'gold_cast_21': '🥇',
-    'gold_cast_18': '🥇',
-    'silver': '🥈'
-  };
-
-  if (flagMap[clean]) return flagMap[clean];
-  
-  if (/[\uD800-\uDFFF]/.test(flagCode)) return flagCode;
-  
-  if (/^[a-z]{2}$/i.test(flagCode)) {
-    const code = flagCode.toUpperCase();
-    return String.fromCodePoint(127397 + code.charCodeAt(0), 127397 + code.charCodeAt(1));
-  }
-
-  return '💵';
-}
-
-function formatBroadcastDateTime(date: Date = new Date()): string {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'Africa/Tripoli',
-    year: 'numeric',
-    month: 'numeric',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: true,
-    weekday: 'long'
-  }).formatToParts(date);
-
-  const getPart = (type: string) => parts.find(p => p.type === type)?.value || '';
-  const dayNameEn = getPart('weekday');
-  const dayNameMap: Record<string, string> = {
-    'Sunday': 'الأحد',
-    'Monday': 'الاثنين',
-    'Tuesday': 'الثلاثاء',
-    'Wednesday': 'الأربعاء',
-    'Thursday': 'الخميس',
-    'Friday': 'الجمعة',
-    'Saturday': 'السبت'
-  };
-  const dayName = dayNameMap[dayNameEn] || 'اليوم';
-  const day = getPart('day');
-  const month = getPart('month');
-  const year = getPart('year');
-  const hour = getPart('hour');
-  const minute = getPart('minute');
-  const dayPeriod = getPart('dayPeriod').toUpperCase();
-  const amPm = (dayPeriod === 'AM' || dayPeriod.includes('A')) ? 'ص' : 'م';
-
-  return `📅 ${dayName}، ${day}/${month}/${year} | ⏰ ${hour}:${minute} ${amPm}`;
-}
-
-async function broadcastRateChanges(updates: {id: string, name: string, oldVal: number, newVal: number, flag: string}[], isTest: boolean = false, target: string = 'all') {
-  if (updates.length === 0) return;
-  
-  const nowMs = Date.now();
-  const qualifiedUpdates = [];
-  
-  for (const item of updates) {
-    if (isTest) {
-      qualifiedUpdates.push(item);
-      continue;
-    }
-
-    const state = lastBroadcastState[item.id];
-    
-    if (!state) {
-      // First time publishing this currency
-      qualifiedUpdates.push(item);
-      continue;
-    }
-    
-    const diff = Math.abs(item.newVal - state.price);
-    const pctChange = state.price > 0 ? (diff / state.price) * 100 : 0;
-    const hoursSinceLastBroadcast = (nowMs - state.time) / (1000 * 60 * 60);
-    const isMetal = item.id.startsWith('GOLD') || item.id.startsWith('SILVER');
-    
-    // Sudden/Large Change Rule (same logic as broadcastSuddenChangeAlert for metals and currencies)
-    const isSuddenChange = isMetal ? (pctChange >= 1.0) : (pctChange >= 1.0);
-    
-    if (isSuddenChange) {
-      // Publish immediately
-      qualifiedUpdates.push(item);
-    } else if (diff > 0 && hoursSinceLastBroadcast >= 1.0) {
-      // Small change, but 1 hour has passed
-      qualifiedUpdates.push(item);
-    } else {
-      // Small change, hour not passed.
-    }
-  }
-
-  if (qualifiedUpdates.length === 0) return;
-
-  const dateTimeFormatted = formatBroadcastDateTime();
-  const header = `📊 *مؤشر الدينار | تحديث السوق الموازي*`;
-  
-  let message = `${header}\n━━━━━━━━━━━━━━━━━━━\n${dateTimeFormatted}\n\n`;
-  
-  const blocks: string[] = [];
-  for (const u of qualifiedUpdates) {
-    const flag = getCurrencyFlag(u.flag, u.id);
-    const currentVal = u.newVal;
-    let oldVal = u.oldVal;
-
-    if (isTest && (!oldVal || oldVal === currentVal)) {
-      const sampleDiff = u.id === 'USD' ? 0.015 : (u.id === 'EUR' ? 0.030 : 0.050);
-      oldVal = Math.round((currentVal - sampleDiff) * 1000) / 1000;
-    }
-
-    let changeText = '';
-    if (oldVal && oldVal > 0 && oldVal !== currentVal) {
-      const diff = Math.abs(currentVal - oldVal);
-      if (currentVal > oldVal) {
-        changeText = `🔺 ارتفاع بمقدار ${diff.toFixed(3)} (كان ${oldVal.toFixed(3)})`;
-      } else {
-        changeText = `🔻 انخفاض بمقدار ${diff.toFixed(3)} (كان ${oldVal.toFixed(3)})`;
-      }
-    } else {
-      changeText = `➖ استقرار عند ${currentVal.toFixed(3)}`;
-    }
-
-    blocks.push(`${flag} *${u.name}*\n💵 السعر: *${currentVal.toFixed(3)} د.ل*\n📊 التغير: ${changeText}`);
-  }
-
-  message += blocks.join('\n\n');
-  message += `\n\n━━━━━━━━━━━━━━━━━━━\n🔗 *المتابعة الحية والرسوم البيانية:*\n🌐 https://dollar-price-qp14.onrender.com/?v=${Math.floor(Date.now() / 60000)}\n📱 *المصدر:* شبكة مؤشر الدينار`;
-
-  try {
-    await broadcastToSocialMedia(message, isTest, target as any);
-  } catch (e) {
-    console.error("[Smart Broadcast] Failed to send:", e);
-    if (isTest) throw e;
-  }
-
-  // Persist state for items actually published (not isTest)
-  if (!isTest && qualifiedUpdates.length > 0) {
-    for (const item of qualifiedUpdates) {
-      saveBroadcastStateItem(item.id, item.newVal, nowMs);
-    }
-  }
-}
-
 async function broadcastDailyReport() {
   if (!appConfig.telegramPostChannel || !telegramManager || !appConfig.telegramAutoPost) return;
   const now = new Date();
@@ -1889,29 +1576,44 @@ async function broadcastWeeklyReport(isTest: boolean = false) {
 cron.schedule('*/5 * * * *', async () => {
   if (!appConfig.telegramAutoPost) return;
   
-  const currentUpdates = [];
+  const nowMs = Date.now();
+  const delayedUpdates = [];
   
   for (const term of appConfig.terms) {
     const currentVal = rates.parallel[term.id];
     if (currentVal === undefined) continue;
     
     const history = lastBroadcastState[term.id] || { price: currentVal, time: 0 };
+    const diff = Math.abs(currentVal - history.price);
     
-    // Check if there's any change at all from the last PUBLISHED price (or initial price)
-    if (currentVal !== history.price) {
-      currentUpdates.push({
+    if (diff === 0) continue;
+    
+    const hoursSinceLastBroadcast = history.time === 0 ? 999 : (nowMs - history.time) / (1000 * 60 * 60);
+    const isMetal = term.id.startsWith('GOLD') || term.id.startsWith('SILVER');
+    let shouldPublish = false;
+    
+    if (isMetal) {
+       const pctChange = history.price > 0 ? (diff / history.price) * 100 : 0;
+       if (pctChange >= 0.2 && hoursSinceLastBroadcast >= 1.0) shouldPublish = true;
+    } else {
+       if (diff >= 0.005 && hoursSinceLastBroadcast >= 1.0) shouldPublish = true;
+    }
+    
+    if (shouldPublish) {
+      delayedUpdates.push({
         id: term.id,
         name: term.name,
         oldVal: history.price,
         newVal: currentVal,
-        flag: term.flag
+        flag: term.flag,
+        delayed: true
       });
     }
   }
   
-  if (currentUpdates.length > 0) {
-    // Let broadcastRateChanges decide what to actually publish based on time/diff thresholds
-    await broadcastRateChanges(currentUpdates, false, 'all');
+  if (delayedUpdates.length > 0) {
+    console.log(`[Smart Broadcast] Found ${delayedUpdates.length} delayed updates that matured (1 hour passed). Publishing now.`);
+    await broadcastRateChanges(delayedUpdates, false, 'all');
   }
 });
 
@@ -1964,149 +1666,70 @@ let appConfig: AppConfig = {
   ]
 };
 
-function loadConfigFromStorage(): boolean {
+function loadConfigFromStorage() {
   try {
-    // 1. Try local SQLite server_config table
-    const row = db.prepare("SELECT value FROM server_config WHERE key = 'app_config'").get() as any;
-    if (row && row.value) {
-      const parsed = JSON.parse(row.value);
-      applyConfig(parsed, 'LocalSQLite (server_config)');
-      return true;
+    if (fs.existsSync(DB_FILE)) {
+      const db = new Database(DB_FILE);
+      const row = db.prepare("SELECT data FROM kv_store WHERE key = 'appConfig'").get() as any;
+      if (row) {
+        applyConfig(JSON.parse(row.data), 'LocalSQLite');
+      }
+      db.close();
     }
   } catch (error) {
-    console.error("[Config] Error loading from SQLite server_config:", error);
+    console.error("[Config] Error loading from SQLite:", error);
   }
-
-  // 2. Fallback to local backup JSON file if SQLite was empty or freshly wiped
-  try {
-    if (fs.existsSync(CONFIG_BACKUP_FILE)) {
-      const fileData = JSON.parse(fs.readFileSync(CONFIG_BACKUP_FILE, 'utf-8'));
-      if (fileData) {
-        applyConfig(fileData, 'BackupJSONFile');
-        // Reseed SQLite with backup file
-        try {
-          db.prepare(`
-            INSERT INTO server_config (key, value) VALUES ('app_config', ?)
-            ON CONFLICT(key) DO UPDATE SET value = excluded.value
-          `).run(JSON.stringify(appConfig));
-        } catch (e) {}
-        return true;
-      }
-    }
-  } catch (e) {
-    console.error("[Config] Error loading from backup JSON file:", e);
-  }
-
-  return false;
 }
 
 function applyConfig(loadedConfig: Partial<AppConfig>, source: string) {
   if (!loadedConfig) return;
   
   const existingIds = new Set(loadedConfig.terms?.map((t: any) => t.id) || []);
-  let mergedTerms = loadedConfig.terms || appConfig.terms || [];
+  let mergedTerms = loadedConfig.terms || [];
 
-  // Add any newly introduced code terms that are missing in saved config
+
+  // 2. Add any newly introduced code terms that are missing in saved config
   for (const defaultTerm of appConfig.terms) {
     if (!existingIds.has(defaultTerm.id)) {
       mergedTerms.push(defaultTerm);
       console.log(`[Migration] Added new missing currency term: ${defaultTerm.id}`);
     }
   }
+  loadedConfig.terms = mergedTerms;
 
-  // Ensure channels is a valid non-empty array
-  let channels = loadedConfig.channels;
-  if (!Array.isArray(channels) || channels.length === 0) {
-    channels = appConfig.channels || ["dollarr_ly", "musheermarket", "lydollar", "suqalmushir"];
+  // 3. Ensure channels is a valid non-empty array
+  if (!Array.isArray(loadedConfig.channels) || loadedConfig.channels.length === 0) {
+    loadedConfig.channels = ["dollarr_ly", "musheermarket", "lydollar", "suqalmushir"];
   }
 
-  // Safe merging: PRESERVE sensitive keys if loadedConfig did not explicitly provide them
-  const telegramApiId = (loadedConfig.telegramApiId !== undefined) 
-    ? loadedConfig.telegramApiId 
-    : (appConfig.telegramApiId || (process.env.TELEGRAM_API_ID ? Number(process.env.TELEGRAM_API_ID) : undefined));
+  // 4. Default other settings safely
+  if (loadedConfig.enableHttpScraper === undefined) {
+    loadedConfig.enableHttpScraper = true;
+  }
+  if (loadedConfig.telegramAutoPost === undefined) {
+    loadedConfig.telegramAutoPost = appConfig.telegramAutoPost;
+  }
+  if (loadedConfig.telegramPostChannel === undefined) {
+    loadedConfig.telegramPostChannel = appConfig.telegramPostChannel;
+  }
+  if (loadedConfig.telegramTemplateStyle === undefined) {
+    loadedConfig.telegramTemplateStyle = appConfig.telegramTemplateStyle || "classic";
+  }
 
-  const telegramApiHash = (loadedConfig.telegramApiHash !== undefined && loadedConfig.telegramApiHash !== "") 
-    ? loadedConfig.telegramApiHash 
-    : (appConfig.telegramApiHash || process.env.TELEGRAM_API_HASH);
-
-  // Note: if user explicitly sets telegramSessionString to "" (empty string), it means disconnect
-  const telegramSessionString = (loadedConfig.telegramSessionString !== undefined)
-    ? loadedConfig.telegramSessionString
-    : (appConfig.telegramSessionString || process.env.TELEGRAM_SESSION || process.env.TG_SESSION_V2);
-
-  const telegramPostChannel = loadedConfig.telegramPostChannel !== undefined 
-    ? loadedConfig.telegramPostChannel 
-    : (appConfig.telegramPostChannel || "lydollar");
-
-  const telegramAutoPost = loadedConfig.telegramAutoPost !== undefined 
-    ? loadedConfig.telegramAutoPost 
-    : (appConfig.telegramAutoPost ?? false);
-
-  const telegramTemplateStyle = loadedConfig.telegramTemplateStyle || appConfig.telegramTemplateStyle || "classic";
-
-  const facebookPageId = (loadedConfig.facebookPageId !== undefined && loadedConfig.facebookPageId !== "")
-    ? loadedConfig.facebookPageId
-    : (appConfig.facebookPageId || process.env.FACEBOOK_PAGE_ID);
-
-  const facebookAccessToken = (loadedConfig.facebookAccessToken !== undefined && loadedConfig.facebookAccessToken !== "")
-    ? loadedConfig.facebookAccessToken
-    : (appConfig.facebookAccessToken || process.env.FACEBOOK_ACCESS_TOKEN);
-
-  const facebookAutoPost = loadedConfig.facebookAutoPost !== undefined
-    ? loadedConfig.facebookAutoPost
-    : (appConfig.facebookAutoPost !== undefined ? appConfig.facebookAutoPost : (process.env.FACEBOOK_AUTO_POST === 'true'));
-
-  const enableHttpScraper = loadedConfig.enableHttpScraper !== undefined
-    ? loadedConfig.enableHttpScraper
-    : (appConfig.enableHttpScraper ?? true);
-
-  const enableUserTracking = loadedConfig.enableUserTracking !== undefined
-    ? loadedConfig.enableUserTracking
-    : (appConfig.enableUserTracking ?? true);
-
-  const apiConfig = loadedConfig.apiConfig || appConfig.apiConfig;
-
-  appConfig = {
-    ...appConfig,
-    ...loadedConfig,
-    terms: mergedTerms,
-    channels: channels.filter(c => !!c && c.trim() !== ""),
-    telegramApiId,
-    telegramApiHash,
-    telegramSessionString,
-    telegramPostChannel,
-    telegramAutoPost,
-    telegramTemplateStyle,
-    facebookPageId,
-    facebookAccessToken,
-    facebookAutoPost,
-    enableHttpScraper,
-    enableUserTracking,
-    apiConfig
-  };
+  appConfig = loadedConfig;
 
   // Re-initialize Telegram Manager if credentials present
-  if (appConfig.telegramApiId && appConfig.telegramApiHash && appConfig.telegramSessionString) {
-    try {
-      telegramManager = getTelegramManager(
-        Number(appConfig.telegramApiId),
-        appConfig.telegramApiHash,
-        appConfig.telegramSessionString
-      );
-      console.log(`[Telegram] TelegramManager initialized (API ID: ${appConfig.telegramApiId})`);
-    } catch (tgErr) {
-      console.error("[Telegram] Error initializing TelegramManager:", tgErr);
-    }
-  }
+  telegramManager = getTelegramManager(
+    Number(process.env.TELEGRAM_API_ID || appConfig.telegramApiId),
+    process.env.TELEGRAM_API_HASH || appConfig.telegramApiHash || "",
+    process.env.TELEGRAM_SESSION || process.env.TG_SESSION_V2 || appConfig.telegramSessionString || ""
+  );
 
-  console.log(`[Config] Config loaded & applied successfully from ${source}. Facebook configured: ${!!appConfig.facebookAccessToken}, Telegram configured: ${!!appConfig.telegramSessionString}`);
+  console.log(`[Config] Config loaded & applied successfully from ${source}`);
 }
 
-// Immediately load config from SQLite / backup synchronously at startup
-loadConfigFromStorage();
-
 async function loadConfigFromSupabase() {
-  // Always load from local SQLite / backup first so we immediately have saved config
+  // Always load from local SQLite first so we immediately have saved config
   loadConfigFromStorage();
 
   if (!supabase || !supabaseAnonKey || supabaseAnonKey.includes('dummy')) return;
@@ -2119,14 +1742,13 @@ async function loadConfigFromSupabase() {
       
     if (error) {
       if (error.code === 'PGRST116') {
-        // Row doesn't exist, create it with current appConfig
+        // Row doesn't exist, create it
         await supabase.from('app_config').insert([{ id: 1, config: appConfig }]);
-        console.log("[Supabase] Seeded initial app_config row in Supabase");
       } else if (!error.message.includes('relation "app_config" does not exist')) {
         console.error("Error loading config from Supabase:", error);
       }
     } else if (data && data.config) {
-      applyConfig(data.config as AppConfig, "Supabase");
+      applyLoadedConfig(data.config as AppConfig, "Supabase");
       
       // Also cache to SQLite
       try {
@@ -2137,14 +1759,9 @@ async function loadConfigFromSupabase() {
       } catch (e) {
         console.error("[Storage] Failed to sync Supabase config to SQLite:", e);
       }
-
-      // Also cache to backup JSON file
-      try {
-        fs.writeFileSync(CONFIG_BACKUP_FILE, JSON.stringify(appConfig, null, 2), 'utf-8');
-      } catch (e) {}
     }
   } catch (err) {
-    console.error("Failed to load/repair config from Supabase:", err);
+    console.error("Failed to load/repair config from Supabase", err);
   }
 }
 
@@ -2159,14 +1776,7 @@ async function saveConfigToSupabase(newConfig: AppConfig) {
     console.error("[Storage] Failed to save config to SQLite:", e);
   }
 
-  // 2. Always save to local backup JSON file as disk fallback
-  try {
-    fs.writeFileSync(CONFIG_BACKUP_FILE, JSON.stringify(newConfig, null, 2), 'utf-8');
-  } catch (e) {
-    console.error("[Storage] Failed to save config backup JSON file:", e);
-  }
-
-  // 3. Save to Supabase for cloud durability
+  // 2. Save to Supabase for cloud durability
   if (!supabase || !supabaseAnonKey || supabaseAnonKey.includes('dummy')) return true;
   try {
     const { error } = await supabase
@@ -2179,7 +1789,7 @@ async function saveConfigToSupabase(newConfig: AppConfig) {
     }
     return true;
   } catch (err) {
-    console.error("Failed to save config to Supabase:", err);
+    console.error("Failed to save config to Supabase", err);
     return false;
   }
 }
@@ -2954,7 +2564,6 @@ try {
 // Initial fetch and setup
 initializeRatesFromDB().then(() => {
   loadConfigFromSupabase().then(() => {
-    syncBroadcastStateFromSupabase().catch(() => {});
     console.log("Server initialized. Waiting for cron job to trigger /api/refresh.");
   });
 });
@@ -3491,21 +3100,15 @@ async function startServer() {
     console.error("CRITICAL: ADMIN_PASSWORD not set. Admin features will be disabled for security.");
   }
 
-    const adminTokens = new Map<string, number>();
-  const ADMIN_SESSION_DURATION = 24 * 60 * 60 * 1000;
+  let adminToken = Math.random().toString(36).substring(2) + Date.now().toString(36);
 
   const requireAdmin = (req: express.Request, res: express.Response, next: express.NextFunction) => {
     const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.split(' ')[1];
-      const expiry = adminTokens.get(token);
-      if (expiry && expiry > Date.now()) {
-        return next();
-      } else if (expiry) {
-        adminTokens.delete(token);
-      }
+    if (authHeader === `Bearer ${adminToken}`) {
+      next();
+    } else {
+      res.status(401).json({ success: false, message: "غير مصرح" });
     }
-    res.status(401).json({ success: false, message: "غير مصرح" });
   };
 
   // Spam protection words
@@ -3567,7 +3170,7 @@ ${message}
       res.json({ success: true, message: "تم إرسال رسالتك بنجاح. سيتم الرد عليك في أقل من 24 ساعة." });
     } catch (error) {
       console.error("Error saving message:", error);
-      res.status(500).json({ error: "حدث خطأ أثناء حفظ الرسالة" });
+      res.status(500).json({ error: "حدث خطأ أثناء حفظ الرسالة", details: error.message || error.toString() });
     }
   });
 
@@ -3613,30 +3216,10 @@ ${message}
     }
   });
 
-    const adminLoginRateLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 5,
-    message: { success: false, message: "لقد تجاوزت الحد المسموح به لمحاولات تسجيل الدخول. يرجى المحاولة بعد 15 دقيقة." }
-  });
-
-  app.post("/api/admin/login", adminLoginRateLimiter, (req: express.Request, res: express.Response) => {
+  app.post("/api/admin/login", (req: express.Request, res: express.Response) => {
     const { password } = req.body;
-    
-    const expected = effectiveAdminPassword || "";
-    const provided = password || "";
-    
-    const expectedHash = crypto.createHash('sha256').update(expected).digest();
-    const providedHash = crypto.createHash('sha256').update(provided).digest();
-    
-    if (expected && crypto.timingSafeEqual(expectedHash, providedHash)) {
-      const token = crypto.randomBytes(32).toString('hex');
-      adminTokens.set(token, Date.now() + ADMIN_SESSION_DURATION);
-      
-      for (const [t, exp] of adminTokens.entries()) {
-        if (exp < Date.now()) adminTokens.delete(t);
-      }
-      
-      res.json({ success: true, token: token });
+    if (password === effectiveAdminPassword) {
+      res.json({ success: true, token: adminToken });
     } else {
       res.status(401).json({ success: false, message: "كلمة المرور غير صحيحة" });
     }
@@ -3677,7 +3260,7 @@ app.post('/api/push/subscribe', (req: express.Request, res: express.Response) =>
     res.json({ success: true, total });
   } catch (err: any) {
     console.error('[Push] Subscribe error:', err.message);
-    res.status(500).json({ error: "حدث خطأ في الخادم" });
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -3810,27 +3393,7 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
     if (!text) return res.status(400).json({ success: false, message: "Text is required" });
     
     const cleanText = text;
-    let extracted = extractRatesFromText(cleanText);
-    const hasCurrencyKeywords = /(?:يورو|دولار|باوند|دينار|ليرة|ذهب|فضة|كسر|مسبوك|أونصة|EUR|USD|GBP|TND|TRY|EGP)/i.test(cleanText);
-    if (hasCurrencyKeywords) {
-       try {
-           const aiExtracted = await extractRatesWithAI(cleanText, channel || "Manual Extract");
-           if (aiExtracted.length > 0) {
-               const merged = [...extracted];
-               for (const aiRate of aiExtracted) {
-                   const existingIdx = merged.findIndex(r => r.code === aiRate.code);
-                   if (existingIdx >= 0) {
-                       merged[existingIdx] = aiRate; 
-                   } else {
-                       merged.push(aiRate);
-                   }
-               }
-               extracted = merged;
-           }
-       } catch (e) {
-           console.error("AI extraction failed in manual-extract API:", e);
-       }
-    }
+    const extracted = extractRatesFromText(cleanText);
     
     if (extracted.length === 0) {
       return res.json({ success: false, message: "لم يتم العثور على أي أسعار في هذا النص" });
@@ -3859,7 +3422,7 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
     });
   });
 
-  app.get("/api/admin/config", requireAdmin, (req: express.Request, res: express.Response) => {
+  app.get("/api/admin/config", requireAdmin, requireAdmin, (req: express.Request, res: express.Response) => {
     res.json({ ...appConfig, serverStartTime: serverStartTime.toISOString(), facebookBroadcastStatus });
   });
 
@@ -3869,28 +3432,7 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
       if (!newConfig.channels || !newConfig.terms) {
         return res.status(400).json({ success: false, message: "بيانات غير صالحة" });
       }
-
-      // Safeguard: Never wipe existing Facebook or Telegram credentials unless explicitly disconnected!
-      if (newConfig.telegramSessionString === undefined && appConfig.telegramSessionString) {
-        newConfig.telegramSessionString = appConfig.telegramSessionString;
-      }
-      if (newConfig.telegramApiId === undefined && appConfig.telegramApiId) {
-        newConfig.telegramApiId = appConfig.telegramApiId;
-      }
-      if (newConfig.telegramApiHash === undefined && appConfig.telegramApiHash) {
-        newConfig.telegramApiHash = appConfig.telegramApiHash;
-      }
-      if (newConfig.facebookPageId === undefined && appConfig.facebookPageId) {
-        newConfig.facebookPageId = appConfig.facebookPageId;
-      }
-      if (newConfig.facebookAccessToken === undefined && appConfig.facebookAccessToken) {
-        newConfig.facebookAccessToken = appConfig.facebookAccessToken;
-      }
-      if (newConfig.facebookAutoPost === undefined && appConfig.facebookAutoPost !== undefined) {
-        newConfig.facebookAutoPost = appConfig.facebookAutoPost;
-      }
-
-      applyConfig(newConfig, "AdminAPI");
+      appConfig = newConfig;
       const saved = await saveConfigToSupabase(appConfig);
       
       const parallelTally = await fetchParallelRatesFromTelegram();
@@ -3969,7 +3511,7 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
     } catch (err: any) {
       console.error("Telegram send code error:", err);
       if (!res.headersSent) {
-        res.status(500).json({ success: false, message: "فشل إرسال الكود" });
+        res.status(500).json({ success: false, message: err.message || "فشل إرسال الكود" });
       }
     }
   });
@@ -4026,7 +3568,7 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
     } catch (err: any) {
       console.error("Telegram verify code error:", err);
       if (!res.headersSent) {
-        res.status(500).json({ success: false, message: "فشل التحقق من الكود" });
+        res.status(500).json({ success: false, message: err.message || "فشل التحقق من الكود" });
       }
     }
   });
@@ -4071,17 +3613,14 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
 
   app.post("/api/analytics/track", analyticsRateLimiter, (req: express.Request, res: express.Response) => {
     try {
-      const { sessionId, visitorClientId, pagePath, referrer } = req.body;
+      const { sessionId, pagePath, referrer } = req.body;
       const uaString = req.headers['user-agent'] || '';
       const ip = (req.headers["x-forwarded-for"] || req.socket.remoteAddress || "").toString().split(',')[0].trim();
       
       const parser = new UAParser(uaString);
       const result = parser.getResult();
       
-      let visitorId = visitorClientId;
-      if (!visitorId || typeof visitorId !== 'string') {
-        visitorId = crypto.createHash('sha256').update(ip + result.browser.name + result.os.name).digest('hex').substring(0, 16);
-      }
+      const visitorId = crypto.createHash('sha256').update(ip + result.browser.name + result.os.name).digest('hex').substring(0, 16);
       
       let deviceType = result.device.type || 'Desktop';
       if (!result.device.type) {
@@ -4126,7 +3665,7 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
           device_type: deviceType,
           os_name: result.os.name || '',
           browser_name: result.browser.name || ''
-        }]).then(({error}) => { if (error && error.code !== '42P01') console.error('Supabase Visitor Log sync failed:', error.message); });
+        }]).catch(e => console.error("Supabase Visitor Log sync failed:", e.message));
       }
       
       res.json({ success: true });
@@ -4137,44 +3676,18 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
   });
 
   // Admin Analytics Dashboard Data
-  app.get("/api/admin/analytics", requireAdmin, async (req: express.Request, res: express.Response) => {
+  app.get("/api/admin/analytics", requireAdmin, (req: express.Request, res: express.Response) => {
     try {
       const days = parseInt(req.query.days as string) || 7;
       const cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - days);
       const cutoffIso = cutoff.toISOString();
 
-      let events: any[] = [];
-      let usedSupabase = false;
-
-      if (supabase) {
-        try {
-          const { data, error } = await supabase
-            .from('visitor_logs')
-            .select('*')
-            .gte('created_at', cutoffIso)
-            .order('created_at', { ascending: true });
-            
-          if (error) {
-             if (error.code !== '42P01') {
-                 console.error("[Analytics] Supabase query failed, falling back to local SQLite:", error.message);
-             }
-          } else if (data) {
-             events = data;
-             usedSupabase = true;
-          }
-        } catch (supaErr) {
-           console.error("[Analytics] Error communicating with Supabase, falling back to local SQLite", supaErr);
-        }
-      }
-
-      if (!usedSupabase) {
-        events = db.prepare(`
-          SELECT * FROM analytics_events 
-          WHERE created_at >= ?
-          ORDER BY created_at ASC
-        `).all(cutoffIso) as any[];
-      }
+      const events = db.prepare(`
+        SELECT * FROM analytics_events 
+        WHERE created_at >= ?
+        ORDER BY created_at ASC
+      `).all(cutoffIso) as any[];
 
       // Aggregations
       const dailyStats: Record<string, { pageviews: number, uniqueVisitors: Set<string> }> = {};
@@ -4185,7 +3698,7 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
       const allUniqueVisitors = new Set<string>();
 
       events.forEach(e => {
-        const dateStr = new Date(e.created_at).toISOString().split('T')[0];
+        const dateStr = e.created_at.split(' ')[0] || e.created_at.split('T')[0];
         if (!dailyStats[dateStr]) {
            dailyStats[dateStr] = { pageviews: 0, uniqueVisitors: new Set() };
         }
@@ -4330,7 +3843,7 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
       res.json({ success: true, records });
     } catch (err: any) {
       if (!res.headersSent) {
-        res.status(500).json({ success: false, message: "حدث خطأ في الخادم" });
+        res.status(500).json({ success: false, message: err.message });
       }
     }
   });
@@ -4392,7 +3905,7 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
       res.json({ success: true });
     } catch (err: any) {
       if (!res.headersSent) {
-        res.status(500).json({ success: false, message: "حدث خطأ في الخادم" });
+        res.status(500).json({ success: false, message: err.message });
       }
     }
   });
@@ -4443,7 +3956,7 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
       res.json({ success: true });
     } catch (err: any) {
       if (!res.headersSent) {
-        res.status(500).json({ success: false, message: "حدث خطأ في الخادم" });
+        res.status(500).json({ success: false, message: err.message });
       }
     }
   });
@@ -4659,7 +4172,7 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
     } catch (err: any) {
       console.error("Essale fetch failed:", err);
       if (!res.headersSent) {
-        res.status(500).json({ success: false, message: "حدث خطأ في جلب البيانات" });
+        res.status(500).json({ success: false, message: `خطأ في جلب البيانات: ${err.message || 'فشل العملية'}` });
       }
     }
   });
@@ -4673,27 +4186,7 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
       
       const extractedRates: Record<string, number> = {};
       const extractedDates: Record<string, string> = {};
-      let results = extractRatesFromText(text);
-      const hasCurrencyKeywords = /(?:يورو|دولار|باوند|دينار|ليرة|ذهب|فضة|كسر|مسبوك|أونصة|EUR|USD|GBP|TND|TRY|EGP)/i.test(text);
-      if (hasCurrencyKeywords) {
-         try {
-             const aiExtracted = await extractRatesWithAI(text, "Admin Manual");
-             if (aiExtracted.length > 0) {
-                 const merged = [...results];
-                 for (const aiRate of aiExtracted) {
-                     const existingIdx = merged.findIndex(r => r.code === aiRate.code);
-                     if (existingIdx >= 0) {
-                         merged[existingIdx] = aiRate; 
-                     } else {
-                         merged.push(aiRate);
-                     }
-                 }
-                 results = merged;
-             }
-         } catch (e) {
-             console.error("AI extraction failed in manual API:", e);
-         }
-      }
+      const results = extractRatesFromText(text);
       
       for (const item of results) {
         // If multiple matches for same currency, keep the last one (usually most recent in text)
@@ -4711,7 +4204,7 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
     } catch (err: any) {
       console.error("Extraction failed:", err);
       if (!res.headersSent) {
-        res.status(500).json({ success: false, message: "حدث خطأ في الاستخراج" });
+        res.status(500).json({ success: false, message: `خطأ في الاستخراج: ${err.message || 'فشل العملية'}` });
       }
     }
   });
@@ -4852,7 +4345,7 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
     } catch (error: any) {
       console.error(`[API] Error fetching messages for ${channel}:`, error);
       if (!res.headersSent) {
-        res.status(500).json({ success: false, error: "Failed to fetch messages" });
+        res.status(500).json({ success: false, error: error.message || "Failed to fetch messages" });
       }
     }
   });
@@ -4883,7 +4376,7 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
       
       res.json({ success: true, message: "تم إرسال أسعار المصرف المركزي بنجاح" });
     } catch (err: any) {
-      res.status(500).json({ success: false, error: "Failed to broadcast official rates" });
+      res.status(500).json({ success: false, error: err.message || "Failed to broadcast official rates" });
     }
   });
 
@@ -4905,34 +4398,19 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
       appConfig.telegramPostChannel = targetChannel;
       
       const sampleUpdates: {id: string, name: string, oldVal: number, newVal: number, flag: string}[] = [];
-      const priorityIds = ['USD', 'EUR', 'GBP'];
-      for (const pid of priorityIds) {
-        const t = appConfig.terms.find(term => term.id === pid);
-        if (t && rates.parallel[t.id]) {
-          const currentR = rates.parallel[t.id];
-          const prevR = rates.previousParallel[t.id];
-          sampleUpdates.push({ 
-            id: t.id,
-            name: t.name, 
-            oldVal: prevR || currentR, 
-            newVal: currentR, 
-            flag: t.flag || 'us' 
-          });
-        }
-      }
-      if (sampleUpdates.length === 0) {
-        for (const t of appConfig.terms) {
-          const currentR = rates.parallel[t.id];
-          if (currentR) {
-            sampleUpdates.push({ 
-              id: t.id,
-              name: t.name, 
-              oldVal: rates.previousParallel[t.id] || currentR, 
-              newVal: currentR, 
-              flag: t.flag || 'us' 
-            });
-            if (sampleUpdates.length >= 3) break;
-          }
+      for (const t of appConfig.terms) {
+        if (true) {
+           const currentR = rates.parallel[t.id];
+           const prevR = rates.previousParallel[t.id];
+           if (currentR) {
+              sampleUpdates.push({ 
+                id: t.id,
+                name: t.name, 
+                oldVal: prevR || currentR, 
+                newVal: currentR, 
+                flag: t.flag || 'us' 
+              });
+           }
         }
       }
       
@@ -4946,7 +4424,7 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
       
       res.json({ success: true, message: "تم إرسال رسالة تجريبية" });
     } catch (err: any) {
-      res.status(500).json({ success: false, error: "Failed to broadcast" });
+      res.status(500).json({ success: false, error: err.message || "Failed to broadcast" });
     }
   });
 
@@ -4957,35 +4435,18 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
       }
       
       const sampleUpdates: {id: string, name: string, oldVal: number, newVal: number, flag: string}[] = [];
-      const priorityIds = ['USD', 'EUR', 'GBP'];
-      for (const pid of priorityIds) {
-        const t = appConfig.terms.find(term => term.id === pid);
-        if (t && rates.parallel[t.id]) {
-          const currentR = rates.parallel[t.id];
-          const prevR = rates.previousParallel[t.id];
-          sampleUpdates.push({ 
-            id: t.id,
-            name: t.name, 
-            oldVal: prevR || currentR, 
-            newVal: currentR, 
-            flag: t.flag || 'us' 
-          });
-        }
-      }
-      if (sampleUpdates.length === 0) {
-        for (const t of appConfig.terms) {
-          const currentR = rates.parallel[t.id];
-          if (currentR) {
-            sampleUpdates.push({ 
-              id: t.id,
-              name: t.name, 
-              oldVal: rates.previousParallel[t.id] || currentR, 
-              newVal: currentR, 
-              flag: t.flag || 'us' 
-            });
-            if (sampleUpdates.length >= 3) break;
-          }
-        }
+      for (const t of appConfig.terms) {
+           const currentR = rates.parallel[t.id];
+           const prevR = rates.previousParallel[t.id];
+           if (currentR) {
+              sampleUpdates.push({ 
+                id: t.id,
+                name: t.name, 
+                oldVal: prevR || currentR, 
+                newVal: currentR, 
+                flag: t.flag || 'us' 
+              });
+           }
       }
       
       if (sampleUpdates.length === 0) {
@@ -4996,7 +4457,7 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
       
       res.json({ success: true, message: "تم إرسال رسالة تجريبية إلى فيسبوك بنجاح" });
     } catch (err: any) {
-      res.status(500).json({ success: false, error: "Failed to broadcast to Facebook" });
+      res.status(500).json({ success: false, error: err.message || "Failed to broadcast to Facebook" });
     }
   });
 
@@ -5047,7 +4508,7 @@ ${updates.join('\n')}
       res.json({ success: true, message: finalMessage });
     } catch (err: any) {
       console.error('Error generating analysis:', err);
-      res.status(500).json({ success: false, error: "Failed to generate analysis" });
+      res.status(500).json({ success: false, error: err.message || "Failed to generate analysis" });
     }
   });
 
@@ -5115,7 +4576,7 @@ ${updates.join('\n')}
       }
     } catch (err: any) {
       console.error('Error generating and publishing analysis:', err);
-      res.status(500).json({ success: false, error: "Failed to generate analysis" });
+      res.status(500).json({ success: false, error: err.message || "Failed to generate analysis" });
     }
   });
 
@@ -5141,7 +4602,7 @@ ${updates.join('\n')}
     } catch (error: any) {
       console.error(`[API] Error sending message to ${channel}:`, error);
       if (!res.headersSent) {
-        res.status(500).json({ success: false, error: "Failed to send message" });
+        res.status(500).json({ success: false, error: error.message || "Failed to send message" });
       }
     }
   });
@@ -5211,7 +4672,7 @@ ${updates.join('\n')}
     } catch (error: any) {
       console.error(`[API] Error updating from ${channel}:`, error);
       if (!res.headersSent) {
-        res.status(500).json({ success: false, error: "Failed to update from channel" });
+        res.status(500).json({ success: false, error: error.message || "Failed to update from channel" });
       }
     }
   });
@@ -5233,7 +4694,7 @@ ${updates.join('\n')}
       res.json({ success: true });
     } catch (err: any) {
       console.error("Error tracking install:", err);
-      res.status(500).json({ success: false, error: "حدث خطأ في الخادم" });
+      res.status(500).json({ success: false, error: err.message });
     }
   });
 

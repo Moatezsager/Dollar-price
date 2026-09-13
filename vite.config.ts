@@ -45,7 +45,7 @@ export default defineConfig(({mode}) => {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,webp}'],
         },
         devOptions: {
-          enabled: false,
+          enabled: true,
           type: 'module',
           navigateFallback: 'index.html',
         }

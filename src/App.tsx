@@ -330,18 +330,11 @@ export default function App() {
     const sessionId = sessionStorage.getItem('__sessionId') || (Math.random().toString(36).substring(2) + Date.now().toString(36));
     sessionStorage.setItem('__sessionId', sessionId);
     
-    let visitorClientId = localStorage.getItem('__visitorClientId');
-    if (!visitorClientId) {
-      visitorClientId = Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
-      localStorage.setItem('__visitorClientId', visitorClientId);
-    }
-    
     fetch('/api/analytics/track', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         sessionId,
-        visitorClientId,
         pagePath: window.location.pathname,
         referrer: document.referrer
       })
