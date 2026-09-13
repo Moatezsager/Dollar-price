@@ -3763,18 +3763,42 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
   });
 
   // Admin Analytics Dashboard Data
-  app.get("/api/admin/analytics", requireAdmin, (req: express.Request, res: express.Response) => {
+  app.get("/api/admin/analytics", requireAdmin, async (req: express.Request, res: express.Response) => {
     try {
       const days = parseInt(req.query.days as string) || 7;
       const cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - days);
       const cutoffIso = cutoff.toISOString();
 
-      const events = db.prepare(`
-        SELECT * FROM analytics_events 
-        WHERE created_at >= ?
-        ORDER BY created_at ASC
-      `).all(cutoffIso) as any[];
+      let events: any[] = [];
+      let usedSupabase = false;
+
+      if (supabase) {
+        try {
+          const { data, error } = await supabase
+            .from('visitor_logs')
+            .select('*')
+            .gte('created_at', cutoffIso)
+            .order('created_at', { ascending: true });
+            
+          if (error) {
+             console.error("[Analytics] Supabase query failed, falling back to local SQLite", error);
+          } else if (data) {
+             events = data;
+             usedSupabase = true;
+          }
+        } catch (supaErr) {
+           console.error("[Analytics] Error communicating with Supabase, falling back to local SQLite", supaErr);
+        }
+      }
+
+      if (!usedSupabase) {
+        events = db.prepare(`
+          SELECT * FROM analytics_events 
+          WHERE created_at >= ?
+          ORDER BY created_at ASC
+        `).all(cutoffIso) as any[];
+      }
 
       // Aggregations
       const dailyStats: Record<string, { pageviews: number, uniqueVisitors: Set<string> }> = {};
