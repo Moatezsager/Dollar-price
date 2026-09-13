@@ -28,6 +28,9 @@ db.pragma('cache_size = 32000');
 db.pragma('synchronous = NORMAL');
 db.pragma('temp_store = MEMORY');
 
+let telegramManager: TelegramManager | null = null;
+const CONFIG_BACKUP_FILE = path.join(process.cwd(), 'config_backup.json');
+
 // Create messages table if not exists
 db.exec(`
   CREATE TABLE IF NOT EXISTS messages (
@@ -1728,70 +1731,149 @@ let appConfig: AppConfig = {
   ]
 };
 
-function loadConfigFromStorage() {
+function loadConfigFromStorage(): boolean {
   try {
-    if (fs.existsSync(DB_FILE)) {
-      const db = new Database(DB_FILE);
-      const row = db.prepare("SELECT data FROM kv_store WHERE key = 'appConfig'").get() as any;
-      if (row) {
-        applyConfig(JSON.parse(row.data), 'LocalSQLite');
-      }
-      db.close();
+    // 1. Try local SQLite server_config table
+    const row = db.prepare("SELECT value FROM server_config WHERE key = 'app_config'").get() as any;
+    if (row && row.value) {
+      const parsed = JSON.parse(row.value);
+      applyConfig(parsed, 'LocalSQLite (server_config)');
+      return true;
     }
   } catch (error) {
-    console.error("[Config] Error loading from SQLite:", error);
+    console.error("[Config] Error loading from SQLite server_config:", error);
   }
+
+  // 2. Fallback to local backup JSON file if SQLite was empty or freshly wiped
+  try {
+    if (fs.existsSync(CONFIG_BACKUP_FILE)) {
+      const fileData = JSON.parse(fs.readFileSync(CONFIG_BACKUP_FILE, 'utf-8'));
+      if (fileData) {
+        applyConfig(fileData, 'BackupJSONFile');
+        // Reseed SQLite with backup file
+        try {
+          db.prepare(`
+            INSERT INTO server_config (key, value) VALUES ('app_config', ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value
+          `).run(JSON.stringify(appConfig));
+        } catch (e) {}
+        return true;
+      }
+    }
+  } catch (e) {
+    console.error("[Config] Error loading from backup JSON file:", e);
+  }
+
+  return false;
 }
 
 function applyConfig(loadedConfig: Partial<AppConfig>, source: string) {
   if (!loadedConfig) return;
   
   const existingIds = new Set(loadedConfig.terms?.map((t: any) => t.id) || []);
-  let mergedTerms = loadedConfig.terms || [];
+  let mergedTerms = loadedConfig.terms || appConfig.terms || [];
 
-
-  // 2. Add any newly introduced code terms that are missing in saved config
+  // Add any newly introduced code terms that are missing in saved config
   for (const defaultTerm of appConfig.terms) {
     if (!existingIds.has(defaultTerm.id)) {
       mergedTerms.push(defaultTerm);
       console.log(`[Migration] Added new missing currency term: ${defaultTerm.id}`);
     }
   }
-  loadedConfig.terms = mergedTerms;
 
-  // 3. Ensure channels is a valid non-empty array
-  if (!Array.isArray(loadedConfig.channels) || loadedConfig.channels.length === 0) {
-    loadedConfig.channels = ["dollarr_ly", "musheermarket", "lydollar", "suqalmushir"];
-  }
-
-  // 4. Default other settings safely
-  if (loadedConfig.enableHttpScraper === undefined) {
-    loadedConfig.enableHttpScraper = true;
-  }
-  if (loadedConfig.telegramAutoPost === undefined) {
-    loadedConfig.telegramAutoPost = appConfig.telegramAutoPost;
-  }
-  if (loadedConfig.telegramPostChannel === undefined) {
-    loadedConfig.telegramPostChannel = appConfig.telegramPostChannel;
-  }
-  if (loadedConfig.telegramTemplateStyle === undefined) {
-    loadedConfig.telegramTemplateStyle = appConfig.telegramTemplateStyle || "classic";
+  // Ensure channels is a valid non-empty array
+  let channels = loadedConfig.channels;
+  if (!Array.isArray(channels) || channels.length === 0) {
+    channels = appConfig.channels || ["dollarr_ly", "musheermarket", "lydollar", "suqalmushir"];
   }
 
-  appConfig = loadedConfig;
+  // Safe merging: PRESERVE sensitive keys if loadedConfig did not explicitly provide them
+  const telegramApiId = (loadedConfig.telegramApiId !== undefined) 
+    ? loadedConfig.telegramApiId 
+    : (appConfig.telegramApiId || (process.env.TELEGRAM_API_ID ? Number(process.env.TELEGRAM_API_ID) : undefined));
+
+  const telegramApiHash = (loadedConfig.telegramApiHash !== undefined && loadedConfig.telegramApiHash !== "") 
+    ? loadedConfig.telegramApiHash 
+    : (appConfig.telegramApiHash || process.env.TELEGRAM_API_HASH);
+
+  // Note: if user explicitly sets telegramSessionString to "" (empty string), it means disconnect
+  const telegramSessionString = (loadedConfig.telegramSessionString !== undefined)
+    ? loadedConfig.telegramSessionString
+    : (appConfig.telegramSessionString || process.env.TELEGRAM_SESSION || process.env.TG_SESSION_V2);
+
+  const telegramPostChannel = loadedConfig.telegramPostChannel !== undefined 
+    ? loadedConfig.telegramPostChannel 
+    : (appConfig.telegramPostChannel || "lydollar");
+
+  const telegramAutoPost = loadedConfig.telegramAutoPost !== undefined 
+    ? loadedConfig.telegramAutoPost 
+    : (appConfig.telegramAutoPost ?? false);
+
+  const telegramTemplateStyle = loadedConfig.telegramTemplateStyle || appConfig.telegramTemplateStyle || "classic";
+
+  const facebookPageId = (loadedConfig.facebookPageId !== undefined && loadedConfig.facebookPageId !== "")
+    ? loadedConfig.facebookPageId
+    : (appConfig.facebookPageId || process.env.FACEBOOK_PAGE_ID);
+
+  const facebookAccessToken = (loadedConfig.facebookAccessToken !== undefined && loadedConfig.facebookAccessToken !== "")
+    ? loadedConfig.facebookAccessToken
+    : (appConfig.facebookAccessToken || process.env.FACEBOOK_ACCESS_TOKEN);
+
+  const facebookAutoPost = loadedConfig.facebookAutoPost !== undefined
+    ? loadedConfig.facebookAutoPost
+    : (appConfig.facebookAutoPost !== undefined ? appConfig.facebookAutoPost : (process.env.FACEBOOK_AUTO_POST === 'true'));
+
+  const enableHttpScraper = loadedConfig.enableHttpScraper !== undefined
+    ? loadedConfig.enableHttpScraper
+    : (appConfig.enableHttpScraper ?? true);
+
+  const enableUserTracking = loadedConfig.enableUserTracking !== undefined
+    ? loadedConfig.enableUserTracking
+    : (appConfig.enableUserTracking ?? true);
+
+  const apiConfig = loadedConfig.apiConfig || appConfig.apiConfig;
+
+  appConfig = {
+    ...appConfig,
+    ...loadedConfig,
+    terms: mergedTerms,
+    channels: channels.filter(c => !!c && c.trim() !== ""),
+    telegramApiId,
+    telegramApiHash,
+    telegramSessionString,
+    telegramPostChannel,
+    telegramAutoPost,
+    telegramTemplateStyle,
+    facebookPageId,
+    facebookAccessToken,
+    facebookAutoPost,
+    enableHttpScraper,
+    enableUserTracking,
+    apiConfig
+  };
 
   // Re-initialize Telegram Manager if credentials present
-  telegramManager = getTelegramManager(
-    Number(process.env.TELEGRAM_API_ID || appConfig.telegramApiId),
-    process.env.TELEGRAM_API_HASH || appConfig.telegramApiHash || "",
-    process.env.TELEGRAM_SESSION || process.env.TG_SESSION_V2 || appConfig.telegramSessionString || ""
-  );
+  if (appConfig.telegramApiId && appConfig.telegramApiHash && appConfig.telegramSessionString) {
+    try {
+      telegramManager = getTelegramManager(
+        Number(appConfig.telegramApiId),
+        appConfig.telegramApiHash,
+        appConfig.telegramSessionString
+      );
+      console.log(`[Telegram] TelegramManager initialized (API ID: ${appConfig.telegramApiId})`);
+    } catch (tgErr) {
+      console.error("[Telegram] Error initializing TelegramManager:", tgErr);
+    }
+  }
 
-  console.log(`[Config] Config loaded & applied successfully from ${source}`);
+  console.log(`[Config] Config loaded & applied successfully from ${source}. Facebook configured: ${!!appConfig.facebookAccessToken}, Telegram configured: ${!!appConfig.telegramSessionString}`);
 }
 
+// Immediately load config from SQLite / backup synchronously at startup
+loadConfigFromStorage();
+
 async function loadConfigFromSupabase() {
-  // Always load from local SQLite first so we immediately have saved config
+  // Always load from local SQLite / backup first so we immediately have saved config
   loadConfigFromStorage();
 
   if (!supabase || !supabaseAnonKey || supabaseAnonKey.includes('dummy')) return;
@@ -1804,13 +1886,14 @@ async function loadConfigFromSupabase() {
       
     if (error) {
       if (error.code === 'PGRST116') {
-        // Row doesn't exist, create it
+        // Row doesn't exist, create it with current appConfig
         await supabase.from('app_config').insert([{ id: 1, config: appConfig }]);
+        console.log("[Supabase] Seeded initial app_config row in Supabase");
       } else if (!error.message.includes('relation "app_config" does not exist')) {
         console.error("Error loading config from Supabase:", error);
       }
     } else if (data && data.config) {
-      applyLoadedConfig(data.config as AppConfig, "Supabase");
+      applyConfig(data.config as AppConfig, "Supabase");
       
       // Also cache to SQLite
       try {
@@ -1821,9 +1904,14 @@ async function loadConfigFromSupabase() {
       } catch (e) {
         console.error("[Storage] Failed to sync Supabase config to SQLite:", e);
       }
+
+      // Also cache to backup JSON file
+      try {
+        fs.writeFileSync(CONFIG_BACKUP_FILE, JSON.stringify(appConfig, null, 2), 'utf-8');
+      } catch (e) {}
     }
   } catch (err) {
-    console.error("Failed to load/repair config from Supabase", err);
+    console.error("Failed to load/repair config from Supabase:", err);
   }
 }
 
@@ -1838,7 +1926,14 @@ async function saveConfigToSupabase(newConfig: AppConfig) {
     console.error("[Storage] Failed to save config to SQLite:", e);
   }
 
-  // 2. Save to Supabase for cloud durability
+  // 2. Always save to local backup JSON file as disk fallback
+  try {
+    fs.writeFileSync(CONFIG_BACKUP_FILE, JSON.stringify(newConfig, null, 2), 'utf-8');
+  } catch (e) {
+    console.error("[Storage] Failed to save config backup JSON file:", e);
+  }
+
+  // 3. Save to Supabase for cloud durability
   if (!supabase || !supabaseAnonKey || supabaseAnonKey.includes('dummy')) return true;
   try {
     const { error } = await supabase
@@ -1851,7 +1946,7 @@ async function saveConfigToSupabase(newConfig: AppConfig) {
     }
     return true;
   } catch (err) {
-    console.error("Failed to save config to Supabase", err);
+    console.error("Failed to save config to Supabase:", err);
     return false;
   }
 }
@@ -3530,7 +3625,7 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
     });
   });
 
-  app.get("/api/admin/config", requireAdmin, requireAdmin, (req: express.Request, res: express.Response) => {
+  app.get("/api/admin/config", requireAdmin, (req: express.Request, res: express.Response) => {
     res.json({ ...appConfig, serverStartTime: serverStartTime.toISOString(), facebookBroadcastStatus });
   });
 
@@ -3540,7 +3635,28 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
       if (!newConfig.channels || !newConfig.terms) {
         return res.status(400).json({ success: false, message: "بيانات غير صالحة" });
       }
-      appConfig = newConfig;
+
+      // Safeguard: Never wipe existing Facebook or Telegram credentials unless explicitly disconnected!
+      if (newConfig.telegramSessionString === undefined && appConfig.telegramSessionString) {
+        newConfig.telegramSessionString = appConfig.telegramSessionString;
+      }
+      if (newConfig.telegramApiId === undefined && appConfig.telegramApiId) {
+        newConfig.telegramApiId = appConfig.telegramApiId;
+      }
+      if (newConfig.telegramApiHash === undefined && appConfig.telegramApiHash) {
+        newConfig.telegramApiHash = appConfig.telegramApiHash;
+      }
+      if (newConfig.facebookPageId === undefined && appConfig.facebookPageId) {
+        newConfig.facebookPageId = appConfig.facebookPageId;
+      }
+      if (newConfig.facebookAccessToken === undefined && appConfig.facebookAccessToken) {
+        newConfig.facebookAccessToken = appConfig.facebookAccessToken;
+      }
+      if (newConfig.facebookAutoPost === undefined && appConfig.facebookAutoPost !== undefined) {
+        newConfig.facebookAutoPost = appConfig.facebookAutoPost;
+      }
+
+      applyConfig(newConfig, "AdminAPI");
       const saved = await saveConfigToSupabase(appConfig);
       
       const parallelTally = await fetchParallelRatesFromTelegram();
