@@ -3481,7 +3481,27 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
     if (!text) return res.status(400).json({ success: false, message: "Text is required" });
     
     const cleanText = text;
-    const extracted = extractRatesFromText(cleanText);
+    let extracted = extractRatesFromText(cleanText);
+    const hasCurrencyKeywords = /(?:يورو|دولار|باوند|دينار|ليرة|ذهب|فضة|كسر|مسبوك|أونصة|EUR|USD|GBP|TND|TRY|EGP)/i.test(cleanText);
+    if (hasCurrencyKeywords) {
+       try {
+           const aiExtracted = await extractRatesWithAI(cleanText, channel || "Manual Extract");
+           if (aiExtracted.length > 0) {
+               const merged = [...extracted];
+               for (const aiRate of aiExtracted) {
+                   const existingIdx = merged.findIndex(r => r.code === aiRate.code);
+                   if (existingIdx >= 0) {
+                       merged[existingIdx] = aiRate; 
+                   } else {
+                       merged.push(aiRate);
+                   }
+               }
+               extracted = merged;
+           }
+       } catch (e) {
+           console.error("AI extraction failed in manual-extract API:", e);
+       }
+    }
     
     if (extracted.length === 0) {
       return res.json({ success: false, message: "لم يتم العثور على أي أسعار في هذا النص" });
@@ -4303,7 +4323,27 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
       
       const extractedRates: Record<string, number> = {};
       const extractedDates: Record<string, string> = {};
-      const results = extractRatesFromText(text);
+      let results = extractRatesFromText(text);
+      const hasCurrencyKeywords = /(?:يورو|دولار|باوند|دينار|ليرة|ذهب|فضة|كسر|مسبوك|أونصة|EUR|USD|GBP|TND|TRY|EGP)/i.test(text);
+      if (hasCurrencyKeywords) {
+         try {
+             const aiExtracted = await extractRatesWithAI(text, "Admin Manual");
+             if (aiExtracted.length > 0) {
+                 const merged = [...results];
+                 for (const aiRate of aiExtracted) {
+                     const existingIdx = merged.findIndex(r => r.code === aiRate.code);
+                     if (existingIdx >= 0) {
+                         merged[existingIdx] = aiRate; 
+                     } else {
+                         merged.push(aiRate);
+                     }
+                 }
+                 results = merged;
+             }
+         } catch (e) {
+             console.error("AI extraction failed in manual API:", e);
+         }
+      }
       
       for (const item of results) {
         // If multiple matches for same currency, keep the last one (usually most recent in text)
