@@ -3809,7 +3809,7 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
       const allUniqueVisitors = new Set<string>();
 
       events.forEach(e => {
-        const dateStr = e.created_at.split(' ')[0] || e.created_at.split('T')[0];
+        const dateStr = new Date(e.created_at).toISOString().split('T')[0];
         if (!dailyStats[dateStr]) {
            dailyStats[dateStr] = { pageviews: 0, uniqueVisitors: new Set() };
         }
