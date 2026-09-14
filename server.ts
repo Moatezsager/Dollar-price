@@ -2638,13 +2638,6 @@ async function fetchParallelRatesFromTelegram(): Promise<boolean | null> {
             });
             
             updateStats(term.id, newValFromTelegram);
-            broadcastSuddenChangeAlert({
-              id: term.id,
-              name: term.name,
-              oldVal: currentVal || newValFromTelegram,
-              newVal: newValFromTelegram,
-              flag: term.flag
-            });
             
             const changeLog = {
               id: Math.random().toString(36).substring(2, 9),
