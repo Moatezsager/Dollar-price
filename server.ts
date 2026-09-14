@@ -1733,22 +1733,26 @@ async function broadcastRateChanges(updates: {id?: string, name: string, oldVal:
       const isMetal = u.id.startsWith('GOLD') || u.id.startsWith('SILVER');
       const pctChange = history.price > 0 ? (diffFromLastBroadcast / history.price) * 100 : 0;
       
-      // قواعد النشر الجديدة المبسطة (حسب طلب المستخدم)
-      // 1. تغيير بقرشين (0.02) فأكثر: ينشر فوراً.
-      // 2. تغيير بقرش واحد (0.01) فأكثر: ينشر بشرط مرور ساعة كاملة.
-      // ملاحظة: يتم التحقق من مرور الساعة بناءً على "آخر تحديث للعملة" عبر وظيفة المراقبة الدورية (Cron)
+      // قواعد النشر الجديدة:
+      // 1. التغيير الكبير (قرشين للعملات أو 0.4% للذهب): ينشر فوراً.
+      // 2. أي تغيير غير صفري: يُنشر إجبارياً بعد مرور ساعة كاملة على آخر نشر فعلي لنفس العملة.
       
       let shouldPublish = false;
       
       if ((u as any).delayed) {
-         // This is a delayed update coming from the cron job (meaning 1 hour has already passed since currency was updated)
+         // This is a delayed update coming from the cron job
          shouldPublish = true;
       } else {
         if (isMetal) {
-           if (pctChange >= 0.4) shouldPublish = true; // تغير كبير للذهب
+           if (pctChange >= 0.4) shouldPublish = true; // تغير كبير للذهب ينشر فوراً
         } else {
-           if (diffFromLastBroadcast >= 0.02) shouldPublish = true; // فرق قرشين ينشر دائما
+           if (diffFromLastBroadcast >= 0.02) shouldPublish = true; // فرق قرشين ينشر فوراً
         }
+      }
+
+      // أي تغيير غير صفري يُنشر إجبارياً بعد مرور ساعة كاملة
+      if (diffFromLastBroadcast > 0 && hoursSinceLast >= 1.0) {
+         shouldPublish = true;
       }
       
       if (shouldPublish || history.time === 0) {
@@ -1757,7 +1761,7 @@ async function broadcastRateChanges(updates: {id?: string, name: string, oldVal:
     }
     
     if (qualifiedUpdates.length === 0) {
-      console.log(`[Smart Broadcast] Cooldown active. Changes (< 0.02) and time (< 3 hrs). Skipping social post.`);
+      console.log(`[Smart Broadcast] Cooldown active. Changes are too small and < 1 hr has passed. Skipping social post.`);
       return; // Skip broadcast completely
     }
     
