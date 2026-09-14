@@ -1,5 +1,4 @@
-import { readFileSync } from 'fs';
-const res = await fetch("http://localhost:3000/api/temp-config");
-const data = await res.json();
-console.log(data.telegramSessionString ? "Has session string" : "No session string");
-console.log("Channels:", data.channels);
+import Database from 'better-sqlite3';
+const db = new Database('messages.db');
+const stored = db.prepare('SELECT value FROM server_config WHERE key = ?').get('app_config') as any;
+console.log(stored.value);

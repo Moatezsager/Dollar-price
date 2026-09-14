@@ -1700,25 +1700,21 @@ async function broadcastRateChanges(updates: {id?: string, name: string, oldVal:
       const isMetal = u.id.startsWith('GOLD') || u.id.startsWith('SILVER');
       const pctChange = history.price > 0 ? (diffFromLastBroadcast / history.price) * 100 : 0;
       
-      // قواعد النشر الجديدة:
-      // 1. التغيير الكبير (قرشين للعملات أو 0.4% للذهب): ينشر فوراً.
-      // 2. أي تغيير غير صفري: يُنشر إجبارياً بعد مرور ساعة كاملة على آخر نشر فعلي لنفس العملة.
+      // قواعد النشر الجديدة والمخففة لضمان النشر التلقائي:
+      // 1. التغيير الكبير نسبياً (0.15% أو أكثر) ينشر فوراً (للعملات والذهب).
+      // 2. أي تغيير طفيف آخر يُنشر بعد مرور 15 دقيقة (0.25 ساعة) فقط لتجنب الإزعاج المتكرر جداً.
       
       let shouldPublish = false;
       
-      if ((u as any).delayed) {
-         // This is a delayed update coming from the cron job
+      if ((u as any).delayed || (u as any).isManual) {
+         // This is a delayed update coming from the cron job or manual admin update
          shouldPublish = true;
       } else {
-        if (isMetal) {
-           if (pctChange >= 0.4) shouldPublish = true; // تغير كبير للذهب ينشر فوراً
-        } else {
-           if (diffFromLastBroadcast >= 0.02) shouldPublish = true; // فرق قرشين ينشر فوراً
-        }
+         if (pctChange >= 0.15) shouldPublish = true; // تغير 0.15% فأكثر يُنشر فوراً
       }
 
-      // أي تغيير غير صفري يُنشر إجبارياً بعد مرور ساعة كاملة
-      if (diffFromLastBroadcast > 0 && hoursSinceLast >= 1.0) {
+      // أي تغيير غير صفري يُنشر إجبارياً بعد مرور ربع ساعة
+      if (diffFromLastBroadcast > 0 && hoursSinceLast >= 0.25) {
          shouldPublish = true;
       }
       
@@ -4284,8 +4280,9 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
                 name: term.name,
                 oldVal: oldVal,
                 newVal: numValue,
-                flag: term.flag
-              });
+                flag: term.flag,
+                isManual: true
+              } as any);
             }
             
             const changeLog = {
