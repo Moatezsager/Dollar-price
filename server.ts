@@ -1146,6 +1146,9 @@ async function fetchFromCBL(): Promise<{ cblDate: string, rates: RateMap } | nul
 async function broadcastToSocialMedia(message: string, isTest: boolean = false, target: 'all' | 'telegram' | 'facebook' = 'all') {
   const manager = getOrInitTelegramManager();
 
+  // Helper for small pause between retries
+  const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
+
   // Telegram
   const shouldPostTg = (target === 'telegram' || target === 'all') && ((!isTest && appConfig.telegramAutoPost) || isTest);
   if (shouldPostTg) {
@@ -1157,28 +1160,70 @@ async function broadcastToSocialMedia(message: string, isTest: boolean = false, 
 
     if (!tgChannel) {
       console.warn("[Telegram Broadcast] Skipping: No channel configured (telegramPostChannel is empty)");
+      telegramBroadcastStatus = {
+        status: 'error',
+        lastError: 'لم يتم تحديد القناة',
+        lastErrorTime: new Date().toISOString(),
+        lastSuccessTime: telegramBroadcastStatus.lastSuccessTime
+      };
       if (isTest && target === 'telegram') throw new Error("لا توجد قناة تيليجرام محددة للنشر.");
     } else if (!manager) {
       console.error("[Telegram Broadcast] Failed: Telegram credentials not initialized or missing");
+      telegramBroadcastStatus = {
+        status: 'error',
+        lastError: 'بيانات أو جلسة تيليجرام غير مفعلة',
+        lastErrorTime: new Date().toISOString(),
+        lastSuccessTime: telegramBroadcastStatus.lastSuccessTime
+      };
       if (isTest && target === 'telegram') throw new Error("بيانات تيليجرام غير مكتملة أو الجلسة غير مفعلة.");
     } else {
-      try {
-        const success = await manager.sendMessage(tgChannel, message);
-        if (!success) {
-          const detail = (manager as any).lastError || "فشل غير معروف";
-          console.error(`[Telegram Broadcast] Failed to send message to ${tgChannel}: ${detail}`);
-          if (isTest && target === 'telegram') {
-            if (detail.includes('CHAT_WRITE_FORBIDDEN') || detail.includes('CHAT_ADMIN_REQUIRED')) {
-              throw new Error(`حساب تيليجرام المربوط ليس مشرفاً في القناة @${tgChannel} أو لا يملك صلاحية نشر الرسائل.`);
+      let success = false;
+      let lastErrMessage = "";
+      const maxRetries = isTest ? 1 : 2;
+
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          success = await manager.sendMessage(tgChannel, message);
+          if (success) {
+            break;
+          } else {
+            lastErrMessage = (manager as any).lastError || "فشل غير معروف";
+            if (attempt < maxRetries) {
+              console.warn(`[Telegram Broadcast] Attempt ${attempt} failed: ${lastErrMessage}. Retrying in 2s...`);
+              await delay(2000);
             }
-            throw new Error(`فشل إرسال الرسالة إلى القناة @${tgChannel}: ${detail}`);
           }
-        } else {
-          console.log(`[Telegram Broadcast] Successfully sent message to ${tgChannel}`);
+        } catch (e: any) {
+          lastErrMessage = e.message || String(e);
+          if (attempt < maxRetries) {
+            console.warn(`[Telegram Broadcast] Exception in attempt ${attempt}: ${lastErrMessage}. Retrying in 2s...`);
+            await delay(2000);
+          }
         }
-      } catch (e: any) {
-        console.error("[Telegram Broadcast] Failed to send message:", e.message || e);
-        if (isTest && target === 'telegram') throw e;
+      }
+
+      if (!success) {
+        telegramBroadcastStatus = {
+          status: 'error',
+          lastError: lastErrMessage || "فشل إرسال الرسالة",
+          lastErrorTime: new Date().toISOString(),
+          lastSuccessTime: telegramBroadcastStatus.lastSuccessTime
+        };
+        console.error(`[Telegram Broadcast] Failed to send message to ${tgChannel}: ${lastErrMessage}`);
+        if (isTest && target === 'telegram') {
+          if (lastErrMessage.includes('CHAT_WRITE_FORBIDDEN') || lastErrMessage.includes('CHAT_ADMIN_REQUIRED')) {
+            throw new Error(`حساب تيليجرام المربوط ليس مشرفاً في القناة @${tgChannel} أو لا يملك صلاحية نشر الرسائل.`);
+          }
+          throw new Error(`فشل إرسال الرسالة إلى القناة @${tgChannel}: ${lastErrMessage}`);
+        }
+      } else {
+        telegramBroadcastStatus = {
+          status: 'ok',
+          lastError: '',
+          lastErrorTime: telegramBroadcastStatus.lastErrorTime,
+          lastSuccessTime: new Date().toISOString()
+        };
+        console.log(`[Telegram Broadcast] Successfully sent message to ${tgChannel}`);
       }
     }
   }
@@ -1188,98 +1233,123 @@ async function broadcastToSocialMedia(message: string, isTest: boolean = false, 
   if (shouldPostFb) {
     if (!appConfig.facebookPageId || !appConfig.facebookAccessToken) {
       console.warn("[Facebook Broadcast] Skipping Facebook post: Page ID or Access Token missing");
+      facebookBroadcastStatus = {
+        status: 'error',
+        lastError: 'معرف الصفحة أو رمز الوصول مفقود',
+        lastErrorTime: new Date().toISOString(),
+        lastSuccessTime: facebookBroadcastStatus.lastSuccessTime
+      };
       if (isTest && target === 'facebook') throw new Error("بيانات فيسبوك غير مكتملة. يرجى إدخال معرف الصفحة ورمز وصول الصفحة أولاً.");
     } else {
       let fbMessage = message.replace(/[*_`]/g, '');
-      
-      try {
-        const targetId = appConfig.facebookPageId.trim() || 'me';
-        let url = `https://graph.facebook.com/v20.0/${targetId}/feed`;
-        
-        let linkToAttach = null;
-        const urlMatch = fbMessage.match(/https?:\/\/[^\s]+/);
-        if (urlMatch) {
-          linkToAttach = urlMatch[0];
-        }
-        
-        const payload: any = { message: fbMessage, access_token: appConfig.facebookAccessToken };
-        if (linkToAttach) {
-          payload.link = linkToAttach;
-        }
+      const maxRetries = isTest ? 1 : 2;
+      let postedSuccessfully = false;
+      let lastFbError = "";
 
-        let fbRes = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        let fbData = await fbRes.json();
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          const targetId = appConfig.facebookPageId.trim() || 'me';
+          let url = `https://graph.facebook.com/v20.0/${targetId}/feed`;
+          
+          let linkToAttach = null;
+          const urlMatch = fbMessage.match(/https?:\/\/[^\s]+/);
+          if (urlMatch) {
+            linkToAttach = urlMatch[0];
+          }
+          
+          const payload: any = { message: fbMessage, access_token: appConfig.facebookAccessToken };
+          if (linkToAttach) {
+            payload.link = linkToAttach;
+          }
 
-        // Fallback: If link parameter error, retry cleanly without link
-        if (fbData.error && payload.link) {
-          console.log("[Facebook Broadcast] Retrying without link parameter...");
-          delete payload.link;
-          const retryRes = await fetch(url, {
+          let fbRes = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
           });
-          const retryData = await retryRes.json();
-          if (!retryData.error) {
-            fbData = retryData;
-          }
-        }
+          let fbData = await fbRes.json();
 
-        // Fallback: If global ID error or invalid ID, attempt posting to /me/feed directly
-        if (fbData.error && (fbData.error.code === 100 || fbData.error.message?.includes('global id'))) {
-          console.log("[Facebook Broadcast] Trying fallback to /me/feed...");
-          const fallbackUrl = `https://graph.facebook.com/v20.0/me/feed`;
-          const fallbackRes = await fetch(fallbackUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: fbMessage, access_token: appConfig.facebookAccessToken })
-          });
-          const fallbackData = await fallbackRes.json();
-          if (!fallbackData.error) {
-            fbData = fallbackData;
-          }
-        }
-
-        if (fbData.error) {
-          facebookBroadcastStatus = { status: 'error', lastError: fbData.error.message, lastErrorTime: new Date().toISOString(), lastSuccessTime: facebookBroadcastStatus.lastSuccessTime };
-          console.error("[Facebook Broadcast] Error:", fbData.error.message);
-          if (isTest && target === 'facebook') {
-            if (fbData.error.message?.includes('global id') || fbData.error.code === 100) {
-              throw new Error("المعرف المدخل هو معرف حساب شخصي وليس معرف صفحة عامة (Page). يجب استخدام معرف صفحة فيسبوك ورمز وصول الصفحة (Page Token).");
-            }
-            throw new Error(fbData.error.message);
-          }
-        } else {
-          console.log("[Facebook Broadcast] Successfully posted, ID:", fbData.id);
-          facebookBroadcastStatus = { status: 'ok', lastError: '', lastErrorTime: facebookBroadcastStatus.lastErrorTime, lastSuccessTime: new Date().toISOString() };
-          
-          // Add comment safely without breaking the main post status
-          try {
-            const commentMessage = `📢 تابعنا على تيليجرام لتصلك التحديثات فوراً:\n👉 https://t.me/libya_index_dollar\n\n🌐 للمزيد من التفاصيل والرسوم البيانية، تفضل بزيارة موقعنا:\n👉 https://dollar-price-qp14.onrender.com/?v=${Math.floor(Date.now() / 60000)}`;
-            const commentUrl = `https://graph.facebook.com/v20.0/${fbData.id}/comments`;
-            const commentRes = await fetch(commentUrl, {
+          // Fallback 1: If link parameter error, retry cleanly without link
+          if (fbData.error && payload.link) {
+            console.log("[Facebook Broadcast] Retrying without link parameter...");
+            delete payload.link;
+            const retryRes = await fetch(url, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ message: commentMessage, access_token: appConfig.facebookAccessToken })
+              body: JSON.stringify(payload)
             });
-            const commentData = await commentRes.json();
-            if (commentData.error) {
-              console.warn("[Facebook Broadcast] Note: Comment skipped or failed (non-fatal):", commentData.error.message);
-            } else {
-              console.log("[Facebook Broadcast] Successfully added comment, ID:", commentData.id);
+            const retryData = await retryRes.json();
+            if (!retryData.error) {
+              fbData = retryData;
             }
-          } catch (commentErr: any) {
-            console.warn("[Facebook Broadcast] Non-fatal comment error:", commentErr.message);
           }
+
+          // Fallback 2: If global ID error or invalid ID, attempt posting to /me/feed directly
+          if (fbData.error && (fbData.error.code === 100 || fbData.error.message?.includes('global id'))) {
+            console.log("[Facebook Broadcast] Trying fallback to /me/feed...");
+            const fallbackUrl = `https://graph.facebook.com/v20.0/me/feed`;
+            const fallbackRes = await fetch(fallbackUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ message: fbMessage, access_token: appConfig.facebookAccessToken })
+            });
+            const fallbackData = await fallbackRes.json();
+            if (!fallbackData.error) {
+              fbData = fallbackData;
+            }
+          }
+
+          if (fbData.error) {
+            lastFbError = fbData.error.message || "خطأ غير معروف في واجهة فيسبوك";
+            if (attempt < maxRetries) {
+              console.warn(`[Facebook Broadcast] Attempt ${attempt} failed: ${lastFbError}. Retrying in 2s...`);
+              await delay(2000);
+              continue;
+            }
+            facebookBroadcastStatus = { status: 'error', lastError: lastFbError, lastErrorTime: new Date().toISOString(), lastSuccessTime: facebookBroadcastStatus.lastSuccessTime };
+            console.error("[Facebook Broadcast] Error:", lastFbError);
+            if (isTest && target === 'facebook') {
+              if (lastFbError.includes('global id') || fbData.error.code === 100) {
+                throw new Error("المعرف المدخل هو معرف حساب شخصي وليس معرف صفحة عامة (Page). يجب استخدام معرف صفحة فيسبوك ورمز وصول الصفحة (Page Token).");
+              }
+              throw new Error(lastFbError);
+            }
+          } else {
+            postedSuccessfully = true;
+            console.log("[Facebook Broadcast] Successfully posted, ID:", fbData.id);
+            facebookBroadcastStatus = { status: 'ok', lastError: '', lastErrorTime: facebookBroadcastStatus.lastErrorTime, lastSuccessTime: new Date().toISOString() };
+            
+            // Add comment safely without breaking the main post status
+            try {
+              const commentMessage = `📢 تابعنا على تيليجرام لتصلك التحديثات فوراً:\n👉 https://t.me/libya_index_dollar\n\n🌐 للمزيد من التفاصيل والرسوم البيانية، تفضل بزيارة موقعنا:\n👉 https://dollar-price-qp14.onrender.com/?v=${Math.floor(Date.now() / 60000)}`;
+              const commentUrl = `https://graph.facebook.com/v20.0/${fbData.id}/comments`;
+              const commentRes = await fetch(commentUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: commentMessage, access_token: appConfig.facebookAccessToken })
+              });
+              const commentData = await commentRes.json();
+              if (commentData.error) {
+                console.warn("[Facebook Broadcast] Note: Comment skipped or failed (non-fatal):", commentData.error.message);
+              } else {
+                console.log("[Facebook Broadcast] Successfully added comment, ID:", commentData.id);
+              }
+            } catch (commentErr: any) {
+              console.warn("[Facebook Broadcast] Non-fatal comment error:", commentErr.message);
+            }
+            break; // Done successfully
+          }
+        } catch(e: any) {
+          lastFbError = e.message || String(e);
+          if (attempt < maxRetries) {
+            console.warn(`[Facebook Broadcast] Exception on attempt ${attempt}: ${lastFbError}. Retrying in 2s...`);
+            await delay(2000);
+            continue;
+          }
+          facebookBroadcastStatus = { status: 'error', lastError: lastFbError, lastErrorTime: new Date().toISOString(), lastSuccessTime: facebookBroadcastStatus.lastSuccessTime };
+          console.error("[Facebook Broadcast] Failed:", e);
+          if (isTest && target === 'facebook') throw e;
         }
-      } catch(e: any) {
-        facebookBroadcastStatus = { status: 'error', lastError: e.message || String(e), lastErrorTime: new Date().toISOString(), lastSuccessTime: facebookBroadcastStatus.lastSuccessTime };
-        console.error("[Facebook Broadcast] Failed:", e);
-        if (isTest && target === 'facebook') throw e;
       }
     }
   }
@@ -1700,10 +1770,21 @@ let facebookBroadcastStatus = {
   lastSuccessTime: ''
 };
 
+let telegramBroadcastStatus = {
+  status: 'ok',
+  lastError: '',
+  lastErrorTime: '',
+  lastSuccessTime: ''
+};
+
 let lastSocialBroadcastTime = 0;
 let lastBroadcastState: Record<string, { price: number, time: number }> = {};
 let lastSuccessfulFetchTime = Date.now();
 let telegramManager: TelegramManager | null = null;
+
+// Smart Queue (Debounce Buffer) to aggregate rapid price updates safely
+let broadcastQueue: Map<string, { id?: string, name: string, oldVal: number, newVal: number, flag: string }> = new Map();
+let broadcastQueueTimer: NodeJS.Timeout | null = null;
 
 function getOrInitTelegramManager(): TelegramManager | null {
   if (telegramManager) return telegramManager;
@@ -1728,12 +1809,47 @@ async function broadcastRateChanges(updates: {id?: string, name: string, oldVal:
   if (updates.length === 0) {
     return;
   }
-  
+
+  // If live broadcast, use Smart Debounce Buffer (20s) to aggregate rapid updates and prevent spam/flooding
+  if (!isTest) {
+    for (const u of updates) {
+      const key = u.id || u.name;
+      const existing = broadcastQueue.get(key);
+      if (existing) {
+        // Keep initial oldVal to track cumulative shift
+        broadcastQueue.set(key, { ...u, oldVal: existing.oldVal });
+      } else {
+        broadcastQueue.set(key, { ...u });
+      }
+    }
+
+    if (broadcastQueueTimer) {
+      clearTimeout(broadcastQueueTimer);
+    }
+
+    broadcastQueueTimer = setTimeout(() => {
+      broadcastQueueTimer = null;
+      const batchedUpdates = Array.from(broadcastQueue.values());
+      broadcastQueue.clear();
+      if (batchedUpdates.length > 0) {
+        executeBroadcast(batchedUpdates, false, target).catch(e => console.error("[Smart Queue] Broadcast error:", e));
+      }
+    }, 20000); // 20-second aggregation buffer
+
+    return;
+  }
+
+  // If manual test broadcast, execute immediately
+  await executeBroadcast(updates, isTest, target);
+}
+
+async function executeBroadcast(updates: {id?: string, name: string, oldVal: number, newVal: number, flag: string}[], isTest: boolean = false, target: 'all' | 'telegram' | 'facebook' = 'all') {
+  if (updates.length === 0) return;
+
   const now = new Date();
   const dateStr = now.toLocaleDateString('ar-LY', { timeZone: 'Africa/Tripoli' });
   const timeStr = now.toLocaleTimeString('ar-LY', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit' });
   
-  // Anti-spam cooldown removed as requested: every detected price update publishes immediately
   if (!isTest) {
     const nowMs = Date.now();
     for (const u of updates) {
@@ -3493,7 +3609,7 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
   });
 
   app.get("/api/admin/config", requireAdmin, requireAdmin, (req: express.Request, res: express.Response) => {
-    res.json({ ...appConfig, serverStartTime: serverStartTime.toISOString(), facebookBroadcastStatus });
+    res.json({ ...appConfig, serverStartTime: serverStartTime.toISOString(), facebookBroadcastStatus, telegramBroadcastStatus });
   });
 
   app.post("/api/admin/config", requireAdmin, async (req: express.Request, res: express.Response) => {

@@ -3236,6 +3236,38 @@ export default function Admin() {
                     </div>
                     
 
+                    {/* Telegram Sensor Status */}
+                    {config?.telegramBroadcastStatus && (
+                      <div className={`p-4 rounded-xl border ${config.telegramBroadcastStatus.status === 'ok' ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-red-500/10 border-red-500/20'}`}>
+                        <div className="flex items-center gap-2 mb-2">
+                           <div className={`w-2 h-2 rounded-full ${config.telegramBroadcastStatus.status === 'ok' ? 'bg-emerald-500' : 'bg-red-500'}`}></div>
+                           <h4 className="font-bold text-white">حساس نشر تيليجرام (Telegram Sensor)</h4>
+                        </div>
+                        <div className="text-sm space-y-1">
+                          <p className="text-slate-300">
+                             <span className="text-slate-500">الحالة:</span> 
+                             <span className={config.telegramBroadcastStatus.status === 'ok' ? 'text-emerald-400 mr-2' : 'text-red-400 mr-2'}>
+                                {config.telegramBroadcastStatus.status === 'ok' ? 'يعمل بشكل سليم' : 'يوجد تعثر'}
+                             </span>
+                          </p>
+                          {config.telegramBroadcastStatus.lastSuccessTime && (
+                            <p className="text-slate-300">
+                               <span className="text-slate-500">آخر نجاح:</span> 
+                               <span className="mr-2" dir="ltr">{new Date(config.telegramBroadcastStatus.lastSuccessTime).toLocaleString('ar-LY')}</span>
+                            </p>
+                          )}
+                          {config.telegramBroadcastStatus.status === 'error' && config.telegramBroadcastStatus.lastError && (
+                            <div className="mt-2 p-2 bg-black/40 rounded border border-red-500/30 text-red-400 text-xs text-left" dir="ltr">
+                               {config.telegramBroadcastStatus.lastError}
+                               {config.telegramBroadcastStatus.lastErrorTime && (
+                                  <div className="text-slate-500 mt-1">Time: {new Date(config.telegramBroadcastStatus.lastErrorTime).toLocaleString('en-US')}</div>
+                               )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Facebook Sensor Status */}
                     {config?.facebookBroadcastStatus && (
                       <div className={`p-4 rounded-xl border ${config.facebookBroadcastStatus.status === 'ok' ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-red-500/10 border-red-500/20'}`}>
