@@ -1157,6 +1157,7 @@ async function broadcastToSocialMedia(message: string, isTest: boolean = false, 
 
     if (!tgChannel) {
       console.warn("[Telegram Broadcast] Skipping: No channel configured (telegramPostChannel is empty)");
+      if (isTest && target === 'telegram') throw new Error("لا توجد قناة تيليجرام محددة للنشر.");
     } else if (!manager) {
       console.error("[Telegram Broadcast] Failed: Telegram credentials not initialized or missing");
       if (isTest && target === 'telegram') throw new Error("بيانات تيليجرام غير مكتملة أو الجلسة غير مفعلة.");
@@ -1164,8 +1165,14 @@ async function broadcastToSocialMedia(message: string, isTest: boolean = false, 
       try {
         const success = await manager.sendMessage(tgChannel, message);
         if (!success) {
-          console.error(`[Telegram Broadcast] Failed to send message to ${tgChannel}`);
-          if (isTest && target === 'telegram') throw new Error(`فشل إرسال الرسالة إلى القناة ${tgChannel}`);
+          const detail = (manager as any).lastError || "فشل غير معروف";
+          console.error(`[Telegram Broadcast] Failed to send message to ${tgChannel}: ${detail}`);
+          if (isTest && target === 'telegram') {
+            if (detail.includes('CHAT_WRITE_FORBIDDEN') || detail.includes('CHAT_ADMIN_REQUIRED')) {
+              throw new Error(`حساب تيليجرام المربوط ليس مشرفاً في القناة @${tgChannel} أو لا يملك صلاحية نشر الرسائل.`);
+            }
+            throw new Error(`فشل إرسال الرسالة إلى القناة @${tgChannel}: ${detail}`);
+          }
         } else {
           console.log(`[Telegram Broadcast] Successfully sent message to ${tgChannel}`);
         }
@@ -1715,13 +1722,6 @@ function getOrInitTelegramManager(): TelegramManager | null {
 }
 
 async function broadcastRateChanges(updates: {id?: string, name: string, oldVal: number, newVal: number, flag: string}[], isTest: boolean = false, target: 'all' | 'telegram' | 'facebook' = 'all') {
-  const manager = getOrInitTelegramManager();
-  if (target !== 'facebook' && (!appConfig.telegramPostChannel || !manager)) {
-    if (target === 'telegram') {
-      console.warn("[Broadcast] Telegram posting requested but channel or credentials missing.");
-      return;
-    }
-  }
   if (!isTest && !appConfig.telegramAutoPost && !appConfig.facebookAutoPost) {
     return;
   }
@@ -1733,68 +1733,40 @@ async function broadcastRateChanges(updates: {id?: string, name: string, oldVal:
   const dateStr = now.toLocaleDateString('ar-LY', { timeZone: 'Africa/Tripoli' });
   const timeStr = now.toLocaleTimeString('ar-LY', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit' });
   
-  // --- SMART BROADCAST ANTI-SPAM (Per Currency) ---
+  // Anti-spam cooldown removed as requested: every detected price update publishes immediately
   if (!isTest) {
     const nowMs = Date.now();
-    const qualifiedUpdates = [];
-    
     for (const u of updates) {
-      // Get the last broadcasted state for this specific currency. If none, assume it's oldVal and time=0
-      const history = lastBroadcastState[u.id] || { price: u.oldVal, time: 0 };
-      const diffFromLastBroadcast = Math.abs(u.newVal - history.price);
-      const minutesSinceLast = history.time === 0 ? 999 : (nowMs - history.time) / (1000 * 60);
-      
-      let shouldPublish = false;
-      
-      if ((u as any).delayed || (u as any).isManual) {
-         // This is a delayed update coming from the cron job or manual admin update
-         shouldPublish = true;
-      } else if (diffFromLastBroadcast > 0.0001) {
-         // Any real price change publishes immediately if at least 2 minutes passed since last post
-         if (minutesSinceLast >= 2) {
-           shouldPublish = true;
-         }
-      }
-      
-      if (shouldPublish || history.time === 0) {
-        qualifiedUpdates.push(u);
-      }
-    }
-    
-    if (qualifiedUpdates.length === 0) {
-      console.log(`[Smart Broadcast] Rate change detected, but 2-minute anti-spam cooldown is active. Queued for next 5-min sweep.`);
-      return; // Skip broadcast completely
-    }
-    
-    // Update the global state ONLY for the currencies we are about to broadcast
-    for (const u of qualifiedUpdates) {
-      lastBroadcastState[u.id] = { price: u.newVal, time: nowMs };
-      
-      // Save to SQLite
-      try {
-        db.prepare(`
-          INSERT INTO broadcast_state (term_id, last_price, last_broadcast_time) 
-          VALUES (?, ?, ?)
-          ON CONFLICT(term_id) DO UPDATE SET 
-            last_price = excluded.last_price,
-            last_broadcast_time = excluded.last_broadcast_time
-        `).run(u.id, u.newVal, nowMs);
-      } catch (err) {
-        console.error("[BroadcastState] Local DB save error:", err);
-      }
+      if (u.id) {
+        lastBroadcastState[u.id] = { price: u.newVal, time: nowMs };
+        
+        // Save to SQLite
+        try {
+          db.prepare(`
+            INSERT INTO broadcast_state (term_id, last_price, last_broadcast_time) 
+            VALUES (?, ?, ?)
+            ON CONFLICT(term_id) DO UPDATE SET 
+              last_price = excluded.last_price,
+              last_broadcast_time = excluded.last_broadcast_time
+          `).run(u.id, u.newVal, nowMs);
+        } catch (err) {
+          console.error("[BroadcastState] Local DB save error:", err);
+        }
 
-      // Sync to Supabase in background
-      if (supabase && supabaseAnonKey && !supabaseAnonKey.includes('dummy')) {
-        supabase.from('broadcast_state').upsert({
-          term_id: u.id,
-          last_price: u.newVal,
-          last_broadcast_time: nowMs
-        }).catch(err => console.error("[BroadcastState] Supabase sync error:", err));
+        // Sync to Supabase in background
+        if (supabase && supabaseAnonKey && !supabaseAnonKey.includes('dummy')) {
+          supabase.from('broadcast_state').upsert({
+            term_id: u.id,
+            last_price: u.newVal,
+            last_broadcast_time: nowMs
+          }).then(({ error }) => {
+            if (error) console.error("[BroadcastState] Supabase sync error:", error);
+          }, err => {
+            console.error("[BroadcastState] Supabase sync error:", err);
+          });
+        }
       }
     }
-    
-    // Replace updates with only the ones that qualified, so the message is clean!
-    updates = qualifiedUpdates;
   }
   // ------------------------------------------------
 
@@ -1915,11 +1887,20 @@ function applyLoadedConfig(loadedConfig: AppConfig, source: string) {
   if (loadedConfig.telegramAutoPost === undefined) {
     loadedConfig.telegramAutoPost = appConfig.telegramAutoPost;
   }
-  if (loadedConfig.telegramPostChannel === undefined) {
-    loadedConfig.telegramPostChannel = appConfig.telegramPostChannel;
+  if (!loadedConfig.telegramPostChannel) {
+    loadedConfig.telegramPostChannel = appConfig.telegramPostChannel || "libya_index_dollar";
   }
   if (loadedConfig.telegramTemplateStyle === undefined) {
     loadedConfig.telegramTemplateStyle = appConfig.telegramTemplateStyle || "classic";
+  }
+  if (loadedConfig.facebookAutoPost === undefined) {
+    loadedConfig.facebookAutoPost = appConfig.facebookAutoPost ?? true;
+  }
+  if (!loadedConfig.facebookPageId && appConfig.facebookPageId) {
+    loadedConfig.facebookPageId = appConfig.facebookPageId;
+  }
+  if (!loadedConfig.facebookAccessToken && appConfig.facebookAccessToken) {
+    loadedConfig.facebookAccessToken = appConfig.facebookAccessToken;
   }
 
   appConfig = loadedConfig;
@@ -2895,7 +2876,12 @@ async function startServer() {
     cors: {
       origin: "*",
       methods: ["GET", "POST"]
-    }
+    },
+    pingInterval: 10000,
+    pingTimeout: 5000,
+    connectTimeout: 10000,
+    transports: ['polling', 'websocket'],
+    allowUpgrades: true
   });
   let onlineUsers = 0;
   const activeDeviceSockets = new Map<string, Set<string>>(); // deviceKey -> socketIds
@@ -3749,7 +3735,11 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
           device_type: deviceType,
           os_name: result.os.name || '',
           browser_name: result.browser.name || ''
-        }]).catch(e => console.error("Supabase Visitor Log sync failed:", e.message));
+        }]).then(({ error }) => {
+          if (error) console.error("Supabase Visitor Log sync failed:", error.message);
+        }, e => {
+          console.error("Supabase Visitor Log sync failed:", e?.message || e);
+        });
       }
       
       res.json({ success: true });
@@ -3977,9 +3967,25 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
              rates.lastUpdated = latestRecord.recorded_at;
              rates.lastChanged.official = latestRecord.recorded_at;
           } else {
+             const oldVal = rates.parallel[currency] || existing.rates?.[currency] || parseFloat(value);
+             const newVal = parseFloat(value);
              rates.parallel = { ...rates.parallel, ...latestRecord.rates };
              rates.lastUpdated = latestRecord.recorded_at;
              rates.lastChanged.parallel = latestRecord.recorded_at;
+
+             // Broadcast to social media when updated in database
+             const term = appConfig.terms.find(t => t.id === currency);
+             const updateItem = {
+               id: currency,
+               name: term ? term.name : currency,
+               oldVal: oldVal,
+               newVal: newVal,
+               flag: term ? term.flag : 'us',
+               isManual: true
+             };
+             broadcastRateChanges([updateItem as any], false, 'all').catch(err => {
+               console.error("[DB Sync Broadcast] Failed:", err);
+             });
           }
           broadcastRatesUpdate(rates);
         }
@@ -5277,6 +5283,19 @@ ${updates.join('\n')}
       if (!res.headersSent) {
         res.json(obfuscateData(history));
       }
+    }
+  });
+
+  app.get("/push-sw.js", (req, res) => {
+    const swPath = process.env.NODE_ENV === "production"
+      ? path.join(process.cwd(), "dist", "push-sw.js")
+      : path.join(process.cwd(), "public", "push-sw.js");
+    if (fs.existsSync(swPath)) {
+      res.setHeader("Content-Type", "application/javascript; charset=UTF-8");
+      res.setHeader("Service-Worker-Allowed", "/");
+      res.sendFile(swPath);
+    } else {
+      res.status(404).send("Service Worker not found");
     }
   });
 

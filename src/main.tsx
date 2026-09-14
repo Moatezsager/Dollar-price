@@ -19,13 +19,14 @@ window.addEventListener('unhandledrejection', (event) => {
 
 
 // Register unified Service Worker (Caching + Push)
-if ('serviceWorker' in navigator) {
+// Only register when not running inside an embedded preview iframe
+if ('serviceWorker' in navigator && window.self === window.top) {
   navigator.serviceWorker.register('/push-sw.js', { scope: '/', type: 'module' })
     .then(reg => {
       console.log('[SW] Unified Service Worker Registered. Scope:', reg.scope);
     })
     .catch(err => {
-      console.error('[SW] Registration failed:', err);
+      console.warn('[SW] Service Worker registration notice:', err?.message || err);
     });
 }
 

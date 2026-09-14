@@ -952,7 +952,13 @@ export default function App() {
           deviceId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
           localStorage.setItem('__deviceId', deviceId);
         }
-        socket = io('/', { query: { deviceId } });
+        socket = io('/', {
+          query: { deviceId },
+          transports: ['polling', 'websocket'],
+          reconnectionAttempts: 10,
+          reconnectionDelay: 2000,
+          timeout: 15000
+        });
 
         socket.on('online_count', (data: any) => {
           setOnlineCount(data.count);
@@ -966,10 +972,10 @@ export default function App() {
         });
 
         socket.on('connect_error', (err: any) => {
-          console.error('Socket.io connection error:', err);
+          console.warn('Socket.io connection notice (polling fallback active):', err?.message || err);
         });
       } catch (err) {
-        console.error('Socket.io initialization error:', err);
+        console.warn('Socket.io initialization notice:', err);
       }
     };
 

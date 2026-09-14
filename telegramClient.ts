@@ -188,29 +188,38 @@ export class TelegramManager {
     }
   }
 
+  public lastError: string = "";
+
   /**
    * Sends a message to a channel.
    */
   public async sendMessage(channelUsername: string, message: string): Promise<boolean> {
     const client = await this.getClient();
     if (!client) {
+      this.lastError = "Client not ready or not authorized";
       console.error(`[TelegramManager] Cannot send message to ${channelUsername}: Client not ready.`);
       return false;
     }
 
     try {
+      this.lastError = "";
+      if (channelUsername === 'me') {
+        await client.sendMessage('me', { message });
+        return true;
+      }
+
       let username = channelUsername.trim();
       if (username.includes('t.me/')) {
         username = username.split('t.me/')[1].split('/')[0].split('?')[0];
       }
       username = username.replace('@', '').trim();
-      let entity;
+      let entity: any = null;
       
-      // Try to get entity from cache/username
+      // Try to get entity from cache or resolve username
       try {
         entity = await client.getEntity(username);
       } catch (e) {
-        console.log(`[TelegramManager] Entity not found for ${username}, resolving to send message...`);
+        console.log(`[TelegramManager] getEntity not in cache for ${username}, resolving via ResolveUsername...`);
         try {
           const resolved = await client.invoke(new Api.contacts.ResolveUsername({ username }));
           if (resolved.chats && resolved.chats.length > 0) {
@@ -220,7 +229,8 @@ export class TelegramManager {
           } else {
             entity = username;
           }
-        } catch (resolveErr) {
+        } catch (resolveErr: any) {
+          console.warn(`[TelegramManager] ResolveUsername failed for ${username}:`, resolveErr.message || resolveErr);
           entity = username;
         }
       }
@@ -229,7 +239,8 @@ export class TelegramManager {
       console.log(`[TelegramManager] Successfully sent message to ${channelUsername}`);
       return true;
     } catch (error: any) {
-      console.error(`[TelegramManager] Error sending message to ${channelUsername}:`, error.message || error);
+      this.lastError = error.message || String(error);
+      console.error(`[TelegramManager] Error sending message to ${channelUsername}:`, this.lastError);
       if (error.message?.includes('connection') || error.message?.includes('disconnected') || error.message?.includes('AUTH_KEY_DUPLICATED')) {
         this.client = null;
         activeClient = null;

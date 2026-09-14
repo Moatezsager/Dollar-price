@@ -457,7 +457,12 @@ export default function Admin() {
 
     const connect = () => {
       try {
-        socket = io();
+        socket = io('/', {
+          transports: ['polling', 'websocket'],
+          reconnectionAttempts: 10,
+          reconnectionDelay: 2000,
+          timeout: 15000
+        });
 
         socket.on('online_count', (data: any) => {
           setStats(prev => prev ? { ...prev, onlineUsers: data.count } : null);
@@ -471,8 +476,12 @@ export default function Admin() {
           setConfig(data.config);
         });
 
+        socket.on('connect_error', (err: any) => {
+          console.warn('Admin Socket.io connection notice:', err?.message || err);
+        });
+
       } catch (err) {
-        console.error('Socket.io connection error:', err);
+        console.warn('Socket.io initialization notice:', err);
       }
     };
 
