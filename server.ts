@@ -1580,50 +1580,17 @@ async function broadcastWeeklyReport(isTest: boolean = false) {
 // Setup CRON jobs
 cron.schedule('*/5 * * * *', async () => {
   if (!appConfig.telegramAutoPost) return;
-  
-  const nowMs = Date.now();
-  const delayedUpdates = [];
-  
+  const currentUpdates = [];
   for (const term of appConfig.terms) {
     const currentVal = rates.parallel[term.id];
     if (currentVal === undefined) continue;
-    
-    const history = lastBroadcastState[term.id] || { price: currentVal, time: 0 };
-    const diff = Math.abs(currentVal - history.price);
-    
-    if (diff === 0) continue;
-    
-    const lastChangedIso = rates.lastChanged.parallel[term.id];
-    if (!lastChangedIso) continue;
-    
-    const lastChangedMs = new Date(lastChangedIso).getTime();
-    const hoursSinceLastChange = (nowMs - lastChangedMs) / (1000 * 60 * 60);
-    
-    const isMetal = term.id.startsWith('GOLD') || term.id.startsWith('SILVER');
-    let shouldPublish = false;
-    
-    if (isMetal) {
-       const pctChange = history.price > 0 ? (diff / history.price) * 100 : 0;
-       if (pctChange >= 0.2 && hoursSinceLastChange >= 1.0) shouldPublish = true;
-    } else {
-       if (diff >= 0.01 && hoursSinceLastChange >= 1.0) shouldPublish = true;
-    }
-    
-    if (shouldPublish) {
-      delayedUpdates.push({
-        id: term.id,
-        name: term.name,
-        oldVal: history.price,
-        newVal: currentVal,
-        flag: term.flag,
-        delayed: true
-      });
+    const history = lastBroadcastState[term.id];
+    if (!history || currentVal !== history.price) {
+      currentUpdates.push({ id: term.id, name: term.name, oldVal: history ? history.price : currentVal, newVal: currentVal, flag: term.flag });
     }
   }
-  
-  if (delayedUpdates.length > 0) {
-    console.log(`[Smart Broadcast] Found ${delayedUpdates.length} delayed updates that matured (1 hour passed since price change). Publishing now.`);
-    await broadcastRateChanges(delayedUpdates, false, 'all');
+  if (currentUpdates.length > 0) {
+    await broadcastRateChanges(currentUpdates, false, 'all');
   }
 });
 
