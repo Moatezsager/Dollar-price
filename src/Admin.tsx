@@ -171,6 +171,8 @@ const RegexEditor = ({ regex, onChange }: { regex: string, onChange: (val: strin
   );
 };
 
+import { TelegramDetailedStatus } from "./components/TelegramDetailedStatus";
+
 export default function Admin() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [password, setPassword] = useState("");
@@ -3140,38 +3142,32 @@ export default function Admin() {
                 </div>
 
                 {config?.telegramSessionString && (
-                  <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-6 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-full bg-emerald-500/20 flex items-center justify-center">
-                        <CheckCircle2 className="w-6 h-6 text-emerald-400" />
-                      </div>
-                      <div>
-                        <h3 className="text-lg font-bold text-emerald-400">الحساب متصل بنجاح</h3>
-                        <p className="text-sm text-emerald-500/70">يتم الآن جلب البيانات عبر MTProto</p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={async () => {
-                        if (window.confirm("هل أنت متأكد من إلغاء ربط الحساب؟")) {
-                          try {
-                            const newConfig = { ...config, telegramSessionString: "" };
-                            setConfig(newConfig);
-                            await fetch("/api/admin/config", {
-                              method: "POST",
-                              headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-                              body: JSON.stringify(newConfig)
-                            });
-                            setSuccess("تم إلغاء ربط الحساب");
-                          } catch (err) {
-                            console.error("Failed to unbind account:", err);
-                            setError("فشل إلغاء ربط الحساب");
+                  <div className="mb-6">
+                    <TelegramDetailedStatus />
+                    <div className="mt-4 flex justify-end">
+                      <button
+                        onClick={async () => {
+                          if (window.confirm("هل أنت متأكد من إلغاء ربط الحساب؟")) {
+                            try {
+                              const newConfig = { ...config, telegramSessionString: "" };
+                              setConfig(newConfig);
+                              await fetch("/api/admin/config", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                                body: JSON.stringify(newConfig)
+                              });
+                              setSuccess("تم إلغاء ربط الحساب");
+                            } catch (err) {
+                              console.error("Failed to unbind account:", err);
+                              setError("فشل إلغاء ربط الحساب");
+                            }
                           }
-                        }
-                      }}
-                      className="px-4 py-2 rounded-xl bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 transition-colors font-bold text-sm"
-                    >
-                      إلغاء الربط
-                    </button>
+                        }}
+                        className="px-4 py-2 rounded-xl bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 transition-colors font-bold text-sm"
+                      >
+                        إلغاء الربط
+                      </button>
+                    </div>
                   </div>
                 )}
                 
