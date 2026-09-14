@@ -3219,7 +3219,6 @@ export default function Admin() {
                         <option value="classic" className="bg-slate-900/80 text-white">النمط الكلاسيكي 📊 (تفصيلي بالأسعار السابقة)</option>
                         <option value="modern" className="bg-slate-900/80 text-white">النمط الحديث 📈 (مؤشر نسب التغيير)</option>
                         <option value="professional" className="bg-slate-900/80 text-white">النمط المهني 💎 (الأكثر احترافية للاقتصاد)</option>
-                        <option value="urgent" className="bg-slate-900/80 text-white">النمط العاجل 🔴 (للتحديثات السريعة)</option>
                         <option value="compact" className="bg-slate-900/80 text-white">النمط المختصر ⚡ (سريع القراءة)</option>
                         <option value="market_alert" className="bg-slate-900/80 text-white">نمط جرس السوق 🔔 (مختصر للمتداولين)</option>
                         <option value="elegant" className="bg-slate-900/80 text-white">النمط الأنيق ⚜️ (تصميم جمالي وجذاب)</option>

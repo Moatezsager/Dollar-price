@@ -1144,98 +1144,137 @@ async function fetchFromCBL(): Promise<{ cblDate: string, rates: RateMap } | nul
 // Fetch real official rates from open API
 
 async function broadcastToSocialMedia(message: string, isTest: boolean = false, target: 'all' | 'telegram' | 'facebook' = 'all') {
+  const manager = getOrInitTelegramManager();
+
   // Telegram
   const shouldPostTg = (target === 'telegram' || target === 'all') && ((!isTest && appConfig.telegramAutoPost) || isTest);
   if (shouldPostTg) {
-    try {
-      if (appConfig.telegramPostChannel && telegramManager) {
-        const success = await telegramManager.sendMessage(appConfig.telegramPostChannel, message);
-        if (!success) console.error("[Telegram Broadcast] Failed to send message");
+    let tgChannel = (appConfig.telegramPostChannel || "").trim();
+    if (tgChannel.includes('t.me/')) {
+      tgChannel = tgChannel.split('t.me/')[1].split('/')[0].split('?')[0];
+    }
+    tgChannel = tgChannel.replace('@', '').trim();
+
+    if (!tgChannel) {
+      console.warn("[Telegram Broadcast] Skipping: No channel configured (telegramPostChannel is empty)");
+    } else if (!manager) {
+      console.error("[Telegram Broadcast] Failed: Telegram credentials not initialized or missing");
+      if (isTest && target === 'telegram') throw new Error("بيانات تيليجرام غير مكتملة أو الجلسة غير مفعلة.");
+    } else {
+      try {
+        const success = await manager.sendMessage(tgChannel, message);
+        if (!success) {
+          console.error(`[Telegram Broadcast] Failed to send message to ${tgChannel}`);
+          if (isTest && target === 'telegram') throw new Error(`فشل إرسال الرسالة إلى القناة ${tgChannel}`);
+        } else {
+          console.log(`[Telegram Broadcast] Successfully sent message to ${tgChannel}`);
+        }
+      } catch (e: any) {
+        console.error("[Telegram Broadcast] Failed to send message:", e.message || e);
+        if (isTest && target === 'telegram') throw e;
       }
-    } catch (e) {
-      console.error("[Telegram Broadcast] Failed to send message:", e);
-      if (isTest && target === 'telegram') throw e;
     }
   }
 
   // Facebook
   const shouldPostFb = (target === 'facebook' || target === 'all') && ((!isTest && appConfig.facebookAutoPost) || isTest);
-  if (shouldPostFb && appConfig.facebookPageId && appConfig.facebookAccessToken) {
-     let fbMessage = message.replace(/[*_`]/g, '');
-     
-     // Optionally adjust some emojis or formatting for FB if needed
-     try {
-       const targetId = appConfig.facebookPageId.trim() || 'me';
-       let url = `https://graph.facebook.com/v20.0/${targetId}/feed`;
-       
-       // Extract link for Facebook rich preview
-       let linkToAttach = null;
-       const urlMatch = fbMessage.match(/https?:\/\/[^\s]+/);
-       if (urlMatch) {
-         linkToAttach = urlMatch[0];
-       }
-       
-       const payload: any = { message: fbMessage, access_token: appConfig.facebookAccessToken };
-       if (linkToAttach) {
-         payload.link = linkToAttach;
-       }
+  if (shouldPostFb) {
+    if (!appConfig.facebookPageId || !appConfig.facebookAccessToken) {
+      console.warn("[Facebook Broadcast] Skipping Facebook post: Page ID or Access Token missing");
+      if (isTest && target === 'facebook') throw new Error("بيانات فيسبوك غير مكتملة. يرجى إدخال معرف الصفحة ورمز وصول الصفحة أولاً.");
+    } else {
+      let fbMessage = message.replace(/[*_`]/g, '');
+      
+      try {
+        const targetId = appConfig.facebookPageId.trim() || 'me';
+        let url = `https://graph.facebook.com/v20.0/${targetId}/feed`;
+        
+        let linkToAttach = null;
+        const urlMatch = fbMessage.match(/https?:\/\/[^\s]+/);
+        if (urlMatch) {
+          linkToAttach = urlMatch[0];
+        }
+        
+        const payload: any = { message: fbMessage, access_token: appConfig.facebookAccessToken };
+        if (linkToAttach) {
+          payload.link = linkToAttach;
+        }
 
-       let fbRes = await fetch(url, {
-         method: 'POST',
-         headers: { 'Content-Type': 'application/json' },
-         body: JSON.stringify(payload)
-       });
-       let fbData = await fbRes.json();
+        let fbRes = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        let fbData = await fbRes.json();
 
-       // Fallback: If global ID error or invalid ID, attempt posting to /me/feed directly
-       if (fbData.error && (fbData.error.code === 100 || fbData.error.message?.includes('global id'))) {
-         console.log("[Facebook Broadcast] Trying fallback to /me/feed...");
-         const fallbackUrl = `https://graph.facebook.com/v20.0/me/feed`;
-         const fallbackRes = await fetch(fallbackUrl, {
-           method: 'POST',
-           headers: { 'Content-Type': 'application/json' },
-           body: JSON.stringify({ message: fbMessage, access_token: appConfig.facebookAccessToken })
-         });
-         const fallbackData = await fallbackRes.json();
-         if (!fallbackData.error) {
-           fbData = fallbackData;
-         }
-       }
+        // Fallback: If link parameter error, retry cleanly without link
+        if (fbData.error && payload.link) {
+          console.log("[Facebook Broadcast] Retrying without link parameter...");
+          delete payload.link;
+          const retryRes = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          const retryData = await retryRes.json();
+          if (!retryData.error) {
+            fbData = retryData;
+          }
+        }
 
-       if (fbData.error) {
-         facebookBroadcastStatus = { status: 'error', lastError: fbData.error.message, lastErrorTime: new Date().toISOString(), lastSuccessTime: facebookBroadcastStatus.lastSuccessTime };
-         console.error("[Facebook Broadcast] Error:", fbData.error.message);
-         if (isTest && target === 'facebook') {
-           if (fbData.error.message?.includes('global id') || fbData.error.code === 100) {
-             throw new Error("المعرف المدخل هو معرف حساب شخصي وليس معرف صفحة عامة (Page). يجب استخدام معرف صفحة فيسبوك ورمز وصول الصفحة (Page Token).");
-           }
-           throw new Error(fbData.error.message);
-         }
-       } else {
-         console.log("[Facebook Broadcast] Successfully posted, ID:", fbData.id);
-         
-         // Automatically add a comment to the post
-         const commentMessage = `📢 تابعنا على تيليجرام لتصلك التحديثات فوراً:\n👉 https://t.me/libya_index_dollar\n\n🌐 للمزيد من التفاصيل والرسوم البيانية، تفضل بزيارة موقعنا:\n👉 https://dollar-price-qp14.onrender.com/?v=${Math.floor(Date.now() / 60000)}`;
-         const commentUrl = `https://graph.facebook.com/v20.0/${fbData.id}/comments`;
-         const commentRes = await fetch(commentUrl, {
-           method: 'POST',
-           headers: { 'Content-Type': 'application/json' },
-           body: JSON.stringify({ message: commentMessage, access_token: appConfig.facebookAccessToken })
-         });
-         const commentData = await commentRes.json();
-         if (commentData.error) {
-            console.error("[Facebook Broadcast] Failed to add comment:", commentData.error.message);
-            if (isTest && target === 'facebook') throw new Error("Comment Error: " + commentData.error.message);
-         } else {
-            console.log("[Facebook Broadcast] Successfully added comment, ID:", commentData.id);
-         }
-         facebookBroadcastStatus = { status: 'ok', lastError: '', lastErrorTime: facebookBroadcastStatus.lastErrorTime, lastSuccessTime: new Date().toISOString() };
-       }
-     } catch(e: any) {
-       facebookBroadcastStatus = { status: 'error', lastError: e.message || String(e), lastErrorTime: new Date().toISOString(), lastSuccessTime: facebookBroadcastStatus.lastSuccessTime };
-       console.error("[Facebook Broadcast] Failed:", e);
-       if (isTest && target === 'facebook') throw e;
-     }
+        // Fallback: If global ID error or invalid ID, attempt posting to /me/feed directly
+        if (fbData.error && (fbData.error.code === 100 || fbData.error.message?.includes('global id'))) {
+          console.log("[Facebook Broadcast] Trying fallback to /me/feed...");
+          const fallbackUrl = `https://graph.facebook.com/v20.0/me/feed`;
+          const fallbackRes = await fetch(fallbackUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: fbMessage, access_token: appConfig.facebookAccessToken })
+          });
+          const fallbackData = await fallbackRes.json();
+          if (!fallbackData.error) {
+            fbData = fallbackData;
+          }
+        }
+
+        if (fbData.error) {
+          facebookBroadcastStatus = { status: 'error', lastError: fbData.error.message, lastErrorTime: new Date().toISOString(), lastSuccessTime: facebookBroadcastStatus.lastSuccessTime };
+          console.error("[Facebook Broadcast] Error:", fbData.error.message);
+          if (isTest && target === 'facebook') {
+            if (fbData.error.message?.includes('global id') || fbData.error.code === 100) {
+              throw new Error("المعرف المدخل هو معرف حساب شخصي وليس معرف صفحة عامة (Page). يجب استخدام معرف صفحة فيسبوك ورمز وصول الصفحة (Page Token).");
+            }
+            throw new Error(fbData.error.message);
+          }
+        } else {
+          console.log("[Facebook Broadcast] Successfully posted, ID:", fbData.id);
+          facebookBroadcastStatus = { status: 'ok', lastError: '', lastErrorTime: facebookBroadcastStatus.lastErrorTime, lastSuccessTime: new Date().toISOString() };
+          
+          // Add comment safely without breaking the main post status
+          try {
+            const commentMessage = `📢 تابعنا على تيليجرام لتصلك التحديثات فوراً:\n👉 https://t.me/libya_index_dollar\n\n🌐 للمزيد من التفاصيل والرسوم البيانية، تفضل بزيارة موقعنا:\n👉 https://dollar-price-qp14.onrender.com/?v=${Math.floor(Date.now() / 60000)}`;
+            const commentUrl = `https://graph.facebook.com/v20.0/${fbData.id}/comments`;
+            const commentRes = await fetch(commentUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ message: commentMessage, access_token: appConfig.facebookAccessToken })
+            });
+            const commentData = await commentRes.json();
+            if (commentData.error) {
+              console.warn("[Facebook Broadcast] Note: Comment skipped or failed (non-fatal):", commentData.error.message);
+            } else {
+              console.log("[Facebook Broadcast] Successfully added comment, ID:", commentData.id);
+            }
+          } catch (commentErr: any) {
+            console.warn("[Facebook Broadcast] Non-fatal comment error:", commentErr.message);
+          }
+        }
+      } catch(e: any) {
+        facebookBroadcastStatus = { status: 'error', lastError: e.message || String(e), lastErrorTime: new Date().toISOString(), lastSuccessTime: facebookBroadcastStatus.lastSuccessTime };
+        console.error("[Facebook Broadcast] Failed:", e);
+        if (isTest && target === 'facebook') throw e;
+      }
+    }
   }
 }
 
@@ -1393,29 +1432,9 @@ function updateStats(termId: string, val: number) {
   weeklyStats[termId].count++;
 }
 
-async function broadcastSuddenChangeAlert(u: {id?: string, name: string, oldVal: number, newVal: number, flag: string}) {
-  if (!appConfig.telegramPostChannel || !telegramManager || !appConfig.telegramAutoPost) return;
-  const pct = Math.abs(u.newVal - u.oldVal) / u.oldVal * 100;
-  if (pct < 1.0) return; // 1% threshold
-  
-  const isUp = u.newVal > u.oldVal;
-  let message = `🚨 *تنبيه عاجل | تغيير مفاجئ* 🚨\n\n`;
-  message += `العملة: *${u.name}*\n`;
-  message += `السعر الجديد: *${u.newVal.toFixed(3)}*\n`;
-  message += `السعر القديم: ${u.oldVal.toFixed(3)}\n`;
-  message += `نسبة التغيير: ${isUp ? '📈 ارتفع' : '📉 انخفض'} بمقدار ${pct.toFixed(2)}%\n\n`;
-  message += `🔗 التفاصيل: https://dollar-price-qp14.onrender.com/?v=${Math.floor(Date.now() / 60000)}`;
-  
-  try {
-    await broadcastToSocialMedia(message, typeof isTest !== "undefined" ? isTest : false);
-  } catch (e) {
-    console.error("[Telegram] Failed to send sudden alert:", e);
-  }
-
-  // SEND PUSH NOTIFICATION
-  const pushTitle = `🚨 تغيير في ${u.name}`;
-  const pushBody = `السعر الجديد: ${u.newVal.toFixed(3)} (${isUp ? '📈 ارتفع' : '📉 انخفض'})`;
-  sendPushNotificationToAll(pushTitle, pushBody);
+async function broadcastSuddenChangeAlert(_u: {id?: string, name: string, oldVal: number, newVal: number, flag: string}) {
+  // تم إزالة رسائل التنبيه العاجل والتغيير المفاجئ نهائياً بناءً على طلب المستخدم
+  return;
 }
 
 async function broadcastDailyReport() {
@@ -1579,17 +1598,25 @@ async function broadcastWeeklyReport(isTest: boolean = false) {
 
 // Setup CRON jobs
 cron.schedule('*/5 * * * *', async () => {
-  if (!appConfig.telegramAutoPost) return;
+  if (!appConfig.telegramAutoPost && !appConfig.facebookAutoPost) return;
   const currentUpdates = [];
   for (const term of appConfig.terms) {
     const currentVal = rates.parallel[term.id];
     if (currentVal === undefined) continue;
     const history = lastBroadcastState[term.id];
-    if (!history || currentVal !== history.price) {
-      currentUpdates.push({ id: term.id, name: term.name, oldVal: history ? history.price : currentVal, newVal: currentVal, flag: term.flag });
+    if (!history || Math.abs(currentVal - history.price) > 0.0001) {
+      currentUpdates.push({ 
+        id: term.id, 
+        name: term.name, 
+        oldVal: history ? history.price : currentVal, 
+        newVal: currentVal, 
+        flag: term.flag,
+        delayed: true
+      });
     }
   }
   if (currentUpdates.length > 0) {
+    console.log(`[Cron Sweep] Found ${currentUpdates.length} unposted updates. Broadcasting to social media...`);
     await broadcastRateChanges(currentUpdates, false, 'all');
   }
 });
@@ -1671,9 +1698,29 @@ let lastBroadcastState: Record<string, { price: number, time: number }> = {};
 let lastSuccessfulFetchTime = Date.now();
 let telegramManager: TelegramManager | null = null;
 
+function getOrInitTelegramManager(): TelegramManager | null {
+  if (telegramManager) return telegramManager;
+  const apiId = Number(process.env.TELEGRAM_API_ID || appConfig.telegramApiId);
+  const apiHash = process.env.TELEGRAM_API_HASH || appConfig.telegramApiHash || "";
+  const sessionString = process.env.TELEGRAM_SESSION || process.env.TG_SESSION_V2 || appConfig.telegramSessionString || "";
+  if (apiId && apiHash && sessionString) {
+    try {
+      telegramManager = getTelegramManager(apiId, apiHash, sessionString);
+      return telegramManager;
+    } catch (e: any) {
+      console.error("[TelegramManager] Initialization error:", e.message || e);
+    }
+  }
+  return null;
+}
+
 async function broadcastRateChanges(updates: {id?: string, name: string, oldVal: number, newVal: number, flag: string}[], isTest: boolean = false, target: 'all' | 'telegram' | 'facebook' = 'all') {
-  if (target !== 'facebook' && (!appConfig.telegramPostChannel || !telegramManager)) {
-    if (target === 'telegram') return;
+  const manager = getOrInitTelegramManager();
+  if (target !== 'facebook' && (!appConfig.telegramPostChannel || !manager)) {
+    if (target === 'telegram') {
+      console.warn("[Broadcast] Telegram posting requested but channel or credentials missing.");
+      return;
+    }
   }
   if (!isTest && !appConfig.telegramAutoPost && !appConfig.facebookAutoPost) {
     return;
@@ -1686,7 +1733,7 @@ async function broadcastRateChanges(updates: {id?: string, name: string, oldVal:
   const dateStr = now.toLocaleDateString('ar-LY', { timeZone: 'Africa/Tripoli' });
   const timeStr = now.toLocaleTimeString('ar-LY', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit' });
   
-  // --- SMART BROADCAST COOLDOWN V2 (Per Currency) ---
+  // --- SMART BROADCAST ANTI-SPAM (Per Currency) ---
   if (!isTest) {
     const nowMs = Date.now();
     const qualifiedUpdates = [];
@@ -1695,27 +1742,18 @@ async function broadcastRateChanges(updates: {id?: string, name: string, oldVal:
       // Get the last broadcasted state for this specific currency. If none, assume it's oldVal and time=0
       const history = lastBroadcastState[u.id] || { price: u.oldVal, time: 0 };
       const diffFromLastBroadcast = Math.abs(u.newVal - history.price);
-      const hoursSinceLast = history.time === 0 ? 999 : (nowMs - history.time) / (1000 * 60 * 60);
-      
-      const isMetal = u.id.startsWith('GOLD') || u.id.startsWith('SILVER');
-      const pctChange = history.price > 0 ? (diffFromLastBroadcast / history.price) * 100 : 0;
-      
-      // قواعد النشر الجديدة والمخففة لضمان النشر التلقائي:
-      // 1. التغيير الكبير نسبياً (0.15% أو أكثر) ينشر فوراً (للعملات والذهب).
-      // 2. أي تغيير طفيف آخر يُنشر بعد مرور 15 دقيقة (0.25 ساعة) فقط لتجنب الإزعاج المتكرر جداً.
+      const minutesSinceLast = history.time === 0 ? 999 : (nowMs - history.time) / (1000 * 60);
       
       let shouldPublish = false;
       
       if ((u as any).delayed || (u as any).isManual) {
          // This is a delayed update coming from the cron job or manual admin update
          shouldPublish = true;
-      } else {
-         if (pctChange >= 0.15) shouldPublish = true; // تغير 0.15% فأكثر يُنشر فوراً
-      }
-
-      // أي تغيير غير صفري يُنشر إجبارياً بعد مرور ربع ساعة
-      if (diffFromLastBroadcast > 0 && hoursSinceLast >= 0.25) {
-         shouldPublish = true;
+      } else if (diffFromLastBroadcast > 0.0001) {
+         // Any real price change publishes immediately if at least 2 minutes passed since last post
+         if (minutesSinceLast >= 2) {
+           shouldPublish = true;
+         }
       }
       
       if (shouldPublish || history.time === 0) {
@@ -1724,7 +1762,7 @@ async function broadcastRateChanges(updates: {id?: string, name: string, oldVal:
     }
     
     if (qualifiedUpdates.length === 0) {
-      console.log(`[Smart Broadcast] Cooldown active. Changes are too small and < 1 hr has passed. Skipping social post.`);
+      console.log(`[Smart Broadcast] Rate change detected, but 2-minute anti-spam cooldown is active. Queued for next 5-min sweep.`);
       return; // Skip broadcast completely
     }
     
@@ -1932,6 +1970,9 @@ async function loadConfigFromSupabase() {
     console.error("Failed to load/repair config from Supabase", err);
   }
 }
+
+// Call loadConfigFromStorage immediately so config and credentials are ready on startup
+loadConfigFromStorage();
 
 async function saveConfigToSupabase(newConfig: AppConfig) {
   // 1. Always save to SQLite first (instant local persistence)
@@ -4400,7 +4441,8 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
 
   app.post("/api/admin/telegram/official-broadcast", requireAdmin, async (req: express.Request, res: express.Response) => {
     try {
-      if (!telegramManager) {
+      const manager = getOrInitTelegramManager();
+      if (!manager) {
         return res.status(503).json({ success: false, error: "Telegram client is not properly initialized" });
       }
       
@@ -4426,7 +4468,8 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
 
   app.post("/api/admin/telegram/test-broadcast", requireAdmin, async (req: express.Request, res: express.Response) => {
     try {
-      if (!telegramManager) {
+      const manager = getOrInitTelegramManager();
+      if (!manager) {
         return res.status(503).json({ success: false, error: "Telegram client is not properly initialized" });
       }
       
@@ -4462,7 +4505,7 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
         return res.status(400).json({ success: false, error: "لا توجد أسعار متاحة لإرسالها." });
       }
       
-      await broadcastRateChanges(sampleUpdates, true);
+      await broadcastRateChanges(sampleUpdates, true, 'telegram');
       
       appConfig.telegramPostChannel = originalChannel;
       

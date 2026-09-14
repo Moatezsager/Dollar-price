@@ -211,17 +211,21 @@ export class TelegramManager {
         entity = await client.getEntity(username);
       } catch (e) {
         console.log(`[TelegramManager] Entity not found for ${username}, resolving to send message...`);
-        const resolved = await client.invoke(new Api.contacts.ResolveUsername({ username }));
-        if (resolved.chats && resolved.chats.length > 0) {
-          entity = resolved.chats[0];
-        } else if (resolved.users && resolved.users.length > 0) {
-          entity = resolved.users[0];
-        } else {
+        try {
+          const resolved = await client.invoke(new Api.contacts.ResolveUsername({ username }));
+          if (resolved.chats && resolved.chats.length > 0) {
+            entity = resolved.chats[0];
+          } else if (resolved.users && resolved.users.length > 0) {
+            entity = resolved.users[0];
+          } else {
+            entity = username;
+          }
+        } catch (resolveErr) {
           entity = username;
         }
       }
 
-      await client.sendMessage(entity, { message });
+      await client.sendMessage(entity || username, { message });
       console.log(`[TelegramManager] Successfully sent message to ${channelUsername}`);
       return true;
     } catch (error: any) {
