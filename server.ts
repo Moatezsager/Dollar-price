@@ -53,6 +53,11 @@ db.exec(`
     last_active DATETIME DEFAULT CURRENT_TIMESTAMP,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+  CREATE TABLE IF NOT EXISTS broadcast_state (
+    term_id TEXT PRIMARY KEY,
+    last_price REAL NOT NULL,
+    last_broadcast_time INTEGER NOT NULL
+  );
 `);
 
 // -----------------------------------------------------------------------
@@ -1759,6 +1764,28 @@ async function broadcastRateChanges(updates: {id?: string, name: string, oldVal:
     // Update the global state ONLY for the currencies we are about to broadcast
     for (const u of qualifiedUpdates) {
       lastBroadcastState[u.id] = { price: u.newVal, time: nowMs };
+      
+      // Save to SQLite
+      try {
+        db.prepare(`
+          INSERT INTO broadcast_state (term_id, last_price, last_broadcast_time) 
+          VALUES (?, ?, ?)
+          ON CONFLICT(term_id) DO UPDATE SET 
+            last_price = excluded.last_price,
+            last_broadcast_time = excluded.last_broadcast_time
+        `).run(u.id, u.newVal, nowMs);
+      } catch (err) {
+        console.error("[BroadcastState] Local DB save error:", err);
+      }
+
+      // Sync to Supabase in background
+      if (supabase && supabaseAnonKey && !supabaseAnonKey.includes('dummy')) {
+        supabase.from('broadcast_state').upsert({
+          term_id: u.id,
+          last_price: u.newVal,
+          last_broadcast_time: nowMs
+        }).catch(err => console.error("[BroadcastState] Supabase sync error:", err));
+      }
     }
     
     // Replace updates with only the ones that qualified, so the message is clean!
@@ -2975,7 +3002,54 @@ const cleanupLocalDatabase = () => {
 // Schedule it to run at 3:00 AM every day
 cron.schedule('0 3 * * *', cleanupLocalDatabase);
 
+async function loadBroadcastStateFromStorageAndSupabase() {
+  try {
+    // 1. Fetch from Supabase (if available)
+    let supabaseRows: any[] = [];
+    if (supabase && supabaseAnonKey && !supabaseAnonKey.includes('dummy')) {
+      try {
+        const { data, error } = await supabase.from('broadcast_state').select('term_id, last_price, last_broadcast_time');
+        if (!error && data) {
+          supabaseRows = data;
+        } else if (error && error.message.includes('relation "broadcast_state" does not exist')) {
+          console.warn("[BroadcastState] Supabase table 'broadcast_state' does not exist yet.");
+        }
+      } catch (err) {
+        console.error("[BroadcastState] Supabase load error:", err);
+      }
+    }
+    
+    // 2. Merge Supabase into local DB
+    if (supabaseRows.length > 0) {
+      const insertStmt = db.prepare(`
+        INSERT INTO broadcast_state (term_id, last_price, last_broadcast_time)
+        VALUES (?, ?, ?)
+        ON CONFLICT(term_id) DO UPDATE SET
+          last_price = excluded.last_price,
+          last_broadcast_time = excluded.last_broadcast_time
+        WHERE excluded.last_broadcast_time > broadcast_state.last_broadcast_time
+      `);
+      db.transaction(() => {
+        for (const row of supabaseRows) {
+          insertStmt.run(row.term_id, row.last_price, row.last_broadcast_time);
+        }
+      })();
+    }
+    
+    // 3. Load whatever is in SQLite into memory
+    const finalRows = db.prepare('SELECT term_id, last_price, last_broadcast_time FROM broadcast_state').all() as any[];
+    for (const r of finalRows) {
+      lastBroadcastState[r.term_id] = { price: r.last_price, time: r.last_broadcast_time };
+    }
+    console.log(`[BroadcastState] Loaded ${finalRows.length} state records into memory.`);
+  } catch (err) {
+    console.error("[BroadcastState] Error loading state:", err);
+  }
+}
+
 async function startServer() {
+  await loadBroadcastStateFromStorageAndSupabase();
+  
   const app = express();
   const server = createServer(app);
   const PORT = 3000;
