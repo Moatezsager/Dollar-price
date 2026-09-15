@@ -28,6 +28,26 @@ export let telegramBroadcastStatus = {
 
 export let lastSocialBroadcastTime = 0;
 
+// ─── Smart Broadcast Rate Limiter ──────────────────────────────────────────
+/** حد أقصى لعدد المنشورات في الساعة الواحدة عبر كل المنصات */
+const BROADCAST_HOURLY_LIMIT = 2;
+
+/** مصفوفة تحتفظ بطوابع زمنية لآخر {BROADCAST_HOURLY_LIMIT} منشورات */
+const recentBroadcastTimestamps: number[] = [];
+
+/** آخر وقت نشر لكل عملة على حدة (المفتاح: id أو name) */
+const lastBroadcastPerCurrency: Record<string, number> = {};
+
+/** الحد الأدنى للتغيير المطلق في السعر للعملات العادية (د.ل) */
+const MIN_PRICE_CHANGE = 0.02;
+
+/** الحد الأدنى للتغيير النسبي للمعادن الثمينة (ذهب / فضة) → 0.5% */
+const MIN_PRICE_CHANGE_PCT_PRECIOUS = 0.005;
+
+/** فاصل زمني أدنى بين نشرَين لنفس العملة = 60 دقيقة */
+const MIN_CURRENCY_INTERVAL_MS = 60 * 60 * 1000;
+// ───────────────────────────────────────────────────────────────────────────
+
 export function getOrInitTelegramManager(): TelegramManager | null {
   if (telegramManager) return telegramManager;
   
@@ -46,6 +66,116 @@ export function getOrInitTelegramManager(): TelegramManager | null {
   }
   return null;
 }
+
+// ─── Smart Broadcast Helpers ────────────────────────────────────────────────
+
+/**
+ * يحدد إذا كانت العملة تصنّف كمعدن ثمين (ذهب / فضة)
+ * نستخدم نسبة مئوية بدلاً من قيمة ثابتة لأن أسعارها بالمئات
+ */
+function isPreciousMetal(id?: string): boolean {
+  if (!id) return false;
+  return id.startsWith('GOLD') || id.startsWith('SILVER');
+}
+
+/**
+ * تفلتر قائمة التحديثات وفق ثلاثة شروط متراتبة:
+ *   1. تغيّر السعر بفارق كافٍ (مطلق للعملات، نسبي للمعادن)
+ *   2. مضى على آخر نشر لنفس العملة ما لا يقل عن 60 دقيقة
+ *   3. ترتيب الأولوية: الأقدم نشراً يأتي أولاً
+ */
+function filterEligibleUpdates(
+  updates: { id?: string; name: string; oldVal: number; newVal: number; flag: string }[]
+): { id?: string; name: string; oldVal: number; newVal: number; flag: string }[] {
+  const now = Date.now();
+
+  return updates
+    .filter(u => {
+      const diff = Math.abs(u.newVal - u.oldVal);
+
+      // ── شرط 1: حجم التغيير ──────────────────────────────────────────────
+      if (isPreciousMetal(u.id)) {
+        // للمعادن: نسبة مئوية (0.5%) لأن سعرها في المئات أو الآلاف
+        const pct = u.oldVal > 0 ? diff / u.oldVal : 0;
+        if (pct < MIN_PRICE_CHANGE_PCT_PRECIOUS) {
+          console.log(
+            `[SmartBroadcast] ⏭ Skipped "${u.name}": change ${(pct * 100).toFixed(3)}% < ${(MIN_PRICE_CHANGE_PCT_PRECIOUS * 100).toFixed(1)}% threshold`
+          );
+          return false;
+        }
+      } else {
+        // للعملات العادية: فارق مطلق (0.02 د.ل)
+        if (diff < MIN_PRICE_CHANGE) {
+          console.log(
+            `[SmartBroadcast] ⏭ Skipped "${u.name}": diff ${diff.toFixed(4)} < ${MIN_PRICE_CHANGE} threshold`
+          );
+          return false;
+        }
+      }
+
+      // ── شرط 2: الفاصل الزمني (60 دقيقة) ────────────────────────────────
+      const key = u.id || u.name;
+      const lastTime = lastBroadcastPerCurrency[key] || 0;
+      const elapsed = now - lastTime;
+      if (elapsed < MIN_CURRENCY_INTERVAL_MS) {
+        const remainMin = Math.ceil((MIN_CURRENCY_INTERVAL_MS - elapsed) / 60000);
+        console.log(
+          `[SmartBroadcast] ⏳ Skipped "${u.name}": ${Math.floor(elapsed / 60000)}m elapsed, ${remainMin}m remaining`
+        );
+        return false;
+      }
+
+      return true;
+    })
+    // ── شرط 3: الأولوية للأقدم نشراً (يُنشر أولاً) ──────────────────────
+    .sort((a, b) => {
+      const tA = lastBroadcastPerCurrency[a.id || a.name] || 0;
+      const tB = lastBroadcastPerCurrency[b.id || b.name] || 0;
+      return tA - tB;
+    });
+}
+
+/**
+ * يتحقق إذا كان مسموحاً بإرسال منشور جديد وفق الحد الأقصى للساعة.
+ * يُنظّف الطوابع الزمنية القديمة (> ساعة) تلقائياً قبل الفحص.
+ */
+function canBroadcastNow(): boolean {
+  const now = Date.now();
+  const oneHourAgo = now - 60 * 60 * 1000;
+
+  // إزالة الطوابع الأقدم من ساعة
+  while (recentBroadcastTimestamps.length > 0 && recentBroadcastTimestamps[0] < oneHourAgo) {
+    recentBroadcastTimestamps.shift();
+  }
+
+  if (recentBroadcastTimestamps.length >= BROADCAST_HOURLY_LIMIT) {
+    const oldestMs = recentBroadcastTimestamps[0];
+    const resetInMin = Math.ceil((oldestMs + 60 * 60 * 1000 - now) / 60000);
+    console.log(
+      `[SmartBroadcast] 🚫 Hourly limit reached (${recentBroadcastTimestamps.length}/${BROADCAST_HOURLY_LIMIT}). Next slot in ~${resetInMin}m`
+    );
+    return false;
+  }
+
+  return true;
+}
+
+/**
+ * يسجّل وقت النشر في متتبعَي الحد الأقصى والعملة بعد كل بث ناجح.
+ */
+function recordBroadcast(updates: { id?: string; name: string }[]): void {
+  const now = Date.now();
+  recentBroadcastTimestamps.push(now);
+  for (const u of updates) {
+    lastBroadcastPerCurrency[u.id || u.name] = now;
+  }
+  console.log(
+    `[SmartBroadcast] ✅ Recorded broadcast for: [${updates.map(u => u.id || u.name).join(', ')}] | Posts this hour: ${recentBroadcastTimestamps.length}/${BROADCAST_HOURLY_LIMIT}`
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+
 
 export async function broadcastToSocialMedia(message: string, isTest: boolean = false, target: 'all' | 'telegram' | 'facebook' = 'all') {
   const manager = getOrInitTelegramManager();
@@ -369,7 +499,25 @@ export async function broadcastRateChanges(updates: {id?: string, name: string, 
 export async function executeBroadcast(updates: {id?: string, name: string, oldVal: number, newVal: number, flag: string}[], isTest: boolean = false, target: 'all' | 'telegram' | 'facebook' = 'all') {
   if (updates.length === 0) return;
 
+  // ─── Smart Broadcast Filters (للوضع الحي فقط، لا تؤثر على الاختبارات) ─────
+  if (!isTest) {
+    // الشرط 1 + 2: فلترة العملات غير المؤهلة (تغيير صغير أو وقت مبكر)
+    const eligible = filterEligibleUpdates(updates);
+    if (eligible.length === 0) {
+      console.log('[SmartBroadcast] ⏭ All updates filtered out. No broadcast needed.');
+      return;
+    }
+    // الشرط 3: حد الساعة (2 منشورات/ساعة)
+    if (!canBroadcastNow()) {
+      return;
+    }
+    // استبدال قائمة التحديثات بالمؤهلة فقط (مرتبة بالأولوية)
+    updates = eligible;
+  }
+  // ───────────────────────────────────────────────────────────────────────────
+
   const now = new Date();
+
   const dateStr = now.toLocaleDateString('ar-LY', { timeZone: 'Africa/Tripoli' });
   const timeStr = now.toLocaleTimeString('ar-LY', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit' });
   
@@ -457,7 +605,10 @@ export async function executeBroadcast(updates: {id?: string, name: string, oldV
     await broadcastToSocialMedia(message, isTest, target);
   } else {
     broadcastToSocialMedia(message, isTest, target).catch(e => console.error("[Background Broadcast] Error:", e));
+    // تسجيل وقت النشر في متتبعات الحد الأقصى (بعد الإرسال الناجح)
+    recordBroadcast(updates);
   }
+
 
   // SEND PUSH NOTIFICATION
   if (!isTest) {
