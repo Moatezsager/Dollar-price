@@ -1,5 +1,5 @@
 import { RateMap, LiveFeedMessage, ChannelStatusInfo } from '../types';
-import { rates } from '../state';
+import { rates, history } from '../state';
 import { appConfig, telegramManager } from '../config';
 import { logErrorArabic, logPriceChange, saveToSupabase, syncCheckRates } from './db.service';
 import { extractRatesWithAI } from './ai.service';
@@ -154,6 +154,17 @@ export async function fetchOfficialRates(): Promise<boolean> {
       rates.lastChanged.parallel.OFFICIAL_USD = new Date().toISOString();
       console.log(`[Official] Rates updated via CBL Scraper`);
       broadcastOfficialRates(false).catch(console.error);
+
+      history.push({
+        time: new Date().toISOString(),
+        usdParallel: rates.parallel.USD,
+        usdOfficial: rates.official.USD,
+        ratesParallel: { ...rates.parallel },
+        ratesOfficial: { ...rates.official }
+      });
+      if (history.length > 500) {
+        history.shift();
+      }
     }
     
     if (cblDate === currentLibyaDate) {
@@ -510,6 +521,17 @@ export async function fetchParallelRatesFromTelegram(): Promise<boolean | null> 
               anyChanged = true;
               
               updateStats(term.id, newValFromTelegram);
+
+              history.push({
+                time: new Date().toISOString(),
+                usdParallel: rates.parallel.USD || newValFromTelegram,
+                usdOfficial: rates.official.USD,
+                ratesParallel: { ...rates.parallel },
+                ratesOfficial: { ...rates.official }
+              });
+              if (history.length > 500) {
+                history.shift();
+              }
               
               const changeLog = {
                 id: Math.random().toString(36).substring(2, 9),
