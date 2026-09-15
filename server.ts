@@ -396,7 +396,7 @@ async function startServer() {
         if (ip !== "127.0.0.1" && ip !== "::1" && !ip.startsWith("192.168.") && !ip.startsWith("10.")) {
            fetch(`http://ip-api.com/json/${ip}?fields=status,country,city`)
              .then(res => res.json())
-             .then(data => {
+             .then((data: { status?: string; country?: string; city?: string }) => {
                 if (data.status === "success") {
                    newLog.location = `${data.country}, ${data.city}`;
                    broadcastUserLogs();

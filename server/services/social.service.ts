@@ -2,6 +2,16 @@ import { TelegramManager, getTelegramManager } from '../../telegramClient';
 import { appConfig, telegramManager, setTelegramManager } from '../config';
 import { rates } from '../state';
 
+interface FacebookApiResponse {
+  error?: {
+    message?: string;
+    code?: number;
+    [key: string]: any;
+  };
+  id?: string;
+  [key: string]: any;
+}
+
 export let facebookBroadcastStatus = {
   status: 'ok',
   lastError: '',
@@ -162,7 +172,7 @@ export async function broadcastToSocialMedia(message: string, isTest: boolean = 
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
           });
-          let fbData = await fbRes.json();
+          let fbData = (await fbRes.json()) as FacebookApiResponse;
 
           // Fallback 1: If link parameter error, retry cleanly without link
           if (fbData.error && payload.link) {
@@ -173,7 +183,7 @@ export async function broadcastToSocialMedia(message: string, isTest: boolean = 
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(payload)
             });
-            const retryData = await retryRes.json();
+            const retryData = (await retryRes.json()) as FacebookApiResponse;
             if (!retryData.error) {
               fbData = retryData;
             }
@@ -188,7 +198,7 @@ export async function broadcastToSocialMedia(message: string, isTest: boolean = 
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ message: fbMessage, access_token: appConfig.facebookAccessToken })
             });
-            const fallbackData = await fallbackRes.json();
+            const fallbackData = (await fallbackRes.json()) as FacebookApiResponse;
             if (!fallbackData.error) {
               fbData = fallbackData;
             }
@@ -224,7 +234,7 @@ export async function broadcastToSocialMedia(message: string, isTest: boolean = 
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ message: commentMessage, access_token: appConfig.facebookAccessToken })
               });
-              const commentData = await commentRes.json();
+              const commentData = (await commentRes.json()) as FacebookApiResponse;
               if (commentData.error) {
                 console.warn("[Facebook Broadcast] Note: Comment skipped or failed (non-fatal):", commentData.error.message);
               } else {
