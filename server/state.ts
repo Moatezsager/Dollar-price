@@ -124,3 +124,6 @@ for (let i = 24; i >= 0; i--) {
   });
 }
 
+export const serverStartTime = new Date();
+
+

@@ -1,5 +1,6 @@
 import { AppConfig } from './types';
 import { TelegramManager } from '../telegramClient';
+import { db, supabase, supabaseAnonKey } from './db';
 
 export let appConfig: AppConfig = {
   channels: ["dollarr_ly", "musheermarket", "lydollar", "suqalmushir"],
@@ -63,4 +64,132 @@ export let telegramManager: TelegramManager | null = null;
 
 export function setTelegramManager(manager: TelegramManager | null) {
   telegramManager = manager;
+}
+
+export function applyLoadedConfig(loadedConfig: AppConfig, source: string) {
+  const existingIds = new Set<string>();
+  const mergedTerms = loadedConfig.terms.map(dbTerm => {
+    existingIds.add(dbTerm.id);
+    const defaultTerm = appConfig.terms.find(t => t.id === dbTerm.id);
+    return {
+      id: dbTerm.id,
+      name: dbTerm.name || defaultTerm?.name || dbTerm.id,
+      regex: dbTerm.regex || defaultTerm?.regex || "",
+      min: (typeof dbTerm.min === 'number' && !isNaN(dbTerm.min)) ? dbTerm.min : (defaultTerm?.min ?? 0),
+      max: (typeof dbTerm.max === 'number' && !isNaN(dbTerm.max)) ? dbTerm.max : (defaultTerm?.max ?? 10000),
+      isInverse: typeof dbTerm.isInverse === 'boolean' ? dbTerm.isInverse : (defaultTerm?.isInverse ?? false),
+      flag: (dbTerm.flag && dbTerm.flag !== "undefined" && dbTerm.flag !== "null") ? dbTerm.flag : (defaultTerm?.flag || "ly")
+    };
+  });
+
+  for (const defaultTerm of appConfig.terms) {
+    if (!existingIds.has(defaultTerm.id)) {
+      mergedTerms.push(defaultTerm);
+      console.log(`[Migration] Added new missing currency term: ${defaultTerm.id}`);
+    }
+  }
+  loadedConfig.terms = mergedTerms;
+
+  if (!Array.isArray(loadedConfig.channels) || loadedConfig.channels.length === 0) {
+    loadedConfig.channels = ["dollarr_ly", "musheermarket", "lydollar", "suqalmushir"];
+  }
+
+  if (loadedConfig.enableHttpScraper === undefined) {
+    loadedConfig.enableHttpScraper = true;
+  }
+  if (loadedConfig.enableUserTracking === undefined) {
+    loadedConfig.enableUserTracking = true;
+  }
+  if (!loadedConfig.telegramTemplateStyle) {
+    loadedConfig.telegramTemplateStyle = "classic";
+  }
+  if (!loadedConfig.apiConfig) {
+    loadedConfig.apiConfig = {
+      enabled: true,
+      rateLimitWindowMs: 60000,
+      rateLimitMaxRequests: 20,
+      banDurationMinutes: 5,
+    };
+  }
+
+  updateAppConfig(loadedConfig);
+  console.log(`[Config] Config loaded & applied successfully from ${source}`);
+}
+
+export function loadConfigFromStorage() {
+  try {
+    const stored = db.prepare('SELECT value FROM server_config WHERE key = ?').get('app_config') as any;
+    if (stored && stored.value) {
+      const parsedConfig = JSON.parse(stored.value) as AppConfig;
+      if (parsedConfig && Array.isArray(parsedConfig.terms) && Array.isArray(parsedConfig.channels)) {
+        applyLoadedConfig(parsedConfig, "SQLite");
+      }
+    }
+  } catch (e) {
+    console.error("[Storage] Failed to read config from SQLite:", e);
+  }
+}
+
+export async function loadConfigFromSupabase() {
+  loadConfigFromStorage();
+
+  if (!supabase || !supabaseAnonKey || supabaseAnonKey.includes('dummy')) return;
+  try {
+    const { data, error } = await supabase
+      .from('app_config')
+      .select('config')
+      .eq('id', 1)
+      .single();
+      
+    if (error) {
+      if (error.code === 'PGRST116') {
+        await supabase.from('app_config').insert([{ id: 1, config: appConfig }]);
+      } else if (!error.message.includes('relation "app_config" does not exist')) {
+        console.error("Error loading config from Supabase:", error);
+      }
+    } else if (data && data.config) {
+      applyLoadedConfig(data.config as AppConfig, "Supabase");
+      
+      try {
+        db.prepare(`
+          INSERT INTO server_config (key, value) VALUES ('app_config', ?)
+          ON CONFLICT(key) DO UPDATE SET value = excluded.value
+        `).run(JSON.stringify(appConfig));
+      } catch (e) {
+        console.error("[Storage] Failed to sync Supabase config to SQLite:", e);
+      }
+    }
+  } catch (err) {
+    console.error("Failed to load/repair config from Supabase", err);
+  }
+}
+
+// Call loadConfigFromStorage immediately so config and credentials are ready on startup
+loadConfigFromStorage();
+
+export async function saveConfigToSupabase(newConfig: AppConfig) {
+  try {
+    db.prepare(`
+      INSERT INTO server_config (key, value) VALUES ('app_config', ?)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value
+    `).run(JSON.stringify(newConfig));
+  } catch (e) {
+    console.error("[Storage] Failed to save config to SQLite:", e);
+  }
+
+  if (!supabase || !supabaseAnonKey || supabaseAnonKey.includes('dummy')) return true;
+  try {
+    const { error } = await supabase
+      .from('app_config')
+      .upsert({ id: 1, config: newConfig });
+      
+    if (error) {
+      console.error("Error saving config to Supabase:", error);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error("Failed to save config to Supabase", err);
+    return false;
+  }
 }

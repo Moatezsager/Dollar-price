@@ -466,3 +466,119 @@ export async function syncCheckRates(source: string = "تزامن تلقائي")
   }
   return false;
 }
+
+export async function downsampleTable(tableName: string) {
+  try {
+    if (!supabase) return;
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const cutoff = sevenDaysAgo.toISOString();
+
+    const { data, error } = await supabase
+      .from(tableName)
+      .select('id, recorded_at, usd')
+      .lt('recorded_at', cutoff)
+      .order('recorded_at', { ascending: true })
+      .limit(10000);
+
+    if (error || !data || data.length === 0) return;
+
+    const groupedByDay: Record<string, any[]> = {};
+    for (const row of data) {
+      if (!row.recorded_at) continue;
+      const day = row.recorded_at.split('T')[0];
+      if (!groupedByDay[day]) groupedByDay[day] = [];
+      groupedByDay[day].push(row);
+    }
+
+    let idsToDelete: any[] = [];
+    for (const day in groupedByDay) {
+      const records = groupedByDay[day];
+      if (records.length <= 3) continue;
+
+      let highId = records[0].id;
+      let lowId = records[0].id;
+      let highUsd = records[0].usd || 0;
+      let lowUsd = records[0].usd || 999999;
+      const closeId = records[records.length - 1].id;
+
+      for (const row of records) {
+        const usd = row.usd || 0;
+        if (usd > highUsd) { highUsd = usd; highId = row.id; }
+        if (usd < lowUsd) { lowUsd = usd; lowId = row.id; }
+      }
+
+      const keepIds = new Set([highId, lowId, closeId]);
+      for (const row of records) {
+        if (!keepIds.has(row.id)) idsToDelete.push(row.id);
+      }
+    }
+
+    const chunkSize = 200;
+    for (let i = 0; i < idsToDelete.length; i += chunkSize) {
+      const chunk = idsToDelete.slice(i, i + chunkSize);
+      await supabase.from(tableName).delete().in('id', chunk);
+    }
+    
+    if (idsToDelete.length > 0) {
+      console.log(`[Cleanup] Downsampled ${tableName}: deleted ${idsToDelete.length} redundant historical records.`);
+    }
+  } catch (err) {
+    console.error(`[Cleanup] Error downsampling ${tableName}:`, err);
+  }
+}
+
+export const cleanupOldData = async (onUserLogsCleanup?: () => void) => {
+  if (!supabase || !supabaseAnonKey || supabaseAnonKey.includes('dummy')) return;
+  
+  try {
+    console.log("Running scheduled database cleanup...");
+    
+    await downsampleTable('parallel_rates');
+    await downsampleTable('official_rates');
+    
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const cutoff30 = thirtyDaysAgo.toISOString();
+
+    const oneDayAgo = new Date();
+    oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+    const cutoff1 = oneDayAgo.toISOString();
+
+    const [legacyRes, parallelRes, officialRes, metalRes, logsRes, changesRes] = await Promise.all([
+      supabase.from('exchange_rates').delete({ count: 'exact' }).lt('recorded_at', cutoff30),
+      supabase.from('parallel_rates').delete({ count: 'exact' }).lt('recorded_at', cutoff30),
+      supabase.from('official_rates').delete({ count: 'exact' }).lt('recorded_at', cutoff30),
+      supabase.from('metal_rates').delete({ count: 'exact' }).lt('recorded_at', cutoff30),
+      supabase.from('error_logs').delete({ count: 'exact' }).lt('created_at', cutoff1),
+      supabase.from('price_changes_log').delete({ count: 'exact' }).lt('created_at', cutoff1)
+    ]);
+
+    const removedRates = (legacyRes.count || 0) + (parallelRes.count || 0) + (officialRes.count || 0) + (metalRes.count || 0);
+    const removedLogs = logsRes.count || 0;
+    const removedChanges = changesRes.count || 0;
+
+    const errors = [legacyRes.error, parallelRes.error, officialRes.error, metalRes.error, logsRes.error, changesRes.error]
+      .filter(err => err && err.code !== '42P01');
+
+    if (errors.length > 0) {
+      console.error("Cleanup partial error:", { 
+        legacy: legacyRes.error?.message, 
+        parallel: parallelRes.error?.message, 
+        official: officialRes.error?.message, 
+        metal: metalRes.error?.message,
+        logs: logsRes.error?.message,
+        changes: changesRes.error?.message
+      });
+    }
+
+    console.log(`Database cleanup completed. Removed ${removedRates} rates (older than 30 days), ${removedLogs} logs, and ${removedChanges} price changes (older than 1 day).`);
+    
+    if (onUserLogsCleanup) {
+      onUserLogsCleanup();
+    }
+  } catch (error) {
+    console.error("Failed to run database cleanup:", error);
+  }
+};
+
