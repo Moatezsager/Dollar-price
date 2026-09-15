@@ -1,4 +1,4 @@
-import { Rates } from './types';
+import { Rates, HistoryPoint } from './types';
 
 export let rates: Rates = {
   official: {
@@ -112,3 +112,15 @@ export let rates: Rates = {
 // Initialize lastChanged with current time
 Object.keys(rates.official).forEach(key => rates.lastChanged.official[key] = rates.lastUpdated);
 Object.keys(rates.parallel).forEach(key => rates.lastChanged.parallel[key] = rates.lastUpdated);
+
+export let history: HistoryPoint[] = [];
+const now = new Date();
+for (let i = 24; i >= 0; i--) {
+  const time = new Date(now.getTime() - i * 60 * 60 * 1000);
+  history.push({
+    time: time.toISOString(),
+    usdParallel: 7.30,
+    usdOfficial: 4.85,
+  });
+}
+
