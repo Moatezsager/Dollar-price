@@ -3,7 +3,7 @@ import { rates, history } from '../state';
 import { appConfig, telegramManager } from '../config';
 import { logErrorArabic, logPriceChange, saveToSupabase, syncCheckRates } from './db.service';
 import { extractRatesWithAI } from './ai.service';
-import { broadcastOfficialRates } from './social.service';
+import { broadcastOfficialRates, broadcastRateChanges } from './social.service';
 import { isSignificantChange, isProbablyDateOrTime } from '../utils/helpers';
 import { updateStats } from './reporting.service';
 
@@ -484,6 +484,7 @@ export async function fetchParallelRatesFromTelegram(): Promise<boolean | null> 
         console.log(`[Scraper] Scrape check completed. Found rates for: ${foundKeys.join(', ')}`);
         
         let anyChanged = false;
+        const collectedUpdates: { id?: string; name: string; oldVal: number; newVal: number; flag: string }[] = [];
 
         for (const term of appConfig.terms) {
           if (term.id.startsWith('GOLD') || term.id.startsWith('SILVER')) continue;
@@ -515,6 +516,14 @@ export async function fetchParallelRatesFromTelegram(): Promise<boolean | null> 
             if (isSignificantChange(currentVal, newValFromTelegram)) {
               console.log(`[Scraper] Price update: ${term.id} (${currentVal} -> ${newValFromTelegram}) Source: ${latestSources[term.id]}`);
               
+              collectedUpdates.push({
+                id: term.id,
+                name: term.name,
+                oldVal: currentVal || newValFromTelegram,
+                newVal: newValFromTelegram,
+                flag: term.flag || 'ly'
+              });
+
               rates.previousParallel[term.id] = currentVal || newValFromTelegram;
               rates.parallel[term.id] = newValFromTelegram;
               rates.lastChanged.parallel[term.id] = new Date().toISOString();
@@ -567,6 +576,9 @@ export async function fetchParallelRatesFromTelegram(): Promise<boolean | null> 
 
         if (anyChanged) {
           await saveToSupabase('parallel');
+          if (collectedUpdates.length > 0) {
+            broadcastRateChanges(collectedUpdates).catch(e => console.error("[Scraper] Broadcast error:", e));
+          }
         }
 
         lastSuccessfulFetchTime = Date.now();

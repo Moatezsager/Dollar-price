@@ -48,6 +48,45 @@ const MIN_PRICE_CHANGE_PCT_PRECIOUS = 0.005;
 const MIN_CURRENCY_INTERVAL_MS = 60 * 60 * 1000;
 // ───────────────────────────────────────────────────────────────────────────
 
+// ─── Pending Queue (تحديثات مُؤجَّلة بسبب حد الساعة) ──────────────────────
+interface PendingBroadcast {
+  updates: { id?: string; name: string; oldVal: number; newVal: number; flag: string }[];
+  target: 'all' | 'telegram' | 'facebook';
+  addedAt: number;
+}
+/** قائمة انتظار للتحديثات المرفوضة بسبب حد الساعة — تُعالَج بمجرد تحرر فتحة */
+const pendingBroadcastQueue: PendingBroadcast[] = [];
+
+/** أقصى عمر لتحديث في قائمة الانتظار = 3 ساعات، بعدها يُحذف */
+const MAX_PENDING_AGE_MS = 3 * 60 * 60 * 1000;
+
+/** watchdog timer للتحقق من قائمة الانتظار كل 5 دقائق */
+let pendingWatchdogTimer: NodeJS.Timeout | null = null;
+// ───────────────────────────────────────────────────────────────────────────
+
+// ─── Retry Engine (إعادة المحاولة عند فشل الإرسال) ────────────────────────
+interface RetryJob {
+  message: string;
+  target: 'all' | 'telegram' | 'facebook';
+  updates: { id?: string; name: string }[];
+  attempts: number;
+  nextRetryAt: number;
+}
+/** قائمة مهام إعادة المحاولة بعد فشل الإرسال */
+const retryQueue: RetryJob[] = [];
+
+/** الحد الأقصى لمحاولات الإعادة = 3 */
+const MAX_RETRY_ATTEMPTS = 3;
+
+/** مضاعف التأخير بين المحاولات (Exponential Backoff) بالميللي ثانية */
+const RETRY_BASE_DELAY_MS = 30 * 1000; // 30 ثانية، 60، 120
+
+/** timer لمحرك إعادة المحاولة */
+let retryEngineTimer: NodeJS.Timeout | null = null;
+// ───────────────────────────────────────────────────────────────────────────
+
+
+
 export function getOrInitTelegramManager(): TelegramManager | null {
   if (telegramManager) return telegramManager;
   
@@ -169,15 +208,136 @@ function recordBroadcast(updates: { id?: string; name: string }[]): void {
   for (const u of updates) {
     lastBroadcastPerCurrency[u.id || u.name] = now;
   }
+  lastSocialBroadcastTime = now;
   console.log(
     `[SmartBroadcast] ✅ Recorded broadcast for: [${updates.map(u => u.id || u.name).join(', ')}] | Posts this hour: ${recentBroadcastTimestamps.length}/${BROADCAST_HOURLY_LIMIT}`
   );
 }
 
-// ────────────────────────────────────────────────────────────────────────────
+// ─── Retry Engine ───────────────────────────────────────────────────────────
+/**
+ * يُضيف رسالة فاشلة إلى قائمة إعادة المحاولة مع Exponential Backoff.
+ * المحاولة 1 → بعد 30 ثانية
+ * المحاولة 2 → بعد 60 ثانية
+ * المحاولة 3 → بعد 120 ثانية
+ * بعد 3 فشل → يُحذف نهائياً مع تسجيل خطأ
+ */
+function scheduleRetry(
+  message: string,
+  target: 'all' | 'telegram' | 'facebook',
+  updates: { id?: string; name: string }[],
+  attemptNumber: number
+): void {
+  if (attemptNumber > MAX_RETRY_ATTEMPTS) {
+    console.error(
+      `[RetryEngine] ❌ Giving up after ${MAX_RETRY_ATTEMPTS} attempts for: [${updates.map(u => u.id || u.name).join(', ')}]`
+    );
+    return;
+  }
+  const delayMs = RETRY_BASE_DELAY_MS * Math.pow(2, attemptNumber - 1);
+  const nextRetryAt = Date.now() + delayMs;
+  retryQueue.push({ message, target, updates, attempts: attemptNumber, nextRetryAt });
+  console.warn(
+    `[RetryEngine] ⏳ Scheduled retry #${attemptNumber} in ${delayMs / 1000}s for: [${updates.map(u => u.id || u.name).join(', ')}]`
+  );
+  startRetryEngine();
+}
 
+/**
+ * محرك إعادة المحاولة — يعمل بدورة متكررة حتى تفرغ القائمة تماماً.
+ * يُشغَّل تلقائياً عند إضافة أي مهمة retry.
+ */
+function startRetryEngine(): void {
+  if (retryEngineTimer !== null) return; // يعمل بالفعل
+  retryEngineTimer = setTimeout(async () => {
+    retryEngineTimer = null;
+    const now = Date.now();
+    const due = retryQueue.filter(j => j.nextRetryAt <= now);
+    due.forEach(j => retryQueue.splice(retryQueue.indexOf(j), 1));
+
+    for (const job of due) {
+      console.log(`[RetryEngine] 🔁 Retrying attempt #${job.attempts} for: [${job.updates.map(u => u.id || u.name).join(', ')}]`);
+      try {
+        await broadcastToSocialMedia(job.message, false, job.target);
+        // نجاح → سجّل وقت النشر
+        recordBroadcast(job.updates);
+        console.log(`[RetryEngine] ✅ Retry #${job.attempts} succeeded for: [${job.updates.map(u => u.id || u.name).join(', ')}]`);
+      } catch (err: any) {
+        console.error(`[RetryEngine] ❌ Retry #${job.attempts} failed: ${err.message || err}`);
+        scheduleRetry(job.message, job.target, job.updates, job.attempts + 1);
+      }
+    }
+
+    if (retryQueue.length > 0) {
+      startRetryEngine(); // جدولة دورة قادمة إذا لا تزال هناك مهام
+    }
+  }, 5000); // فحص كل 5 ثوانٍ لمعرفة المهام المستحقة
+}
+// ─── Pending Queue Watchdog ─────────────────────────────────────────────────
+/**
+ * يُضيف تحديثات مرفوضة (بسبب حد الساعة) إلى قائمة الانتظار.
+ * Watchdog يتحقق كل 5 دقائق وينشر فوراً عند تحرر فتحة.
+ */
+function addToPendingQueue(
+  updates: { id?: string; name: string; oldVal: number; newVal: number; flag: string }[],
+  target: 'all' | 'telegram' | 'facebook'
+): void {
+  // تجميع مع التحديثات الموجودة في القائمة (نفس العملة → نحتفظ بآخر قيمة)
+  for (const u of updates) {
+    const key = u.id || u.name;
+    const existingIdx = pendingBroadcastQueue.findIndex(p =>
+      p.updates.some(pu => (pu.id || pu.name) === key)
+    );
+    if (existingIdx >= 0) {
+      const existing = pendingBroadcastQueue[existingIdx];
+      const uIdx = existing.updates.findIndex(pu => (pu.id || pu.name) === key);
+      if (uIdx >= 0) {
+        existing.updates[uIdx] = { ...u, oldVal: existing.updates[uIdx].oldVal }; // احتفظ بالقيمة القديمة الأصلية
+      }
+    } else {
+      pendingBroadcastQueue.push({ updates: [u], target, addedAt: Date.now() });
+    }
+  }
+  console.log(`[PendingQueue] 📥 Added ${updates.map(u => u.id || u.name).join(', ')} to pending queue (size: ${pendingBroadcastQueue.length})`);
+  startPendingWatchdog();
+}
+
+/**
+ * يُشغّل الـ watchdog إذا لم يكن يعمل بالفعل.
+ */
+function startPendingWatchdog(): void {
+  if (pendingWatchdogTimer !== null) return;
+  pendingWatchdogTimer = setInterval(async () => {
+    const now = Date.now();
+    // حذف التحديثات المنتهية الصلاحية (أكثر من 3 ساعات)
+    const expired = pendingBroadcastQueue.filter(p => now - p.addedAt > MAX_PENDING_AGE_MS);
+    expired.forEach(p => {
+      const idx = pendingBroadcastQueue.indexOf(p);
+      if (idx >= 0) pendingBroadcastQueue.splice(idx, 1);
+      console.warn(`[PendingQueue] 🗑 Expired pending update: [${p.updates.map(u => u.id || u.name).join(', ')}]`);
+    });
+
+    if (pendingBroadcastQueue.length === 0) {
+      clearInterval(pendingWatchdogTimer!);
+      pendingWatchdogTimer = null;
+      return;
+    }
+
+    if (!canBroadcastNow()) return; // لا تزال الفتحة ممتلئة
+
+    // خذ أول دفعة من القائمة وانشرها
+    const batch = pendingBroadcastQueue.shift()!;
+    console.log(`[PendingQueue] 🚀 Processing pending batch: [${batch.updates.map(u => u.id || u.name).join(', ')}]`);
+    // إعادة تشغيل دورة executeBroadcast بدون فلاتر (لأنها اجتازتها مسبقاً)
+    executeBroadcast(batch.updates, false, batch.target).catch(e =>
+      console.error('[PendingQueue] ❌ Failed to process pending batch:', e)
+    );
+  }, 5 * 60 * 1000); // كل 5 دقائق
+}
+// ───────────────────────────────────────────────────────────────────────────
 
 export async function broadcastToSocialMedia(message: string, isTest: boolean = false, target: 'all' | 'telegram' | 'facebook' = 'all') {
+
   const manager = getOrInitTelegramManager();
 
   // Helper for small pause between retries
@@ -509,6 +669,7 @@ export async function executeBroadcast(updates: {id?: string, name: string, oldV
     }
     // الشرط 3: حد الساعة (2 منشورات/ساعة)
     if (!canBroadcastNow()) {
+      addToPendingQueue(eligible, target);
       return;
     }
     // استبدال قائمة التحديثات بالمؤهلة فقط (مرتبة بالأولوية)
@@ -604,9 +765,16 @@ export async function executeBroadcast(updates: {id?: string, name: string, oldV
   if (isTest) {
     await broadcastToSocialMedia(message, isTest, target);
   } else {
-    broadcastToSocialMedia(message, isTest, target).catch(e => console.error("[Background Broadcast] Error:", e));
-    // تسجيل وقت النشر في متتبعات الحد الأقصى (بعد الإرسال الناجح)
-    recordBroadcast(updates);
+    broadcastToSocialMedia(message, isTest, target)
+      .then(() => {
+        // تسجيل وقت النشر في متتبعات الحد الأقصى (بعد الإرسال الناجح)
+        recordBroadcast(updates);
+      })
+      .catch(e => {
+        console.error("[Background Broadcast] Error:", e);
+        // إضافة المهام لقائمة إعادة المحاولة
+        scheduleRetry(message, target, updates, 1);
+      });
   }
 
 
