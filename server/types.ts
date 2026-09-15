@@ -104,4 +104,5 @@ export interface DeviceLogEntry {
   visits?: number;
   firstVisit?: string;
   isOnline?: boolean;
+  last_active?: string;
 }

@@ -147,6 +147,5 @@ export async function sendPushNotificationToAll(
 cron.schedule('0 10 * * *', () => {
   sendRetentionPushNotifications();
 }, {
-  scheduled: true,
   timezone: "Africa/Tripoli"
 });

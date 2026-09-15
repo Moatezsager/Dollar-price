@@ -12,12 +12,26 @@ import rateLimit from "express-rate-limit";
 import { GoogleGenAI, Type } from "@google/genai";
 import { TelegramClient, Api } from "telegram";
 import { StringSession } from "telegram/sessions";
+import { extractRatesWithAI } from './server/services/ai.service';
 import { getTelegramClient, fetchChannelMessages, initializeTelegram, activeClient, TelegramManager, getTelegramManager } from "./telegramClient";
 import { UAParser } from 'ua-parser-js';
 import crypto from 'crypto';
 
 // Modular imports
 import { db, supabase, supabaseUrl, supabaseAnonKey } from './server/db';
+import { appConfig, updateAppConfig, telegramManager, setTelegramManager } from './server/config';
+import { 
+  broadcastToSocialMedia, 
+  broadcastOfficialRates, 
+  broadcastRateChanges, 
+  executeBroadcast, 
+  lastOfficialBroadcastDate, 
+  facebookBroadcastStatus, 
+  telegramBroadcastStatus, 
+  lastSocialBroadcastTime,
+  lastBroadcastState,
+  getOrInitTelegramManager
+} from './server/services/social.service';
 import { 
   Rates, 
   RateMap, 
@@ -68,10 +82,7 @@ async function logErrorArabic(message: string, context = "النظام", stack?:
   }
 }
 
-/**
- * Loads the latest rates from Supabase to ensure the memory state is always
- * synchronized with the most recent data on startup.
- */
+
 async function loadLatestRatesFromSupabase() {
   if (!supabase) return;
   
@@ -272,11 +283,7 @@ async function logPriceChange(change: PriceChangeLog) {
   }
 }
 
-/**
- * Synchronizes check rates (USD_CHECKS, USD_JBANK, USD_NCB)
- * As requested: Dollar (Checks) = Republic or Commercial check rate.
- * And vice versa: updating any one updates the others.
- */
+
 async function syncCheckRates(source: string = "تزامن تلقائي") {
   const checkIds = ["USD_CHECKS", "USD_JBANK", "USD_NCB"];
   let latestCheckPrice = 0;
@@ -769,275 +776,9 @@ async function fetchFromCBL(): Promise<{ cblDate: string, rates: RateMap } | nul
 
 // Fetch real official rates from open API
 
-async function broadcastToSocialMedia(message: string, isTest: boolean = false, target: 'all' | 'telegram' | 'facebook' = 'all') {
-  const manager = getOrInitTelegramManager();
-
-  // Helper for small pause between retries
-  const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
-
-  // Telegram
-  const shouldPostTg = (target === 'telegram' || target === 'all') && ((!isTest && appConfig.telegramAutoPost) || isTest);
-  if (shouldPostTg) {
-    let tgChannel = (appConfig.telegramPostChannel || "").trim();
-    if (tgChannel.includes('t.me/')) {
-      tgChannel = tgChannel.split('t.me/')[1].split('/')[0].split('?')[0];
-    }
-    tgChannel = tgChannel.replace('@', '').trim();
-
-    if (!tgChannel) {
-      console.warn("[Telegram Broadcast] Skipping: No channel configured (telegramPostChannel is empty)");
-      telegramBroadcastStatus = {
-        status: 'error',
-        lastError: 'لم يتم تحديد القناة',
-        lastErrorTime: new Date().toISOString(),
-        lastSuccessTime: telegramBroadcastStatus.lastSuccessTime
-      };
-      if (isTest && target === 'telegram') throw new Error("لا توجد قناة تيليجرام محددة للنشر.");
-    } else if (!manager) {
-      console.error("[Telegram Broadcast] Failed: Telegram credentials not initialized or missing");
-      telegramBroadcastStatus = {
-        status: 'error',
-        lastError: 'بيانات أو جلسة تيليجرام غير مفعلة',
-        lastErrorTime: new Date().toISOString(),
-        lastSuccessTime: telegramBroadcastStatus.lastSuccessTime
-      };
-      if (isTest && target === 'telegram') throw new Error("بيانات تيليجرام غير مكتملة أو الجلسة غير مفعلة.");
-    } else {
-      let success = false;
-      let lastErrMessage = "";
-      const maxRetries = isTest ? 1 : 2;
-
-      for (let attempt = 1; attempt <= maxRetries; attempt++) {
-        try {
-          success = await manager.sendMessage(tgChannel, message);
-          if (success) {
-            break;
-          } else {
-            lastErrMessage = (manager as any).lastError || "فشل غير معروف";
-            if (attempt < maxRetries) {
-              console.warn(`[Telegram Broadcast] Attempt ${attempt} failed: ${lastErrMessage}. Retrying in 2s...`);
-              await delay(2000);
-            }
-          }
-        } catch (e: any) {
-          lastErrMessage = e.message || String(e);
-          if (attempt < maxRetries) {
-            console.warn(`[Telegram Broadcast] Exception in attempt ${attempt}: ${lastErrMessage}. Retrying in 2s...`);
-            await delay(2000);
-          }
-        }
-      }
-
-      if (!success) {
-        telegramBroadcastStatus = {
-          status: 'error',
-          lastError: lastErrMessage || "فشل إرسال الرسالة",
-          lastErrorTime: new Date().toISOString(),
-          lastSuccessTime: telegramBroadcastStatus.lastSuccessTime
-        };
-        console.error(`[Telegram Broadcast] Failed to send message to ${tgChannel}: ${lastErrMessage}`);
-        if (isTest && target === 'telegram') {
-          if (lastErrMessage.includes('CHAT_WRITE_FORBIDDEN') || lastErrMessage.includes('CHAT_ADMIN_REQUIRED')) {
-            throw new Error(`حساب تيليجرام المربوط ليس مشرفاً في القناة @${tgChannel} أو لا يملك صلاحية نشر الرسائل.`);
-          }
-          throw new Error(`فشل إرسال الرسالة إلى القناة @${tgChannel}: ${lastErrMessage}`);
-        }
-      } else {
-        telegramBroadcastStatus = {
-          status: 'ok',
-          lastError: '',
-          lastErrorTime: telegramBroadcastStatus.lastErrorTime,
-          lastSuccessTime: new Date().toISOString()
-        };
-        console.log(`[Telegram Broadcast] Successfully sent message to ${tgChannel}`);
-      }
-    }
-  }
-
-  // Facebook
-  const shouldPostFb = (target === 'facebook' || target === 'all') && ((!isTest && appConfig.facebookAutoPost) || isTest);
-  if (shouldPostFb) {
-    if (!appConfig.facebookPageId || !appConfig.facebookAccessToken) {
-      console.warn("[Facebook Broadcast] Skipping Facebook post: Page ID or Access Token missing");
-      facebookBroadcastStatus = {
-        status: 'error',
-        lastError: 'معرف الصفحة أو رمز الوصول مفقود',
-        lastErrorTime: new Date().toISOString(),
-        lastSuccessTime: facebookBroadcastStatus.lastSuccessTime
-      };
-      if (isTest && target === 'facebook') throw new Error("بيانات فيسبوك غير مكتملة. يرجى إدخال معرف الصفحة ورمز وصول الصفحة أولاً.");
-    } else {
-      let fbMessage = message.replace(/[*_`]/g, '');
-      const maxRetries = isTest ? 1 : 2;
-      let postedSuccessfully = false;
-      let lastFbError = "";
-
-      for (let attempt = 1; attempt <= maxRetries; attempt++) {
-        try {
-          const targetId = appConfig.facebookPageId.trim() || 'me';
-          let url = `https://graph.facebook.com/v20.0/${targetId}/feed`;
-          
-          let linkToAttach = null;
-          const urlMatch = fbMessage.match(/https?:\/\/[^\s]+/);
-          if (urlMatch) {
-            linkToAttach = urlMatch[0];
-          }
-          
-          const payload: any = { message: fbMessage, access_token: appConfig.facebookAccessToken };
-          if (linkToAttach) {
-            payload.link = linkToAttach;
-          }
-
-          let fbRes = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          });
-          let fbData = await fbRes.json();
-
-          // Fallback 1: If link parameter error, retry cleanly without link
-          if (fbData.error && payload.link) {
-            console.log("[Facebook Broadcast] Retrying without link parameter...");
-            delete payload.link;
-            const retryRes = await fetch(url, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(payload)
-            });
-            const retryData = await retryRes.json();
-            if (!retryData.error) {
-              fbData = retryData;
-            }
-          }
-
-          // Fallback 2: If global ID error or invalid ID, attempt posting to /me/feed directly
-          if (fbData.error && (fbData.error.code === 100 || fbData.error.message?.includes('global id'))) {
-            console.log("[Facebook Broadcast] Trying fallback to /me/feed...");
-            const fallbackUrl = `https://graph.facebook.com/v20.0/me/feed`;
-            const fallbackRes = await fetch(fallbackUrl, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ message: fbMessage, access_token: appConfig.facebookAccessToken })
-            });
-            const fallbackData = await fallbackRes.json();
-            if (!fallbackData.error) {
-              fbData = fallbackData;
-            }
-          }
-
-          if (fbData.error) {
-            lastFbError = fbData.error.message || "خطأ غير معروف في واجهة فيسبوك";
-            if (attempt < maxRetries) {
-              console.warn(`[Facebook Broadcast] Attempt ${attempt} failed: ${lastFbError}. Retrying in 2s...`);
-              await delay(2000);
-              continue;
-            }
-            facebookBroadcastStatus = { status: 'error', lastError: lastFbError, lastErrorTime: new Date().toISOString(), lastSuccessTime: facebookBroadcastStatus.lastSuccessTime };
-            console.error("[Facebook Broadcast] Error:", lastFbError);
-            if (isTest && target === 'facebook') {
-              if (lastFbError.includes('global id') || fbData.error.code === 100) {
-                throw new Error("المعرف المدخل هو معرف حساب شخصي وليس معرف صفحة عامة (Page). يجب استخدام معرف صفحة فيسبوك ورمز وصول الصفحة (Page Token).");
-              }
-              throw new Error(lastFbError);
-            }
-          } else {
-            postedSuccessfully = true;
-            console.log("[Facebook Broadcast] Successfully posted, ID:", fbData.id);
-            facebookBroadcastStatus = { status: 'ok', lastError: '', lastErrorTime: facebookBroadcastStatus.lastErrorTime, lastSuccessTime: new Date().toISOString() };
-            
-            // Add comment safely without breaking the main post status
-            try {
-              const commentMessage = `📢 تابعنا على تيليجرام لتصلك التحديثات فوراً:\n👉 https://t.me/libya_index_dollar\n\n🌐 للمزيد من التفاصيل والرسوم البيانية، تفضل بزيارة موقعنا:\n👉 https://dollar-price-qp14.onrender.com/?v=${Math.floor(Date.now() / 60000)}`;
-              const commentUrl = `https://graph.facebook.com/v20.0/${fbData.id}/comments`;
-              const commentRes = await fetch(commentUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: commentMessage, access_token: appConfig.facebookAccessToken })
-              });
-              const commentData = await commentRes.json();
-              if (commentData.error) {
-                console.warn("[Facebook Broadcast] Note: Comment skipped or failed (non-fatal):", commentData.error.message);
-              } else {
-                console.log("[Facebook Broadcast] Successfully added comment, ID:", commentData.id);
-              }
-            } catch (commentErr: any) {
-              console.warn("[Facebook Broadcast] Non-fatal comment error:", commentErr.message);
-            }
-            break; // Done successfully
-          }
-        } catch(e: any) {
-          lastFbError = e.message || String(e);
-          if (attempt < maxRetries) {
-            console.warn(`[Facebook Broadcast] Exception on attempt ${attempt}: ${lastFbError}. Retrying in 2s...`);
-            await delay(2000);
-            continue;
-          }
-          facebookBroadcastStatus = { status: 'error', lastError: lastFbError, lastErrorTime: new Date().toISOString(), lastSuccessTime: facebookBroadcastStatus.lastSuccessTime };
-          console.error("[Facebook Broadcast] Failed:", e);
-          if (isTest && target === 'facebook') throw e;
-        }
-      }
-    }
-  }
-}
-
-let lastOfficialBroadcastDate = "";
-
-async function broadcastOfficialRates(isTest: boolean = false) {
-  if (!appConfig.telegramPostChannel || !telegramManager) {
-    console.log("[Telegram Broadcast] Aborting broadcast. channel or manager missing.");
-    return;
-  }
-
-  if (!isTest && !appConfig.telegramAutoPost) {
-    console.log("[Telegram Broadcast] Aborting official broadcast because telegramAutoPost is disabled.");
-    return;
-  }
-
-  const now = new Date();
-  const dateStr = now.toLocaleDateString('ar-LY', { timeZone: 'Africa/Tripoli' });
-  const timeStr = now.toLocaleTimeString('ar-LY', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit' });
-  
-  if (!isTest && lastOfficialBroadcastDate === dateStr) {
-    console.log("[Official Broadcast] Already broadcasted today. Skipping duplicate post.");
-    return;
-  }
-
-  const dayNames = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
-  let dayName = "الخميس";
-  try {
-    const dayIndex = new Date(now.toLocaleString('en-US', { timeZone: 'Africa/Tripoli' })).getDay();
-    dayName = dayNames[dayIndex];
-  } catch (e) {}
-
-  let message = `🏦 *نشرة أسعار مصرف ليبيا المركزي* 🏦\n`;
-  message += `━━━━━━━━━━━━━━━━━━━\n`;
-  message += `🗓 ${dayName}، ${dateStr} | ⏰ ${timeStr}\n\n`;
-
-  for (const t of appConfig.terms) {
-    if (rates.official[t.id]) {
-      const val = rates.official[t.id];
-      const flag = t.flag === 'us' ? '🇺🇸' : t.flag === 'eu' ? '🇪🇺' : t.flag === 'gb' ? '🇬🇧' : t.flag === 'tn' ? '🇹🇳' : t.flag === 'eg' ? '🇪🇬' : t.flag === 'tr' ? '🇹🇷' : '💰';
-      message += `${flag} *${t.name}*: ${val.toFixed(4)} د.ل\n`;
-    }
-  }
-
-  message += `\n━━━━━━━━━━━━━━━━━━━\n`;
-  message += `🔗 *لمزيد من التفاصيل والبيانات الحية:*\n🌐 https://dollar-price-qp14.onrender.com/?v=${Math.floor(Date.now() / 60000)}\n`;
-  message += `📱 *المصدر:* مصرف ليبيا المركزي`;
-
-  try {
-    // Send only to Telegram, disable Facebook for official rates to prevent spamming
-    await broadcastToSocialMedia(message, typeof isTest !== "undefined" ? isTest : false, 'telegram');
-    if (!isTest) {
-      lastOfficialBroadcastDate = dateStr;
-    }
-  } catch(e) {
-    console.error("[Official Broadcast] Failed to broadcast", e);
-  }
-}
 
 let lastOfficialFetchDate = "";
+let lastSuccessfulFetchTime = Date.now();
 
 async function fetchOfficialRates(): Promise<boolean> {
   console.log("[Official] Starting official rates fetch cycle...");
@@ -1082,7 +823,7 @@ async function fetchOfficialRates(): Promise<boolean> {
       rates.parallel.OFFICIAL_USD = rates.official.USD;
       rates.lastChanged.parallel.OFFICIAL_USD = new Date().toISOString();
       console.log(`[Official] Rates updated via CBL Scraper`);
-      broadcastOfficialRates(false).catch(console.error);
+      broadcastOfficialRates(rates, false).catch(console.error);
     }
     
     // If the CBL website has published today's rates, we stop checking for the rest of the day
@@ -1178,7 +919,7 @@ async function broadcastDailyReport() {
   message += `━━━━━━━━━━━━━━━━━\n📡 *مؤشر الدينار | الدقة والسرعة*\n🔗 https://dollar-price-qp14.onrender.com/?v=${Math.floor(Date.now() / 60000)}`;
   
   try {
-    await broadcastToSocialMedia(message, typeof isTest !== "undefined" ? isTest : false);
+    await broadcastToSocialMedia(message, false);
   } catch(e) {}
   
   // Reset daily stats
@@ -1321,253 +1062,14 @@ async function broadcastWeeklyReport(isTest: boolean = false) {
 // cron.schedule('59 23 * * *', () => {
 //   broadcastDailyReport().catch(console.error);
 // }, {
-//   scheduled: true,
-//   timezone: "Africa/Tripoli"
+//   //   timezone: "Africa/Tripoli"
 // });
 
 cron.schedule('55 23 * * 5', () => {
   broadcastWeeklyReport().catch(console.error);
 }, {
-  scheduled: true,
   timezone: "Africa/Tripoli"
 });
-
-let appConfig: AppConfig = {
-  channels: ["dollarr_ly", "musheermarket", "lydollar", "suqalmushir"],
-  telegramPostChannel: "lydollar",
-  telegramAutoPost: false,
-  telegramTemplateStyle: "classic",
-  enableHttpScraper: true,
-  enableUserTracking: true,
-  apiConfig: {
-    enabled: true,
-    rateLimitWindowMs: 60000,
-    rateLimitMaxRequests: 20,
-    banDurationMinutes: 5,
-  },
-  terms: [
-    { id: "USD", name: "دولار أمريكي", regex: "(?:USD|usd|الدولار|دولار|الخضراء|خضراء|كاش|💵|🇺🇸)(?!\\s*صكوك|\\s*بصك|\\s*شيك)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
-    { id: "EUR", name: "يورو", regex: "(?:EUR|eur|يورو|اليورو|💶|🇪🇺)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "eu" },
-    { id: "GBP", name: "جنيه إسترليني", regex: "(?:GBP|gbp|باوند|استرليني|الباوند|💷|🇬🇧)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "gb" },
-    { id: "TND", name: "دينار تونسي", regex: "(?:TND|tnd|تونسي|تونس(?![ا-ي])|🇹🇳)[^\\d]{0,40}?(?:100|1)?\\s*(?:=|ب|\\-)?\\s*(?<!\\d)((?!(?:100|1)\\s*(?:=|ب|دينار|ليبي|\\-))\\d{1,3}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,30}(?<!\\d)((?!(?:100|1)\\s*(?:=|ب|دينار|ليبي|\\-))\\d{1,3}(?:[\\.,]\\d{1,4})?))?", min: 0.1, max: 400.0, isInverse: false, flag: "tn" },
-    { id: "EGP", name: "جنيه مصري", regex: "(?:EGP|egp|مصري|مصر(?![ا-ي])|🇪🇬)[^\\d]{0,40}?(?:100|1)?\\s*(?:=|ب|\\-)?\\s*(?<!\\d)((?!(?:100|1)\\s*(?:=|ب|دينار|ليبي|\\-))\\d{1,3}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,30}(?<!\\d)((?!(?:100|1)\\s*(?:=|ب|دينار|ليبي|\\-))\\d{1,3}(?:[\\.,]\\d{1,4})?))?", min: 0.01, max: 5.0, isInverse: false, flag: "eg" },
-    { id: "TRY", name: "ليرة تركية", regex: "(?:TRY|try|ليرة(?!\\s*ذهب)|(?<!حوالة\\s*)(?<!حوالات\\s*)تركي(?![ا-ي])|🇹🇷)[^\\d]{0,40}?(?:100|1)?\\s*(?:=|ب|\\-)?\\s*(?<!\\d)((?!(?:100|1)\\s*(?:=|ب|دينار|ليبي|\\-))\\d{1,3}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,30}(?<!\\d)((?!(?:100|1)\\s*(?:=|ب|دينار|ليبي|\\-))\\d{1,3}(?:[\\.,]\\d{1,4})?))?", min: 0.01, max: 5.0, isInverse: false, flag: "tr" },
-    { id: "JOD", name: "دينار أردني", regex: "(?:JOD|jod|أردني|🇯🇴)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 30.0, isInverse: false, flag: "jo" },
-    { id: "BHD", name: "دينار بحريني", regex: "(?:BHD|bhd|بحريني|🇧🇭)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 10.0, max: 50.0, isInverse: false, flag: "bh" },
-    { id: "KWD", name: "دينار كويتي", regex: "(?:KWD|kwd|كويتي|🇰🇼)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 10.0, max: 60.0, isInverse: false, flag: "kw" },
-    { id: "AED", name: "درهم إماراتي", regex: "(?:AED|aed|إماراتي|امارات|🇦🇪)[^\\d]{0,40}(\\d{0,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{0,2}(?:[\\.,]\\d{1,4})?))?", min: 0.5, max: 10.0, isInverse: false, flag: "ae" },
-    { id: "SAR", name: "ريال سعودي", regex: "(?:SAR|sar|سعودي|ريال|🇸🇦)[^\\d]{0,40}(\\d{0,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{0,2}(?:[\\.,]\\d{1,4})?))?", min: 0.5, max: 10.0, isInverse: false, flag: "sa" },
-    { id: "QAR", name: "ريال قطري", regex: "(?:QAR|qar|قطري|🇶🇦)[^\\d]{0,40}(\\d{0,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{0,2}(?:[\\.,]\\d{1,4})?))?", min: 0.5, max: 10.0, isInverse: false, flag: "qa" },
-    { id: "USD_JBANK", name: "صكوك الجمهورية", regex: "(?:jbank|الجمهورية|صكوك الجمهورية|بصك الجمهورية)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
-    { id: "USD_BCD", name: "صكوك التجارة", regex: "(?:bcd|التجارة والتنمية|صكوك التجارة|بصك التجارة)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
-    { id: "USD_NCB", name: "صكوك التجاري", regex: "(?:NCB|التجاري الوطني|صكوك التجاري|بصك التجاري)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
-    { id: "USD_AB", name: "صكوك الأمان", regex: "(?:AB|الأمان|الامان|صكوك الأمان|صكوك الامان)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
-    { id: "USD_WB", name: "صكوك الوحدة", regex: "(?:WB|الوحدة|صكوك الوحدة|بصك الوحدة)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
-    { id: "USD_AE", name: "حوالات دبي", regex: "(?:دبي|امارات|الإمارات|حوالة دبي|حوالات دبي|🇦🇪)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "ae" },
-    { id: "USD_TR", name: "حوالات تركيا", regex: "(?:(?<!فضة\\s*)تركيا|(?<!فضة\\s*)تركي(?![ا-ي])|حوالة تركي[اة]|حوالات تركي[اة]|🇹🇷)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "tr" },
-    { id: "USD_CN", name: "حوالات الصين", regex: "(?:الصين|صينية|حوالة الصين|حوالات الصين|🇨🇳)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "cn" },
-    { id: "CNY", name: "يوان صيني", regex: "(?:CNY|cny|يوان|🇨🇳)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 0.5, max: 5.0, isInverse: false, flag: "cn" },
-    { id: "GOLD_EXT_18", name: "ذهب خارجي 18", regex: "(?:ذهب خارجي\\s*18|خارجي\\s*18|عيار\\s*18\\s*خارجي|18\\s*خارجي)[^\\d]{0,40}(\\d{1,5}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 5000, isInverse: false, flag: "gold" },
-    { id: "GOLD_EXT_21", name: "ذهب خارجي 21", regex: "(?:ذهب خارجي\\s*21|خارجي\\s*21|عيار\\s*21\\s*خارجي|21\\s*خارجي)[^\\d]{0,40}(\\d{1,5}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 5000, isInverse: false, flag: "gold" },
-    { id: "GOLD_SCRAP_18", name: "ذهب كسر 18", regex: "(?:ذهب كسر\\s*18|كسر\\s*18|عيار\\s*18\\s*كسر|18\\s*كسر|كسر الذهب عيار\\s*18|كسر ذهب عيار\\s*18)[^\\d]{0,40}(\\d{1,5}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 5000, isInverse: false, flag: "gold" },
-    { id: "GOLD_SCRAP_21", name: "ذهب كسر 21", regex: "(?:ذهب كسر\\s*21|كسر\\s*21|عيار\\s*21\\s*كسر|21\\s*كسر|كسر الذهب عيار\\s*21|كسر ذهب عيار\\s*21)[^\\d]{0,40}(\\d{1,5}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 5000, isInverse: false, flag: "gold" },
-    { id: "GOLD_CAST_18", name: "ذهب مسبوك 18", regex: "(?:ذهب مسبوك\\s*18|مسبوك\\s*18|عيار\\s*18\\s*مسبوك|18\\s*مسبوك)[^\\d]{0,40}(\\d{1,5}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 5000, isInverse: false, flag: "gold" },
-    { id: "GOLD_CAST_21", name: "ذهب مسبوك 21", regex: "(?:ذهب مسبوك\\s*21|مسبوك\\s*21|عيار\\s*21\\s*مسبوك|21\\s*مسبوك)[^\\d]{0,40}(\\d{1,5}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 5000, isInverse: false, flag: "gold" },
-    { id: "GOLD_CAST_24", name: "ذهب مسبوك 24", regex: "(?:ذهب مسبوك\\s*24|مسبوك\\s*24|عيار\\s*24\\s*مسبوك|24\\s*مسبوك)[^\\d]{0,40}(\\d{1,5}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 5000, isInverse: false, flag: "gold" },
-    { id: "GOLD_LIRA_8G", name: "ليرة ذهب 8 جرام", regex: "(?:ليرة ذهب\\s*8(?:\\s*جرام|ج)?|ليرة ذهب|ليرة\\s*8(?:\\s*جرام|ج)?)[^\\d]{0,40}(\\d{1,5}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 20000, isInverse: false, flag: "gold" },
-    { id: "GOLD_MUJARA_14G", name: "مجارة ذهب 14 جرام", regex: "(?:مجارة ذهب\\s*14(?:\\s*جرام|ج)?|مجارة\\s*14(?:\\s*جرام|ج)?|ليرة ذهب\\s*14(?:\\s*جرام|ج)?|ليرة\\s*14(?:\\s*جرام|ج)?)[^\\d]{0,40}(\\d{1,5}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 35000, isInverse: false, flag: "gold" },
-    { id: "GOLD", name: "كسر الذهب", regex: "(?:كسر الذهب|ذهبي|(?<!ليرة\\s*)(?<!مجارة\\s*)(?<!مسبوك\\s*)ذهب(?!\\s*كسر)(?!\\s*مسبوك)(?!\\s*خارجي)|💎)[^\\d]{0,40}(\\d{1,5}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 5000, isInverse: false, flag: "gold" },
-    { id: "SILVER_CAST_1000", name: "مسبوك فضة عيار 1000", regex: "(?:مسبوك فضة عيار 1000|مسبوك فضة 1000|فضة 1000|مسبوك فضة)[^\\d]{0,40}(\\d{1,5}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 500, isInverse: false, flag: "silver" },
-    { id: "SILVER_SCRAP", name: "كسر فضة", regex: "(?:كسر فضة|كسر الفضة|فضة كسر)[^\\d]{0,40}(\\d{1,5}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 500, isInverse: false, flag: "silver" },
-    { id: "OFFICIAL_USD", name: "الدولار الرسمي", regex: "(?:الرسمي|المركزي)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 4.0, max: 6.0, isInverse: false, flag: "us" }
-  ]
-};
-
-let facebookBroadcastStatus = {
-  status: 'ok',
-  lastError: '',
-  lastErrorTime: '',
-  lastSuccessTime: ''
-};
-
-let telegramBroadcastStatus = {
-  status: 'ok',
-  lastError: '',
-  lastErrorTime: '',
-  lastSuccessTime: ''
-};
-
-let lastSocialBroadcastTime = 0;
-let lastBroadcastState: Record<string, { price: number, time: number }> = {};
-let lastSuccessfulFetchTime = Date.now();
-let telegramManager: TelegramManager | null = null;
-
-// Smart Queue (Debounce Buffer) to aggregate rapid price updates safely
-let broadcastQueue: Map<string, { id?: string, name: string, oldVal: number, newVal: number, flag: string }> = new Map();
-let broadcastQueueTimer: NodeJS.Timeout | null = null;
-
-function getOrInitTelegramManager(): TelegramManager | null {
-  if (telegramManager) return telegramManager;
-  const apiId = Number(process.env.TELEGRAM_API_ID || appConfig.telegramApiId);
-  const apiHash = process.env.TELEGRAM_API_HASH || appConfig.telegramApiHash || "";
-  const sessionString = process.env.TELEGRAM_SESSION || process.env.TG_SESSION_V2 || appConfig.telegramSessionString || "";
-  if (apiId && apiHash && sessionString) {
-    try {
-      telegramManager = getTelegramManager(apiId, apiHash, sessionString);
-      return telegramManager;
-    } catch (e: any) {
-      console.error("[TelegramManager] Initialization error:", e.message || e);
-    }
-  }
-  return null;
-}
-
-async function broadcastRateChanges(updates: {id?: string, name: string, oldVal: number, newVal: number, flag: string}[], isTest: boolean = false, target: 'all' | 'telegram' | 'facebook' = 'all') {
-  if (!isTest && !appConfig.telegramAutoPost && !appConfig.facebookAutoPost) {
-    return;
-  }
-  if (updates.length === 0) {
-    return;
-  }
-
-  // If live broadcast, use Smart Debounce Buffer (20s) to aggregate rapid updates and prevent spam/flooding
-  if (!isTest) {
-    for (const u of updates) {
-      const key = u.id || u.name;
-      const existing = broadcastQueue.get(key);
-      if (existing) {
-        // Keep initial oldVal to track cumulative shift
-        broadcastQueue.set(key, { ...u, oldVal: existing.oldVal });
-      } else {
-        broadcastQueue.set(key, { ...u });
-      }
-    }
-
-    if (broadcastQueueTimer) {
-      clearTimeout(broadcastQueueTimer);
-    }
-
-    broadcastQueueTimer = setTimeout(() => {
-      broadcastQueueTimer = null;
-      const batchedUpdates = Array.from(broadcastQueue.values());
-      broadcastQueue.clear();
-      if (batchedUpdates.length > 0) {
-        executeBroadcast(batchedUpdates, false, target).catch(e => console.error("[Smart Queue] Broadcast error:", e));
-      }
-    }, 20000); // 20-second aggregation buffer
-
-    return;
-  }
-
-  // If manual test broadcast, execute immediately
-  await executeBroadcast(updates, isTest, target);
-}
-
-async function executeBroadcast(updates: {id?: string, name: string, oldVal: number, newVal: number, flag: string}[], isTest: boolean = false, target: 'all' | 'telegram' | 'facebook' = 'all') {
-  if (updates.length === 0) return;
-
-  const now = new Date();
-  const dateStr = now.toLocaleDateString('ar-LY', { timeZone: 'Africa/Tripoli' });
-  const timeStr = now.toLocaleTimeString('ar-LY', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit' });
-  
-  if (!isTest) {
-    const nowMs = Date.now();
-    for (const u of updates) {
-      if (u.id) {
-        lastBroadcastState[u.id] = { price: u.newVal, time: nowMs };
-        
-        // Save to SQLite
-        try {
-          db.prepare(`
-            INSERT INTO broadcast_state (term_id, last_price, last_broadcast_time) 
-            VALUES (?, ?, ?)
-            ON CONFLICT(term_id) DO UPDATE SET 
-              last_price = excluded.last_price,
-              last_broadcast_time = excluded.last_broadcast_time
-          `).run(u.id, u.newVal, nowMs);
-        } catch (err) {
-          console.error("[BroadcastState] Local DB save error:", err);
-        }
-
-        // Sync to Supabase in background
-        if (supabase && supabaseAnonKey && !supabaseAnonKey.includes('dummy')) {
-          supabase.from('broadcast_state').upsert({
-            term_id: u.id,
-            last_price: u.newVal,
-            last_broadcast_time: nowMs
-          }).then(({ error }) => {
-            if (error) console.error("[BroadcastState] Supabase sync error:", error);
-          }, err => {
-            console.error("[BroadcastState] Supabase sync error:", err);
-          });
-        }
-      }
-    }
-  }
-  // ------------------------------------------------
-
-  const dayNames = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
-  let dayName = "الخميس";
-  try {
-    const dayIndex = new Date(now.toLocaleString('en-US', { timeZone: 'Africa/Tripoli' })).getDay();
-    dayName = dayNames[dayIndex];
-  } catch (e) {}
-
-  const flagMap: Record<string, string> = {
-    'us': '🇺🇸', 'eu': '🇪🇺', 'gb': '🇬🇧', 'tn': '🇹🇳', 'eg': '🇪🇬', 
-    'tr': '🇹🇷', 'ly': '🇱🇾', 'jo': '🇯🇴', 'bh': '🇧🇭', 'kw': '🇰🇼',
-    'ae': '🇦🇪', 'sa': '🇸🇦', 'qa': '🇶🇦', 'cn': '🇨🇳',
-    'gold': '✨', 'silver': '🪙'
-  };
-
-  let message = `📊 *مؤشر الدينار | تحديث السوق الموازي*\n`;
-  message += `━━━━━━━━━━━━━━━━━━━\n`;
-  message += `📅 ${dayName}، ${dateStr} | ⏰ ${timeStr}\n\n`;
-
-  for (const u of updates) {
-    const isUp = u.newVal > u.oldVal;
-    const isDown = u.newVal < u.oldVal;
-    const diff = Math.abs(u.newVal - u.oldVal);
-    let fe = flagMap[u.flag] || '💰';
-    if (u.id.startsWith('GOLD')) fe = '✨';
-    if (u.id.startsWith('SILVER')) fe = '🪙';
-    
-    let changeText = '➖ استقرار';
-    if (isUp) changeText = `🔺 ارتفاع بمقدار ${diff.toFixed(3)}`;
-    if (isDown) changeText = `🔻 انخفاض بمقدار ${diff.toFixed(3)}`;
-
-    message += `${fe} *${u.name}*\n`;
-    message += `💵 السعر: *${u.newVal.toFixed(3)} د.ل*\n`;
-    if (isUp || isDown) {
-      message += `📊 التغير: ${changeText} (كان ${u.oldVal.toFixed(3)})\n\n`;
-    } else {
-      message += `📊 التغير: ${changeText}\n\n`;
-    }
-  }
-
-  message += `━━━━━━━━━━━━━━━━━━━\n`;
-  message += `🔗 *المتابعة الحية والرسوم البيانية:*\n`;
-  message += `🌐 https://dollar-price-qp14.onrender.com/?v=${Math.floor(Date.now() / 60000)}\n`;
-  message += `📱 *المصدر:* شبكة مؤشر الدينار`;
-
-  if (isTest) {
-    await broadcastToSocialMedia(message, isTest, target);
-  } else {
-    broadcastToSocialMedia(message, isTest, target).catch(e => console.error("[Background Broadcast] Error:", e));
-  }
-
-  // SEND PUSH NOTIFICATION
-  if (!isTest) {
-    const mainUpdates = updates.filter(u => u.id === 'USD' || u.id === 'EUR' || u.id === 'GOLD' || u.id === 'GOLD_CAST_21').slice(0, 2);
-    if (mainUpdates.length > 0) {
-      const pushTitle = 'تحديث جديد لأسعار السوق';
-      const pushBody = mainUpdates.map(u => `${u.name}: ${u.newVal.toFixed(3)}`).join(' | ');
-      sendPushNotificationToAll(pushTitle, pushBody);
-    } else {
-      sendPushNotificationToAll('تحديث جديد', 'تم تحديث أسعار السوق الموازي');
-    }
-  }
-}
 
 function loadConfigFromStorage() {
   try {
@@ -1639,14 +1141,14 @@ function applyLoadedConfig(loadedConfig: AppConfig, source: string) {
     loadedConfig.facebookAccessToken = appConfig.facebookAccessToken;
   }
 
-  appConfig = loadedConfig;
+  updateAppConfig(loadedConfig);
 
   // Re-initialize Telegram Manager if credentials present
-  telegramManager = getTelegramManager(
+  setTelegramManager(getTelegramManager(
     Number(process.env.TELEGRAM_API_ID || appConfig.telegramApiId),
     process.env.TELEGRAM_API_HASH || appConfig.telegramApiHash || "",
     process.env.TELEGRAM_SESSION || process.env.TG_SESSION_V2 || appConfig.telegramSessionString || ""
-  );
+  ));
 
   console.log(`[Config] Config loaded & applied successfully from ${source}`);
 }
@@ -1729,100 +1231,7 @@ let lastAttemptTime = 0;
 let channelStatusTracker: Record<string, ChannelStatusInfo> = {};
 let liveFeed: LiveFeedMessage[] = [];
 
-/**
- * Extracts rates from a given text based on the current configuration.
- * Returns an array of extracted rates.
- */
 
-const aiProcessedTexts = new Set<string>();
-
-async function extractRatesWithAI(text: string, channel: string): Promise<{ code: string, value: number, date?: string }[]> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return [];
-  
-  const cacheKey = channel + "_" + text.substring(0, 30) + text.length;
-  if (aiProcessedTexts.has(cacheKey)) return [];
-  aiProcessedTexts.add(cacheKey);
-  
-  if (aiProcessedTexts.size > 1000) {
-    const arr = Array.from(aiProcessedTexts);
-    aiProcessedTexts.clear();
-    arr.slice(500).forEach(k => aiProcessedTexts.add(k));
-  }
-
-  const termIds = appConfig.terms.map(t => t.id).join(", ");
-  
-  const prompt = `أنت خبير مالي في ليبيا. استخرج أسعار العملات والذهب من النص التالي، والذي تم نشره في قناة "${channel}".
-النص:
-${text}
-
-المطلوب:
-إرجاع مصفوفة JSON تحتوي على كائنات بصيغة:
-[
-  { "code": "USD", "value": 9.10 }
-]
-
-تعليمات هامة جداً (يجب اتباعها بالحرف):
-1. السعر المطلوب هو دائماً: (كم يساوي 1 من العملة الأجنبية بالدينار الليبي).
-2. **قواعد خاصة بقناة libya_dollar للجنيه المصري (EGP) والدينار التونسي (TND)**:
-   - في بعض القنوات تُكتب الصيغة هكذا: "دينار.ليبي = 0.33 دينار.تونسي" أو "دينار.ليبي = 5.40 جنيه.مصري".
-   - هذا يعني أن الدينار الليبي الواحد يشتري 0.33 تونسي، ويشتري 5.40 مصري.
-   - لحساب سعر (1 دينار تونسي كم يساوي ليبي)، يجب عليك قسمة 1 على 0.33 (1 ÷ 0.33 = 3.03). هذا هو الرقم الذي يجب إرجاعه لـ TND. إياك أن تُرجع 0.33 أو 5.40 للتونسي!
-   - لحساب سعر (1 جنيه مصري كم يساوي ليبي)، يجب عليك قسمة 1 على الرقم المعطى للمصري (مثال: 1 ÷ 5.40 = 0.185). هذا هو الرقم الذي يجب إرجاعه لـ EGP.
-   - الخلاصة: إذا كان الرقم المكتوب أمام التونسي أو المصري يمثل كم يشتري الدينار الليبي الواحد من هذه العملة، فيجب عليك قسمة الرقم 1 على هذا الرقم لاستخراج السعر الصحيح بالدينار الليبي.
-   - مستحيل أن يكون التونسي بـ 5.45 أو المصري بـ 0.33! التونسي دائماً في نطاق 2.8 إلى 3.5، والمصري دائماً في نطاق 0.15 إلى 0.25.
-3. **قواعد استخراج أسعار الذهب والفضة (هام جداً)**:
-   - "ذهب مسبوك 18" -> استخدم الرمز GOLD_CAST_18.
-   - "ذهب مسبوك 21" -> استخدم الرمز GOLD_CAST_21.
-   - "مسبوك 24" أو "ذهب مسبوك 24" -> استخدم الرمز GOLD_CAST_24.
-   - "ذهب خارجي 18" أو "خارجي 18" -> استخدم الرمز GOLD_EXT_18.
-   - "ذهب خارجي 21" أو "خارجي 21" -> استخدم الرمز GOLD_EXT_21.
-   - "كسر 18" أو "ذهب كسر 18" -> استخدم الرمز GOLD_SCRAP_18.
-   - "كسر 21" أو "ذهب كسر 21" -> استخدم الرمز GOLD_SCRAP_21.
-   - "ليرة ذهب 8 جرام" أو "ليرة 8" -> استخدم الرمز GOLD_LIRA_8G.
-   - "مجارة ذهب 14 جرام" أو "مجارة 14" أو "ليرة 14" -> استخدم الرمز GOLD_MUJARA_14G.
-   - "مسبوك فضة" -> استخدم الرمز SILVER_CAST_1000.
-   - "كسر فضة" -> استخدم الرمز SILVER_SCRAP.
-4. رموز العملات المسموحة فقط هي: \${termIds}.
-5. لا تقم أبداً بإضافة عملات أو معادن غير موجودة في القائمة.
-6. كلمة (صكوك) لوحدها تعني الدولار بصكوك (استخدم الرمز USD_CHECKS).`;
-
-  try {
-    const ai = new GoogleGenAI({ apiKey });
-    const response = await ai.models.generateContent({
-      model: "gemini-3.7-flash",
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              code: { type: Type.STRING },
-              value: { type: Type.NUMBER }
-            },
-            required: ["code", "value"]
-          }
-        }
-      }
-    });
-
-    if (response.text) {
-      const parsed = JSON.parse(response.text);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        console.log(`[Scraper-AI] AI extracted rates from ${channel}: `, JSON.stringify(parsed));
-        return parsed.filter(item => {
-          const term = appConfig.terms.find(t => t.id === item.code);
-          return term && typeof item.value === 'number' && item.value >= term.min && item.value <= term.max;
-        });
-      }
-    }
-  } catch (e) {
-    console.error(`[Scraper-AI] Error calling AI for ${channel}: `, e);
-  }
-  return [];
-}
 
 
 function stripArabicDiacritics(text: string): string {
@@ -2929,7 +2338,7 @@ async function startServer() {
       }
 
       // إرسال تنبيه احترافي على تيليجرام (الرسائل المحفوظة)
-      if (telegramManager && telegramManager.client && telegramManager.client.connected) {
+      if (telegramManager) {
         const tgMsg = `📬 *رسالة جديدة من زائر*
 ━━━━━━━━━━━━━━━━━
 👤 *البريد:* ${email}
@@ -3102,8 +2511,8 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
       };
       
       // Update the rate limiter dynamically
-      publicApiLimiter.windowMs = appConfig.apiConfig?.rateLimitWindowMs || 60000;
-      publicApiLimiter.max = appConfig.apiConfig?.rateLimitMaxRequests || 20;
+      (publicApiLimiter as any).windowMs = appConfig.apiConfig?.rateLimitWindowMs || 60000;
+      (publicApiLimiter as any).max = appConfig.apiConfig?.rateLimitMaxRequests || 20;
 
       await saveConfigToSupabase(appConfig);
       res.json({ success: true, config: appConfig.apiConfig });
@@ -3117,7 +2526,7 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
 
   app.get("/api/admin/diagnostics", requireAdmin, async (req: express.Request, res: express.Response) => {
     try {
-      const dbStatus = await supabase?.from('logs').select('id').limit(1).then(() => true).catch(() => false) || false;
+      const dbStatus = await supabase?.from('logs').select('id').limit(1).then(() => true) || false;
       const telegramStatus = telegramManager ? true : false;
       
       let regexStatus = true;
@@ -3188,8 +2597,8 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
     }
     
     if (anyChanged) {
-      await saveRatesToSupabase();
-      broadcastRates();
+      await saveToSupabase();
+      broadcastRatesUpdate(rates);
     }
     
     res.json({ 
@@ -3209,7 +2618,7 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
       if (!newConfig.channels || !newConfig.terms) {
         return res.status(400).json({ success: false, message: "بيانات غير صالحة" });
       }
-      appConfig = newConfig;
+      updateAppConfig(newConfig);
       const saved = await saveConfigToSupabase(appConfig);
       
       const parallelTally = await fetchParallelRatesFromTelegram();
@@ -4169,7 +3578,7 @@ app.post('/api/push/active', (req: express.Request, res: express.Response) => {
       const originalChannel = appConfig.telegramPostChannel;
       appConfig.telegramPostChannel = targetChannel;
       
-      await broadcastOfficialRates(true);
+      await broadcastOfficialRates(rates, true);
       
       appConfig.telegramPostChannel = originalChannel;
       
@@ -4460,7 +3869,7 @@ ${updates.join('\n')}
         rates.lastUpdated = new Date().toISOString();
         await syncCheckRates(`API Update (${channel})`);
         await saveToSupabase('parallel');
-        broadcastRates();
+        broadcastRatesUpdate(rates);
       }
       
       res.json({ 
@@ -5053,7 +4462,7 @@ ${updates.join('\n')}
       if (hoursSinceSuccess > 4) {
         console.warn(`[Watchdog] No successful scrape for ${hoursSinceSuccess.toFixed(1)} hours!`);
         // Send alert to admin via saved messages if possible
-        if (telegramManager && telegramManager.client && telegramManager.client.connected) {
+        if (telegramManager) {
           try {
             await telegramManager.sendMessage('me', `⚠️ *تنبيه للمدير (Watchdog)* ⚠️\n\nيبدو أن هناك مشكلة في الجلب الآلي للسوق الموازي.\nمرت أكثر من 4 ساعات دون أي عملية جلب ناجحة.\n\nرجاءً تحقق من حالة السيرفر أو حساب التليجرام.`);
             // Reset to avoid spamming every minute, remind again after 4 hours

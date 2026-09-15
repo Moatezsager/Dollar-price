@@ -1,0 +1,92 @@
+import { GoogleGenAI, Type } from "@google/genai";
+import { appConfig } from '../config';
+
+const aiProcessedTexts = new Set<string>();
+
+export async function extractRatesWithAI(text: string, channel: string): Promise<{ code: string, value: number, date?: string }[]> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return [];
+  
+  const cacheKey = channel + "_" + text.substring(0, 30) + text.length;
+  if (aiProcessedTexts.has(cacheKey)) return [];
+  aiProcessedTexts.add(cacheKey);
+  
+  if (aiProcessedTexts.size > 1000) {
+    const arr = Array.from(aiProcessedTexts);
+    aiProcessedTexts.clear();
+    arr.slice(500).forEach(k => aiProcessedTexts.add(k));
+  }
+
+  const termIds = appConfig.terms.map(t => t.id).join(", ");
+  
+  const prompt = `أنت خبير مالي في ليبيا. استخرج أسعار العملات والذهب من النص التالي، والذي تم نشره في قناة "${channel}".
+النص:
+${text}
+
+المطلوب:
+إرجاع مصفوفة JSON تحتوي على كائنات بصيغة:
+[
+  { "code": "USD", "value": 9.10 }
+]
+
+تعليمات هامة جداً (يجب اتباعها بالحرف):
+1. السعر المطلوب هو دائماً: (كم يساوي 1 من العملة الأجنبية بالدينار الليبي).
+2. **قواعد خاصة بقناة libya_dollar للجنيه المصري (EGP) والدينار التونسي (TND)**:
+   - في بعض القنوات تُكتب الصيغة هكذا: "دينار.ليبي = 0.33 دينار.تونسي" أو "دينار.ليبي = 5.40 جنيه.مصري".
+   - هذا يعني أن الدينار الليبي الواحد يشتري 0.33 تونسي، ويشتري 5.40 مصري.
+   - لحساب سعر (1 دينار تونسي كم يساوي ليبي)، يجب عليك قسمة 1 على 0.33 (1 ÷ 0.33 = 3.03). هذا هو الرقم الذي يجب إرجاعه لـ TND. إياك أن تُرجع 0.33 أو 5.40 للتونسي!
+   - لحساب سعر (1 جنيه مصري كم يساوي ليبي)، يجب عليك قسمة 1 على الرقم المعطى للمصري (مثال: 1 ÷ 5.40 = 0.185). هذا هو الرقم الذي يجب إرجاعه لـ EGP.
+   - الخلاصة: إذا كان الرقم المكتوب أمام التونسي أو المصري يمثل كم يشتري الدينار الليبي الواحد من هذه العملة، فيجب عليك قسمة الرقم 1 على هذا الرقم لاستخراج السعر الصحيح بالدينار الليبي.
+   - مستحيل أن يكون التونسي بـ 5.45 أو المصري بـ 0.33! التونسي دائماً في نطاق 2.8 إلى 3.5، والمصري دائماً في نطاق 0.15 إلى 0.25.
+3. **قواعد استخراج أسعار الذهب والفضة (هام جداً)**:
+   - "ذهب مسبوك 18" -> استخدم الرمز GOLD_CAST_18.
+   - "ذهب مسبوك 21" -> استخدم الرمز GOLD_CAST_21.
+   - "مسبوك 24" أو "ذهب مسبوك 24" -> استخدم الرمز GOLD_CAST_24.
+   - "ذهب خارجي 18" أو "خارجي 18" -> استخدم الرمز GOLD_EXT_18.
+   - "ذهب خارجي 21" أو "خارجي 21" -> استخدم الرمز GOLD_EXT_21.
+   - "كسر 18" أو "ذهب كسر 18" -> استخدم الرمز GOLD_SCRAP_18.
+   - "كسر 21" أو "ذهب كسر 21" -> استخدم الرمز GOLD_SCRAP_21.
+   - "ليرة ذهب 8 جرام" أو "ليرة 8" -> استخدم الرمز GOLD_LIRA_8G.
+   - "مجارة ذهب 14 جرام" أو "مجارة 14" أو "ليرة 14" -> استخدم الرمز GOLD_MUJARA_14G.
+   - "مسبوك فضة" -> استخدم الرمز SILVER_CAST_1000.
+   - "كسر فضة" -> استخدم الرمز SILVER_SCRAP.
+4. رموز العملات المسموحة فقط هي: ${termIds}.
+5. لا تقم أبداً بإضافة عملات أو معادن غير موجودة في القائمة.
+6. كلمة (صكوك) لوحدها تعني الدولار بصكوك (استخدم الرمز USD_CHECKS).`;
+
+  try {
+    const ai = new GoogleGenAI({ apiKey });
+    const response = await ai.models.generateContent({
+      model: "gemini-3.7-flash",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              code: { type: Type.STRING },
+              value: { type: Type.NUMBER }
+            },
+            required: ["code", "value"]
+          }
+        }
+      }
+    });
+
+    if (response.text) {
+      const parsed = JSON.parse(response.text);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        console.log(`[Scraper-AI] AI extracted rates from ${channel}: `, JSON.stringify(parsed));
+        return parsed.filter(item => {
+          const term = appConfig.terms.find(t => t.id === item.code);
+          return term && typeof item.value === 'number' && item.value >= term.min && item.value <= term.max;
+        });
+      }
+    }
+  } catch (e) {
+    console.error(`[Scraper-AI] Error calling AI for ${channel}: `, e);
+  }
+  return [];
+}
