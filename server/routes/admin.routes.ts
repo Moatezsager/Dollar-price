@@ -520,14 +520,29 @@ export function createAdminRouter(deps: AdminRouterDeps): express.Router {
         }
       }
 
+      const memory = process.memoryUsage();
       res.json({
         onlineUsers: deps.getOnlineUsers(),
         lastSuccessfulScrape: lastSuccessfulScrape.toISOString(),
         minutesSinceLastScrape,
         isStale: minutesSinceLastScrape > 30,
+        channelsCount: appConfig.channels?.length || 0,
+        termsCount: appConfig.terms?.length || 0,
+        serverStartTime: serverStartTime.toISOString(),
+        memoryUsage: {
+          rss: memory.rss,
+          heapUsed: memory.heapUsed,
+          heapTotal: memory.heapTotal
+        },
         installs: {
           total: totalInstalls,
           today: installsToday
+        },
+        dbStats: {
+          parallelRatesCount: dbStats.parallelRatesCount,
+          officialRatesCount: dbStats.officialRatesCount,
+          errorLogsCount: dbStats.errorLogsCount,
+          priceChangesCount: dbStats.priceChangesCount
         },
         database: dbStats,
         channels: channelStatusTracker
@@ -1193,6 +1208,10 @@ ${updates.join('\n')}
   });
 
   // Recent changes log
+  router.get('/recent-changes', (req: express.Request, res: express.Response) => {
+    res.json(recentChangesLog);
+  });
+
   router.delete('/recent-changes', async (req: express.Request, res: express.Response) => {
     recentChangesLog.length = 0;
     if (supabase && supabaseAnonKey && !supabaseAnonKey.includes('dummy')) {
