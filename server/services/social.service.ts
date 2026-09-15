@@ -1,5 +1,6 @@
 import { TelegramManager, getTelegramManager } from '../../telegramClient';
 import { appConfig, telegramManager, setTelegramManager } from '../config';
+import { rates } from '../state';
 
 export let facebookBroadcastStatus = {
   status: 'ok',
@@ -260,7 +261,7 @@ export let lastBroadcastState: Record<string, { price: number, time: number }> =
 export let broadcastQueue: Map<string, { id?: string, name: string, oldVal: number, newVal: number, flag: string }> = new Map();
 export let broadcastQueueTimer: NodeJS.Timeout | null = null;
 
-export async function broadcastOfficialRates(rates: any, isTest: boolean = false) {
+export async function broadcastOfficialRates(isTest: boolean = false) {
   if (!appConfig.telegramPostChannel || !telegramManager) {
     console.log("[Telegram Broadcast] Aborting broadcast. channel or manager missing.");
     return;
