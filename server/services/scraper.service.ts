@@ -1,9 +1,9 @@
 import { RateMap, LiveFeedMessage, ChannelStatusInfo } from '../types';
 import { rates, history } from '../state';
-import { appConfig, telegramManager } from '../config';
+import { appConfig } from '../config';
 import { logErrorArabic, logPriceChange, saveToSupabase, syncCheckRates } from './db.service';
 import { extractRatesWithAI } from './ai.service';
-import { broadcastOfficialRates, broadcastRateChanges } from './social.service';
+import { broadcastOfficialRates, broadcastRateChanges, getOrInitTelegramManager } from './social.service';
 import { isSignificantChange, isProbablyDateOrTime } from '../utils/helpers';
 import { updateStats } from './reporting.service';
 
@@ -348,12 +348,13 @@ export async function fetchParallelRatesFromTelegram(): Promise<boolean | null> 
       
       console.log(`[Scraper] Filtering messages sent after: ${new Date(startOfTodayLibya).toISOString()} (Start of today in Libya)`);
 
-      if (telegramManager) {
+      const mgr = getOrInitTelegramManager();
+      if (mgr) {
         console.log("[Scraper] TelegramManager ready. Fetching channels in parallel...");
         
         const gramJsResults = await Promise.allSettled(channels.map(async (channel) => {
           try {
-            const messages = await telegramManager!.fetchMessages(channel, 20);
+            const messages = await mgr.fetchMessages(channel, 20);
             return { channel, messages };
           } catch (err) {
             throw { channel, error: err };

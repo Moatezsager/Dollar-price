@@ -1,8 +1,8 @@
 import { CurrencyStat } from '../types';
 import { rates } from '../state';
-import { appConfig, telegramManager } from '../config';
+import { appConfig } from '../config';
 import { supabase, supabaseAnonKey } from '../db';
-import { broadcastToSocialMedia } from './social.service';
+import { broadcastToSocialMedia, getOrInitTelegramManager } from './social.service';
 
 export const dailyStats: Record<string, CurrencyStat> = {};
 export const weeklyStats: Record<string, CurrencyStat> = {};
@@ -37,7 +37,8 @@ export async function broadcastSuddenChangeAlert(_u: {id?: string, name: string,
 }
 
 export async function broadcastDailyReport() {
-  if (!appConfig.telegramPostChannel || !telegramManager || !appConfig.telegramAutoPost) return;
+  const mgr = getOrInitTelegramManager();
+  if (!appConfig.telegramPostChannel || !mgr || !appConfig.telegramAutoPost) return;
   const now = new Date();
   const dateStr = now.toLocaleDateString('ar-LY', { timeZone: 'Africa/Tripoli' });
   

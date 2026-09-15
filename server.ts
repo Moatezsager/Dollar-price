@@ -22,7 +22,6 @@ import { db, supabase, supabaseUrl, supabaseAnonKey } from './server/db';
 import { 
   appConfig, 
   updateAppConfig, 
-  telegramManager, 
   setTelegramManager,
   applyLoadedConfig,
   loadConfigFromStorage,
@@ -642,7 +641,8 @@ async function startServer() {
       }
 
       // إرسال تنبيه احترافي على تيليجرام (الرسائل المحفوظة)
-      if (telegramManager) {
+      const tgMgr = getOrInitTelegramManager();
+      if (tgMgr) {
         const tgMsg = `📬 *رسالة جديدة من زائر*
 ━━━━━━━━━━━━━━━━━
 👤 *البريد:* ${email}
@@ -652,7 +652,7 @@ ${message}
 ━━━━━━━━━━━━━━━━━
 ⏰ *التوقيت:* ${new Date().toLocaleString('ar-LY', { timeZone: 'Africa/Tripoli' })}`;
 
-        telegramManager.sendMessage('me', tgMsg).catch(err => {
+        tgMgr.sendMessage('me', tgMsg).catch(err => {
           console.error("Failed to send visitor message to Telegram Saved Messages:", err);
         });
       }
@@ -684,12 +684,13 @@ ${message}
       return res.status(400).json({ success: false, error: "Channel username and message are required" });
     }
 
-    if (!telegramManager) {
+    const tgMgr = getOrInitTelegramManager();
+    if (!tgMgr) {
       return res.status(503).json({ success: false, error: "Telegram client is not properly initialized" });
     }
 
     try {
-      const success = await telegramManager.sendMessage(channel, message);
+      const success = await tgMgr.sendMessage(channel, message);
       if (success) {
         res.json({ success: true, message: "تم النشر بنجاح" });
       } else {
@@ -711,12 +712,13 @@ ${message}
       return res.status(400).json({ success: false, error: "Channel username is required" });
     }
 
-    if (!telegramManager || !telegramManager.isConnected()) {
+    const tgMgr = getOrInitTelegramManager();
+    if (!tgMgr || !tgMgr.isConnected()) {
       return res.status(503).json({ success: false, error: "Telegram client is not connected" });
     }
 
     try {
-      const messages = await telegramManager.fetchMessages(channel, Math.min(limit, 50));
+      const messages = await tgMgr.fetchMessages(channel, Math.min(limit, 50));
       
       let anyUpdated = false;
       const allExtracted: { code: string, value: number }[] = [];
@@ -1311,9 +1313,10 @@ ${message}
       if (hoursSinceSuccess > 4) {
         console.warn(`[Watchdog] No successful scrape for ${hoursSinceSuccess.toFixed(1)} hours!`);
         // Send alert to admin via saved messages if possible
-        if (telegramManager) {
+        const tgMgr = getOrInitTelegramManager();
+        if (tgMgr) {
           try {
-            await telegramManager.sendMessage('me', `⚠️ *تنبيه للمدير (Watchdog)* ⚠️\n\nيبدو أن هناك مشكلة في الجلب الآلي للسوق الموازي.\nمرت أكثر من 4 ساعات دون أي عملية جلب ناجحة.\n\nرجاءً تحقق من حالة السيرفر أو حساب التليجرام.`);
+            await tgMgr.sendMessage('me', `⚠️ *تنبيه للمدير (Watchdog)* ⚠️\n\nيبدو أن هناك مشكلة في الجلب الآلي للسوق الموازي.\nمرت أكثر من 4 ساعات دون أي عملية جلب ناجحة.\n\nرجاءً تحقق من حالة السيرفر أو حساب التليجرام.`);
             // Reset to avoid spamming every minute, remind again after 4 hours
             setLastSuccessfulFetchTime(Date.now());
           } catch (e) {

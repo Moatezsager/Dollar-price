@@ -3,7 +3,7 @@ import { GoogleGenAI } from '@google/genai';
 import { TelegramClient, Api } from 'telegram';
 import { StringSession } from 'telegram/sessions';
 import { db, supabase, supabaseAnonKey } from '../db';
-import { appConfig, updateAppConfig, saveConfigToSupabase, telegramManager } from '../config';
+import { appConfig, updateAppConfig, saveConfigToSupabase } from '../config';
 import { rates, serverStartTime } from '../state';
 import { isSignificantChange, obfuscateData } from '../utils/helpers';
 import { requireAdmin, adminToken } from '../middleware/auth';
@@ -141,7 +141,8 @@ export function createAdminRouter(deps: AdminRouterDeps): express.Router {
   router.get('/diagnostics', async (req: express.Request, res: express.Response) => {
     try {
       const dbStatus = await supabase?.from('logs').select('id').limit(1).then(() => true) || false;
-      const telegramStatus = telegramManager ? true : false;
+      const tgMgr = getOrInitTelegramManager();
+      const telegramStatus = tgMgr ? true : false;
       
       let regexStatus = true;
       try {
@@ -1161,7 +1162,8 @@ ${updates.join('\n')}
          return res.status(400).json({ success: false, error: "لا يوجد قناة محددة للنشر." });
       }
       
-      if (!telegramManager) {
+      const tgMgr = getOrInitTelegramManager();
+      if (!tgMgr) {
         return res.status(503).json({ success: false, error: "Telegram client is not properly initialized" });
       }
 
