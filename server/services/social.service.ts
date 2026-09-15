@@ -437,6 +437,10 @@ export async function broadcastToSocialMedia(message: string, isTest: boolean = 
       if (isTest && target === 'facebook') throw new Error("بيانات فيسبوك غير مكتملة. يرجى إدخال معرف الصفحة ورمز وصول الصفحة أولاً.");
     } else {
       let fbMessage = message.replace(/[*_`]/g, '');
+      
+      // استبدال الرابط الأساسي برابط مختصر خاص بفيسبوك لتفادي مشكلة الكاش (الأسعار القديمة)
+      fbMessage = fbMessage.replace(/https:\/\/dollar-price-qp14\.onrender\.com[^\s]*/g, 'https://tinyurl.com/2j7667u2');
+      
       const maxRetries = isTest ? 1 : 2;
       let postedSuccessfully = false;
       let lastFbError = "";
