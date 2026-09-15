@@ -1674,29 +1674,29 @@ async function broadcastWeeklyReport(isTest: boolean = false) {
 }
 
 // Setup CRON jobs
-cron.schedule('*/5 * * * *', async () => {
-  if (!appConfig.telegramAutoPost && !appConfig.facebookAutoPost) return;
-  const currentUpdates = [];
-  for (const term of appConfig.terms) {
-    const currentVal = rates.parallel[term.id];
-    if (currentVal === undefined) continue;
-    const history = lastBroadcastState[term.id];
-    if (!history || Math.abs(currentVal - history.price) > 0.0001) {
-      currentUpdates.push({ 
-        id: term.id, 
-        name: term.name, 
-        oldVal: history ? history.price : currentVal, 
-        newVal: currentVal, 
-        flag: term.flag,
-        delayed: true
-      });
-    }
-  }
-  if (currentUpdates.length > 0) {
-    console.log(`[Cron Sweep] Found ${currentUpdates.length} unposted updates. Broadcasting to social media...`);
-    await broadcastRateChanges(currentUpdates, false, 'all');
-  }
-});
+// cron.schedule('*/5 * * * *', async () => {
+//   if (!appConfig.telegramAutoPost && !appConfig.facebookAutoPost) return;
+//   const currentUpdates = [];
+//   for (const term of appConfig.terms) {
+//     const currentVal = rates.parallel[term.id];
+//     if (currentVal === undefined) continue;
+//     const history = lastBroadcastState[term.id];
+//     if (!history || Math.abs(currentVal - history.price) > 0.0001) {
+//       currentUpdates.push({ 
+//         id: term.id, 
+//         name: term.name, 
+//         oldVal: history ? history.price : currentVal, 
+//         newVal: currentVal, 
+//         flag: term.flag,
+//         delayed: true
+//       });
+//     }
+//   }
+//   if (currentUpdates.length > 0) {
+//     console.log(`[Cron Sweep] Found ${currentUpdates.length} unposted updates. Broadcasting to social media...`);
+//     await broadcastRateChanges(currentUpdates, false, 'all');
+//   }
+// });
 
 // cron.schedule('59 23 * * *', () => {
 //   broadcastDailyReport().catch(console.error);
