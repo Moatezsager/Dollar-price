@@ -1,11 +1,9 @@
 import "dotenv/config";
-import webpush from "web-push";
 import cron from "node-cron";
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import fs from "fs";
-import { createClient } from '@supabase/supabase-js';
 import { Server as SocketIOServer } from 'socket.io';
 import { createServer } from 'http';
 import helmet from "helmet";
@@ -15,368 +13,38 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { TelegramClient, Api } from "telegram";
 import { StringSession } from "telegram/sessions";
 import { getTelegramClient, fetchChannelMessages, initializeTelegram, activeClient, TelegramManager, getTelegramManager } from "./telegramClient";
-import Database from 'better-sqlite3';
 import { UAParser } from 'ua-parser-js';
 import crypto from 'crypto';
 
-// Initialize SQLite for local messages
-const db = new Database('messages.db');
-db.pragma('journal_mode = WAL');
-db.pragma('cache_size = 32000');
-db.pragma('synchronous = NORMAL');
-db.pragma('temp_store = MEMORY');
-
-// Create messages table if not exists
-db.exec(`
-  CREATE TABLE IF NOT EXISTS messages (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    email TEXT NOT NULL,
-    phone TEXT NOT NULL,
-    message TEXT NOT NULL,
-    status TEXT DEFAULT 'new',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  )
-`);
-
-
-// Initialize Push Notifications
-db.exec(`
-  CREATE TABLE IF NOT EXISTS server_config (
-    key TEXT PRIMARY KEY,
-    value TEXT NOT NULL
-  );
-  CREATE TABLE IF NOT EXISTS push_subscriptions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    endpoint TEXT UNIQUE NOT NULL,
-    p256dh TEXT NOT NULL,
-    auth TEXT NOT NULL,
-    last_active DATETIME DEFAULT CURRENT_TIMESTAMP,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
-  CREATE TABLE IF NOT EXISTS broadcast_state (
-    term_id TEXT PRIMARY KEY,
-    last_price REAL NOT NULL,
-    last_broadcast_time INTEGER NOT NULL
-  );
-`);
-
-// -----------------------------------------------------------------------
-// VAPID Keys — يقرأ من Environment Variables أولاً (مهم على Render)
-// حتى لا تتغير المفاتيح عند إعادة تشغيل السيرفر وتنقطع الاشتراكات
-// -----------------------------------------------------------------------
-let vapidKeys = { publicKey: '', privateKey: '' };
-
-if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
-  // أولوية: استخدام المفاتيح الثابتة من Environment Variables
-  vapidKeys = {
-    publicKey:  process.env.VAPID_PUBLIC_KEY,
-    privateKey: process.env.VAPID_PRIVATE_KEY
-  };
-  console.log('[Push] Using VAPID keys from environment variables (stable).');
-} else {
-  // Fallback: قراءة من SQLite (للتطوير المحلي فقط)
-  const storedKeys = db.prepare('SELECT value FROM server_config WHERE key = ?').get('vapid_keys') as any;
-  if (storedKeys) {
-    vapidKeys = JSON.parse(storedKeys.value);
-    console.log('[Push] Using VAPID keys from SQLite (local dev).');
-  } else {
-    vapidKeys = webpush.generateVAPIDKeys();
-    db.prepare('INSERT INTO server_config (key, value) VALUES (?, ?)').run('vapid_keys', JSON.stringify(vapidKeys));
-    console.log('[Push] Generated new VAPID keys and saved to SQLite.');
-    console.warn('[Push] WARNING: Add VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY to Render env vars to make them permanent!');
-    console.warn('[Push] PUBLIC_KEY=' + vapidKeys.publicKey);
-  }
-}
-
-webpush.setVapidDetails(
-  'mailto:admin@dinar-index.com',
-  vapidKeys.publicKey,
-  vapidKeys.privateKey
-);
-console.log('[Push] VAPID public key:', vapidKeys.publicKey.substring(0, 20) + '...');
-
-
-
-async function sendRetentionPushNotifications() {
-  console.log('[Push] Checking for retention notifications...');
-  try {
-    // Users who haven't been active in the last 3 days, but were active in the last 4 days
-    // to prevent spamming them every day.
-    const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
-    const fourDaysAgo = new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString();
-    
-    const subscriptions = db.prepare(`
-      SELECT endpoint, p256dh, auth FROM push_subscriptions 
-      WHERE last_active < ? AND last_active > ?
-    `).all(threeDaysAgo, fourDaysAgo);
-    
-    console.log(`[Push] Found ${subscriptions.length} users to remind.`);
-    
-    const payload = JSON.stringify({
-      title: 'مؤشر الدينار',
-      body: 'أسعار اليوم تغيرت، تفضل بالمتابعة',
-      url: '/'
-    });
-    
-    for (const sub of subscriptions) {
-      try {
-        await webpush.sendNotification({
-          endpoint: sub.endpoint,
-          keys: {
-            p256dh: sub.p256dh,
-            auth: sub.auth
-          }
-        }, payload);
-      } catch (err: any) {
-        if (err.statusCode === 410 || err.statusCode === 404) {
-          db.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').run(sub.endpoint);
-        }
-      }
-    }
-  } catch (err) {
-    console.error('[Push] Retention error:', err);
-  }
-}
-
-async function sendPushNotificationToAll(
-  title: string,
-  body:  string,
-  url:   string = '/'
-) {
-  try {
-    const subscriptions = db.prepare(
-      'SELECT endpoint, p256dh, auth FROM push_subscriptions'
-    ).all() as any[];
-
-    if (!subscriptions || subscriptions.length === 0) {
-      console.log('[Push] No subscribers to notify.');
-      return;
-    }
-
-    console.log(`[Push] Sending to ${subscriptions.length} subscribers: "${title}"`);
-
-    const payload = JSON.stringify({
-      title,
-      body,
-      url,
-      icon:  '/icons/icon-192.png',
-      badge: '/icons/badge-72.png',
-      tag:   'dinar-' + Date.now()
-    });
-
-    // معالجة دفعات بحجم 50 لتجنب الـ rate limiting
-    const BATCH_SIZE = 50;
-    let sent = 0, failed = 0, removed = 0;
-
-    for (let i = 0; i < subscriptions.length; i += BATCH_SIZE) {
-      const batch = subscriptions.slice(i, i + BATCH_SIZE);
-
-      await Promise.allSettled(
-        batch.map(async (sub: any) => {
-          try {
-            await webpush.sendNotification(
-              { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-              payload,
-              { TTL: 60 * 60 * 24 }  // يُخزَّن 24 ساعة إذا كان الجهاز offline
-            );
-            sent++;
-          } catch (err: any) {
-            if (err.statusCode === 410 || err.statusCode === 404) {
-              // اشتراك منتهي الصلاحية → احذفه
-              db.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').run(sub.endpoint);
-              removed++;
-            } else {
-              failed++;
-              console.warn('[Push] Failed to send to one subscriber:', err.statusCode || err.message);
-            }
-          }
-        })
-      );
-
-      // استراحة صغيرة بين الدفعات
-      if (i + BATCH_SIZE < subscriptions.length) {
-        await new Promise(r => setTimeout(r, 100));
-      }
-    }
-
-    console.log(`[Push] Done — sent: ${sent}, failed: ${failed}, removed (expired): ${removed}`);
-  } catch (err) {
-    console.error('[Push] Broadcast error:', err);
-  }
-}
-
-cron.schedule('0 10 * * *', () => {
-  sendRetentionPushNotifications();
-}, {
-  scheduled: true,
-  timezone: "Africa/Tripoli"
-});
-
-// Create Analytics tables
-db.exec(`
-  CREATE TABLE IF NOT EXISTS analytics_events (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    visitor_id TEXT NOT NULL,
-    session_id TEXT NOT NULL,
-    page_path TEXT NOT NULL,
-    referrer TEXT,
-    device_type TEXT,
-    device_vendor TEXT,
-    device_model TEXT,
-    os_name TEXT,
-    os_version TEXT,
-    browser_name TEXT,
-    browser_version TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
-  
-  CREATE INDEX IF NOT EXISTS idx_analytics_created_at ON analytics_events(created_at);
-  CREATE INDEX IF NOT EXISTS idx_analytics_visitor_id ON analytics_events(visitor_id);
-`);
-
-// Create installs table if not exists
-db.exec(`
-  CREATE TABLE IF NOT EXISTS installs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    platform TEXT,
-    user_agent TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  )
-`);
-
-// Initialize Supabase client for server
-const supabaseUrl = process.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY; 
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn("WARNING: Supabase credentials missing from environment variables.");
-}
-
-// Only create client if credentials are provided
-const supabase = (supabaseUrl && supabaseAnonKey) 
-  ? createClient(supabaseUrl, supabaseAnonKey)
-  : null;
+// Modular imports
+import { db, supabase, supabaseUrl, supabaseAnonKey } from './server/db';
+import { 
+  Rates, 
+  RateMap, 
+  LastChangedMap, 
+  HistoryPoint, 
+  AppConfig, 
+  PriceChangeLog, 
+  CurrencyStat, 
+  ChannelStatusInfo, 
+  LiveFeedMessage, 
+  DeviceLogEntry 
+} from './server/types';
+import { 
+  vapidKeys, 
+  sendPushNotificationToAll, 
+  sendRetentionPushNotifications 
+} from './server/services/push.service';
+import { 
+  getSecurityKey, 
+  xorData, 
+  obfuscateData, 
+  isSignificantChange, 
+  isProbablyDateOrTime 
+} from './server/utils/helpers';
 
 const serverStartTime = new Date();
 
-interface RateMap {
-  [key: string]: number;
-}
-
-interface LastChangedMap {
-  [key: string]: string;
-}
-
-interface Rates {
-  official: RateMap;
-  parallel: RateMap;
-  previousOfficial: RateMap;
-  previousParallel: RateMap;
-  lastUpdated: string;
-  lastChanged: {
-    official: LastChangedMap;
-    parallel: LastChangedMap;
-  };
-}
-
-interface HistoryPoint {
-  time: string;
-  usdParallel: number;
-  usdOfficial: number;
-  ratesParallel?: RateMap;
-  ratesOfficial?: RateMap;
-}
-
-interface AppConfig {
-  channels: string[];
-  terms: {
-    id: string;
-    name: string;
-    regex: string;
-    min: number;
-    max: number;
-    isInverse: boolean;
-    flag: string;
-  }[];
-  telegramApiId?: number;
-  telegramApiHash?: string;
-  telegramSessionString?: string;
-  telegramPostChannel?: string;
-  telegramAutoPost?: boolean;
-  telegramTemplateStyle?: string;
-  enableHttpScraper?: boolean;
-  enableUserTracking?: boolean;
-  facebookPageId?: string;
-  facebookAccessToken?: string;
-  facebookAutoPost?: boolean;
-  apiConfig?: {
-    enabled: boolean;
-    rateLimitWindowMs: number;
-    rateLimitMaxRequests: number;
-    banDurationMinutes: number;
-  };
-}
-
-// Security Layer Functions
-const getSecurityKey = () => {
-  const d = new Date();
-  return `DI_SECURE_${d.getUTCFullYear()}${d.getUTCMonth() + 1}${d.getUTCDate()}`;
-};
-
-const xorData = (str: string, key: string) => {
-  let result = '';
-  for (let i = 0; i < str.length; i++) {
-    result += String.fromCharCode(str.charCodeAt(i) ^ key.charCodeAt(i % key.length));
-  }
-  return result;
-};
-
-const obfuscateData = (data: any) => {
-  try {
-    // 1. Key Mapping (Obfuscate main keys)
-    const mapping: any = {
-      'official': '_o',
-      'parallel': '_p',
-      'previousOfficial': '_po',
-      'previousParallel': '_pp',
-      'lastUpdated': '_t',
-      'lastChanged': '_lc',
-      'USD': 'u1',
-      'EUR': 'e2',
-      'GBP': 'g3',
-      'TRY': 't4',
-      'GOLD': 'g5',
-      'USD_CHECKS': 'uc6',
-      'USD_JBANK': 'uj7'
-    };
-
-    const processObject = (obj: any): any => {
-      if (Array.isArray(obj)) return obj.map(processObject);
-      if (obj !== null && typeof obj === 'object') {
-        const newObj: any = {};
-        for (const key in obj) {
-          const mappedKey = mapping[key] || key;
-          newObj[mappedKey] = processObject(obj[key]);
-        }
-        return newObj;
-      }
-      return obj;
-    };
-
-    const obfuscated = {
-      _m: mapping,
-      _d: processObject(data)
-    };
-
-    // 2. Stringify -> XOR -> Base64
-    const json = JSON.stringify(obfuscated);
-    const encrypted = xorData(json, getSecurityKey());
-    return Buffer.from(encrypted).toString('base64');
-  } catch (e) {
-    console.error("Obfuscation error:", e);
-    return data;
-  }
-};
 
 // Arabic Logging Utility
 async function logErrorArabic(message: string, context = "النظام", stack?: string, url?: string) {
@@ -579,49 +247,7 @@ const METAL_IDS = [
   "SILVER_CAST_1000"
 ];
 
-// Helper to detect significant price changes (ignores tiny floating point noise)
-function isSignificantChange(val1: number, val2: number, threshold = 0.0001) {
-  return Math.abs((val1 || 0) - (val2 || 0)) > threshold;
-}
 
-// Helper to detect if a number is likely part of a date or time (e.g. 2024, 21-03, 12/05, 15:48)
-function isProbablyDateOrTime(text: string, matchIndex: number, matchValue: string): boolean {
-  // Look at context around the match
-  const contextBefore = text.substring(Math.max(0, matchIndex - 10), matchIndex);
-  const contextAfter = text.substring(matchIndex + matchValue.length, Math.min(text.length, matchIndex + matchValue.length + 10));
-  
-  // Date patterns: YYYY (starting with 20), DD/MM, DD-MM
-  if (/^20\d{2}$/.test(matchValue)) return true; // Year 20XX
-  
-  // If the match has a decimal point or is too long, it's probably not a date/time component
-  if (matchValue.includes('.') || matchValue.includes(',') || matchValue.length > 4) {
-    return false;
-  }
-
-  if (/[/-]\d{1,2}$/.test(contextBefore) || /[/-]$/.test(contextBefore)) return true; // Matches -MM or /MM or just - before
-  if (/^\d{1,2}[/-]/.test(contextAfter) || /^[/-]/.test(contextAfter)) return true; // Matches MM- or MM/ or just - after
-  
-  // Time patterns: HH:MM
-  if (/^:\d{2}/.test(contextAfter)) return true; // Matches :MM after
-  if (/\d{2}:$/.test(contextBefore) || /:$/.test(contextBefore)) return true; // Matches HH: or just : before
-  
-  // Also check if preceded by keywords like "بتاريخ" or "يوم" or "الساعة"
-  if (/بتاريخ|يوم|سنة|عام|الساعة|ساعة/i.test(contextBefore)) return true;
-
-  return false;
-}
-
-
-
-interface PriceChangeLog {
-  id: string;
-  currencyCode: string;
-  currencyName: string;
-  oldPrice: number;
-  newPrice: number;
-  source: string;
-  timestamp: string;
-}
 
 const recentChangesLog: PriceChangeLog[] = [];
 
@@ -1475,13 +1101,7 @@ async function fetchOfficialRates(): Promise<boolean> {
 // Dynamic Configuration
 // Dynamic Configuration
 
-interface CurrencyStat {
-  high: number;
-  low: number;
-  sum: number;
-  count: number;
-  startPrice: number;
-}
+
 const dailyStats: Record<string, CurrencyStat> = {};
 const weeklyStats: Record<string, CurrencyStat> = {};
 
@@ -2106,23 +1726,7 @@ let isScraping = false;
 let lastSuccessfulScrape = new Date();
 let lastAttemptTime = 0;
 
-interface ChannelStatusInfo {
-  last_scrape_attempt: number;
-  last_post_time: number;
-  status: 'active' | 'stale' | 'error';
-  messages_processed: number;
-}
 let channelStatusTracker: Record<string, ChannelStatusInfo> = {};
-
-interface LiveFeedMessage {
-  id: string;
-  channel: string;
-  text: string;
-  time: number;
-  status: 'processed' | 'skipped' | 'error';
-  extractedRates?: { code: string, value: number }[];
-  error?: string;
-}
 let liveFeed: LiveFeedMessage[] = [];
 
 /**
@@ -2868,20 +2472,7 @@ const gracefulShutdown = async () => {
 process.on('SIGTERM', gracefulShutdown);
 process.on('SIGINT', gracefulShutdown);
 
-interface DeviceLogEntry {
-  id: string;
-  deviceId: string;
-  ip: string;
-  userAgent: string;
-  timestamp: string;
-  deviceType: string;
-  deviceName: string;
-  os?: string;
-  browser?: string;
-  visits?: number;
-  firstVisit?: string;
-  isOnline?: boolean;
-}
+
 
 let userLogs: DeviceLogEntry[] = [];
 
