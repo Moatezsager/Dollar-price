@@ -44,8 +44,8 @@ const MIN_PRICE_CHANGE = 0.02;
 /** الحد الأدنى للتغيير النسبي للمعادن الثمينة (ذهب / فضة) → 0.5% */
 const MIN_PRICE_CHANGE_PCT_PRECIOUS = 0.005;
 
-/** فاصل زمني أدنى بين نشرَين لنفس العملة = 60 دقيقة */
-const MIN_CURRENCY_INTERVAL_MS = 60 * 60 * 1000;
+/** فاصل زمني أدنى بين نشرَين لنفس العملة = 30 دقيقة */
+const MIN_CURRENCY_INTERVAL_MS = 30 * 60 * 1000;
 // ───────────────────────────────────────────────────────────────────────────
 
 // ─── Pending Queue (تحديثات مُؤجَّلة بسبب حد الساعة) ──────────────────────
@@ -329,7 +329,7 @@ function startPendingWatchdog(): void {
     const batch = pendingBroadcastQueue.shift()!;
     console.log(`[PendingQueue] 🚀 Processing pending batch: [${batch.updates.map(u => u.id || u.name).join(', ')}]`);
     // إعادة تشغيل دورة executeBroadcast بدون فلاتر (لأنها اجتازتها مسبقاً)
-    executeBroadcast(batch.updates, false, batch.target).catch(e =>
+    executeBroadcast(batch.updates, false, batch.target, true).catch(e =>
       console.error('[PendingQueue] ❌ Failed to process pending batch:', e)
     );
   }, 5 * 60 * 1000); // كل 5 دقائق
@@ -651,7 +651,7 @@ export async function broadcastRateChanges(updates: {id?: string, name: string, 
       if (batchedUpdates.length > 0) {
         executeBroadcast(batchedUpdates, false, target).catch(e => console.error("[Smart Queue] Broadcast error:", e));
       }
-    }, 20000); // 20-second aggregation buffer
+    }, 60000); // 60-second aggregation buffer
 
     return;
   }
@@ -660,11 +660,16 @@ export async function broadcastRateChanges(updates: {id?: string, name: string, 
   await executeBroadcast(updates, isTest, target);
 }
 
-export async function executeBroadcast(updates: {id?: string, name: string, oldVal: number, newVal: number, flag: string}[], isTest: boolean = false, target: 'all' | 'telegram' | 'facebook' = 'all') {
+export async function executeBroadcast(
+  updates: {id?: string, name: string, oldVal: number, newVal: number, flag: string}[], 
+  isTest: boolean = false, 
+  target: 'all' | 'telegram' | 'facebook' = 'all',
+  skipFilters: boolean = false
+) {
   if (updates.length === 0) return;
 
   // ─── Smart Broadcast Filters (للوضع الحي فقط، لا تؤثر على الاختبارات) ─────
-  if (!isTest) {
+  if (!isTest && !skipFilters) {
     // الشرط 1 + 2: فلترة العملات غير المؤهلة (تغيير صغير أو وقت مبكر)
     const eligible = filterEligibleUpdates(updates);
     if (eligible.length === 0) {

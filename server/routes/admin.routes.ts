@@ -1128,7 +1128,7 @@ ${updates.join('\n')}
 لا تستخدم أي مقدمات أو خاتمات زائدة من قبيل "حسنا سأقوم بذلك"، فقط الجملة التحليلية المطلوبة. ولا تذكر الأسعار مرة أخرى بالتفصيل بل تحدث عن الاتجاه العام (مثلا السوق راكد، الدولار طاير، اليورو طايح، وهكذا).`;
 
       const response = await ai.models.generateContent({
-          model: 'gemini-2.5-flash',
+          model: 'gemini-flash-latest',
           contents: prompt
       });
       
@@ -1187,7 +1187,7 @@ ${updates.join('\n')}
 
       const ai = new GoogleGenAI({ apiKey });
       const response = await ai.models.generateContent({
-          model: 'gemini-2.5-flash',
+          model: 'gemini-flash-latest',
           contents: prompt
       });
       

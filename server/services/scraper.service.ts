@@ -188,13 +188,108 @@ export function stripArabicDiacritics(text: string): string {
 export const extractRatesFromText = (originalText: string) => {
   const cleanText = stripArabicDiacritics(originalText);
   const results: { code: string, value: number, date?: string }[] = [];
+  const foundCodes = new Set<string>();
   
   const compiledTerms = appConfig.terms.map(t => ({
     ...t,
     compiledRegex: new RegExp(t.regex, 'i')
   }));
 
+  const processTermValue = (term: typeof compiledTerms[0], valStr: string): number | null => {
+    let cleanValStr = valStr.replace(/,/g, ''); 
+    let val = parseFloat(cleanValStr);
+    
+    if (term.id === 'GOLD_LIRA' && val < 500) return null;
+    
+    // Smart extraction for TND (Ensure 1 TND = X LYD format)
+    if (term.id === 'TND') {
+      if (valStr.includes(',')) {
+        val = parseFloat(valStr.replace(/,/g, '.'));
+      }
+      
+      if (val >= 100 && val <= 500) {
+        val = val / 100;
+      } else if (val >= 20 && val < 100) {
+        val = 100 / val;
+      } else if (val < 1.0 && val > 0) {
+        val = 1 / val;
+      }
+    }
+    
+    // Smart extraction for EGP
+    if (term.id === 'EGP') {
+      if (valStr.includes(',')) {
+        val = parseFloat(valStr.replace(/,/g, '.'));
+      }
+      if (val >= 10.0 && val <= 100.0) {
+        val = val / 100;
+      } else if (val >= 2.0 && val < 10.0) {
+        val = 1 / val;
+      }
+    }
+    
+    // Smart extraction for TRY
+    if (term.id === 'TRY') {
+      if (valStr.includes(',')) {
+        val = parseFloat(valStr.replace(/,/g, '.'));
+      }
+      if (val >= 10.0 && val <= 100.0) {
+        val = val / 100;
+      } else if (val >= 2.0 && val < 10.0) {
+        val = 1 / val;
+      }
+    }
+    
+    if (term.isInverse && val > 0) val = 1 / val;
+    
+    if (!isNaN(val) && val >= term.min && val <= term.max) {
+      return val;
+    }
+    return null;
+  };
+
+  const lines = cleanText.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+
+  // 1. Line-by-line pass: prevents multi-line pasted text from bleeding across lines
+  if (lines.length > 1) {
+    for (const line of lines) {
+      for (const term of compiledTerms) {
+        if (foundCodes.has(term.id)) continue;
+        const match = line.match(term.compiledRegex);
+        if (!match) continue;
+
+        const capturedNums = match.slice(1).filter(Boolean);
+        let valStr: string | null = null;
+        if (capturedNums.length >= 2) {
+          const firstNum = capturedNums[0];
+          const secondNum = capturedNums[1];
+          const secondIndex = match.index! + match[0].indexOf(secondNum);
+          if (isProbablyDateOrTime(line, secondIndex, secondNum)) {
+            valStr = firstNum;
+          } else {
+            valStr = secondNum;
+          }
+        } else if (capturedNums.length === 1) {
+          valStr = capturedNums[0];
+        }
+
+        if (valStr) {
+          const val = processTermValue(term, valStr);
+          if (val !== null) {
+            const dateMatch = line.match(/\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}/);
+            const extractedDate = dateMatch ? dateMatch[0] : undefined;
+            results.push({ code: term.id, value: val, date: extractedDate });
+            foundCodes.add(term.id);
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  // 2. Full-text pass for remaining terms or continuous single-paragraph announcements
   for (const term of compiledTerms) {
+    if (foundCodes.has(term.id)) continue;
     const match = cleanText.match(term.compiledRegex);
     if (!match) continue;
 
@@ -223,53 +318,8 @@ export const extractRatesFromText = (originalText: string) => {
     }
 
     if (valStr) {
-      let cleanValStr = valStr.replace(/,/g, ''); 
-      let val = parseFloat(cleanValStr);
-      
-      if (term.id === 'GOLD_LIRA' && val < 500) continue;
-      
-      // Smart extraction for TND (Ensure 1 TND = X LYD format)
-      if (term.id === 'TND') {
-        if (valStr.includes(',')) {
-          val = parseFloat(valStr.replace(/,/g, '.'));
-        }
-        
-        if (val >= 100 && val <= 500) {
-          val = val / 100;
-        } else if (val >= 20 && val < 100) {
-          val = 100 / val;
-        } else if (val < 1.0 && val > 0) {
-          val = 1 / val;
-        }
-      }
-      
-      // Smart extraction for EGP
-      if (term.id === 'EGP') {
-        if (valStr.includes(',')) {
-          val = parseFloat(valStr.replace(/,/g, '.'));
-        }
-        if (val >= 10.0 && val <= 100.0) {
-          val = val / 100;
-        } else if (val >= 2.0 && val < 10.0) {
-          val = 1 / val;
-        }
-      }
-      
-      // Smart extraction for TRY
-      if (term.id === 'TRY') {
-        if (valStr.includes(',')) {
-          val = parseFloat(valStr.replace(/,/g, '.'));
-        }
-        if (val >= 10.0 && val <= 100.0) {
-          val = val / 100;
-        } else if (val >= 2.0 && val < 10.0) {
-          val = 1 / val;
-        }
-      }
-      
-      if (term.isInverse && val > 0) val = 1 / val;
-      
-      if (!isNaN(val) && val >= term.min && val <= term.max) {
+      const val = processTermValue(term, valStr);
+      if (val !== null) {
         const matchIndex = match.index!;
         const lineStart = cleanText.lastIndexOf('\n', matchIndex) + 1;
         let lineEnd = cleanText.indexOf('\n', matchIndex);
@@ -279,6 +329,7 @@ export const extractRatesFromText = (originalText: string) => {
         const dateMatch = lineText.match(/\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}/);
         const extractedDate = dateMatch ? dateMatch[0] : undefined;
         results.push({ code: term.id, value: val, date: extractedDate });
+        foundCodes.add(term.id);
       }
     }
   }

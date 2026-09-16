@@ -37,18 +37,19 @@ export let appConfig: AppConfig = {
     { id: "USD_TR", name: "حوالات تركيا", regex: "(?:(?<!فضة\\s*)تركيا|(?<!فضة\\s*)تركي(?![ا-ي])|حوالة تركي[اة]|حوالات تركي[اة]|🇹🇷)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "tr" },
     { id: "USD_CN", name: "حوالات الصين", regex: "(?:الصين|صينية|حوالة الصين|حوالات الصين|🇨🇳)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "cn" },
     { id: "CNY", name: "يوان صيني", regex: "(?:CNY|cny|يوان|🇨🇳)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 0.5, max: 5.0, isInverse: false, flag: "cn" },
-    { id: "GOLD_EXT_18", name: "ذهب خارجي 18", regex: "(?:ذهب خارجي\\s*18|خارجي\\s*18|عيار\\s*18\\s*خارجي|18\\s*خارجي)[^\\d]{0,40}(\\d{1,5}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 5000, isInverse: false, flag: "gold" },
-    { id: "GOLD_EXT_21", name: "ذهب خارجي 21", regex: "(?:ذهب خارجي\\s*21|خارجي\\s*21|عيار\\s*21\\s*خارجي|21\\s*خارجي)[^\\d]{0,40}(\\d{1,5}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 5000, isInverse: false, flag: "gold" },
-    { id: "GOLD_SCRAP_18", name: "ذهب كسر 18", regex: "(?:ذهب كسر\\s*18|كسر\\s*18|عيار\\s*18\\s*كسر|18\\s*كسر|كسر الذهب عيار\\s*18|كسر ذهب عيار\\s*18)[^\\d]{0,40}(\\d{1,5}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 5000, isInverse: false, flag: "gold" },
-    { id: "GOLD_SCRAP_21", name: "ذهب كسر 21", regex: "(?:ذهب كسر\\s*21|كسر\\s*21|عيار\\s*21\\s*كسر|21\\s*كسر|كسر الذهب عيار\\s*21|كسر ذهب عيار\\s*21)[^\\d]{0,40}(\\d{1,5}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 5000, isInverse: false, flag: "gold" },
-    { id: "GOLD_CAST_18", name: "ذهب مسبوك 18", regex: "(?:ذهب مسبوك\\s*18|مسبوك\\s*18|عيار\\s*18\\s*مسبوك|18\\s*مسبوك)[^\\d]{0,40}(\\d{1,5}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 5000, isInverse: false, flag: "gold" },
-    { id: "GOLD_CAST_21", name: "ذهب مسبوك 21", regex: "(?:ذهب مسبوك\\s*21|مسبوك\\s*21|عيار\\s*21\\s*مسبوك|21\\s*مسبوك)[^\\d]{0,40}(\\d{1,5}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 5000, isInverse: false, flag: "gold" },
-    { id: "GOLD_CAST_24", name: "ذهب مسبوك 24", regex: "(?:ذهب مسبوك\\s*24|مسبوك\\s*24|عيار\\s*24\\s*مسبوك|24\\s*مسبوك)[^\\d]{0,40}(\\d{1,5}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 5000, isInverse: false, flag: "gold" },
-    { id: "GOLD_LIRA_8G", name: "ليرة ذهب 8 جرام", regex: "(?:ليرة ذهب\\s*8(?:\\s*جرام|ج)?|ليرة ذهب|ليرة\\s*8(?:\\s*جرام|ج)?)[^\\d]{0,40}(\\d{1,5}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 20000, isInverse: false, flag: "gold" },
-    { id: "GOLD_MUJARA_14G", name: "مجارة ذهب 14 جرام", regex: "(?:مجارة ذهب\\s*14(?:\\s*جرام|ج)?|مجارة\\s*14(?:\\s*جرام|ج)?|ليرة ذهب\\s*14(?:\\s*جرام|ج)?|ليرة\\s*14(?:\\s*جرام|ج)?)[^\\d]{0,40}(\\d{1,5}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 35000, isInverse: false, flag: "gold" },
-    { id: "GOLD", name: "كسر الذهب", regex: "(?:كسر الذهب|ذهبي|(?<!ليرة\\s*)(?<!مجارة\\s*)(?<!مسبوك\\s*)ذهب(?!\\s*كسر)(?!\\s*مسبوك)(?!\\s*خارجي)|💎)[^\\d]{0,40}(\\d{1,5}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 5000, isInverse: false, flag: "gold" },
-    { id: "SILVER_CAST_1000", name: "مسبوك فضة عيار 1000", regex: "(?:مسبوك فضة عيار 1000|مسبوك فضة 1000|فضة 1000|مسبوك فضة)[^\\d]{0,40}(\\d{1,5}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 500, isInverse: false, flag: "silver" },
-    { id: "SILVER_SCRAP", name: "كسر فضة", regex: "(?:كسر فضة|كسر الفضة|فضة كسر)[^\\d]{0,40}(\\d{1,5}(?:[\\.,]\\d+)?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 500, isInverse: false, flag: "silver" },
+    { id: "GOLD_EXT_18", name: "ذهب خارجي 18", regex: "(?:ذهب\\s*خارجي\\s*18|خارجي\\s*18|عيار\\s*18\\s*خارجي|18\\s*خارجي)[^\\d\\n]{0,30}(\\d{1,5}(?:[\\.,]\\d+)?)(?:[^\\d\\n]{1,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 10000, isInverse: false, flag: "gold" },
+    { id: "GOLD_EXT_21", name: "ذهب خارجي 21", regex: "(?:ذهب\\s*خارجي\\s*21|خارجي\\s*21|عيار\\s*21\\s*خارجي|21\\s*خارجي)[^\\d\\n]{0,30}(\\d{1,5}(?:[\\.,]\\d+)?)(?:[^\\d\\n]{1,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 10000, isInverse: false, flag: "gold" },
+    { id: "GOLD_SCRAP_18", name: "ذهب كسر 18", regex: "(?:ذهب\\s*كسر\\s*18|كسر\\s*18|عيار\\s*18\\s*كسر|18\\s*كسر|كسر\\s*الذهب\\s*عيار\\s*18|كسر\\s*ذهب\\s*عيار\\s*18)[^\\d\\n]{0,30}(\\d{1,5}(?:[\\.,]\\d+)?)(?:[^\\d\\n]{1,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 10000, isInverse: false, flag: "gold" },
+    { id: "GOLD_SCRAP_21", name: "ذهب كسر 21", regex: "(?:ذهب\\s*كسر\\s*21|كسر\\s*21|عيار\\s*21\\s*كسر|21\\s*كسر|كسر\\s*الذهب\\s*عيار\\s*21|كسر\\s*ذهب\\s*عيار\\s*21)[^\\d\\n]{0,30}(\\d{1,5}(?:[\\.,]\\d+)?)(?:[^\\d\\n]{1,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 10000, isInverse: false, flag: "gold" },
+    { id: "GOLD_CAST_18", name: "ذهب مسبوك 18", regex: "(?:ذهب\\s*مسبوك\\s*18|مسبوك\\s*18|عيار\\s*18\\s*مسبوك|18\\s*مسبوك)[^\\d\\n]{0,30}(\\d{1,5}(?:[\\.,]\\d+)?)(?:[^\\d\\n]{1,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 10000, isInverse: false, flag: "gold" },
+    { id: "GOLD_CAST_21", name: "ذهب مسبوك 21", regex: "(?:ذهب\\s*مسبوك\\s*21|مسبوك\\s*21|عيار\\s*21\\s*مسبوك|21\\s*مسبوك)[^\\d\\n]{0,30}(\\d{1,5}(?:[\\.,]\\d+)?)(?:[^\\d\\n]{1,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 10000, isInverse: false, flag: "gold" },
+    { id: "GOLD_CAST_24", name: "ذهب مسبوك 24", regex: "(?:ذهب\\s*مسبوك\\s*24|مسبوك\\s*24|عيار\\s*24\\s*مسبوك|24\\s*مسبوك)[^\\d\\n]{0,30}(\\d{1,5}(?:[\\.,]\\d+)?)(?:[^\\d\\n]{1,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 10000, isInverse: false, flag: "gold" },
+    { id: "GOLD_LIRA_8G", name: "ليرة ذهب 8 جرام", regex: "(?:ليرة\\s*(?:ذهب\\s*)?8(?:\\s*جرام|ج)?|ليرة\\s*8(?:\\s*جرام|ج)?)[^\\d\\n]{0,30}(\\d{1,5}(?:[\\.,]\\d+)?)(?:[^\\d\\n]{1,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 30000, isInverse: false, flag: "gold" },
+    { id: "GOLD_LIRA_14G", name: "ليرة ذهب 14 جرام", regex: "(?:ليرة\\s*(?:ذهب\\s*)?14(?:\\s*جرام|ج)?|ليرة\\s*14(?:\\s*جرام|ج)?)[^\\d\\n]{0,30}(\\d{1,5}(?:[\\.,]\\d+)?)(?:[^\\d\\n]{1,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 40000, isInverse: false, flag: "gold" },
+    { id: "GOLD_MUJARA_14G", name: "مجارة ذهب 14 جرام", regex: "(?:مجارة\\s*(?:ذهب\\s*)?14(?:\\s*جرام|ج)?|مجارة\\s*14(?:\\s*جرام|ج)?)[^\\d\\n]{0,30}(\\d{1,5}(?:[\\.,]\\d+)?)(?:[^\\d\\n]{1,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 40000, isInverse: false, flag: "gold" },
+    { id: "GOLD", name: "كسر الذهب", regex: "(?:كسر الذهب|ذهبي|(?<!ليرة\\s*)(?<!مجارة\\s*)(?<!مسبوك\\s*)ذهب(?!\\s*كسر)(?!\\s*مسبوك)(?!\\s*خارجي)|💎)[^\\d\\n]{0,30}(\\d{1,5}(?:[\\.,]\\d+)?)(?:[^\\d\\n]{1,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 10000, isInverse: false, flag: "gold" },
+    { id: "SILVER_CAST_1000", name: "مسبوك فضة عيار 1000", regex: "(?:مسبوك\\s*فضة(?:\\s*عيار\\s*1000|\\s*1000)?|فضة\\s*مسبوك)[^\\d\\n]{0,30}(\\d{1,5}(?:[\\.,]\\d+)?)(?:[^\\d\\n]{1,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 1000, isInverse: false, flag: "silver" },
+    { id: "SILVER_SCRAP", name: "كسر فضة", regex: "(?:كسر\\s*فضة|كسر\\s*الفضة|فضة\\s*كسر)[^\\d\\n]{0,30}(\\d{1,5}(?:[\\.,]\\d+)?)(?:[^\\d\\n]{1,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 1000, isInverse: false, flag: "silver" },
     { id: "OFFICIAL_USD", name: "الدولار الرسمي", regex: "(?:الرسمي|المركزي)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 4.0, max: 6.0, isInverse: false, flag: "us" }
   ]
 };
@@ -71,12 +72,16 @@ export function applyLoadedConfig(loadedConfig: AppConfig, source: string) {
   const mergedTerms = loadedConfig.terms.map(dbTerm => {
     existingIds.add(dbTerm.id);
     const defaultTerm = appConfig.terms.find(t => t.id === dbTerm.id);
+    const isOutdatedOrNarrow = !dbTerm.regex ||
+      (defaultTerm && (defaultTerm.flag === "gold" || defaultTerm.flag === "silver")) ||
+      (dbTerm.id.startsWith("GOLD_") || dbTerm.id.startsWith("SILVER_"));
+
     return {
       id: dbTerm.id,
       name: dbTerm.name || defaultTerm?.name || dbTerm.id,
-      regex: dbTerm.regex || defaultTerm?.regex || "",
-      min: (typeof dbTerm.min === 'number' && !isNaN(dbTerm.min)) ? dbTerm.min : (defaultTerm?.min ?? 0),
-      max: (typeof dbTerm.max === 'number' && !isNaN(dbTerm.max)) ? dbTerm.max : (defaultTerm?.max ?? 10000),
+      regex: (isOutdatedOrNarrow && defaultTerm?.regex) ? defaultTerm.regex : (dbTerm.regex || defaultTerm?.regex || ""),
+      min: (typeof dbTerm.min === 'number' && !isNaN(dbTerm.min) && (!defaultTerm || dbTerm.min <= defaultTerm.min)) ? dbTerm.min : (defaultTerm?.min ?? 0),
+      max: (typeof dbTerm.max === 'number' && !isNaN(dbTerm.max) && (!defaultTerm || dbTerm.max >= defaultTerm.max)) ? dbTerm.max : (defaultTerm?.max ?? 10000),
       isInverse: typeof dbTerm.isInverse === 'boolean' ? dbTerm.isInverse : (defaultTerm?.isInverse ?? false),
       flag: (dbTerm.flag && dbTerm.flag !== "undefined" && dbTerm.flag !== "null") ? dbTerm.flag : (defaultTerm?.flag || "ly")
     };
