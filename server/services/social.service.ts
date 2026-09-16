@@ -1,6 +1,7 @@
 import { TelegramManager, getTelegramManager } from '../../telegramClient';
 import { appConfig, telegramManager, setTelegramManager } from '../config';
 import { rates } from '../state';
+import { db, supabase, supabaseAnonKey } from '../db';
 
 interface FacebookApiResponse {
   error?: {
@@ -35,17 +36,14 @@ const BROADCAST_HOURLY_LIMIT = 2;
 /** مصفوفة تحتفظ بطوابع زمنية لآخر {BROADCAST_HOURLY_LIMIT} منشورات */
 const recentBroadcastTimestamps: number[] = [];
 
-/** آخر وقت نشر لكل عملة على حدة (المفتاح: id أو name) */
-const lastBroadcastPerCurrency: Record<string, number> = {};
+/** حالة آخر بث منشور لكل عملة (السعر ووقت النشر) - محفوظة في SQLite و Supabase وتُحمّل عند الإقلاع */
+export let lastBroadcastState: Record<string, { price: number; time: number }> = {};
 
 /** الحد الأدنى للتغيير المطلق في السعر للعملات العادية (د.ل) */
 const MIN_PRICE_CHANGE = 0.02;
 
 /** الحد الأدنى للتغيير النسبي للمعادن الثمينة (ذهب / فضة) → 0.5% */
 const MIN_PRICE_CHANGE_PCT_PRECIOUS = 0.005;
-
-/** فاصل زمني أدنى بين نشرَين لنفس العملة = 30 دقيقة */
-const MIN_CURRENCY_INTERVAL_MS = 30 * 60 * 1000;
 // ───────────────────────────────────────────────────────────────────────────
 
 // ─── Pending Queue (تحديثات مُؤجَّلة بسبب حد الساعة) ──────────────────────
@@ -68,7 +66,7 @@ let pendingWatchdogTimer: NodeJS.Timeout | null = null;
 interface RetryJob {
   message: string;
   target: 'all' | 'telegram' | 'facebook';
-  updates: { id?: string; name: string }[];
+  updates: { id?: string; name: string; newVal?: number; oldVal?: number; [key: string]: any }[];
   attempts: number;
   nextRetryAt: number;
 }
@@ -118,58 +116,57 @@ function isPreciousMetal(id?: string): boolean {
 }
 
 /**
- * تفلتر قائمة التحديثات وفق ثلاثة شروط متراتبة:
- *   1. تغيّر السعر بفارق كافٍ (مطلق للعملات، نسبي للمعادن)
- *   2. مضى على آخر نشر لنفس العملة ما لا يقل عن 60 دقيقة
- *   3. ترتيب الأولوية: الأقدم نشراً يأتي أولاً
+ * تفلتر قائمة التحديثات بحيث تكون العملة مؤهلة للبث إذا تحقق أحد الشرطين:
+ *   1. التغير في السعر كبير بما يكفي بمفرده (MIN_PRICE_CHANGE للعملات، MIN_PRICE_CHANGE_PCT_PRECIOUS للمعادن).
+ *   أو
+ *   2. السعر تغير فعلياً (newVal !== oldVal) ومضت 60 دقيقة على الأقل منذ آخر نشر مؤكد للعملة
+ *      باستخدام lastBroadcastState (يعتبر عدم وجود إدخال سابق مؤهلاً فورياً للنشر الأول).
+ *   - الأولوية تُعطى للأقدم نشراً أولاً.
  */
 function filterEligibleUpdates(
   updates: { id?: string; name: string; oldVal: number; newVal: number; flag: string }[]
 ): { id?: string; name: string; oldVal: number; newVal: number; flag: string }[] {
   const now = Date.now();
+  const ONE_HOUR_MS = 60 * 60 * 1000;
 
   return updates
     .filter(u => {
       const diff = Math.abs(u.newVal - u.oldVal);
 
-      // ── شرط 1: حجم التغيير ──────────────────────────────────────────────
+      // ── شرط 1: حجم التغيير كبير بمفرده ──────────────────────────────────
+      let isLargeChange = false;
       if (isPreciousMetal(u.id)) {
         // للمعادن: نسبة مئوية (0.5%) لأن سعرها في المئات أو الآلاف
         const pct = u.oldVal > 0 ? diff / u.oldVal : 0;
-        if (pct < MIN_PRICE_CHANGE_PCT_PRECIOUS) {
-          console.log(
-            `[SmartBroadcast] ⏭ Skipped "${u.name}": change ${(pct * 100).toFixed(3)}% < ${(MIN_PRICE_CHANGE_PCT_PRECIOUS * 100).toFixed(1)}% threshold`
-          );
-          return false;
-        }
+        isLargeChange = pct >= MIN_PRICE_CHANGE_PCT_PRECIOUS;
       } else {
         // للعملات العادية: فارق مطلق (0.02 د.ل)
-        if (diff < MIN_PRICE_CHANGE) {
-          console.log(
-            `[SmartBroadcast] ⏭ Skipped "${u.name}": diff ${diff.toFixed(4)} < ${MIN_PRICE_CHANGE} threshold`
-          );
-          return false;
-        }
+        isLargeChange = diff >= MIN_PRICE_CHANGE;
       }
 
-      // ── شرط 2: الفاصل الزمني (60 دقيقة) ────────────────────────────────
-      const key = u.id || u.name;
-      const lastTime = lastBroadcastPerCurrency[key] || 0;
-      const elapsed = now - lastTime;
-      if (elapsed < MIN_CURRENCY_INTERVAL_MS) {
-        const remainMin = Math.ceil((MIN_CURRENCY_INTERVAL_MS - elapsed) / 60000);
-        console.log(
-          `[SmartBroadcast] ⏳ Skipped "${u.name}": ${Math.floor(elapsed / 60000)}m elapsed, ${remainMin}m remaining`
-        );
-        return false;
+      if (isLargeChange) {
+        return true;
       }
 
-      return true;
+      // ── شرط 2: تغير السعر فعلياً ومضت 60 دقيقة على الأقل منذ آخر نشر مؤكد ──
+      const lastEntry = (u.id && lastBroadcastState[u.id]) || (u.name && lastBroadcastState[u.name]);
+      const lastTime = lastEntry?.time || 0;
+      const hasChanged = u.newVal !== u.oldVal;
+
+      if (hasChanged && (lastTime === 0 || (now - lastTime) >= ONE_HOUR_MS)) {
+        return true;
+      }
+
+      const elapsedMin = lastTime > 0 ? Math.floor((now - lastTime) / 60000) : 0;
+      console.log(
+        `[SmartBroadcast] ⏳ Skipped "${u.name}": small change (${diff.toFixed(4)}) and only ${elapsedMin}m elapsed since last broadcast`
+      );
+      return false;
     })
-    // ── شرط 3: الأولوية للأقدم نشراً (يُنشر أولاً) ──────────────────────
+    // ── ترتيب الأولوية: الأقدم نشراً يُنشر أولاً ──────────────────────────
     .sort((a, b) => {
-      const tA = lastBroadcastPerCurrency[a.id || a.name] || 0;
-      const tB = lastBroadcastPerCurrency[b.id || b.name] || 0;
+      const tA = (a.id && lastBroadcastState[a.id]?.time) || (a.name && lastBroadcastState[a.name]?.time) || 0;
+      const tB = (b.id && lastBroadcastState[b.id]?.time) || (b.name && lastBroadcastState[b.name]?.time) || 0;
       return tA - tB;
     });
 }
@@ -200,15 +197,55 @@ function canBroadcastNow(): boolean {
 }
 
 /**
- * يسجّل وقت النشر في متتبعَي الحد الأقصى والعملة بعد كل بث ناجح.
+ * يسجّل وقت وسعر النشر في lastBroadcastState وفي SQLite و Supabase بعد كل بث ناجح فقط.
  */
-function recordBroadcast(updates: { id?: string; name: string }[]): void {
+function recordBroadcast(updates: { id?: string; name: string; newVal?: number; oldVal?: number; [key: string]: any }[]): void {
   const now = Date.now();
   recentBroadcastTimestamps.push(now);
-  for (const u of updates) {
-    lastBroadcastPerCurrency[u.id || u.name] = now;
-  }
   lastSocialBroadcastTime = now;
+
+  for (const u of updates) {
+    const key = u.id || u.name;
+    if (!key) continue;
+
+    const price = typeof u.newVal === 'number'
+      ? u.newVal
+      : (u.id && rates.parallel[u.id])
+        ? rates.parallel[u.id]
+        : (lastBroadcastState[key]?.price ?? 0);
+
+    lastBroadcastState[key] = { price, time: now };
+    if (u.id && u.name && u.name !== u.id) {
+      lastBroadcastState[u.name] = { price, time: now };
+    }
+
+    // حفظ في SQLite
+    try {
+      db.prepare(`
+        INSERT INTO broadcast_state (term_id, last_price, last_broadcast_time) 
+        VALUES (?, ?, ?)
+        ON CONFLICT(term_id) DO UPDATE SET 
+          last_price = excluded.last_price,
+          last_broadcast_time = excluded.last_broadcast_time
+      `).run(key, price, now);
+    } catch (err) {
+      console.error("[BroadcastState] Local DB save error:", err);
+    }
+
+    // مزامنة مع Supabase في الخلفية
+    if (supabase && supabaseAnonKey && !supabaseAnonKey.includes('dummy')) {
+      supabase.from('broadcast_state').upsert({
+        term_id: key,
+        last_price: price,
+        last_broadcast_time: now
+      }).then(({ error }) => {
+        if (error) console.error("[BroadcastState] Supabase sync error:", error);
+      }, err => {
+        console.error("[BroadcastState] Supabase sync error:", err);
+      });
+    }
+  }
+
   console.log(
     `[SmartBroadcast] ✅ Recorded broadcast for: [${updates.map(u => u.id || u.name).join(', ')}] | Posts this hour: ${recentBroadcastTimestamps.length}/${BROADCAST_HOURLY_LIMIT}`
   );
@@ -225,7 +262,7 @@ function recordBroadcast(updates: { id?: string; name: string }[]): void {
 function scheduleRetry(
   message: string,
   target: 'all' | 'telegram' | 'facebook',
-  updates: { id?: string; name: string }[],
+  updates: { id?: string; name: string; newVal?: number; oldVal?: number; [key: string]: any }[],
   attemptNumber: number
 ): void {
   if (attemptNumber > MAX_RETRY_ATTEMPTS) {
@@ -555,11 +592,9 @@ export async function broadcastToSocialMedia(message: string, isTest: boolean = 
   }
 }
 
-import { db, supabase, supabaseAnonKey } from '../db';
 import { sendPushNotificationToAll } from './push.service';
 
 export let lastOfficialBroadcastDate = "";
-export let lastBroadcastState: Record<string, { price: number, time: number }> = {};
 
 // Smart Queue (Debounce Buffer) to aggregate rapid price updates safely
 export let broadcastQueue: Map<string, { id?: string, name: string, oldVal: number, newVal: number, flag: string }> = new Map();
@@ -690,42 +725,6 @@ export async function executeBroadcast(
 
   const dateStr = now.toLocaleDateString('ar-LY', { timeZone: 'Africa/Tripoli' });
   const timeStr = now.toLocaleTimeString('ar-LY', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit' });
-  
-  if (!isTest) {
-    const nowMs = Date.now();
-    for (const u of updates) {
-      if (u.id) {
-        lastBroadcastState[u.id] = { price: u.newVal, time: nowMs };
-        
-        // Save to SQLite
-        try {
-          db.prepare(`
-            INSERT INTO broadcast_state (term_id, last_price, last_broadcast_time) 
-            VALUES (?, ?, ?)
-            ON CONFLICT(term_id) DO UPDATE SET 
-              last_price = excluded.last_price,
-              last_broadcast_time = excluded.last_broadcast_time
-          `).run(u.id, u.newVal, nowMs);
-        } catch (err) {
-          console.error("[BroadcastState] Local DB save error:", err);
-        }
-
-        // Sync to Supabase in background
-        if (supabase && supabaseAnonKey && !supabaseAnonKey.includes('dummy')) {
-          supabase.from('broadcast_state').upsert({
-            term_id: u.id,
-            last_price: u.newVal,
-            last_broadcast_time: nowMs
-          }).then(({ error }) => {
-            if (error) console.error("[BroadcastState] Supabase sync error:", error);
-          }, err => {
-            console.error("[BroadcastState] Supabase sync error:", err);
-          });
-        }
-      }
-    }
-  }
-  // ------------------------------------------------
 
   const dayNames = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
   let dayName = "الخميس";
