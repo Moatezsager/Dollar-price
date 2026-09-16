@@ -65,6 +65,13 @@ db.exec(`
   );
 `);
 
+// Ensure name column exists in messages
+try {
+  db.prepare("ALTER TABLE messages ADD COLUMN name TEXT").run();
+} catch (e) {
+  // Column already exists
+}
+
 // Initialize Supabase client
 export const supabaseUrl = process.env.VITE_SUPABASE_URL;
 export const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY;

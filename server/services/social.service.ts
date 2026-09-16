@@ -800,3 +800,103 @@ export async function executeBroadcast(
   }
 }
 
+// ───────────────────────────────────────────────────────────────────────────
+// إرسال رسائل الزوار المباشرة إلى الرسائل المحفوظة في حساب تيليجرام
+// ───────────────────────────────────────────────────────────────────────────
+
+export interface VisitorMessagePayload {
+  id?: number | bigint | string;
+  name?: string;
+  email: string;
+  phone: string;
+  message: string;
+  ip?: string;
+  userAgent?: string;
+  referrer?: string;
+  createdAt?: string;
+}
+
+export async function forwardVisitorMessageToTelegram(data: VisitorMessagePayload): Promise<boolean> {
+  const manager = getOrInitTelegramManager();
+  if (!manager) {
+    console.error("[Visitor Messages] TelegramManager not initialized. Please verify Telegram session credentials.");
+    return false;
+  }
+
+  // تنظيف وتجهيز رقم الهاتف لرابط واتساب المباشر (دعم الأرقام الليبية 09X والأرقام الدولية)
+  let cleanPhone = (data.phone || '').replace(/[^0-9]/g, '');
+  if (cleanPhone.startsWith('00218')) {
+    cleanPhone = cleanPhone.slice(2);
+  } else if (cleanPhone.startsWith('0') && cleanPhone.length >= 10) {
+    cleanPhone = '218' + cleanPhone.slice(1);
+  } else if (!cleanPhone.startsWith('218') && cleanPhone.length === 9 && cleanPhone.startsWith('9')) {
+    cleanPhone = '218' + cleanPhone;
+  }
+  const whatsappUrl = cleanPhone ? `https://wa.me/${cleanPhone}` : '';
+
+  // التوقيت المحلي الدقيق لدولة ليبيا (طرابلس)
+  const timeStr = data.createdAt || new Date().toLocaleString('ar-LY', { 
+    timeZone: 'Africa/Tripoli',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true
+  });
+
+  const escapeHtml = (text: string) => (text || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+  const safeName = escapeHtml(data.name?.trim() || 'غير محدد');
+  const safeEmail = escapeHtml(data.email?.trim() || '');
+  const safePhone = escapeHtml(data.phone?.trim() || '');
+  const safeMessage = escapeHtml(data.message?.trim() || '');
+  const safeIp = escapeHtml(data.ip?.trim() || 'غير متوفر');
+  const rawUa = (data.userAgent || 'غير متوفر').slice(0, 150);
+  const safeUserAgent = escapeHtml(rawUa);
+  const safeReferrer = escapeHtml((data.referrer || '').slice(0, 100));
+
+  const htmlMsg = [
+    `📬 <b>رسالة جديدة من زائر الموقع</b>`,
+    `━━━━━━━━━━━━━━━━━━━`,
+    data.id ? `🆔 <b>رقم الرسالة:</b> <code>#${data.id}</code>` : '',
+    `👤 <b>الاسم:</b> ${safeName}`,
+    `📧 <b>البريد:</b> <code>${safeEmail}</code> (<a href="mailto:${safeEmail}">إرسال بريد</a>)`,
+    `📱 <b>الهاتف:</b> <code>${safePhone}</code>${whatsappUrl ? ` (<a href="${whatsappUrl}">محادثة واتساب</a>)` : ''}`,
+    `━━━━━━━━━━━━━━━━━━━`,
+    `📝 <b>نص الرسالة:</b>`,
+    `<blockquote>${safeMessage}</blockquote>`,
+    `━━━━━━━━━━━━━━━━━━━`,
+    `🌐 <b>بيانات تقنية للزائر:</b>`,
+    `📍 <b>عنوان الـ IP:</b> <code>${safeIp}</code>`,
+    `💻 <b>المتصفح/الجهاز:</b> <code>${safeUserAgent}</code>`,
+    safeReferrer ? `🔗 <b>المصدر:</b> <code>${safeReferrer}</code>` : '',
+    `⏰ <b>التوقيت:</b> ${timeStr}`
+  ].filter(Boolean).join('\n');
+
+  const maxAttempts = 2;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const success = await manager.sendMessage('me', htmlMsg, { parseMode: 'html', linkPreview: false });
+      if (success) {
+        console.log(`[Visitor Messages] Message #${data.id || 'new'} delivered successfully to Telegram Saved Messages.`);
+        return true;
+      }
+      console.warn(`[Visitor Messages] Delivery attempt ${attempt} failed: ${manager.lastError || 'Unknown error'}`);
+    } catch (err: any) {
+      console.warn(`[Visitor Messages] Delivery attempt ${attempt} threw exception: ${err.message || err}`);
+    }
+
+    if (attempt < maxAttempts) {
+      await new Promise(r => setTimeout(r, 2000));
+    }
+  }
+
+  console.error(`[Visitor Messages] Failed to forward visitor message #${data.id || 'new'} to Telegram after ${maxAttempts} attempts.`);
+  return false;
+}
+

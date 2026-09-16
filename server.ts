@@ -54,7 +54,8 @@ import {
   telegramBroadcastStatus, 
   lastSocialBroadcastTime,
   lastBroadcastState,
-  getOrInitTelegramManager
+  getOrInitTelegramManager,
+  forwardVisitorMessageToTelegram
 } from './server/services/social.service';
 import {
   dailyStats,
@@ -610,9 +611,9 @@ async function startServer() {
     message: { error: "لقد تجاوزت الحد المسموح به من الرسائل. يرجى المحاولة لاحقاً." }
   });
 
-  app.post("/api/messages", messageRateLimiter, (req: express.Request, res: express.Response) => {
+  app.post("/api/messages", messageRateLimiter, async (req: express.Request, res: express.Response) => {
     try {
-      const { email, phone, message } = req.body;
+      const { name, email, phone, message } = req.body;
       
       if (!email || !phone || !message) {
         return res.status(400).json({ error: "جميع الحقول مطلوبة" });
@@ -626,40 +627,71 @@ async function startServer() {
         return res.status(400).json({ error: "تم رفض الرسالة بسبب محتواها أو طولها." });
       }
 
-      const stmt = db.prepare('INSERT INTO messages (email, phone, message) VALUES (?, ?, ?)');
-      stmt.run(email, phone, message);
+      const visitorName = typeof name === 'string' && name.trim() ? name.trim() : 'زائر';
+      
+      let messageId: number | bigint = 0;
+      try {
+        const stmt = db.prepare('INSERT INTO messages (name, email, phone, message) VALUES (?, ?, ?, ?)');
+        const info = stmt.run(visitorName, email, phone, message);
+        messageId = info.lastInsertRowid;
+      } catch (dbErr) {
+        // Fallback if schema doesn't have name column yet
+        const fallbackStmt = db.prepare('INSERT INTO messages (email, phone, message) VALUES (?, ?, ?)');
+        const info = fallbackStmt.run(email, phone, message);
+        messageId = info.lastInsertRowid;
+      }
+
+      const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || '';
+      const userAgent = (req.headers['user-agent'] as string) || '';
+      const referrer = (req.headers['referer'] as string) || (req.headers['referrer'] as string) || '';
       
       // التزامن مع قاعدة البيانات السحابية (Supabase)
       if (supabase) {
         supabase.from('visitor_messages').insert([{
+          name: visitorName,
           email,
           phone,
           message,
+          ip,
+          user_agent: userAgent,
           status: 'new'
         }]).then(({error}) => {
-          if (error) console.error("Supabase Visitor Message sync failed:", error.message);
+          if (error) {
+            // Try without additional columns if table has standard schema
+            supabase?.from('visitor_messages').insert([{
+              email,
+              phone,
+              message,
+              status: 'new'
+            }]).then(({error: err2}) => {
+              if (err2) console.error("Supabase Visitor Message sync failed:", err2.message);
+            });
+          }
         });
       }
 
-      // إرسال تنبيه احترافي على تيليجرام (الرسائل المحفوظة)
-      const tgMgr = getOrInitTelegramManager();
-      if (tgMgr) {
-        const tgMsg = `📬 *رسالة جديدة من زائر*
-━━━━━━━━━━━━━━━━━
-👤 *البريد:* ${email}
-📱 *الهاتف:* ${phone}
-📝 *الرسالة:*
-${message}
-━━━━━━━━━━━━━━━━━
-⏰ *التوقيت:* ${new Date().toLocaleString('ar-LY', { timeZone: 'Africa/Tripoli' })}`;
-
-        tgMgr.sendMessage('me', tgMsg).catch(err => {
-          console.error("Failed to send visitor message to Telegram Saved Messages:", err);
-        });
-      }
+      // إرسال تنبيه احترافي على تيليجرام (الرسائل المحفوظة) مع كامل التفاصيل
+      forwardVisitorMessageToTelegram({
+        id: messageId,
+        name: visitorName,
+        email,
+        phone,
+        message,
+        ip,
+        userAgent,
+        referrer
+      }).then(delivered => {
+        if (delivered && messageId) {
+          try {
+            db.prepare("UPDATE messages SET status = 'sent_to_telegram' WHERE id = ?").run(messageId);
+          } catch (e) {}
+        }
+      }).catch(err => {
+        console.error("Failed to forward visitor message to Telegram Saved Messages:", err);
+      });
       
       res.json({ success: true, message: "تم إرسال رسالتك بنجاح. سيتم الرد عليك في أقل من 24 ساعة." });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error saving message:", error);
       res.status(500).json({ error: "حدث خطأ أثناء حفظ الرسالة", details: error.message || error.toString() });
     }

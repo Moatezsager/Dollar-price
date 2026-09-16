@@ -188,7 +188,11 @@ export class TelegramManager {
   /**
    * Sends a message to a channel.
    */
-  public async sendMessage(channelUsername: string, message: string): Promise<boolean> {
+  public async sendMessage(
+    channelUsername: string, 
+    message: string, 
+    options?: { parseMode?: 'html' | 'md'; linkPreview?: boolean }
+  ): Promise<boolean> {
     const client = await this.getClient();
     if (!client) {
       this.lastError = "Client not ready or not authorized";
@@ -199,8 +203,22 @@ export class TelegramManager {
     try {
       this.lastError = "";
       if (channelUsername === 'me') {
-        await client.sendMessage('me', { message });
-        return true;
+        try {
+          await client.sendMessage('me', { 
+            message,
+            parseMode: options?.parseMode,
+            linkPreview: options?.linkPreview ?? false
+          });
+          return true;
+        } catch (meError: any) {
+          if (options?.parseMode) {
+            console.warn(`[TelegramManager] Sending with parseMode ${options.parseMode} failed (${meError.message}), falling back to plain text for 'me'...`);
+            const plain = message.replace(/<[^>]+>/g, '');
+            await client.sendMessage('me', { message: plain, linkPreview: false });
+            return true;
+          }
+          throw meError;
+        }
       }
 
       let username = channelUsername.trim();
@@ -230,7 +248,11 @@ export class TelegramManager {
         }
       }
 
-      await client.sendMessage(entity || username, { message });
+      await client.sendMessage(entity || username, { 
+        message,
+        parseMode: options?.parseMode,
+        linkPreview: options?.linkPreview ?? true
+      });
       console.log(`[TelegramManager] Successfully sent message to ${channelUsername}`);
       return true;
     } catch (error: any) {

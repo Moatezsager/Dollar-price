@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Mail, Phone, MessageSquare, Send, CheckCircle2, AlertCircle, ArrowRight } from 'lucide-react';
+import { Mail, Phone, MessageSquare, Send, CheckCircle2, AlertCircle, ArrowRight, User } from 'lucide-react';
 
 export const Contact = ({ onBack }: { onBack?: () => void }) => {
   const [formData, setFormData] = useState({
+    name: '',
     email: '',
     phone: '',
     message: ''
@@ -29,7 +30,7 @@ export const Contact = ({ onBack }: { onBack?: () => void }) => {
 
       if (response.ok) {
         setStatus('success');
-        setFormData({ email: '', phone: '', message: '' });
+        setFormData({ name: '', email: '', phone: '', message: '' });
       } else {
         setStatus('error');
         setErrorMessage(data.error || 'حدث خطأ أثناء إرسال الرسالة');
@@ -110,6 +111,20 @@ export const Contact = ({ onBack }: { onBack?: () => void }) => {
                 <p>{errorMessage}</p>
               </div>
             )}
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-300 flex items-center gap-2">
+                <User className="w-4 h-4 text-emerald-400" />
+                الاسم (اختياري)
+              </label>
+              <input
+                type="text"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder="اسمك الكريم"
+                className="w-full bg-[#0f172a]/40 border border-slate-700/50 rounded-2xl px-4 py-3.5 sm:py-4 text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 focus:bg-[#1e293b]/60 transition-all text-base sm:text-sm"
+              />
+            </div>
 
             <div className="space-y-2">
               <label className="text-sm font-medium text-slate-300 flex items-center gap-2">
