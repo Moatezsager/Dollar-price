@@ -19,8 +19,8 @@ export let appConfig: AppConfig = {
     { id: "USD", name: "دولار أمريكي", regex: "(?:USD|usd|الدولار|دولار|الخضراء|خضراء|كاش|💵|🇺🇸)(?!\\s*صكوك|\\s*بصك|\\s*شيك)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "us" },
     { id: "EUR", name: "يورو", regex: "(?:EUR|eur|يورو|اليورو|💶|🇪🇺)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "eu" },
     { id: "GBP", name: "جنيه إسترليني", regex: "(?:GBP|gbp|باوند|استرليني|الباوند|💷|🇬🇧)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 25.0, isInverse: false, flag: "gb" },
-    { id: "TND", name: "دينار تونسي", regex: "(?:TND|tnd|تونسي|تونس(?![ا-ي])|🇹🇳)[^\\d]{0,40}?(?:100|1)?\\s*(?:=|ب|\\-)?\\s*(?<!\\d)((?!(?:100|1)\\s*(?:=|ب|دينار|ليبي|\\-))\\d{1,3}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,30}(?<!\\d)((?!(?:100|1)\\s*(?:=|ب|دينار|ليبي|\\-))\\d{1,3}(?:[\\.,]\\d{1,4})?))?", min: 0.1, max: 400.0, isInverse: false, flag: "tn" },
-    { id: "EGP", name: "جنيه مصري", regex: "(?:EGP|egp|مصري|مصر(?![ا-ي])|🇪🇬)[^\\d]{0,40}?(?:100|1)?\\s*(?:=|ب|\\-)?\\s*(?<!\\d)((?!(?:100|1)\\s*(?:=|ب|دينار|ليبي|\\-))\\d{1,3}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,30}(?<!\\d)((?!(?:100|1)\\s*(?:=|ب|دينار|ليبي|\\-))\\d{1,3}(?:[\\.,]\\d{1,4})?))?", min: 0.01, max: 5.0, isInverse: false, flag: "eg" },
+    { id: "TND", name: "دينار تونسي", regex: "(?:TND|tnd|تونسي|تونس(?![ا-ي])|🇹🇳)[^\\d]{0,40}?(?:100|1)?\\s*(?:=|ب|\\-)?\\s*(?<!\\d)((?!(?:100|1)\\s*(?:=|ب|دينار|ليبي|\\-))\\d{1,3}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,30}(?<!\\d)((?!(?:100|1)\\s*(?:=|ب|دينار|ليبي|\\-))\\d{1,3}(?:[\\.,]\\d{1,4})?))?", min: 2.5, max: 3.8, isInverse: false, flag: "tn" },
+    { id: "EGP", name: "جنيه مصري", regex: "(?:EGP|egp|مصري|مصر(?![ا-ي])|🇪🇬)[^\\d]{0,40}?(?:100|1)?\\s*(?:=|ب|\\-)?\\s*(?<!\\d)((?!(?:100|1)\\s*(?:=|ب|دينار|ليبي|\\-))\\d{1,3}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,30}(?<!\\d)((?!(?:100|1)\\s*(?:=|ب|دينار|ليبي|\\-))\\d{1,3}(?:[\\.,]\\d{1,4})?))?", min: 0.13, max: 0.28, isInverse: false, flag: "eg" },
     { id: "TRY", name: "ليرة تركية", regex: "(?:TRY|try|ليرة(?!\\s*ذهب)|(?<!حوالة\\s*)(?<!حوالات\\s*)تركي(?![ا-ي])|🇹🇷)[^\\d]{0,40}?(?:100|1)?\\s*(?:=|ب|\\-)?\\s*(?<!\\d)((?!(?:100|1)\\s*(?:=|ب|دينار|ليبي|\\-))\\d{1,3}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,30}(?<!\\d)((?!(?:100|1)\\s*(?:=|ب|دينار|ليبي|\\-))\\d{1,3}(?:[\\.,]\\d{1,4})?))?", min: 0.01, max: 5.0, isInverse: false, flag: "tr" },
     { id: "JOD", name: "دينار أردني", regex: "(?:JOD|jod|أردني|🇯🇴)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 5.0, max: 30.0, isInverse: false, flag: "jo" },
     { id: "BHD", name: "دينار بحريني", regex: "(?:BHD|bhd|بحريني|🇧🇭)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)(?:\\s+(?:بيع|شراء)?[^\\d]{0,15}(\\d{1,2}(?:[\\.,]\\d{1,4})?))?", min: 10.0, max: 50.0, isInverse: false, flag: "bh" },
@@ -74,14 +74,16 @@ export function applyLoadedConfig(loadedConfig: AppConfig, source: string) {
     const defaultTerm = appConfig.terms.find(t => t.id === dbTerm.id);
     const isOutdatedOrNarrow = !dbTerm.regex ||
       (defaultTerm && (defaultTerm.flag === "gold" || defaultTerm.flag === "silver")) ||
-      (dbTerm.id.startsWith("GOLD_") || dbTerm.id.startsWith("SILVER_"));
+      (dbTerm.id.startsWith("GOLD_") || dbTerm.id.startsWith("SILVER_")) ||
+      (dbTerm.id === "TND" && (dbTerm.max > 3.8 || dbTerm.min < 2.5)) ||
+      (dbTerm.id === "EGP" && (dbTerm.max > 0.28 || dbTerm.min < 0.13));
 
     return {
       id: dbTerm.id,
       name: dbTerm.name || defaultTerm?.name || dbTerm.id,
       regex: (isOutdatedOrNarrow && defaultTerm?.regex) ? defaultTerm.regex : (dbTerm.regex || defaultTerm?.regex || ""),
-      min: (typeof dbTerm.min === 'number' && !isNaN(dbTerm.min) && (!defaultTerm || dbTerm.min <= defaultTerm.min)) ? dbTerm.min : (defaultTerm?.min ?? 0),
-      max: (typeof dbTerm.max === 'number' && !isNaN(dbTerm.max) && (!defaultTerm || dbTerm.max >= defaultTerm.max)) ? dbTerm.max : (defaultTerm?.max ?? 10000),
+      min: (isOutdatedOrNarrow && defaultTerm) ? defaultTerm.min : ((typeof dbTerm.min === 'number' && !isNaN(dbTerm.min) && (!defaultTerm || dbTerm.min <= defaultTerm.min)) ? dbTerm.min : (defaultTerm?.min ?? 0)),
+      max: (isOutdatedOrNarrow && defaultTerm) ? defaultTerm.max : ((typeof dbTerm.max === 'number' && !isNaN(dbTerm.max) && (!defaultTerm || dbTerm.max >= defaultTerm.max)) ? dbTerm.max : (defaultTerm?.max ?? 10000)),
       isInverse: typeof dbTerm.isInverse === 'boolean' ? dbTerm.isInverse : (defaultTerm?.isInverse ?? false),
       flag: (dbTerm.flag && dbTerm.flag !== "undefined" && dbTerm.flag !== "null") ? dbTerm.flag : (defaultTerm?.flag || "ly")
     };

@@ -695,6 +695,117 @@ export async function broadcastRateChanges(updates: {id?: string, name: string, 
   await executeBroadcast(updates, isTest, target);
 }
 
+// ─── ترتيب مخصص لعرض العملات في نص الرسالة المنشورة ───────────────────────
+/**
+ * الترتيب الثابت والمخصص لعرض العملات في نص الرسالة المنشورة:
+ * 1. الدولار الأمريكي (كاش) - USD العادي
+ * 2. الدولار الأمريكي (صكوك)
+ * 3. اليورو
+ * 4. الجنيه الإسترليني
+ * 5. الدينار التونسي
+ * 6. الجنيه المصري
+ * 7. الدينار الأردني
+ * 8. الحوالات مجمّعة مع بعض بالترتيب: حوالات تركيا، حوالات دبي، حوالات الصين
+ * أي عملات أخرى تضاف في النهاية بترتيبها الأصلي دون حذف.
+ */
+const BROADCAST_DISPLAY_ORDER: string[] = [
+  'USD',          // 1. الدولار الأمريكي (كاش)
+  'USD_CHECKS',   // 2. الدولار الأمريكي (صكوك)
+  'USD_JBANK',    // صكوك الجمهورية
+  'USD_BCD',      // صكوك التجارة
+  'USD_NCB',      // صكوك التجاري
+  'USD_AB',       // صكوك الأمان
+  'USD_WB',       // صكوك الوحدة
+  'EUR',          // 3. اليورو
+  'GBP',          // 4. الجنيه الإسترليني
+  'TND',          // 5. الدينار التونسي
+  'EGP',          // 6. الجنيه المصري
+  'JOD',          // 7. الدينار الأردني
+  'USD_TR',       // 8. حوالات تركيا
+  'USD_AE',       // حوالات دبي
+  'USD_CN',       // حوالات الصين
+];
+
+/**
+ * تحديد رتبة العنصر لعرضه في الرسالة فقط دون المساس بقرارات النشر أو الفلترة
+ */
+function getBroadcastDisplayRank(u: { id?: string; name?: string }): number {
+  const id = (u.id || '').toUpperCase();
+  const name = u.name || '';
+
+  // 1. الدولار الأمريكي (كاش)
+  if (
+    id === 'USD' || 
+    (name.includes('دولار') && !name.includes('صك') && !name.includes('شيك') && !name.includes('رسمي') && !name.includes('حوال') && !id.includes('OFFICIAL') && !id.includes('TR') && !id.includes('AE') && !id.includes('CN'))
+  ) {
+    return 10;
+  }
+
+  // 2. الدولار الأمريكي (صكوك)
+  if (
+    id === 'USD_CHECKS' ||
+    id === 'USD_SUKUK' ||
+    id === 'USD_JBANK' ||
+    id === 'USD_BCD' ||
+    id === 'USD_NCB' ||
+    id === 'USD_AB' ||
+    id === 'USD_WB' ||
+    name.includes('صكوك') ||
+    name.includes('صك') ||
+    name.includes('شيك')
+  ) {
+    if (id === 'USD_CHECKS' || id === 'USD_SUKUK' || name === 'دولار أمريكي (صكوك)') return 20;
+    if (id === 'USD_JBANK' || name.includes('الجمهورية')) return 21;
+    if (id === 'USD_BCD' || name.includes('التجارة')) return 22;
+    if (id === 'USD_NCB' || name.includes('التجاري')) return 23;
+    if (id === 'USD_AB' || name.includes('الأمان') || name.includes('الامان')) return 24;
+    if (id === 'USD_WB' || name.includes('الوحدة')) return 25;
+    return 29;
+  }
+
+  // 3. اليورو
+  if (id === 'EUR' || name.includes('يورو')) {
+    return 30;
+  }
+
+  // 4. الجنيه الإسترليني
+  if (id === 'GBP' || name.includes('إسترليني') || name.includes('استرليني') || name.includes('باوند')) {
+    return 40;
+  }
+
+  // 5. الدينار التونسي
+  if (id === 'TND' || name.includes('تونسي')) {
+    return 50;
+  }
+
+  // 6. الجنيه المصري
+  if (id === 'EGP' || name.includes('مصري')) {
+    return 60;
+  }
+
+  // 7. الدينار الأردني
+  if (id === 'JOD' || name.includes('أردني') || name.includes('اردني')) {
+    return 70;
+  }
+
+  // 8. الحوالات مجمّعة مع بعض بالترتيب:
+  // 8.1 حوالات تركيا
+  if (id === 'USD_TR' || (name.includes('حوال') && (name.includes('تركيا') || name.includes('تركي')))) {
+    return 81;
+  }
+  // 8.2 حوالات دبي
+  if (id === 'USD_AE' || (name.includes('حوال') && (name.includes('دبي') || name.includes('امارات') || name.includes('إمارات')))) {
+    return 82;
+  }
+  // 8.3 حوالات الصين
+  if (id === 'USD_CN' || (name.includes('حوال') && (name.includes('صين') || name.includes('الصين')))) {
+    return 83;
+  }
+
+  // أي عملة أخرى تأتي في النهاية
+  return 9999;
+}
+
 export async function executeBroadcast(
   updates: {id?: string, name: string, oldVal: number, newVal: number, flag: string}[], 
   isTest: boolean = false, 
@@ -744,13 +855,16 @@ export async function executeBroadcast(
   message += `━━━━━━━━━━━━━━━━━━━\n`;
   message += `📅 ${dayName}، ${dateStr} | ⏰ ${timeStr}\n\n`;
 
-  for (const u of updates) {
+  // ترتيب مخصص لعرض العملات في نص الرسالة فقط دون التأثير على معالجة التحديثات الأخرى
+  const displayUpdates = [...updates].sort((a, b) => getBroadcastDisplayRank(a) - getBroadcastDisplayRank(b));
+
+  for (const u of displayUpdates) {
     const isUp = u.newVal > u.oldVal;
     const isDown = u.newVal < u.oldVal;
     const diff = Math.abs(u.newVal - u.oldVal);
     let fe = flagMap[u.flag] || '💰';
-    if (u.id.startsWith('GOLD')) fe = '✨';
-    if (u.id.startsWith('SILVER')) fe = '🪙';
+    if (u.id?.startsWith('GOLD')) fe = '✨';
+    if (u.id?.startsWith('SILVER')) fe = '🪙';
     
     let changeText = '➖ استقرار';
     if (isUp) changeText = `🔺 ارتفاع بمقدار ${diff.toFixed(3)}`;
