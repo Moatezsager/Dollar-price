@@ -902,7 +902,7 @@ export async function executeBroadcast(
 
   // SEND PUSH NOTIFICATION
   if (!isTest) {
-    const mainUpdates = updates.filter(u => u.id === 'USD' || u.id === 'EUR' || u.id === 'GOLD' || u.id === 'GOLD_CAST_21').slice(0, 2);
+    const mainUpdates = updates.filter(u => u.id === 'USD' || u.id === 'EUR' || u.id === 'GOLD_CAST_24' || u.id === 'GOLD_CAST_18').slice(0, 2);
     if (mainUpdates.length > 0) {
       const pushTitle = 'تحديث جديد لأسعار السوق';
       const pushBody = mainUpdates.map(u => `${u.name}: ${u.newVal.toFixed(3)}`).join(' | ');

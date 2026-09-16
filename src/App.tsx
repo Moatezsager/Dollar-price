@@ -115,19 +115,16 @@ const PARALLEL_DETAILS = [
 ];
 
 const METAL_IDS = [
-  "GOLD", 
-  "GOLD_EXT_18", 
-  "GOLD_EXT_21", 
-  "GOLD_SCRAP_18", 
-  "GOLD_SCRAP_21", 
-  "GOLD_CAST_18", 
-  "GOLD_CAST_21", 
-  "GOLD_CAST_24", 
-  "GOLD_LIRA_8G", 
+  "GOLD_CAST_18",
+  "GOLD_CAST_24",
+  "GOLD_EXT_18",
+  "GOLD_EXT_21",
+  "GOLD_SCRAP_18",
+  "GOLD_SCRAP_21",
+  "GOLD_LIRA_8G",
   "GOLD_LIRA_14G",
-  "GOLD_MUJARA_14G", 
-  "SILVER_CAST_1000",
-  "SILVER_SCRAP"
+  "GOLD_MUJARA_14G",
+  "SILVER_CAST_1000"
 ];
 
 const PostInstallNotification = ({ onClose }: { onClose: () => void }) => {

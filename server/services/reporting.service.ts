@@ -45,7 +45,7 @@ export async function broadcastDailyReport() {
   let message = `📊 *المؤشر | تقرير نهاية اليوم*\n📅 ${dateStr}\n━━━━━━━━━━━━━━━━━\n\n`;
   
   const mainCurrencies = ['USD', 'USD_CHECKS', 'EUR', 'GBP'];
-  const goldCurrencies = ['GOLD_CAST_24', 'GOLD_CAST_21', 'GOLD_CAST_18', 'GOLD'];
+  const goldCurrencies = ['GOLD_CAST_24', 'GOLD_CAST_18', 'GOLD_EXT_21', 'GOLD_EXT_18'];
   
   for (const cid of mainCurrencies) {
     const stat = dailyStats[cid];
@@ -146,7 +146,7 @@ export async function broadcastWeeklyReport(isTest: boolean = false) {
   message += `━━━━━━━━━━━━━━━━━━━\n\n`;
   
   const mainCurrencies = ['USD', 'EUR', 'GBP', 'USD_CHECKS'];
-  const goldCurrencies = ['GOLD_CAST_24', 'GOLD_CAST_21', 'GOLD'];
+  const goldCurrencies = ['GOLD_CAST_24', 'GOLD_CAST_18', 'GOLD_EXT_21', 'GOLD_EXT_18'];
   
   for (const cid of mainCurrencies) {
     const stat = stats[cid];

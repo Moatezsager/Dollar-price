@@ -42,14 +42,11 @@ export let appConfig: AppConfig = {
     { id: "GOLD_SCRAP_18", name: "ذهب كسر 18", regex: "(?:ذهب\\s*كسر\\s*18|كسر\\s*18|عيار\\s*18\\s*كسر|18\\s*كسر|كسر\\s*الذهب\\s*عيار\\s*18|كسر\\s*ذهب\\s*عيار\\s*18)[^\\d\\n]{0,30}(\\d{1,5}(?:[\\.,]\\d+)?)(?:[^\\d\\n]{1,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 10000, isInverse: false, flag: "gold" },
     { id: "GOLD_SCRAP_21", name: "ذهب كسر 21", regex: "(?:ذهب\\s*كسر\\s*21|كسر\\s*21|عيار\\s*21\\s*كسر|21\\s*كسر|كسر\\s*الذهب\\s*عيار\\s*21|كسر\\s*ذهب\\s*عيار\\s*21)[^\\d\\n]{0,30}(\\d{1,5}(?:[\\.,]\\d+)?)(?:[^\\d\\n]{1,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 10000, isInverse: false, flag: "gold" },
     { id: "GOLD_CAST_18", name: "ذهب مسبوك 18", regex: "(?:ذهب\\s*مسبوك\\s*18|مسبوك\\s*18|عيار\\s*18\\s*مسبوك|18\\s*مسبوك)[^\\d\\n]{0,30}(\\d{1,5}(?:[\\.,]\\d+)?)(?:[^\\d\\n]{1,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 10000, isInverse: false, flag: "gold" },
-    { id: "GOLD_CAST_21", name: "ذهب مسبوك 21", regex: "(?:ذهب\\s*مسبوك\\s*21|مسبوك\\s*21|عيار\\s*21\\s*مسبوك|21\\s*مسبوك)[^\\d\\n]{0,30}(\\d{1,5}(?:[\\.,]\\d+)?)(?:[^\\d\\n]{1,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 10000, isInverse: false, flag: "gold" },
     { id: "GOLD_CAST_24", name: "ذهب مسبوك 24", regex: "(?:ذهب\\s*مسبوك\\s*24|مسبوك\\s*24|عيار\\s*24\\s*مسبوك|24\\s*مسبوك)[^\\d\\n]{0,30}(\\d{1,5}(?:[\\.,]\\d+)?)(?:[^\\d\\n]{1,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 10000, isInverse: false, flag: "gold" },
     { id: "GOLD_LIRA_8G", name: "ليرة ذهب 8 جرام", regex: "(?:ليرة\\s*(?:ذهب\\s*)?8(?:\\s*جرام|ج)?|ليرة\\s*8(?:\\s*جرام|ج)?)[^\\d\\n]{0,30}(\\d{1,5}(?:[\\.,]\\d+)?)(?:[^\\d\\n]{1,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 30000, isInverse: false, flag: "gold" },
     { id: "GOLD_LIRA_14G", name: "ليرة ذهب 14 جرام", regex: "(?:ليرة\\s*(?:ذهب\\s*)?14(?:\\s*جرام|ج)?|ليرة\\s*14(?:\\s*جرام|ج)?)[^\\d\\n]{0,30}(\\d{1,5}(?:[\\.,]\\d+)?)(?:[^\\d\\n]{1,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 40000, isInverse: false, flag: "gold" },
-    { id: "GOLD_MUJARA_14G", name: "مجارة ذهب 14 جرام", regex: "(?:مجارة\\s*(?:ذهب\\s*)?14(?:\\s*جرام|ج)?|مجارة\\s*14(?:\\s*جرام|ج)?)[^\\d\\n]{0,30}(\\d{1,5}(?:[\\.,]\\d+)?)(?:[^\\d\\n]{1,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 40000, isInverse: false, flag: "gold" },
-    { id: "GOLD", name: "كسر الذهب", regex: "(?:كسر الذهب|ذهبي|(?<!ليرة\\s*)(?<!مجارة\\s*)(?<!مسبوك\\s*)ذهب(?!\\s*كسر)(?!\\s*مسبوك)(?!\\s*خارجي)|💎)[^\\d\\n]{0,30}(\\d{1,5}(?:[\\.,]\\d+)?)(?:[^\\d\\n]{1,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 10000, isInverse: false, flag: "gold" },
-    { id: "SILVER_CAST_1000", name: "مسبوك فضة عيار 1000", regex: "(?:مسبوك\\s*فضة(?:\\s*عيار\\s*1000|\\s*1000)?|فضة\\s*مسبوك)[^\\d\\n]{0,30}(\\d{1,5}(?:[\\.,]\\d+)?)(?:[^\\d\\n]{1,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 1000, isInverse: false, flag: "silver" },
-    { id: "SILVER_SCRAP", name: "كسر فضة", regex: "(?:كسر\\s*فضة|كسر\\s*الفضة|فضة\\s*كسر)[^\\d\\n]{0,30}(\\d{1,5}(?:[\\.,]\\d+)?)(?:[^\\d\\n]{1,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 1000, isInverse: false, flag: "silver" },
+    { id: "GOLD_MUJARA_14G", name: "مجارة ذهب 14", regex: "(?:مجارة\\s*(?:ذهب\\s*)?14(?:\\s*جرام|ج)?|مجارة\\s*14(?:\\s*جرام|ج)?)[^\\d\\n]{0,30}(\\d{1,5}(?:[\\.,]\\d+)?)(?:[^\\d\\n]{1,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 40000, isInverse: false, flag: "gold" },
+    { id: "SILVER_CAST_1000", name: "مسبوك فضة", regex: "(?:مسبوك\\s*فضة(?:\\s*عيار\\s*1000|\\s*1000)?|فضة\\s*مسبوك)[^\\d\\n]{0,30}(\\d{1,5}(?:[\\.,]\\d+)?)(?:[^\\d\\n]{1,15}(\\d{1,5}(?:[\\.,]\\d+)?))?", min: 1, max: 1000, isInverse: false, flag: "silver" },
     { id: "OFFICIAL_USD", name: "الدولار الرسمي", regex: "(?:الرسمي|المركزي)[^\\d]{0,40}(\\d{1,2}(?:[\\.,]\\d{1,4})?)", min: 4.0, max: 6.0, isInverse: false, flag: "us" }
   ]
 };
@@ -95,7 +92,8 @@ export function applyLoadedConfig(loadedConfig: AppConfig, source: string) {
       console.log(`[Migration] Added new missing currency term: ${defaultTerm.id}`);
     }
   }
-  loadedConfig.terms = mergedTerms;
+  // Filter out any obsolete gold/silver categories to keep exactly the 10 metals
+  loadedConfig.terms = mergedTerms.filter(t => t.id !== "GOLD" && t.id !== "GOLD_CAST_21" && t.id !== "SILVER_SCRAP");
 
   if (!Array.isArray(loadedConfig.channels) || loadedConfig.channels.length === 0) {
     loadedConfig.channels = ["dollarr_ly", "musheermarket", "lydollar", "suqalmushir"];
