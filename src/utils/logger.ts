@@ -12,6 +12,9 @@ export const logErrorToServer = async (error: Error | string | unknown, context?
       if (error instanceof TypeError && errMsg === 'Failed to fetch') {
         return; // Ignore network connection errors to prevent log spam
       }
+      if (typeof errMsg === 'string' && (errMsg.includes('WebSocket closed') || errMsg.includes('websocket') || errMsg.includes('vite'))) {
+        return; // Ignore benign Vite HMR websocket closure in container sandbox
+      }
     }
 
     if (error instanceof Error) {
@@ -21,6 +24,9 @@ export const logErrorToServer = async (error: Error | string | unknown, context?
       if (error.includes('AbortError') || error.includes('TimeoutError') || error.includes('signal timed out')) {
         return;
       }
+      if (error.includes('WebSocket closed') || error.includes('websocket') || error.includes('vite')) {
+        return;
+      }
       message = error;
     } else {
       try {
@@ -28,6 +34,10 @@ export const logErrorToServer = async (error: Error | string | unknown, context?
       } catch (e) {
         message = "Error object could not be stringified: " + String(error);
       }
+    }
+
+    if (message.includes('WebSocket closed') || stack.includes('WebSocket closed') || (context && context.includes('vite'))) {
+      return;
     }
 
     await fetch('/api/logs/error', {

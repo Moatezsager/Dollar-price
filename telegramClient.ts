@@ -7,6 +7,7 @@ export class TelegramManager {
   private apiHash: string;
   private sessionString: string;
   private isConnecting = false;
+  private connectPromise: Promise<TelegramClient | null> | null = null;
   private lastFailureTime = 0;
   public lastFetchTime: number = 0;
 
@@ -28,6 +29,7 @@ export class TelegramManager {
         this.client = null;
         activeClient = null;
       }
+      this.connectPromise = null;
     }
   }
 
@@ -36,14 +38,9 @@ export class TelegramManager {
    * Implements connection stability and authorization checks.
    */
   public async getClient(): Promise<TelegramClient | null> {
-    if (this.isConnecting) {
-      console.log("[TelegramManager] Already connecting, waiting...");
-      // Simple wait loop to avoid parallel connections
-      for (let i = 0; i < 20; i++) {
-        await new Promise(r => setTimeout(r, 500));
-        if (!this.isConnecting) break;
-      }
-      if (this.client && this.client.connected) return this.client;
+    // If a connection attempt is already in flight, reuse its promise
+    if (this.connectPromise) {
+      return this.connectPromise;
     }
 
     // If already connected and authorized, return it
@@ -66,23 +63,23 @@ export class TelegramManager {
       return null;
     }
 
-    // Handle concurrent connection attempts
-    if (this.isConnecting) {
-      console.log("[TelegramManager] Connection already in progress, waiting...");
-      let attempts = 0;
-      while (this.isConnecting && attempts < 20) {
-        await new Promise(resolve => setTimeout(resolve, 500));
-        attempts++;
-      }
-      if (this.client && this.client.connected) return this.client;
-    }
+    this.connectPromise = this.doConnect().finally(() => {
+      this.connectPromise = null;
+    });
 
+    return this.connectPromise;
+  }
+
+  private async doConnect(): Promise<TelegramClient | null> {
     this.isConnecting = true;
     try {
       console.log("[TelegramManager] Initializing new Telegram client...");
       
       if (this.client) {
-        try { await this.client.disconnect(); } catch (e) {}
+        try { 
+          await this.client.disconnect(); 
+          if ((this.client as any).destroy) await (this.client as any).destroy();
+        } catch (e) {}
       }
 
       const stringSession = new StringSession(this.sessionString || "");
@@ -94,11 +91,6 @@ export class TelegramManager {
         deviceModel: "PriceScraperServer",
         systemVersion: "1.0.0",
         appVersion: "1.0",
-      });
-
-      // Set up event listeners for stability
-      this.client.addEventHandler((event) => {
-        // Log important events if needed
       });
 
       await this.client.connect();
@@ -117,12 +109,15 @@ export class TelegramManager {
       
       let cooldownExtra = 0;
       if (errorMsg.includes("AUTH_KEY_DUPLICATED")) {
-        console.error("[TelegramManager] CRITICAL: Auth key is duplicated. This session is being used by another client. Entering 5-second cooldown to wait for other client to disconnect...");
-        cooldownExtra = 5000; // 5 seconds extra cooldown instead of 5 minutes for dev server restart tolerance
+        console.warn("[TelegramManager] AUTH_KEY_DUPLICATED: This Telegram session is currently held by another active connection. Pausing reconnect attempts for 60s...");
+        cooldownExtra = 60000;
       }
       
       if (this.client) {
-        try { await this.client.disconnect(); } catch (e) {}
+        try { 
+          await this.client.disconnect(); 
+          if ((this.client as any).destroy) await (this.client as any).destroy();
+        } catch (e) {}
       }
       this.client = null;
       activeClient = null;

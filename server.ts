@@ -1254,6 +1254,69 @@ ${message}
     }
   });
 
+  // Client Status endpoint
+  app.get("/api/status", (req: express.Request, res: express.Response) => {
+    res.json({
+      status: "online",
+      uptime: Math.round((Date.now() - serverStartTime.getTime()) / 1000),
+      telegramConnected: !!(activeClient && activeClient.connected),
+      timestamp: new Date().toISOString(),
+      lastUpdated: rates?.lastUpdated || new Date().toISOString()
+    });
+  });
+
+  // Telegram status endpoint
+  app.get("/api/telegram/status", (req: express.Request, res: express.Response) => {
+    const isConnected = !!(activeClient && activeClient.connected);
+    const tgMgr = getOrInitTelegramManager();
+    res.json({
+      isConnected,
+      lastFetchTime: tgMgr ? tgMgr.lastFetchTime : 0
+    });
+  });
+
+  // Push notification public key and subscription management
+  app.get("/api/push/public-key", (req: express.Request, res: express.Response) => {
+    res.json({ publicKey: vapidKeys.publicKey || '' });
+  });
+
+  app.post("/api/push/subscribe", express.json(), (req: express.Request, res: express.Response) => {
+    try {
+      const { subscription } = req.body;
+      if (!subscription || !subscription.endpoint) {
+        return res.status(400).json({ success: false, error: "Invalid subscription" });
+      }
+      const keys = subscription.keys || {};
+      db.prepare(`
+        INSERT OR REPLACE INTO push_subscriptions (endpoint, p256dh, auth, created_at, last_active)
+        VALUES (?, ?, ?, datetime('now'), datetime('now'))
+      `).run(subscription.endpoint, keys.p256dh || '', keys.auth || '');
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("[Push] Subscription error:", err.message);
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  app.post("/api/push/active", express.json(), (req: express.Request, res: express.Response) => {
+    try {
+      const { endpoint } = req.body;
+      if (endpoint) {
+        db.prepare(`
+          UPDATE push_subscriptions SET last_active = datetime('now') WHERE endpoint = ?
+        `).run(endpoint);
+      }
+      res.json({ success: true });
+    } catch (e) {
+      res.json({ success: false });
+    }
+  });
+
+  // Protect all remaining /api/* requests from falling into SPA fallback
+  app.all("/api/*", (req: express.Request, res: express.Response) => {
+    res.status(404).json({ error: "Endpoint not found" });
+  });
+
   app.get("/push-sw.js", (req, res) => {
     const swPath = process.env.NODE_ENV === "production"
       ? path.join(process.cwd(), "dist", "push-sw.js")

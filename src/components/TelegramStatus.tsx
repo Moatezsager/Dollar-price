@@ -10,6 +10,9 @@ export const TelegramStatus = () => {
     const fetchStatus = async () => {
       try {
         const response = await fetch('/api/telegram/status');
+        if (!response.ok) return;
+        const contentType = response.headers.get("content-type");
+        if (!contentType || !contentType.includes("application/json")) return;
         const data = await response.json();
         setStatus(data);
       } catch (error) {

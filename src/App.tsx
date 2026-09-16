@@ -750,6 +750,9 @@ export default function App() {
   const fetchConfig = async () => {
     try {
       const response = await fetch(`/api/config?t=${Date.now()}`);
+      if (!response.ok) return;
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) return;
       const data = await response.json();
       if (data && data.terms) {
         setConfigTerms(data.terms);
@@ -1166,8 +1169,11 @@ export default function App() {
       try {
         const statusRes = await fetch("/api/status");
         if (statusRes.ok) {
-          const statusData = await statusRes.json();
-          setAppStatus(statusData);
+          const contentType = statusRes.headers.get("content-type");
+          if (contentType && contentType.includes("application/json")) {
+            const statusData = await statusRes.json();
+            setAppStatus(statusData);
+          }
         }
       } catch (err) {
         logErrorToServer(err, "App.tsx: fetchStatus");

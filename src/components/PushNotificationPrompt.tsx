@@ -72,7 +72,11 @@ export default function PushNotificationPrompt() {
 
       if (!sub) {
         const keyRes  = await fetch('/api/push/public-key');
+        if (!keyRes.ok) return;
+        const contentType = keyRes.headers.get("content-type");
+        if (!contentType || !contentType.includes("application/json")) return;
         const keyData = await keyRes.json();
+        if (!keyData?.publicKey) return;
         sub = await reg.pushManager.subscribe({
           userVisibleOnly:      true,
           applicationServerKey: urlBase64ToUint8Array(keyData.publicKey)
@@ -113,7 +117,11 @@ export default function PushNotificationPrompt() {
 
       if (permission === 'granted') {
         const keyRes  = await fetch('/api/push/public-key');
+        if (!keyRes.ok) throw new Error("Failed to fetch public key");
+        const contentType = keyRes.headers.get("content-type");
+        if (!contentType || !contentType.includes("application/json")) throw new Error("Invalid response");
         const keyData = await keyRes.json();
+        if (!keyData?.publicKey) throw new Error("No public key returned");
         const reg     = await navigator.serviceWorker.ready;
 
         // إلغاء أي اشتراك قديم أولاً (تجنباً للتعارض)
