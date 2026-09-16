@@ -39,7 +39,13 @@ export default defineConfig(({mode}) => {
           start_url: '/',
           scope: '/',
           id: '/',
-          categories: ['finance', 'business', 'utilities']
+          categories: ['finance', 'business', 'utilities'],
+          icons: [
+            { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+            { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
+            { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+            { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
+          ]
         },
         injectManifest: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,webp}'],

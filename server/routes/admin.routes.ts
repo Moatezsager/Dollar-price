@@ -197,7 +197,28 @@ export function createAdminRouter(deps: AdminRouterDeps): express.Router {
     if (!text) return res.status(400).json({ success: false, message: "Text is required" });
     
     const cleanText = text;
-    const extracted = extractRatesFromText(cleanText);
+    const rawExtracted = extractRatesFromText(cleanText);
+    
+    // Filter to keep only specific gold/metals if the term is a metal, while keeping other currencies
+    const ALLOWED_GOLD_IDS = [
+      "GOLD_CAST_18",
+      "GOLD_EXT_18",
+      "GOLD_EXT_21",
+      "GOLD_SCRAP_18",
+      "GOLD_SCRAP_21",
+      "GOLD_CAST_24",
+      "GOLD_LIRA_8G",
+      "GOLD_LIRA_14G",
+      "GOLD_MUJARA_14G",
+      "SILVER_CAST_1000"
+    ];
+    const extracted = rawExtracted.filter(item => {
+      const isMetal = item.code === "GOLD" || item.code.startsWith("GOLD_") || item.code.startsWith("SILVER_");
+      if (isMetal) {
+        return ALLOWED_GOLD_IDS.includes(item.code);
+      }
+      return true;
+    });
     
     if (extracted.length === 0) {
       return res.json({ success: false, message: "لم يتم العثور على أي أسعار في هذا النص" });
@@ -898,7 +919,28 @@ export function createAdminRouter(deps: AdminRouterDeps): express.Router {
       
       const extractedRates: Record<string, number> = {};
       const extractedDates: Record<string, string> = {};
-      const results = extractRatesFromText(text);
+      const rawResults = extractRatesFromText(text);
+      
+      // Filter to keep only specific gold/metals if the term is a metal, while keeping other currencies
+      const ALLOWED_GOLD_IDS = [
+        "GOLD_CAST_18",
+        "GOLD_EXT_18",
+        "GOLD_EXT_21",
+        "GOLD_SCRAP_18",
+        "GOLD_SCRAP_21",
+        "GOLD_CAST_24",
+        "GOLD_LIRA_8G",
+        "GOLD_LIRA_14G",
+        "GOLD_MUJARA_14G",
+        "SILVER_CAST_1000"
+      ];
+      const results = rawResults.filter(item => {
+        const isMetal = item.code === "GOLD" || item.code.startsWith("GOLD_") || item.code.startsWith("SILVER_");
+        if (isMetal) {
+          return ALLOWED_GOLD_IDS.includes(item.code);
+        }
+        return true;
+      });
       
       for (const item of results) {
         extractedRates[item.code] = item.value;

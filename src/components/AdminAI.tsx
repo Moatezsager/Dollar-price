@@ -18,19 +18,16 @@ import {
 import { format } from "date-fns";
 
 const GOLD_METAL_IDS = [
-  "GOLD", 
-  "GOLD_EXT_18", 
-  "GOLD_EXT_21", 
-  "GOLD_SCRAP_18", 
-  "GOLD_SCRAP_21", 
-  "GOLD_CAST_18", 
-  "GOLD_CAST_21", 
-  "GOLD_CAST_24", 
-  "GOLD_LIRA_8G", 
-  "GOLD_LIRA_14G", 
-  "GOLD_MUJARA_14G", 
-  "SILVER_CAST_1000",
-  "SILVER_SCRAP"
+  "GOLD_CAST_18",
+  "GOLD_EXT_18",
+  "GOLD_EXT_21",
+  "GOLD_SCRAP_18",
+  "GOLD_SCRAP_21",
+  "GOLD_CAST_24",
+  "GOLD_LIRA_8G",
+  "GOLD_LIRA_14G",
+  "GOLD_MUJARA_14G",
+  "SILVER_CAST_1000"
 ];
 
 interface AdminAIProps {
@@ -183,7 +180,7 @@ export function AdminAI({ token, config, setError, setSuccess, triggerRefresh, d
       const newRates: Record<string, number> = {};
 
       termsList.forEach((t: any) => {
-        const isMetal = GOLD_METAL_IDS.includes(t.id) || t.flag === "gold" || t.flag === "silver" || t.id.startsWith("GOLD_") || t.id.startsWith("SILVER_");
+        const isMetal = t.id === "GOLD" || t.id.startsWith("GOLD_") || t.id.startsWith("SILVER_") || t.flag === "gold" || t.flag === "silver";
         if (!isMetal && t.id !== "OFFICIAL_USD") {
           newRates[t.id] = liveRates[t.id] ?? currentRates[t.id] ?? 0;
         }
@@ -217,24 +214,16 @@ export function AdminAI({ token, config, setError, setSuccess, triggerRefresh, d
     setSuccess("");
     try {
       const liveRates = await fetchCurrentRates();
-      const termsList = config?.terms || [];
       const newRates: Record<string, number> = {};
 
       GOLD_METAL_IDS.forEach(id => {
         newRates[id] = liveRates[id] ?? currentRates[id] ?? 0;
       });
 
-      termsList.forEach((t: any) => {
-        const isMetal = GOLD_METAL_IDS.includes(t.id) || t.flag === "gold" || t.flag === "silver" || t.id.startsWith("GOLD_") || t.id.startsWith("SILVER_");
-        if (isMetal && newRates[t.id] === undefined) {
-          newRates[t.id] = liveRates[t.id] ?? currentRates[t.id] ?? 0;
-        }
-      });
-
       setExtractedRates(newRates);
       setExtractedDates(null);
       setActiveCategory('gold');
-      setSuccess(`تم عرض جميع أصناف الذهب والمعادن (${Object.keys(newRates).length} صنف) للتحكم اليدوي`);
+      setSuccess(`تم عرض جميع أصناف الذهب والمعادن المعتمدة (${Object.keys(newRates).length} أصناف) للتحكم اليدوي`);
     } catch (err) {
       setError("فشل تحميل أصناف الذهب والمعادن");
     }
