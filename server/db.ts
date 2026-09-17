@@ -63,6 +63,19 @@ db.exec(`
     user_agent TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+
+  CREATE TABLE IF NOT EXISTS broadcast_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at INTEGER NOT NULL,
+    platform TEXT NOT NULL,
+    currency_ids TEXT NOT NULL,
+    status TEXT NOT NULL,
+    attempts INTEGER NOT NULL DEFAULT 1,
+    duration_ms INTEGER,
+    error_message TEXT,
+    is_test INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE INDEX IF NOT EXISTS idx_broadcast_log_created_at ON broadcast_log(created_at);
 `);
 
 // Ensure name column exists in messages

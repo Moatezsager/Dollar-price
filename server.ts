@@ -66,6 +66,7 @@ import {
   broadcastDailyReport,
   broadcastWeeklyReport
 } from './server/services/reporting.service';
+import { cleanupOldBroadcastLogs } from './server/services/broadcastLog.service';
 import {
   fetchFromCBL,
   fetchOfficialRates,
@@ -212,6 +213,11 @@ const cleanupLocalDatabase = () => {
     if (messagesResult.changes > 0) {
       console.log(`[Local DB] Deleted ${messagesResult.changes} old messages.`);
     }
+
+    // Delete broadcast logs older than 45 days
+    cleanupOldBroadcastLogs().catch(err => {
+      console.error("[Local DB] Error cleaning up broadcast logs:", err);
+    });
 
     // Run VACUUM to reclaim space
     db.exec('VACUUM');
@@ -761,7 +767,7 @@ async function startServer() {
       
       for (const msg of sortedMessages) {
         const cleanText = msg.text;
-        const extracted = extractRatesFromText(cleanText);
+        const extracted = extractRatesFromText(cleanText).filter(item => !item.code.startsWith('GOLD_') && item.code !== 'GOLD');
         
         for (const item of extracted) {
           allExtracted.push(item);

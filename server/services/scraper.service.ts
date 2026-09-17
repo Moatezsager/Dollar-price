@@ -437,13 +437,15 @@ export async function fetchParallelRatesFromTelegram(): Promise<boolean | null> 
                 }
 
                 const cleanText = msg.text;
-                let extracted = extractRatesFromText(cleanText);
-                const hasCurrencyKeywords = /(?:يورو|دولار|باوند|دينار|ليرة|ذهب|فضة|كسر|مسبوك|أونصة|EUR|USD|GBP|TND|TRY|EGP)/i.test(cleanText);
+                // Exclude gold rates from Telegram scraping; gold is managed solely via Admin manual entry
+                let extracted = extractRatesFromText(cleanText).filter(r => !r.code.startsWith('GOLD_') && r.code !== 'GOLD');
+                const hasCurrencyKeywords = /(?:يورو|دولار|باوند|دينار|EUR|USD|GBP|TND|TRY|EGP)/i.test(cleanText);
                 if (hasCurrencyKeywords && cleanText.length > 10 && cleanText.length < 800) {
                    const aiExtracted = await extractRatesWithAI(cleanText, channel);
                    if (aiExtracted.length > 0) {
                       const merged = [...extracted];
                       for (const aiRate of aiExtracted) {
+                          if (aiRate.code.startsWith('GOLD_') || aiRate.code === 'GOLD') continue;
                           const existingIdx = merged.findIndex(r => r.code === aiRate.code);
                           if (existingIdx >= 0) {
                               merged[existingIdx] = aiRate; 
@@ -451,7 +453,7 @@ export async function fetchParallelRatesFromTelegram(): Promise<boolean | null> 
                               merged.push(aiRate);
                           }
                       }
-                      extracted = merged;
+                      extracted = merged.filter(r => !r.code.startsWith('GOLD_') && r.code !== 'GOLD');
                    }
                 }
                 
@@ -469,7 +471,10 @@ export async function fetchParallelRatesFromTelegram(): Promise<boolean | null> 
 
                 if (extracted.length > 0) {
                   for (const res of extracted) {
-                    priceHistory[res.code].push({ value: res.value, time: msg.date, channel });
+                    if (res.code.startsWith('GOLD_') || res.code === 'GOLD') continue;
+                    if (priceHistory[res.code]) {
+                      priceHistory[res.code].push({ value: res.value, time: msg.date, channel });
+                    }
                   }
                 }
               }

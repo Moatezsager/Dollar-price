@@ -2,6 +2,7 @@ import { TelegramManager, getTelegramManager } from '../../telegramClient';
 import { appConfig, telegramManager, setTelegramManager } from '../config';
 import { rates } from '../state';
 import { db, supabase, supabaseAnonKey } from '../db';
+import { addBroadcastLog } from './broadcastLog.service';
 
 interface FacebookApiResponse {
   error?: {
@@ -69,9 +70,15 @@ interface RetryJob {
   updates: { id?: string; name: string; newVal?: number; oldVal?: number; [key: string]: any }[];
   attempts: number;
   nextRetryAt: number;
+  startTime?: number;
+  lastError?: string;
 }
 /** قائمة مهام إعادة المحاولة بعد فشل الإرسال */
 const retryQueue: RetryJob[] = [];
+
+export function getRetryQueueCount(): number {
+  return retryQueue.length;
+}
 
 /** الحد الأقصى لمحاولات الإعادة = 3 */
 const MAX_RETRY_ATTEMPTS = 3;
@@ -263,17 +270,34 @@ function scheduleRetry(
   message: string,
   target: 'all' | 'telegram' | 'facebook',
   updates: { id?: string; name: string; newVal?: number; oldVal?: number; [key: string]: any }[],
-  attemptNumber: number
+  attemptNumber: number,
+  startTime: number = Date.now(),
+  lastError: string = ''
 ): void {
   if (attemptNumber > MAX_RETRY_ATTEMPTS) {
     console.error(
       `[RetryEngine] ❌ Giving up after ${MAX_RETRY_ATTEMPTS} attempts for: [${updates.map(u => u.id || u.name).join(', ')}]`
     );
+    try {
+      const platform = target === 'all' ? 'both' : target;
+      const currencyIds = updates.map(u => u.id || u.name).filter(Boolean) as string[];
+      addBroadcastLog({
+        platform,
+        currency_ids: currencyIds,
+        status: 'failed',
+        attempts: 1 + MAX_RETRY_ATTEMPTS,
+        duration_ms: Date.now() - startTime,
+        error_message: lastError || `Exhausted ${MAX_RETRY_ATTEMPTS} retries`,
+        is_test: 0
+      });
+    } catch (logErr) {
+      console.error("[BroadcastLog] Failed to record give-up log:", logErr);
+    }
     return;
   }
   const delayMs = RETRY_BASE_DELAY_MS * Math.pow(2, attemptNumber - 1);
   const nextRetryAt = Date.now() + delayMs;
-  retryQueue.push({ message, target, updates, attempts: attemptNumber, nextRetryAt });
+  retryQueue.push({ message, target, updates, attempts: attemptNumber, nextRetryAt, startTime, lastError });
   console.warn(
     `[RetryEngine] ⏳ Scheduled retry #${attemptNumber} in ${delayMs / 1000}s for: [${updates.map(u => u.id || u.name).join(', ')}]`
   );
@@ -299,9 +323,26 @@ function startRetryEngine(): void {
         // نجاح → سجّل وقت النشر
         recordBroadcast(job.updates);
         console.log(`[RetryEngine] ✅ Retry #${job.attempts} succeeded for: [${job.updates.map(u => u.id || u.name).join(', ')}]`);
+
+        // تسجيل نجاح بعد إعادة المحاولة (Outcome 2)
+        try {
+          const platform = job.target === 'all' ? 'both' : job.target;
+          const currencyIds = job.updates.map(u => u.id || u.name).filter(Boolean) as string[];
+          addBroadcastLog({
+            platform,
+            currency_ids: currencyIds,
+            status: 'success_after_retry',
+            attempts: 1 + job.attempts,
+            duration_ms: Date.now() - (job.startTime || Date.now()),
+            error_message: null,
+            is_test: 0
+          });
+        } catch (logErr) {
+          console.error("[BroadcastLog] Failed to record retry success log:", logErr);
+        }
       } catch (err: any) {
         console.error(`[RetryEngine] ❌ Retry #${job.attempts} failed: ${err.message || err}`);
-        scheduleRetry(job.message, job.target, job.updates, job.attempts + 1);
+        scheduleRetry(job.message, job.target, job.updates, job.attempts + 1, job.startTime || Date.now(), err.message || String(err));
       }
     }
 
@@ -558,7 +599,7 @@ export async function broadcastToSocialMedia(message: string, isTest: boolean = 
             
             // Add comment safely without breaking the main post status
             try {
-              const commentMessage = `📢 تابعنا على تيليجرام لتصلك التحديثات فوراً:\n👉 https://t.me/libya_index_dollar\n\n🌐 للمزيد من التفاصيل والرسوم البيانية، تفضل بزيارة موقعنا:\n👉 https://dollar-price-qp14.onrender.com/?v=${Math.floor(Date.now() / 60000)}`;
+              const commentMessage = `📢 لمتابعة التحديثات لحظة بلحظة على تيليجرام:\n👉 https://t.me/libya_index_dollar\n\n🌐 والرسوم البيانية والتفاصيل الكاملة من هنا:\n👉 https://tinyurl.com/2j7667u2`;
               const commentUrl = `https://graph.facebook.com/v20.0/${fbData.id}/comments`;
               const commentRes = await fetch(commentUrl, {
                 method: 'POST',
@@ -884,18 +925,66 @@ export async function executeBroadcast(
   message += `🌐 https://dollar-price-qp14.onrender.com/?v=${Math.floor(Date.now() / 60000)}\n`;
   message += `📱 *المصدر:* شبكة مؤشر الدينار`;
 
+  const startTime = Date.now();
+  const platform = target === 'all' ? 'both' : target;
+  const currencyIds = updates.map(u => u.id || u.name).filter(Boolean) as string[];
+
   if (isTest) {
-    await broadcastToSocialMedia(message, isTest, target);
+    try {
+      await broadcastToSocialMedia(message, isTest, target);
+      try {
+        addBroadcastLog({
+          platform,
+          currency_ids: currencyIds,
+          status: 'success',
+          attempts: 1,
+          duration_ms: Date.now() - startTime,
+          error_message: null,
+          is_test: 1
+        });
+      } catch (logErr) {
+        console.error("[BroadcastLog] Failed to log test broadcast:", logErr);
+      }
+    } catch (testErr: any) {
+      try {
+        addBroadcastLog({
+          platform,
+          currency_ids: currencyIds,
+          status: 'failed',
+          attempts: 1,
+          duration_ms: Date.now() - startTime,
+          error_message: testErr.message || String(testErr),
+          is_test: 1
+        });
+      } catch (logErr) {
+        console.error("[BroadcastLog] Failed to log test broadcast failure:", logErr);
+      }
+      throw testErr;
+    }
   } else {
     broadcastToSocialMedia(message, isTest, target)
       .then(() => {
         // تسجيل وقت النشر في متتبعات الحد الأقصى (بعد الإرسال الناجح)
         recordBroadcast(updates);
+        // Outcome 1: succeeds on the first try
+        try {
+          addBroadcastLog({
+            platform,
+            currency_ids: currencyIds,
+            status: 'success',
+            attempts: 1,
+            duration_ms: Date.now() - startTime,
+            error_message: null,
+            is_test: 0
+          });
+        } catch (logErr) {
+          console.error("[BroadcastLog] Failed to record first-try success log:", logErr);
+        }
       })
       .catch(e => {
         console.error("[Background Broadcast] Error:", e);
         // إضافة المهام لقائمة إعادة المحاولة
-        scheduleRetry(message, target, updates, 1);
+        scheduleRetry(message, target, updates, 1, startTime, e.message || String(e));
       });
   }
 

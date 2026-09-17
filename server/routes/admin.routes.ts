@@ -30,8 +30,13 @@ import {
   broadcastToSocialMedia,
   facebookBroadcastStatus,
   telegramBroadcastStatus,
-  getOrInitTelegramManager
+  getOrInitTelegramManager,
+  getRetryQueueCount
 } from '../services/social.service';
+import {
+  getBroadcastLogPage,
+  getBroadcastLogSummary
+} from '../services/broadcastLog.service';
 import { updateStats } from '../services/reporting.service';
 import { activeClient } from '../../telegramClient';
 
@@ -1266,6 +1271,37 @@ ${updates.join('\n')}
       }
     }
     res.json({ success: true });
+  });
+
+  // Broadcast logs (read-only)
+  router.get('/broadcast-log', (req: express.Request, res: express.Response) => {
+    try {
+      const { platform, status, page, limit } = req.query;
+      const result = getBroadcastLogPage({
+        platform: platform ? String(platform) : undefined,
+        status: status ? String(status) : undefined,
+        page: page ? String(page) : undefined,
+        limit: limit ? String(limit) : undefined
+      });
+      res.json(result);
+    } catch (err: any) {
+      console.error("[Admin] Error fetching broadcast logs:", err);
+      res.status(500).json({ error: "Failed to fetch broadcast logs" });
+    }
+  });
+
+  router.get('/broadcast-log/summary', (req: express.Request, res: express.Response) => {
+    try {
+      const summary = getBroadcastLogSummary();
+      const activeRetryQueueCount = getRetryQueueCount();
+      res.json({
+        ...summary,
+        activeRetryQueueCount
+      });
+    } catch (err: any) {
+      console.error("[Admin] Error fetching broadcast log summary:", err);
+      res.status(500).json({ error: "Failed to fetch broadcast log summary" });
+    }
   });
 
   return router;

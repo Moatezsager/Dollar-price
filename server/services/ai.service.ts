@@ -17,9 +17,11 @@ export async function extractRatesWithAI(text: string, channel: string): Promise
     arr.slice(500).forEach(k => aiProcessedTexts.add(k));
   }
 
-  const termIds = appConfig.terms.map(t => t.id).join(", ");
+  const currencyTerms = appConfig.terms.filter(t => !t.id.startsWith("GOLD_") && t.id !== "GOLD");
+  const termIds = currencyTerms.map(t => t.id).join(", ");
   
-  const prompt = `أنت خبير مالي في ليبيا. استخرج أسعار العملات والذهب من النص التالي، والذي تم نشره في قناة "${channel}".
+  const prompt = `أنت خبير مالي في ليبيا. استخرج أسعار العملات الأجنبية فقط من النص التالي، والذي تم نشره في قناة "${channel}".
+تنبيه هام: لا تقم باستخراج أي أسعار للذهب أو المعادن (مثل كسر 18، كسر 21، مسبوك، ليرة، عيار)، حيث تتم إدارة الذهب يدوياً فقط.
 النص:
 ${text}
 
@@ -38,17 +40,7 @@ ${text}
    - لحساب سعر (1 جنيه مصري كم يساوي ليبي)، يجب عليك قسمة 1 على الرقم المعطى للمصري (مثال: 1 ÷ 5.40 = 0.185). هذا هو الرقم الذي يجب إرجاعه لـ EGP.
    - الخلاصة: إذا كان الرقم المكتوب أمام التونسي أو المصري يمثل كم يشتري الدينار الليبي الواحد من هذه العملة، فيجب عليك قسمة الرقم 1 على هذا الرقم لاستخراج السعر الصحيح بالدينار الليبي.
    - مستحيل أن يكون التونسي بـ 5.45 أو المصري بـ 0.33! التونسي دائماً في نطاق 2.8 إلى 3.5، والمصري دائماً في نطاق 0.15 إلى 0.25.
-3. **قواعد استخراج أسعار الذهب والفضة (هام جداً)**:
-   - "ذهب مسبوك 18" -> استخدم الرمز GOLD_CAST_18.
-   - "ذهب مسبوك 24" -> استخدم الرمز GOLD_CAST_24.
-   - "ذهب خارجي 18" أو "خارجي 18" -> استخدم الرمز GOLD_EXT_18.
-   - "ذهب خارجي 21" أو "خارجي 21" -> استخدم الرمز GOLD_EXT_21.
-   - "كسر 18" أو "ذهب كسر 18" -> استخدم الرمز GOLD_SCRAP_18.
-   - "كسر 21" أو "ذهب كسر 21" -> استخدم الرمز GOLD_SCRAP_21.
-   - "ليرة ذهب 8 جرام" أو "ليرة 8" -> استخدم الرمز GOLD_LIRA_8G.
-   - "ليرة ذهب 14 جرام" أو "ليرة 14" -> استخدم الرمز GOLD_LIRA_14G.
-   - "مجارة ذهب 14" أو "مجارة 14" -> استخدم الرمز GOLD_MUJARA_14G.
-   - "مسبوك فضة" -> استخدم الرمز SILVER_CAST_1000.
+3. **تجاهل الذهب**: لا تقم باستخراج أي أسعار للذهب (لا GOLD_ ولا كسر ولا مسبوك ولا ليرات).
 4. رموز العملات المسموحة فقط هي: ${termIds}.
 5. لا تقم أبداً بإضافة عملات أو معادن غير موجودة في القائمة.
 6. كلمة (صكوك) لوحدها تعني الدولار بصكوك (استخدم الرمز USD_CHECKS).`;
@@ -79,6 +71,7 @@ ${text}
       if (Array.isArray(parsed) && parsed.length > 0) {
         console.log(`[Scraper-AI] AI extracted rates from ${channel}: `, JSON.stringify(parsed));
         return parsed.filter(item => {
+          if (item.code === "GOLD" || item.code.startsWith("GOLD_")) return false;
           const term = appConfig.terms.find(t => t.id === item.code);
           return term && typeof item.value === 'number' && item.value >= term.min && item.value <= term.max;
         });
