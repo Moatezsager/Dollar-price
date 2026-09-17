@@ -169,6 +169,15 @@ export function AdminBroadcastLog({ token }: AdminBroadcastLogProps) {
 
   const rateBadge = getSuccessRateBadge(summary?.successRate24h ?? null);
 
+  const isBroadcastStale = (timestamp: number | null | undefined): boolean => {
+    if (!timestamp) return true;
+    const elapsedHours = (Date.now() - timestamp) / (1000 * 60 * 60);
+    return elapsedHours > 2;
+  };
+
+  const tgWarning = isBroadcastStale(summary?.lastSuccessfulTelegram);
+  const fbWarning = isBroadcastStale(summary?.lastSuccessfulFacebook);
+
   return (
     <motion.div
       key="broadcast-log"
@@ -228,46 +237,82 @@ export function AdminBroadcastLog({ token }: AdminBroadcastLogProps) {
         </div>
 
         {/* Card 2: Last Telegram Broadcast */}
-        <div className="bg-[#080808] border border-slate-800/80 rounded-2xl p-5 shadow-lg relative overflow-hidden">
+        <div className={`bg-[#080808] border rounded-2xl p-5 shadow-lg relative overflow-hidden transition-all ${
+          tgWarning ? 'border-rose-500/40 bg-gradient-to-b from-rose-500/[0.04] to-transparent' : 'border-slate-800/80'
+        }`}>
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-bold text-slate-400">آخر بث ناجح لتيليجرام</span>
-            <div className="w-8 h-8 rounded-lg bg-sky-500/10 flex items-center justify-center">
-              <Send className="w-4 h-4 text-sky-400" />
+            <span className={`text-xs font-bold ${tgWarning ? 'text-rose-300' : 'text-slate-400'}`}>آخر بث ناجح لتيليجرام</span>
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
+              tgWarning ? 'bg-rose-500/10 border border-rose-500/20' : 'bg-sky-500/10'
+            }`}>
+              <Send className={`w-4 h-4 ${tgWarning ? 'text-rose-400' : 'text-sky-400'}`} />
             </div>
           </div>
-          <div className="text-xl font-black text-white truncate">
+          <div className={`text-xl font-black truncate flex items-center gap-2 ${tgWarning ? 'text-rose-400' : 'text-white'}`}>
+            {tgWarning && (
+              <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+            )}
             {summary?.lastSuccessfulTelegram ? (
-              formatDistanceToNow(new Date(summary.lastSuccessfulTelegram), { addSuffix: true, locale: ar })
+              <span>{formatDistanceToNow(new Date(summary.lastSuccessfulTelegram), { addSuffix: true, locale: ar })}</span>
             ) : (
-              <span className="text-slate-500 text-sm font-medium">لا يوجد بث سابق</span>
+              <span className={tgWarning ? "text-rose-400 text-sm font-bold" : "text-slate-500 text-sm font-medium"}>
+                لا يوجد بث سابق
+              </span>
             )}
           </div>
-          <div className="text-[11px] text-slate-500 mt-2 truncate">
-            {summary?.lastSuccessfulTelegram
-              ? format(new Date(summary.lastSuccessfulTelegram), "yyyy/MM/dd • HH:mm:ss")
-              : "لم يتم رصد إرسال بعد"}
+          <div className={`text-[11px] mt-2 truncate flex items-center justify-between ${
+            tgWarning ? 'text-rose-400/80' : 'text-slate-500'
+          }`}>
+            <span>
+              {summary?.lastSuccessfulTelegram
+                ? format(new Date(summary.lastSuccessfulTelegram), "yyyy/MM/dd • HH:mm:ss")
+                : "لم يتم رصد إرسال بعد"}
+            </span>
+            {tgWarning && (
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                متأخر (&gt; ساعتين)
+              </span>
+            )}
           </div>
         </div>
 
         {/* Card 3: Last Facebook Broadcast */}
-        <div className="bg-[#080808] border border-slate-800/80 rounded-2xl p-5 shadow-lg relative overflow-hidden">
+        <div className={`bg-[#080808] border rounded-2xl p-5 shadow-lg relative overflow-hidden transition-all ${
+          fbWarning ? 'border-rose-500/40 bg-gradient-to-b from-rose-500/[0.04] to-transparent' : 'border-slate-800/80'
+        }`}>
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-bold text-slate-400">آخر بث ناجح لفيسبوك</span>
-            <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center">
-              <Layers className="w-4 h-4 text-indigo-400" />
+            <span className={`text-xs font-bold ${fbWarning ? 'text-rose-300' : 'text-slate-400'}`}>آخر بث ناجح لفيسبوك</span>
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
+              fbWarning ? 'bg-rose-500/10 border border-rose-500/20' : 'bg-indigo-500/10'
+            }`}>
+              <Layers className={`w-4 h-4 ${fbWarning ? 'text-rose-400' : 'text-indigo-400'}`} />
             </div>
           </div>
-          <div className="text-xl font-black text-white truncate">
+          <div className={`text-xl font-black truncate flex items-center gap-2 ${fbWarning ? 'text-rose-400' : 'text-white'}`}>
+            {fbWarning && (
+              <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+            )}
             {summary?.lastSuccessfulFacebook ? (
-              formatDistanceToNow(new Date(summary.lastSuccessfulFacebook), { addSuffix: true, locale: ar })
+              <span>{formatDistanceToNow(new Date(summary.lastSuccessfulFacebook), { addSuffix: true, locale: ar })}</span>
             ) : (
-              <span className="text-slate-500 text-sm font-medium">لا يوجد بث سابق</span>
+              <span className={fbWarning ? "text-rose-400 text-sm font-bold" : "text-slate-500 text-sm font-medium"}>
+                لا يوجد بث سابق
+              </span>
             )}
           </div>
-          <div className="text-[11px] text-slate-500 mt-2 truncate">
-            {summary?.lastSuccessfulFacebook
-              ? format(new Date(summary.lastSuccessfulFacebook), "yyyy/MM/dd • HH:mm:ss")
-              : "لم يتم رصد إرسال بعد"}
+          <div className={`text-[11px] mt-2 truncate flex items-center justify-between ${
+            fbWarning ? 'text-rose-400/80' : 'text-slate-500'
+          }`}>
+            <span>
+              {summary?.lastSuccessfulFacebook
+                ? format(new Date(summary.lastSuccessfulFacebook), "yyyy/MM/dd • HH:mm:ss")
+                : "لم يتم رصد إرسال بعد"}
+            </span>
+            {fbWarning && (
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                متأخر (&gt; ساعتين)
+              </span>
+            )}
           </div>
         </div>
 
