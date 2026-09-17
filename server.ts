@@ -952,6 +952,7 @@ async function startServer() {
         data: {
           USD: rates.parallel.USD,
           EUR: rates.parallel.EUR,
+          GBP: rates.parallel.GBP,
         },
         lastUpdated: rates.lastUpdated
       };

@@ -24,6 +24,7 @@ fetch('https://dollar-price-qp14.onrender.com/api/public/rates')
     if (result.success) {
       console.log('سعر الدولار كاش:', result.data.USD);
       console.log('سعر اليورو:', result.data.EUR);
+      console.log('سعر الجنيه الإسترليني:', result.data.GBP);
       console.log('آخر تحديث:', result.lastUpdated);
     }
   })
@@ -39,6 +40,7 @@ try:
     if result.get('success'):
         print('سعر الدولار كاش:', result['data']['USD'])
         print('سعر اليورو:', result['data']['EUR'])
+        print('سعر الجنيه الإسترليني:', result['data']['GBP'])
         print('آخر تحديث:', result['lastUpdated'])
 except Exception as e:
     print('خطأ في الاتصال:', e)`,
@@ -163,7 +165,7 @@ curl -X GET "https://dollar-price-qp14.onrender.com/api/public/rates" \\
             </div>
             
             <p className="text-zinc-400 text-sm mb-8 leading-relaxed">
-              وصول مجاني لأسعار الدولار (USD) واليورو (EUR) اللحظية في السوق الموازي. مثالية للمشاريع الناشئة والتطبيقات الشخصية.
+              وصول مجاني لأسعار الدولار (USD)، اليورو (EUR)، والجنيه الإسترليني (GBP) اللحظية في السوق الموازي. مثالية للمشاريع الناشئة والتطبيقات الشخصية.
             </p>
 
             <div className="bg-[#111] rounded-2xl border border-white/5 overflow-hidden mb-8">

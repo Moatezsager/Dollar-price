@@ -323,7 +323,7 @@ export function AdminAI({ token, config, setError, setSuccess, triggerRefresh, d
           <button
             onClick={handleLoadCurrencies}
             disabled={aiLoading}
-            className={`p-5 rounded-2xl border transition-all flex items-center justify-between group text-right ${
+            className={`p-5 rounded-2xl border transition-all flex flex-col xl:flex-row items-start xl:items-center justify-between gap-4 group text-right ${
               activeCategory === 'currencies' && extractedRates
                 ? 'bg-emerald-500/10 border-emerald-500/40 shadow-lg shadow-emerald-950/40'
                 : 'bg-black/30 border-slate-700/50 hover:border-emerald-500/30 hover:bg-white/[0.03]'
@@ -342,7 +342,7 @@ export function AdminAI({ token, config, setError, setSuccess, triggerRefresh, d
                 </div>
               </div>
             </div>
-            <span className="text-xs font-bold px-3 py-1.5 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+            <span className="shrink-0 text-xs font-bold px-3 py-1.5 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
               عرض العملات
             </span>
           </button>
@@ -350,7 +350,7 @@ export function AdminAI({ token, config, setError, setSuccess, triggerRefresh, d
           <button
             onClick={handleLoadGold}
             disabled={aiLoading}
-            className={`p-5 rounded-2xl border transition-all flex items-center justify-between group text-right ${
+            className={`p-5 rounded-2xl border transition-all flex flex-col xl:flex-row items-start xl:items-center justify-between gap-4 group text-right ${
               activeCategory === 'gold' && extractedRates
                 ? 'bg-amber-500/10 border-amber-500/40 shadow-lg shadow-amber-950/40'
                 : 'bg-black/30 border-slate-700/50 hover:border-amber-500/30 hover:bg-white/[0.03]'
@@ -369,7 +369,7 @@ export function AdminAI({ token, config, setError, setSuccess, triggerRefresh, d
                 </div>
               </div>
             </div>
-            <span className="text-xs font-bold px-3 py-1.5 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/30">
+            <span className="shrink-0 text-xs font-bold px-3 py-1.5 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/30">
               عرض الذهب
             </span>
           </button>

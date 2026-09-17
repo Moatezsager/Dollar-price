@@ -663,7 +663,7 @@ export default function Admin() {
   return (
     <div className="min-h-screen bg-[#020617] text-white flex font-sans selection:bg-emerald-500/30 overflow-hidden" dir="rtl">
       {/* Sidebar - Desktop */}
-      <aside className="hidden lg:flex flex-col w-72 bg-[#080808] border-l border-slate-800/60 relative z-[60] pt-safe pb-safe overflow-y-auto">
+      <aside className="hidden lg:flex flex-col w-72 shrink-0 bg-[#080808] border-l border-slate-800/60 relative z-[60] pt-safe pb-safe overflow-y-auto">
         <div className="p-8">
           <div className="flex items-center gap-4 mb-10">
             <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-blue-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
@@ -926,17 +926,17 @@ export default function Admin() {
 
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
                 {[
-                  { label: "زوار الآن", value: stats?.onlineUsers || 0, icon: Users, color: "emerald" },
-                  { label: "المصادر", value: stats?.channelsCount || 0, icon: Globe, color: "blue" },
-                  { label: "الأصول", value: stats?.termsCount || 0, icon: Layers, color: "purple" },
-                  { label: "الذاكرة", value: stats?.memoryUsage ? (stats.memoryUsage.heapUsed / 1024 / 1024).toFixed(0) + "MB" : "---", icon: Zap, color: "amber" }
+                  { label: "زوار الآن", value: stats?.onlineUsers || 0, icon: Users, bg: "bg-emerald-500/10", border: "border-emerald-500/20", text: "text-emerald-400", indicator: "bg-emerald-500" },
+                  { label: "المصادر", value: stats?.channelsCount || 0, icon: Globe, bg: "bg-blue-500/10", border: "border-blue-500/20", text: "text-blue-400", indicator: "bg-blue-500" },
+                  { label: "الأصول", value: stats?.termsCount || 0, icon: Layers, bg: "bg-purple-500/10", border: "border-purple-500/20", text: "text-purple-400", indicator: "bg-purple-500" },
+                  { label: "الذاكرة", value: stats?.memoryUsage ? (stats.memoryUsage.heapUsed / 1024 / 1024).toFixed(0) + "MB" : "---", icon: Zap, bg: "bg-amber-500/10", border: "border-amber-500/20", text: "text-amber-400", indicator: "bg-amber-500" }
                 ].map((stat, i) => (
                   <div key={i} className="bg-white/[0.02] border border-slate-800/60 rounded-[2rem] p-6 relative overflow-hidden group hover:bg-white/[0.04] transition-all">
                     <div className="flex items-center justify-between mb-4">
-                      <div className={`w-10 h-10 rounded-xl bg-${stat.color}-500/10 flex items-center justify-center text-${stat.color}-400 border border-${stat.color}-500/20 shadow-lg`}>
+                      <div className={`w-10 h-10 rounded-xl ${stat.bg} flex items-center justify-center ${stat.text} border ${stat.border} shadow-lg`}>
                         <stat.icon className="w-5 h-5" />
                       </div>
-                      <div className={`w-1.5 h-1.5 rounded-full bg-${stat.color}-500 animate-pulse`}></div>
+                      <div className={`w-1.5 h-1.5 rounded-full ${stat.indicator} animate-pulse`}></div>
                     </div>
                     <p className="text-slate-500 text-[11px] font-black uppercase tracking-wider mb-1">{stat.label}</p>
                     <h3 className="text-2xl md:text-3xl font-black text-white font-mono">{stat.value}</h3>
