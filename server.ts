@@ -663,15 +663,11 @@ async function startServer() {
           status: 'new'
         }]).then(({error}) => {
           if (error) {
-            // Try without additional columns if table has standard schema
-            supabase?.from('visitor_messages').insert([{
-              email,
-              phone,
-              message,
-              status: 'new'
-            }]).then(({error: err2}) => {
-              if (err2) console.error("Supabase Visitor Message sync failed:", err2.message);
-            });
+            // Fallback to visitor_logs if visitor_messages doesn't exist
+            supabase?.from('visitor_logs').insert([{
+              ip_address: ip,
+              user_agent: userAgent
+            }]).then(() => {}).catch(() => {});
           }
         });
       }
