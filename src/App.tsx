@@ -28,6 +28,7 @@ import {
   Copy,
   AlertCircle,
   Info,
+  BookOpen,
   WifiOff,
   Zap,
   Send,
@@ -575,6 +576,12 @@ export default function App() {
       placement: 'bottom',
     },
     {
+      target: '#metals-grid',
+      title: 'أسعار الذهب والمعادن الثمينة',
+      content: 'قسم مخصص يعرض أسعار الذهب والفضة (كسر، مسبوك، ليرات) بالدينار الليبي بحديث لحظي يواكب البورصة والأسواق المحلية.',
+      placement: 'top',
+    },
+    {
       target: '#official-rates-grid',
       title: 'أسعار السوق الرسمي',
       content: 'يعرض هذا القسم أسعار الصرف الرسمية المعتمدة من مصرف ليبيا المركزي للعملات الرئيسية، ويتم تحديثها تلقائياً.',
@@ -596,6 +603,12 @@ export default function App() {
       target: '#converter-input',
       title: 'إدخال المبلغ والتبديل',
       content: 'أدخل المبلغ هنا، واختر العملة. يمكنك استخدام زر التبديل (الأسهم) لعكس عملية التحويل بين العملة الأجنبية والدينار الليبي بسهولة.',
+      placement: 'top',
+    },
+    {
+      target: '#mobile-bottom-nav',
+      title: 'شريط التنقل السريع للهواتف',
+      content: 'على الهواتف، يتيح لك هذا الشريط السفلي التنقل الفوري والمرن بين أسعار العملات، الذهب، الحاسبة، والرسوم الإحصائية بضغطة زر.',
       placement: 'top',
     },
     {
@@ -1938,11 +1951,11 @@ export default function App() {
                 setRunTour(true);
                 localStorage.removeItem('tourCompleted');
               }}
-              className="flex items-center justify-center w-8 h-8 sm:w-auto sm:h-auto sm:px-3 sm:py-1.5 rounded-full bg-white/5 border border-slate-700/50 text-slate-400 hover:text-white hover:bg-white/10 transition-all"
-              title="جولة تعريفية"
+              className="flex items-center justify-center w-8 h-8 sm:w-auto sm:h-auto sm:px-3 sm:py-1.5 rounded-full bg-white/5 border border-slate-700/50 text-slate-400 hover:text-white hover:bg-white/10 transition-all gap-1"
+              title="الدليل الشامل"
             >
-              <Info className="w-4 h-4" />
-              <span className="text-xs font-bold uppercase tracking-wider hidden sm:inline sm:mr-2">مساعدة</span>
+              <BookOpen className="w-4 h-4 text-emerald-400" />
+              <span className="text-xs font-bold uppercase tracking-wider hidden sm:inline">الدليل الشامل</span>
             </button>
             
             {showInstallBanner && !isStandalone && (
@@ -3184,6 +3197,7 @@ export default function App() {
             {/* ====== BOTTOM NAVIGATION BAR (Mobile Only) ====== */}
       <div className="md:hidden fixed bottom-6 left-4 right-4 z-[90] pb-safe pointer-events-none flex justify-center">
         <nav
+          id="mobile-bottom-nav"
           dir="rtl"
           className="pointer-events-auto w-full max-w-[380px] bg-[#060913]/95 backdrop-blur-3xl border border-slate-700/60 rounded-full p-2 flex items-center justify-between shadow-[0_20px_40px_-10px_rgba(0,0,0,0.8),inset_0_1px_1px_rgba(255,255,255,0.15)] ring-1 ring-black/50"
         >
