@@ -578,7 +578,13 @@ export function AdminAI({ token, config, setError, setSuccess, triggerRefresh, d
                               onChange={(e) => {
                                 const v = parseFloat(e.target.value);
                                 if (!isNaN(v)) {
-                                  setExtractedRates({ ...extractedRates, [key]: v });
+                                  const updated = { ...extractedRates, [key]: v };
+                                  if (['USD_CHECKS', 'USD_JBANK', 'USD_NCB'].includes(key)) {
+                                    if (updated['USD_CHECKS'] !== undefined) updated['USD_CHECKS'] = v;
+                                    if (updated['USD_JBANK'] !== undefined) updated['USD_JBANK'] = v;
+                                    if (updated['USD_NCB'] !== undefined) updated['USD_NCB'] = v;
+                                  }
+                                  setExtractedRates(updated);
                                 }
                               }}
                               disabled={isSkipped}

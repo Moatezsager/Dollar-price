@@ -3,6 +3,7 @@ import { rates, history } from '../state';
 import { appConfig } from '../config';
 import { HistoryPoint, PriceChangeLog, RateMap, AppConfig } from '../types';
 import { isSignificantChange } from '../utils/helpers';
+import { updateStats } from './reporting.service';
 
 export let lastRatesFetchTime = 0;
 export const RATES_CACHE_TTL = 30 * 1000; // 30 seconds
@@ -71,6 +72,7 @@ export async function loadLatestRatesFromSupabase() {
       rates.parallel = { ...rates.parallel, ...latest.rates, USD: latest.usd };
       rates.lastUpdated = latest.recorded_at;
       console.log("[Startup] Successfully loaded latest parallel rates from", latest.recorded_at);
+      await syncCheckRates("بدء تشغيل السيرفر");
     }
     
     // Load official rates
@@ -421,45 +423,60 @@ export async function fetchHistoryFromSupabase() {
   return history;
 }
 
-export async function syncCheckRates(source: string = "تزامن تلقائي") {
-  const checkIds = ["USD_CHECKS", "USD_JBANK", "USD_NCB"];
-  let latestCheckPrice = 0;
+export const CHECK_TRIO = ["USD_CHECKS", "USD_JBANK", "USD_NCB"] as const;
+
+export async function syncCheckRates(source: string = "تزامن تلقائي", explicitPrice?: number) {
+  let targetPrice = explicitPrice || 0;
   let latestCheckTime = 0;
 
-  for (const id of checkIds) {
-    const lastChanged = rates.lastChanged.parallel[id];
-    if (lastChanged) {
-      const time = new Date(lastChanged).getTime();
-      if (time > latestCheckTime) {
-        latestCheckTime = time;
-        latestCheckPrice = rates.parallel[id];
+  if (targetPrice <= 0) {
+    // العثور على أحدث سعر تم تعديله بين الثلاثي (دولار صكوك، صكوك تجاري، صكوك جمهورية)
+    for (const id of CHECK_TRIO) {
+      const lastChanged = rates.lastChanged.parallel[id];
+      const p = rates.parallel[id] || 0;
+      if (p > 0) {
+        if (lastChanged) {
+          const time = new Date(lastChanged).getTime();
+          if (time > latestCheckTime) {
+            latestCheckTime = time;
+            targetPrice = p;
+          }
+        } else if (targetPrice <= 0) {
+          targetPrice = p;
+        }
       }
     }
   }
 
-  if (latestCheckPrice > 0) {
+  if (targetPrice > 0) {
     let anyChanged = false;
-    for (const id of checkIds) {
-      if (rates.parallel[id] !== latestCheckPrice) {
-        const oldVal = rates.parallel[id] || latestCheckPrice;
+    const nowIso = latestCheckTime > 0 ? new Date(latestCheckTime).toISOString() : new Date().toISOString();
+
+    for (const id of CHECK_TRIO) {
+      if (rates.parallel[id] !== targetPrice) {
+        const oldVal = rates.parallel[id] || targetPrice;
         
         rates.previousParallel[id] = oldVal;
-        rates.parallel[id] = latestCheckPrice;
-        rates.lastChanged.parallel[id] = new Date(latestCheckTime).toISOString();
+        rates.parallel[id] = targetPrice;
+        rates.lastChanged.parallel[id] = nowIso;
         anyChanged = true;
         
         const term = appConfig.terms.find(t => t.id === id);
+        const termName = term ? term.name : (id === 'USD_CHECKS' ? 'دولار أمريكي (صكوك)' : id);
         const changeLog = {
           id: Math.random().toString(36).substring(2, 9),
           currencyCode: id,
-          currencyName: term ? term.name : id,
+          currencyName: termName,
           oldPrice: oldVal,
-          newPrice: latestCheckPrice,
+          newPrice: targetPrice,
           source: `${source} (مزامنة الصكوك)`,
           timestamp: new Date().toISOString()
         };
         await logPriceChange(changeLog);
-        console.log(`[Sync] Synced ${id} to ${latestCheckPrice} from check group. Source: ${source}`);
+        try {
+          updateStats(id, targetPrice);
+        } catch (e) {}
+        console.log(`[Sync] Synced ${id} to ${targetPrice} from check trio. Source: ${source}`);
       }
     }
     return anyChanged;

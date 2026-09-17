@@ -22,7 +22,9 @@ import {
   clearDbCache,
   logPriceChange,
   recentChangesLog,
-  saveToSupabase
+  saveToSupabase,
+  syncCheckRates,
+  CHECK_TRIO
 } from '../services/db.service';
 import {
   broadcastOfficialRates,
@@ -241,6 +243,7 @@ export function createAdminRouter(deps: AdminRouterDeps): express.Router {
     }
     
     if (anyChanged) {
+      await syncCheckRates("استخراج المشرف");
       await saveToSupabase();
       deps.broadcastRatesUpdate(rates);
     }
@@ -695,6 +698,7 @@ export function createAdminRouter(deps: AdminRouterDeps): express.Router {
                    flag: term.flag
                 }], false, 'all').catch(console.error);
              }
+             await syncCheckRates("تعديل السجل");
           }
           deps.broadcastRatesUpdate(rates);
         }
@@ -998,11 +1002,18 @@ export function createAdminRouter(deps: AdminRouterDeps): express.Router {
       }
 
       let anyChanged = false;
+      let checkPriceUpdate: number | null = null;
+      let checkOldPrice: number | null = null;
       const changedCurrencies: {id: string, name: string, oldVal: number, newVal: number, flag: string}[] = [];
 
       for (const [code, value] of Object.entries(updates)) {
         const numVal = parseFloat(value as string);
         if (isNaN(numVal) || numVal <= 0) continue;
+
+        // التقاط أي تحديث يخص ثلاثي الصكوك
+        if (code === 'USD_CHECKS' || code === 'USD_JBANK' || code === 'USD_NCB') {
+          checkPriceUpdate = numVal;
+        }
 
         const term = appConfig.terms.find(t => t.id === code);
         const currentVal = rates.parallel[code];
@@ -1015,7 +1026,10 @@ export function createAdminRouter(deps: AdminRouterDeps): express.Router {
           
           updateStats(code, numVal);
 
-          if (term) {
+          // استبعاد صكوك الجمهورية والتجاري من قائمة النشر، والاحتفاظ بـ USD_CHECKS فقط
+          if (code === 'USD_CHECKS' || code === 'USD_JBANK' || code === 'USD_NCB') {
+            if (checkOldPrice === null) checkOldPrice = currentVal || numVal;
+          } else if (term) {
             changedCurrencies.push({
               id: code,
               name: term.name,
@@ -1036,6 +1050,23 @@ export function createAdminRouter(deps: AdminRouterDeps): express.Router {
           };
           await logPriceChange(changeLog);
         }
+      }
+
+      // المزامنة الفورية لثلاثي الصكوك (دولار صكوك، صكوك تجاري، صكوك جمهورية)
+      if (checkPriceUpdate !== null) {
+        const synced = await syncCheckRates("تعديل يدوي من المشرف", checkPriceUpdate);
+        if (synced) anyChanged = true;
+      }
+
+      // إضافة دولار صكوك فقط للنشر في حال تغير السعر
+      if (checkPriceUpdate !== null && checkOldPrice !== null && isSignificantChange(checkOldPrice, checkPriceUpdate)) {
+        changedCurrencies.push({
+          id: 'USD_CHECKS',
+          name: 'دولار أمريكي (صكوك)',
+          oldVal: checkOldPrice,
+          newVal: checkPriceUpdate,
+          flag: 'us'
+        });
       }
 
       if (anyChanged) {

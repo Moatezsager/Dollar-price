@@ -634,7 +634,35 @@ export async function fetchParallelRatesFromTelegram(): Promise<boolean | null> 
         if (anyChanged) {
           await saveToSupabase('parallel');
           if (collectedUpdates.length > 0) {
-            broadcastRateChanges(collectedUpdates).catch(e => console.error("[Scraper] Broadcast error:", e));
+            // توحيد الصكوك: استبعاد صكوك الجمهورية والتجاري من النشر، والاكتفاء بنشر دولار صكوك فقط
+            const sanitizedUpdates: typeof collectedUpdates = [];
+            let checkPrice: number | null = null;
+            let checkOldPrice: number | null = null;
+
+            for (const u of collectedUpdates) {
+              if (u.id === 'USD_JBANK' || u.id === 'USD_NCB' || u.id === 'USD_CHECKS') {
+                if (checkPrice === null) {
+                  checkPrice = u.newVal;
+                  checkOldPrice = u.oldVal;
+                }
+              } else {
+                sanitizedUpdates.push(u);
+              }
+            }
+
+            if (checkPrice !== null) {
+              sanitizedUpdates.push({
+                id: 'USD_CHECKS',
+                name: 'دولار أمريكي (صكوك)',
+                oldVal: checkOldPrice ?? rates.previousParallel['USD_CHECKS'] ?? checkPrice,
+                newVal: checkPrice,
+                flag: 'us'
+              });
+            }
+
+            if (sanitizedUpdates.length > 0) {
+              broadcastRateChanges(sanitizedUpdates).catch(e => console.error("[Scraper] Broadcast error:", e));
+            }
           }
         }
 

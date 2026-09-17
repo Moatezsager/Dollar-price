@@ -695,7 +695,65 @@ export async function broadcastOfficialRates(isTest: boolean = false) {
   }
 }
 
+/**
+ * توحيد وفلترة تحديثات النشر:
+ * - استبعاد صكوك المصارف (صكوك التجاري، صكوك الجمهورية، إلخ) من النشر نهائياً
+ * - الاكتفاء بنشر "دولار أمريكي (صكوك)" (USD_CHECKS) فقط
+ * - في حال وجود أي تحديث لصكوك تجاري أو جمهورية، يُحوّل إلى USD_CHECKS وتدمج التحديثات
+ */
+export function sanitizeBroadcastUpdates(
+  updates: { id?: string; name: string; oldVal: number; newVal: number; flag: string }[]
+): { id?: string; name: string; oldVal: number; newVal: number; flag: string }[] {
+  const result: { id?: string; name: string; oldVal: number; newVal: number; flag: string }[] = [];
+  let checkUpdate: { id: string; name: string; oldVal: number; newVal: number; flag: string } | null = null;
+
+  for (const u of updates) {
+    const id = (u.id || '').toUpperCase();
+    const name = u.name || '';
+
+    // التحقق إذا كان التحديث يخص الصكوك
+    const isBankCheck = 
+      id === 'USD_JBANK' || 
+      id === 'USD_NCB' || 
+      id === 'USD_BCD' || 
+      id === 'USD_AB' || 
+      id === 'USD_WB' ||
+      name.includes('الجمهورية') || 
+      name.includes('التجاري') ||
+      name.includes('التجارة') ||
+      name.includes('الأمان') ||
+      name.includes('الامان') ||
+      name.includes('الوحدة');
+
+    const isGenericCheck = id === 'USD_CHECKS' || id === 'USD_SUKUK' || name.includes('صكوك') || name.includes('شيك');
+
+    if (isBankCheck || isGenericCheck) {
+      if (!checkUpdate) {
+        checkUpdate = {
+          id: 'USD_CHECKS',
+          name: 'دولار أمريكي (صكوك)',
+          oldVal: u.oldVal,
+          newVal: u.newVal,
+          flag: 'us'
+        };
+      } else {
+        // نأخذ القيمة الأحدث إذا تكررت الصكوك
+        checkUpdate.newVal = u.newVal;
+      }
+    } else {
+      result.push(u);
+    }
+  }
+
+  if (checkUpdate) {
+    result.push(checkUpdate);
+  }
+
+  return result;
+}
+
 export async function broadcastRateChanges(updates: {id?: string, name: string, oldVal: number, newVal: number, flag: string}[], isTest: boolean = false, target: 'all' | 'telegram' | 'facebook' = 'all') {
+  updates = sanitizeBroadcastUpdates(updates);
   if (!isTest && !appConfig.telegramAutoPost && !appConfig.facebookAutoPost) {
     return;
   }
@@ -752,11 +810,6 @@ export async function broadcastRateChanges(updates: {id?: string, name: string, 
 const BROADCAST_DISPLAY_ORDER: string[] = [
   'USD',          // 1. الدولار الأمريكي (كاش)
   'USD_CHECKS',   // 2. الدولار الأمريكي (صكوك)
-  'USD_JBANK',    // صكوك الجمهورية
-  'USD_BCD',      // صكوك التجارة
-  'USD_NCB',      // صكوك التجاري
-  'USD_AB',       // صكوك الأمان
-  'USD_WB',       // صكوك الوحدة
   'EUR',          // 3. اليورو
   'GBP',          // 4. الجنيه الإسترليني
   'TND',          // 5. الدينار التونسي
@@ -782,26 +835,15 @@ function getBroadcastDisplayRank(u: { id?: string; name?: string }): number {
     return 10;
   }
 
-  // 2. الدولار الأمريكي (صكوك)
+  // 2. الدولار الأمريكي (صكوك) - توحيد الصكوك على رتبة 20 فقط
   if (
     id === 'USD_CHECKS' ||
     id === 'USD_SUKUK' ||
-    id === 'USD_JBANK' ||
-    id === 'USD_BCD' ||
-    id === 'USD_NCB' ||
-    id === 'USD_AB' ||
-    id === 'USD_WB' ||
     name.includes('صكوك') ||
     name.includes('صك') ||
     name.includes('شيك')
   ) {
-    if (id === 'USD_CHECKS' || id === 'USD_SUKUK' || name === 'دولار أمريكي (صكوك)') return 20;
-    if (id === 'USD_JBANK' || name.includes('الجمهورية')) return 21;
-    if (id === 'USD_BCD' || name.includes('التجارة')) return 22;
-    if (id === 'USD_NCB' || name.includes('التجاري')) return 23;
-    if (id === 'USD_AB' || name.includes('الأمان') || name.includes('الامان')) return 24;
-    if (id === 'USD_WB' || name.includes('الوحدة')) return 25;
-    return 29;
+    return 20;
   }
 
   // 3. اليورو
@@ -853,6 +895,7 @@ export async function executeBroadcast(
   target: 'all' | 'telegram' | 'facebook' = 'all',
   skipFilters: boolean = false
 ) {
+  updates = sanitizeBroadcastUpdates(updates);
   if (updates.length === 0) return;
 
   // ─── Smart Broadcast Filters (للوضع الحي فقط، لا تؤثر على الاختبارات) ─────
