@@ -1,6 +1,6 @@
 import webpush from 'web-push';
 import cron from 'node-cron';
-import { db } from '../db';
+import { db, supabase, supabaseAnonKey } from '../db';
 
 // VAPID Keys setup
 export let vapidKeys = { publicKey: '', privateKey: '' };
@@ -46,10 +46,28 @@ export async function sendRetentionPushNotifications() {
     const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
     const fourDaysAgo = new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString();
 
-    const subscriptions = db.prepare(`
-      SELECT endpoint, p256dh, auth FROM push_subscriptions 
-      WHERE last_active < ? AND last_active > ?
-    `).all(threeDaysAgo, fourDaysAgo) as any[];
+    let subscriptions: any[] = [];
+    if (supabase && supabaseAnonKey && !supabaseAnonKey.includes('dummy')) {
+      try {
+        const { data, error } = await supabase
+          .from('push_subscriptions')
+          .select('endpoint, p256dh, auth')
+          .lt('last_active', threeDaysAgo)
+          .gt('last_active', fourDaysAgo);
+        if (!error && data) {
+          subscriptions = data;
+        }
+      } catch (err) {
+        console.error('[Push] Supabase retention query error:', err);
+      }
+    }
+
+    if (subscriptions.length === 0) {
+      subscriptions = db.prepare(`
+        SELECT endpoint, p256dh, auth FROM push_subscriptions 
+        WHERE last_active < ? AND last_active > ?
+      `).all(threeDaysAgo, fourDaysAgo) as any[];
+    }
 
     console.log(`[Push] Found ${subscriptions.length} users to remind.`);
 
@@ -71,6 +89,9 @@ export async function sendRetentionPushNotifications() {
       } catch (err: any) {
         if (err.statusCode === 410 || err.statusCode === 404) {
           db.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').run(sub.endpoint);
+          if (supabase && supabaseAnonKey && !supabaseAnonKey.includes('dummy')) {
+            supabase.from('push_subscriptions').delete().eq('endpoint', sub.endpoint).then(() => {}).catch(() => {});
+          }
         }
       }
     }
@@ -85,9 +106,28 @@ export async function sendPushNotificationToAll(
   url: string = '/'
 ) {
   try {
-    const subscriptions = db.prepare(
-      'SELECT endpoint, p256dh, auth FROM push_subscriptions'
-    ).all() as any[];
+    let subscriptions: any[] = [];
+
+    // First try fetching from Supabase
+    if (supabase && supabaseAnonKey && !supabaseAnonKey.includes('dummy')) {
+      try {
+        const { data, error } = await supabase
+          .from('push_subscriptions')
+          .select('endpoint, p256dh, auth');
+        if (!error && data && data.length > 0) {
+          subscriptions = data;
+        }
+      } catch (err) {
+        console.error('[Push] Supabase select error:', err);
+      }
+    }
+
+    // Fallback to SQLite
+    if (subscriptions.length === 0) {
+      subscriptions = db.prepare(
+        'SELECT endpoint, p256dh, auth FROM push_subscriptions'
+      ).all() as any[];
+    }
 
     if (!subscriptions || subscriptions.length === 0) {
       console.log('[Push] No subscribers to notify.');
@@ -123,6 +163,9 @@ export async function sendPushNotificationToAll(
           } catch (err: any) {
             if (err.statusCode === 410 || err.statusCode === 404) {
               db.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').run(sub.endpoint);
+              if (supabase && supabaseAnonKey && !supabaseAnonKey.includes('dummy')) {
+                supabase.from('push_subscriptions').delete().eq('endpoint', sub.endpoint).then(() => {}).catch(() => {});
+              }
               removed++;
             } else {
               failed++;

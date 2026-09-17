@@ -828,6 +828,15 @@ async function startServer() {
       const insert = db.prepare('INSERT INTO installs (platform, user_agent) VALUES (?, ?)');
       insert.run(platform || 'unknown', userAgent);
       
+      if (supabase && supabaseAnonKey && !supabaseAnonKey.includes('dummy')) {
+        supabase.from('installs').insert([{
+          platform: platform || 'unknown',
+          user_agent: userAgent
+        }]).then(({ error }) => {
+          if (error) console.error("[Supabase] Install sync error:", error.message);
+        });
+      }
+
       res.json({ success: true });
     } catch (err: any) {
       console.error("Error tracking install:", err);
@@ -1376,10 +1385,26 @@ async function startServer() {
         return res.status(400).json({ success: false, error: "Invalid subscription" });
       }
       const keys = subscription.keys || {};
+      const endpoint = subscription.endpoint;
+      const p256dh = keys.p256dh || '';
+      const auth = keys.auth || '';
+
       db.prepare(`
         INSERT OR REPLACE INTO push_subscriptions (endpoint, p256dh, auth, created_at, last_active)
         VALUES (?, ?, ?, datetime('now'), datetime('now'))
-      `).run(subscription.endpoint, keys.p256dh || '', keys.auth || '');
+      `).run(endpoint, p256dh, auth);
+
+      if (supabase && supabaseAnonKey && !supabaseAnonKey.includes('dummy')) {
+        supabase.from('push_subscriptions').upsert({
+          endpoint,
+          p256dh,
+          auth,
+          last_active: new Date().toISOString()
+        }, { onConflict: 'endpoint' }).then(({ error }) => {
+          if (error) console.error("[Supabase] Push subscribe error:", error.message);
+        });
+      }
+
       res.json({ success: true });
     } catch (err: any) {
       console.error("[Push] Subscription error:", err.message);
@@ -1394,6 +1419,12 @@ async function startServer() {
         db.prepare(`
           UPDATE push_subscriptions SET last_active = datetime('now') WHERE endpoint = ?
         `).run(endpoint);
+
+        if (supabase && supabaseAnonKey && !supabaseAnonKey.includes('dummy')) {
+          supabase.from('push_subscriptions').update({
+            last_active: new Date().toISOString()
+          }).eq('endpoint', endpoint).then(() => {}).catch(() => {});
+        }
       }
       res.json({ success: true });
     } catch (e) {
