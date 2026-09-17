@@ -867,7 +867,10 @@ export default function Admin() {
                      onClick={async () => {
                         setLoading(true);
                         try {
-                           const res = await fetch(`/api/refresh-official?key=${config.cronSecret || 'Lyd@2026!SecureCronRefreshKey_99xZ'}`);
+                           const res = await fetch("/api/admin/refresh-official", {
+                             method: "POST",
+                             headers: { Authorization: `Bearer ${token}` }
+                           });
                            if(res.ok) setSuccess("تم تحديث السعر الرسمي");
                         } catch(e) {}
                         setLoading(false);

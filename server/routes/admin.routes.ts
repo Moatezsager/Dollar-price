@@ -426,6 +426,28 @@ export function createAdminRouter(deps: AdminRouterDeps): express.Router {
     }
   });
 
+  // Manual Official Rates Refresh (Admin Auth)
+  router.post('/refresh-official', async (req: express.Request, res: express.Response) => {
+    try {
+      console.log(`[Admin] Manual official rates refresh triggered`);
+      const officialUpdate = await fetchOfficialRates();
+      if (officialUpdate) {
+        await saveToSupabase('official');
+        deps.broadcastRatesUpdate(rates);
+      }
+      res.json({ 
+        success: true, 
+        message: "تم تحديث السعر الرسمي بنجاح", 
+        updated: officialUpdate 
+      });
+    } catch (err) {
+      console.error("Manual official refresh failed:", err);
+      if (!res.headersSent) {
+        res.status(500).json({ success: false, message: "فشل التحديث اليدوي للسعر الرسمي" });
+      }
+    }
+  });
+
   // Analytics Dashboard Data
   router.get('/analytics', (req: express.Request, res: express.Response) => {
     try {

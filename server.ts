@@ -1061,7 +1061,58 @@ async function startServer() {
     }
   });
 
-  app.get("/api/refresh-parallel", async (req: express.Request, res: express.Response) => {
+  // --- Secure Timing-Safe Key Verification for Cron Endpoints ---
+  function isValidCronSecret(providedKey: unknown): boolean {
+    const expectedKey = process.env.CRON_SECRET;
+    if (!expectedKey || typeof providedKey !== 'string' || !providedKey) {
+      return false;
+    }
+    const expectedBuffer = Buffer.from(expectedKey, 'utf8');
+    const providedBuffer = Buffer.from(providedKey, 'utf8');
+    if (expectedBuffer.length !== providedBuffer.length) {
+      return false;
+    }
+    return crypto.timingSafeEqual(expectedBuffer, providedBuffer);
+  }
+
+  // --- Rate Limiters for Cron Endpoints ---
+  const cronParallelLimiter = rateLimit({
+    windowMs: 2 * 60 * 1000, // 2 minutes
+    max: 1, // max 1 request per 2 minutes per IP
+    standardHeaders: true,
+    legacyHeaders: false,
+    handler: (req: express.Request, res: express.Response) => {
+      const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+      console.warn(`[Cron-RateLimit] Rate limit exceeded for /api/refresh-parallel from IP: ${ip}`);
+      res.status(429).json({ success: false, error: "Too many requests. Please try again later." });
+    }
+  });
+
+  const cronOfficialLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 5, // max 5 requests per hour per IP
+    standardHeaders: true,
+    legacyHeaders: false,
+    handler: (req: express.Request, res: express.Response) => {
+      const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+      console.warn(`[Cron-RateLimit] Rate limit exceeded for /api/refresh-official from IP: ${ip}`);
+      res.status(429).json({ success: false, error: "Too many requests. Please try again later." });
+    }
+  });
+
+  const cronCleanupLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 5, // max 5 requests per hour per IP
+    standardHeaders: true,
+    legacyHeaders: false,
+    handler: (req: express.Request, res: express.Response) => {
+      const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+      console.warn(`[Cron-RateLimit] Rate limit exceeded for /api/cleanup-db from IP: ${ip}`);
+      res.status(429).json({ success: false, error: "Too many requests. Please try again later." });
+    }
+  });
+
+  app.get("/api/refresh-parallel", cronParallelLimiter, async (req: express.Request, res: express.Response) => {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
@@ -1072,10 +1123,9 @@ async function startServer() {
 
     const userAgent = req.headers['user-agent'] || 'Unknown';
     const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
-    const providedKey = req.query.key as string;
-    const expectedKey = process.env.CRON_SECRET;
+    const providedKey = req.query.key;
     
-    if (!expectedKey || providedKey !== expectedKey) {
+    if (!isValidCronSecret(providedKey)) {
       console.warn(`[Cron-Job] Unauthorized refresh attempt from IP: ${ip}`);
       return res.status(403).json({ success: false, error: "Forbidden: Invalid security key" });
     }
@@ -1119,7 +1169,7 @@ async function startServer() {
     }
   });
 
-  app.get("/api/refresh-official", async (req: express.Request, res: express.Response) => {
+  app.get("/api/refresh-official", cronOfficialLimiter, async (req: express.Request, res: express.Response) => {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
@@ -1129,10 +1179,9 @@ async function startServer() {
     res.setHeader('X-Accel-Buffering', 'no');
 
     const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
-    const providedKey = req.query.key as string;
-    const expectedKey = process.env.CRON_SECRET;
+    const providedKey = req.query.key;
     
-    if (!expectedKey || providedKey !== expectedKey) {
+    if (!isValidCronSecret(providedKey)) {
       console.warn(`[Cron-Job-Official] Unauthorized refresh attempt from IP: ${ip}`);
       return res.status(403).json({ success: false, error: "Forbidden: Invalid security key" });
     }
@@ -1174,12 +1223,13 @@ async function startServer() {
     }
   });
 
-  app.get("/api/cleanup-db", async (req: express.Request, res: express.Response) => {
-    const providedKey = req.query.key as string;
-    const expectedKey = process.env.CRON_SECRET;
+  app.get("/api/cleanup-db", cronCleanupLimiter, async (req: express.Request, res: express.Response) => {
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    const providedKey = req.query.key;
     
-    if (!expectedKey || providedKey !== expectedKey) {
-      return res.status(403).json({ success: false, error: "Forbidden" });
+    if (!isValidCronSecret(providedKey)) {
+      console.warn(`[Maintenance] Unauthorized cleanup attempt from IP: ${ip}`);
+      return res.status(403).json({ success: false, error: "Forbidden: Invalid security key" });
     }
 
     if (!supabase || !supabaseAnonKey || supabaseAnonKey.includes('dummy')) {

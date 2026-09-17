@@ -105,19 +105,22 @@ export function addBroadcastLog(params: AddBroadcastLogParams): void {
 
   // Mirror to Supabase in background (fire-and-forget, non-blocking)
   if (supabase && supabaseAnonKey && !supabaseAnonKey.includes('dummy')) {
-    supabase
-      .from('broadcast_log')
-      .insert({
-        created_at: createdAt,
-        platform: params.platform,
-        currency_ids: currencyIdsJson,
-        status: params.status,
-        attempts: params.attempts,
-        duration_ms: durationMs,
-        error_message: sanitizedError,
-        is_test: isTest
-      })
-      .then(({ error }) => {
+    Promise.resolve(
+      supabase
+        .from('broadcast_log')
+        .insert({
+          created_at: createdAt,
+          platform: params.platform,
+          currency_ids: currencyIdsJson,
+          status: params.status,
+          attempts: params.attempts,
+          duration_ms: durationMs,
+          error_message: sanitizedError,
+          is_test: isTest
+        })
+    )
+      .then((res: any) => {
+        const error = res?.error;
         if (error) {
           if (!error.message.includes('relation "broadcast_log" does not exist')) {
             console.error("[BroadcastLog] Supabase mirror sync error:", error.message);
