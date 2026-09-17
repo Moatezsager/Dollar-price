@@ -668,12 +668,12 @@ export default function App() {
           <div className="flex flex-row items-center justify-between mt-1 sm:mt-2">
             <div className="flex items-center gap-1 sm:gap-2">
               {!isFirstStep && (
-                <button {...backProps} className="px-2 sm:px-3 py-2 text-[10px] sm:text-xs font-bold text-slate-500 hover:text-white hover:bg-white/5 rounded-lg sm:rounded-xl transition-all uppercase tracking-widest">
+                <button {...backProps} className="px-2 sm:px-3 py-2 text-xs font-bold text-slate-500 hover:text-white hover:bg-white/5 rounded-lg sm:rounded-xl transition-all uppercase tracking-widest">
                   السابق
                 </button>
               )}
               {isFirstStep && (
-                <button {...skipProps} className="px-2 sm:px-3 py-2 text-[10px] sm:text-xs font-bold text-slate-500 hover:text-white hover:bg-white/5 rounded-lg sm:rounded-xl transition-all uppercase tracking-widest">
+                <button {...skipProps} className="px-2 sm:px-3 py-2 text-xs font-bold text-slate-500 hover:text-white hover:bg-white/5 rounded-lg sm:rounded-xl transition-all uppercase tracking-widest">
                   تخطي
                 </button>
               )}
@@ -681,7 +681,7 @@ export default function App() {
             
             <button 
               {...primaryProps} 
-              className="group px-4 sm:px-6 py-2 sm:py-2.5 text-[10px] sm:text-xs font-black bg-gradient-to-l from-emerald-500 to-emerald-400 text-[#050505] rounded-lg sm:rounded-xl hover:from-emerald-400 hover:to-emerald-300 transition-all shadow-[0_8px_20px_-6px_rgba(16,185,129,0.5)] active:scale-95 uppercase tracking-widest flex items-center gap-1.5 sm:gap-2"
+              className="group px-4 sm:px-6 py-2 sm:py-2.5 text-xs font-black bg-gradient-to-l from-emerald-500 to-emerald-400 text-[#050505] rounded-lg sm:rounded-xl hover:from-emerald-400 hover:to-emerald-300 transition-all shadow-[0_8px_20px_-6px_rgba(16,185,129,0.5)] active:scale-95 uppercase tracking-widest flex items-center gap-1.5 sm:gap-2"
             >
               {isLastStep ? 'إنهاء' : 'التالي'}
               {!isLastStep && <ArrowRight className="w-3 h-3 sm:w-3.5 sm:h-3.5 -scale-x-100 group-hover:translate-x-1 transition-transform" />}
@@ -1518,7 +1518,7 @@ export default function App() {
     if (!date) return null;
     try {
       return (
-        <span className={`text-[9px] font-medium text-zinc-600 flex items-center gap-1 ${className}`}>
+        <span className={`text-[11px] font-medium text-zinc-500 flex items-center gap-1 ${className}`}>
           <Clock className="w-2.5 h-2.5 opacity-50" />
           {formatDistanceToNow(new Date(date), { addSuffix: true, locale: ar })}
         </span>
@@ -1747,7 +1747,7 @@ export default function App() {
                   <span className="text-xs font-black uppercase tracking-widest">
                     {isOffline ? "أنت الآن في وضع عدم الاتصال" : "تنبيه: البيانات قديمة"}
                   </span>
-                  <p className="text-[11px] opacity-90 font-medium leading-tight">
+                  <p className="text-xs opacity-90 font-medium leading-tight">
                     {isOffline ? (
                       "يرجى التحقق من اتصال الإنترنت للحصول على آخر التحديثات اللحظية."
                     ) : (
@@ -1764,7 +1764,7 @@ export default function App() {
               {isOffline && (
                 <button 
                   onClick={() => window.location.reload()}
-                  className="px-4 py-2 bg-white text-rose-600 text-[11px] font-black rounded-xl hover:bg-zinc-100 transition-all active:scale-95 shadow-md shrink-0"
+                  className="px-4 py-2 bg-white text-rose-600 text-xs font-black rounded-xl hover:bg-zinc-100 transition-all active:scale-95 shadow-md shrink-0"
                 >
                   تحديث الصفحة
                 </button>
@@ -1905,7 +1905,7 @@ export default function App() {
               onClick={() => setCurrentPage('dashboard')}
             >
               <h1 className="text-sm sm:text-lg font-black tracking-tight text-white">المؤشر</h1>
-              <p className="text-[9px] sm:text-[10px] text-emerald-500/70 font-mono uppercase tracking-[0.2em] mt-0.5">Al-Moasher</p>
+              <p className="text-[11px] text-emerald-500/70 font-mono uppercase tracking-[0.2em] mt-0.5">Al-Moasher</p>
             </div>
           </div>
           
@@ -1919,7 +1919,7 @@ export default function App() {
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                 </span>
               )}
-              <span className="text-[9px] sm:text-[10px] font-mono text-slate-400 tracking-wider uppercase hidden sm:block" dir="ltr">
+              <span className="text-xs font-mono text-slate-400 tracking-wider uppercase hidden sm:block" dir="ltr">
                 {isRefreshing ? "جاري التحديث..." : (lastFetchTime ? format(lastFetchTime, "HH:mm:ss") : "...")}
               </span>
             </div>
@@ -1935,7 +1935,7 @@ export default function App() {
               title="جولة تعريفية"
             >
               <Info className="w-4 h-4" />
-              <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline sm:mr-2">مساعدة</span>
+              <span className="text-xs font-bold uppercase tracking-wider hidden sm:inline sm:mr-2">مساعدة</span>
             </button>
             
             {showInstallBanner && !isStandalone && (
@@ -1945,7 +1945,7 @@ export default function App() {
                 title="تثبيت التطبيق"
               >
                 <Download className="w-4 h-4" />
-                <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline sm:mr-2">تثبيت</span>
+                <span className="text-xs font-bold uppercase tracking-wider hidden sm:inline sm:mr-2">تثبيت</span>
               </button>
             )}
             
@@ -1960,7 +1960,7 @@ export default function App() {
               title="تحديث البيانات"
             >
               <RefreshCw className="w-4 h-4" />
-              <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline sm:mr-2">تحديث</span>
+              <span className="text-xs font-bold uppercase tracking-wider hidden sm:inline sm:mr-2">تحديث</span>
             </button>
 
             <div className="relative" ref={moreMenuRef}>
@@ -1974,7 +1974,7 @@ export default function App() {
                 title="المزيد"
               >
                 <MoreVertical className="w-4 h-4" />
-                <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline sm:mr-2">المزيد</span>
+                <span className="text-xs font-bold uppercase tracking-wider hidden sm:inline sm:mr-2">المزيد</span>
               </button>
 
               <AnimatePresence>
@@ -2112,7 +2112,7 @@ export default function App() {
             <div className="flex items-center gap-2">
               <h3 className={`text-xs sm:text-sm font-bold ${marketStatus.color}`}>حالة السوق: {marketStatus.label}</h3>
             </div>
-            <p className="text-[10px] sm:text-xs text-slate-400 mt-0.5">{marketStatus.description}</p>
+            <p className="text-xs text-slate-400 mt-0.5">{marketStatus.description}</p>
           </div>
         </div>
 
@@ -2130,7 +2130,7 @@ export default function App() {
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                     <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
                   </span>
-                  <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">Live</span>
+                  <span className="text-[11px] font-black text-emerald-500 uppercase tracking-wider">Live</span>
                 </div>
               </div>
             </div>
@@ -2227,7 +2227,7 @@ export default function App() {
               </div>
               <div className="w-px h-12 bg-white/10 mx-2"></div>
               <div className="flex flex-col justify-center">
-                <span className="text-[10px] text-zinc-600 mb-1">السعر السابق</span>
+                <span className="text-xs text-zinc-500 mb-1">السعر السابق</span>
                 <span className="text-sm text-slate-400 font-mono" dir="ltr">{prevUsdChecksRate.toFixed(2)}</span>
               </div>
               <button 
@@ -2240,11 +2240,11 @@ export default function App() {
             </div>
 
             {rates?.lastUpdated && (
-              <div className="flex flex-wrap items-center gap-2 mt-6 text-[11px] sm:text-xs text-slate-500 bg-white/5 w-fit px-3 py-1.5 rounded-full border border-slate-800/60">
+              <div className="flex flex-wrap items-center gap-2 mt-6 text-xs text-slate-500 bg-white/5 w-fit px-3 py-1.5 rounded-full border border-slate-800/60">
                 <Clock className="w-3.5 h-3.5 text-emerald-500/70" />
                 <span>آخر تحديث: {formatDistanceToNow(new Date(rates.lastUpdated), { addSuffix: true, locale: ar })}</span>
                 <div className="w-1 h-1 rounded-full bg-zinc-600 hidden sm:block"></div>
-                <span className="font-mono text-[10px] hidden sm:block" dir="ltr">{format(new Date(rates.lastUpdated), "yyyy-MM-dd HH:mm")}</span>
+                <span className="font-mono text-xs hidden sm:block" dir="ltr">{format(new Date(rates.lastUpdated), "yyyy-MM-dd HH:mm")}</span>
               </div>
             )}
           </div>
@@ -2260,7 +2260,7 @@ export default function App() {
                       setChartRange(range);
                       triggerHaptic(5);
                     }}
-                    className={`px-3 py-1 text-[10px] font-medium rounded-full transition-all border ${
+                    className={`px-3 py-1 text-xs font-medium rounded-full transition-all border ${
                       chartRange === range 
                         ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400' 
                         : 'bg-white/5 border-slate-800/60 text-slate-500 hover:bg-white/10'
@@ -2311,15 +2311,15 @@ export default function App() {
               {/* Advanced Stats Dashboard */}
               <div className="mt-4 grid grid-cols-3 gap-2 w-full lg:w-[400px]">
                 <div className="bg-white/5 rounded-2xl p-3 text-center border border-slate-800/60 flex flex-col justify-center">
-                  <p className="text-[10px] text-slate-400 font-medium mb-1">متوسط 30 يوم</p>
+                  <p className="text-[11px] text-slate-400 font-medium mb-1">متوسط 30 يوم</p>
                   <p className="text-sm font-mono font-bold text-white">{advancedStats.ma30 > 0 ? advancedStats.ma30.toFixed(4) : '-'}</p>
                 </div>
                 <div className="bg-emerald-500/5 rounded-2xl p-3 text-center border border-emerald-500/10 flex flex-col justify-center">
-                  <p className="text-[10px] text-slate-400 font-medium mb-1">مقاومة (أعلى سعر)</p>
+                  <p className="text-[11px] text-slate-400 font-medium mb-1">مقاومة (أعلى سعر)</p>
                   <p className="text-sm font-mono font-bold text-emerald-400">{advancedStats.resistance > 0 ? advancedStats.resistance.toFixed(4) : '-'}</p>
                 </div>
                 <div className="bg-rose-500/5 rounded-2xl p-3 text-center border border-rose-500/10 flex flex-col justify-center">
-                  <p className="text-[10px] text-slate-400 font-medium mb-1">دعم (أدنى سعر)</p>
+                  <p className="text-[11px] text-slate-400 font-medium mb-1">دعم (أدنى سعر)</p>
                   <p className="text-sm font-mono font-bold text-rose-400">{advancedStats.support > 0 ? advancedStats.support.toFixed(4) : '-'}</p>
                 </div>
               </div>
@@ -2338,7 +2338,7 @@ export default function App() {
                 </div>
                 <div>
                   <h3 className="text-lg font-bold text-gradient tracking-wide">السوق الموازي</h3>
-                  <p className="text-[11px] text-slate-400 font-medium mt-0.5">عملات أجنبية</p>
+                  <p className="text-xs text-slate-400 font-medium mt-0.5">عملات أجنبية</p>
                 </div>
               </div>
               <div className="w-8 h-8 rounded-full bg-slate-800/50 flex items-center justify-center group-hover:bg-zinc-700 transition-colors">
@@ -2383,7 +2383,7 @@ export default function App() {
                 </div>
                 <div>
                   <h3 className="text-lg font-bold text-gradient tracking-wide">صكوك المصارف</h3>
-                  <p className="text-[11px] text-slate-400 font-medium mt-0.5">دولار أمريكي (USD)</p>
+                  <p className="text-xs text-slate-400 font-medium mt-0.5">دولار أمريكي (USD)</p>
                 </div>
               </div>
               <div className="w-8 h-8 rounded-full bg-slate-800/50 flex items-center justify-center group-hover:bg-zinc-700 transition-colors">
@@ -2428,7 +2428,7 @@ export default function App() {
                 </div>
                 <div>
                   <h3 className="text-lg font-bold text-gradient tracking-wide">حوالات العملة</h3>
-                  <p className="text-[11px] text-slate-400 font-medium mt-0.5">تحويلات خارج ليبيا</p>
+                  <p className="text-xs text-slate-400 font-medium mt-0.5">تحويلات خارج ليبيا</p>
                 </div>
               </div>
               <div className="w-8 h-8 rounded-full bg-slate-800/50 flex items-center justify-center group-hover:bg-zinc-700 transition-colors">
@@ -2474,7 +2474,7 @@ export default function App() {
               </div>
               <div>
                 <h3 className="text-lg font-bold text-gradient tracking-wide">السوق الرسمي</h3>
-                <p className="text-[11px] text-slate-400 font-medium mt-0.5">مصرف ليبيا المركزي</p>
+                <p className="text-xs text-slate-400 font-medium mt-0.5">مصرف ليبيا المركزي</p>
               </div>
             </div>
             <div className="w-8 h-8 rounded-full bg-slate-800/50 flex items-center justify-center group-hover:bg-zinc-700 transition-colors">
@@ -2531,7 +2531,7 @@ export default function App() {
                 </div>
                 <div>
                   <h3 className="text-lg font-bold text-gradient tracking-wide">المعادن الثمينة</h3>
-                  <p className="text-[11px] text-slate-400 font-medium mt-0.5">أسعار الذهب والفضة</p>
+                  <p className="text-xs text-slate-400 font-medium mt-0.5">أسعار الذهب والفضة</p>
                 </div>
               </div>
             </div>
@@ -2738,7 +2738,7 @@ export default function App() {
                     
                     return (
                       <div key={i} className="bg-white/5 rounded-2xl p-3 border border-slate-800/60 flex flex-col items-center justify-center text-center">
-                        <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mb-1">{stat.label}</span>
+                        <span className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">{stat.label}</span>
                         <span className={`font-mono font-bold ${isChange ? (isPositive ? 'text-emerald-400' : 'text-rose-400') : 'text-white'}`}>
                           {isChange ? (isPositive ? '+' : '') : ''}{val.toFixed(2)}
                         </span>
@@ -2760,7 +2760,7 @@ export default function App() {
               </div>
               <div>
                 <h3 className="text-2xl font-black text-white tracking-tight">المحول الذكي</h3>
-                <p className="text-[11px] text-slate-500 uppercase tracking-[0.2em] font-mono font-bold">Premium Exchange Calculator</p>
+                <p className="text-xs text-slate-500 uppercase tracking-[0.2em] font-mono font-bold">Premium Exchange Calculator</p>
               </div>
             </div>
 
@@ -2774,7 +2774,7 @@ export default function App() {
                 
                 <div className="relative z-10 flex flex-col sm:flex-row items-center justify-between gap-6">
                   <div className="w-full sm:w-1/3">
-                    <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-3 block">
+                    <label className="text-xs text-slate-400 font-bold uppercase tracking-widest mb-3 block">
                       اختر العملة
                     </label>
                     <div className="relative">
@@ -2798,7 +2798,7 @@ export default function App() {
                   </div>
 
                   <div className="flex-1 w-full text-left" dir="ltr">
-                    <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-3 block text-right sm:text-left" dir="rtl">
+                    <label className="text-xs text-slate-400 font-bold uppercase tracking-widest mb-3 block text-right sm:text-left" dir="rtl">
                       المبلغ بالعملة الأجنبية
                     </label>
                     <motion.input 
@@ -2847,7 +2847,7 @@ export default function App() {
 
                 <div className="relative z-10 flex flex-col gap-6">
                   <div className="flex items-center justify-between">
-                    <label className="text-[10px] text-emerald-400/80 font-bold uppercase tracking-widest">
+                    <label className="text-xs text-emerald-400/80 font-bold uppercase tracking-widest">
                       القيمة بالدينار الليبي (LYD)
                     </label>
                     <div className="px-3 py-1 bg-emerald-500/10 rounded-full border border-emerald-500/20 text-emerald-400 text-xs font-bold">
@@ -2858,7 +2858,7 @@ export default function App() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {/* Parallel Market */}
                     <div className="bg-white/5 border border-slate-700/50 rounded-2xl p-4 focus-within:bg-emerald-500/10 focus-within:border-emerald-500/30 transition-colors">
-                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-2 block">السوق الموازي</span>
+                      <span className="text-xs text-slate-400 font-bold uppercase tracking-widest mb-2 block">السوق الموازي</span>
                       <div className="flex items-center gap-2" dir="ltr">
                         <span className="text-emerald-400 font-bold">LYD</span>
                         <motion.input
@@ -2877,7 +2877,7 @@ export default function App() {
 
                     {/* Official Market */}
                     <div className="bg-white/5 border border-slate-700/50 rounded-2xl p-4 focus-within:bg-indigo-500/10 focus-within:border-indigo-500/30 transition-colors">
-                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-2 block">السعر الرسمي</span>
+                      <span className="text-xs text-slate-400 font-bold uppercase tracking-widest mb-2 block">السعر الرسمي</span>
                       <div className="flex items-center gap-2" dir="ltr">
                         <span className="text-indigo-400 font-bold">LYD</span>
                         <motion.input
@@ -2914,10 +2914,10 @@ export default function App() {
                 </div>
                 <div>
                   <h2 className="text-2xl font-black text-white tracking-tight">مؤشر الدينار</h2>
-                  <p className="text-[11px] text-emerald-400 font-mono mt-1 uppercase tracking-[0.2em]">Dinar Index Libya</p>
+                  <p className="text-xs text-emerald-400 font-mono mt-1 uppercase tracking-[0.2em]">Dinar Index Libya</p>
                   <div className="flex items-center gap-2 mt-2">
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-slate-400 font-medium">v2.1.0</span>
-                    <span className="text-[10px] text-slate-500">by GreenBox © 2026</span>
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-white/5 text-slate-400 font-medium">v2.1.0</span>
+                    <span className="text-xs text-slate-500">by GreenBox © 2026</span>
                   </div>
                 </div>
               </div>
@@ -3096,7 +3096,7 @@ export default function App() {
                   <div className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
                 </div>
                 <span className="text-xs font-mono text-slate-300 tracking-wider">{onlineCount.toLocaleString()}</span>
-                <span className="text-[10px] text-slate-500 uppercase">متواجد الآن</span>
+                <span className="text-xs text-slate-500 uppercase">متواجد الآن</span>
               </div>
             </div>
 
@@ -3107,7 +3107,7 @@ export default function App() {
         <footer className="hidden md:flex pt-16 pb-12 border-t border-slate-800/60 flex-col items-center gap-8">
           <div className="flex flex-col items-center gap-4">
             <div className="flex items-center gap-4 opacity-40 grayscale hover:opacity-100 hover:grayscale-0 transition-all duration-500">
-              <span className="text-[10px] font-mono tracking-[0.2em] uppercase text-slate-400">Dinar Index Libya</span>
+              <span className="text-xs font-mono tracking-[0.2em] uppercase text-slate-400">Dinar Index Libya</span>
             </div>
             
             {/* Online Count Badge - Elegant Style */}
@@ -3117,17 +3117,17 @@ export default function App() {
                   <div className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-40"></div>
                   <div className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></div>
                 </div>
-                <span className="text-[11px] font-mono text-slate-300 tracking-tighter">
+                <span className="text-xs font-mono text-slate-300 tracking-tighter">
                   {onlineCount.toLocaleString()}
                 </span>
               </div>
               <div className="w-px h-3 bg-white/10"></div>
-              <span className="text-[9px] font-medium text-slate-500 uppercase tracking-widest">متواجد الآن</span>
+              <span className="text-xs font-medium text-slate-500 uppercase tracking-widest">متواجد الآن</span>
             </div>
           </div>
           
           <div className="flex flex-col items-center gap-2">
-            <p className="text-[11px] text-slate-500 font-light tracking-wide">
+            <p className="text-xs text-slate-500 font-light tracking-wide">
               by <span className="text-white font-medium">GreenBox</span> © 2026
             </p>
             <div className="flex items-center gap-3 mt-2">
@@ -3225,7 +3225,7 @@ export default function App() {
                         animate={{ opacity: 1, width: 'auto', marginLeft: 4 }}
                         exit={{ opacity: 0, width: 0, marginLeft: 0 }}
                         transition={{ duration: 0.2 }}
-                        className="text-[12px] font-bold tracking-wide overflow-hidden whitespace-nowrap"
+                        className="text-xs font-bold tracking-wide overflow-hidden whitespace-nowrap"
                         style={{ fontFamily: 'Cairo, sans-serif' }}
                       >
                         {tab.label}
@@ -3353,7 +3353,7 @@ export default function App() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-slate-200">الاهتزاز (Haptic Feedback)</p>
-                        <p className="text-[10px] text-slate-500 mt-1">تفعيل أو تعطيل الاهتزاز عند التفاعل مع التطبيق</p>
+                        <p className="text-xs text-slate-500 mt-1">تفعيل أو تعطيل الاهتزاز عند التفاعل مع التطبيق</p>
                       </div>
                       <button
                         onClick={() => {
@@ -3372,7 +3372,7 @@ export default function App() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-slate-200">المؤثرات الصوتية</p>
-                        <p className="text-[10px] text-slate-500 mt-1">تفعيل أو تعطيل الأصوات عند تغير الأسعار</p>
+                        <p className="text-xs text-slate-500 mt-1">تفعيل أو تعطيل الأصوات عند تغير الأسعار</p>
                       </div>
                       <button
                         onClick={() => {
@@ -3391,7 +3391,7 @@ export default function App() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-slate-200">التحديث التلقائي</p>
-                        <p className="text-[10px] text-slate-500 mt-1">تحديث الأسعار تلقائياً كل 10 ثوانٍ</p>
+                        <p className="text-xs text-slate-500 mt-1">تحديث الأسعار تلقائياً كل 10 ثوانٍ</p>
                       </div>
                       <button
                         onClick={() => {
@@ -3410,7 +3410,7 @@ export default function App() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-slate-200">المخطط البياني</p>
-                        <p className="text-[10px] text-slate-500 mt-1">إظهار المخطط البياني المصغر في الشاشة الرئيسية</p>
+                        <p className="text-xs text-slate-500 mt-1">إظهار المخطط البياني المصغر في الشاشة الرئيسية</p>
                       </div>
                       <button
                         onClick={() => {
@@ -3455,7 +3455,7 @@ export default function App() {
                         )}
                         <div>
                           <p className="text-sm font-medium">حالة التنبيهات</p>
-                          <p className="text-[10px] text-slate-500">{notificationsEnabled ? 'مفعلة على هذا الجهاز' : 'غير مفعلة حالياً'}</p>
+                          <p className="text-xs text-slate-500">{notificationsEnabled ? 'مفعلة على هذا الجهاز' : 'غير مفعلة حالياً'}</p>
                         </div>
                       </div>
                       {!notificationsEnabled && (
@@ -3485,7 +3485,7 @@ export default function App() {
                         onChange={(e) => setNotificationThreshold(parseFloat(e.target.value))}
                         className="w-full h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer accent-indigo-500"
                       />
-                      <p className="text-[10px] text-slate-500 leading-relaxed">
+                      <p className="text-xs text-slate-500 leading-relaxed">
                         سيقوم التطبيق بإرسال تنبيه فقط إذا تغير السعر بمقدار أكبر من القيمة المحددة أعلاه. القيمة الحالية ({notificationThreshold.toFixed(3)}) تجعل التنبيهات حساسة جداً لأي تغيير.
                       </p>
                     </div>
@@ -3498,7 +3498,7 @@ export default function App() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-slate-200">الوضع المضغوط</p>
-                        <p className="text-[10px] text-slate-500 mt-1">تصغير حجم البطاقات لعرض المزيد من البيانات</p>
+                        <p className="text-xs text-slate-500 mt-1">تصغير حجم البطاقات لعرض المزيد من البيانات</p>
                       </div>
                       <button
                         onClick={() => {
@@ -3517,7 +3517,7 @@ export default function App() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-slate-200">الحركات التفاعلية</p>
-                        <p className="text-[10px] text-slate-500 mt-1">تفعيل أو تعطيل الحركات والانتقالات في التطبيق</p>
+                        <p className="text-xs text-slate-500 mt-1">تفعيل أو تعطيل الحركات والانتقالات في التطبيق</p>
                       </div>
                       <button
                         onClick={() => {
@@ -3540,7 +3540,7 @@ export default function App() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-slate-200">توفير البيانات</p>
-                        <p className="text-[10px] text-slate-500 mt-1">تقليل استهلاك البيانات بإيقاف التحديثات التلقائية السريعة</p>
+                        <p className="text-xs text-slate-500 mt-1">تقليل استهلاك البيانات بإيقاف التحديثات التلقائية السريعة</p>
                       </div>
                       <button
                         onClick={() => {
@@ -3559,7 +3559,7 @@ export default function App() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-slate-200">السوق الافتراضي</p>
-                        <p className="text-[10px] text-slate-500 mt-1">تحديد السوق المفضل لعرض الأسعار</p>
+                        <p className="text-xs text-slate-500 mt-1">تحديد السوق المفضل لعرض الأسعار</p>
                       </div>
                       <select
                         value={defaultMarket}
@@ -3661,7 +3661,7 @@ export default function App() {
                           setChartRange(range);
                           triggerHaptic(5);
                         }}
-                        className={`px-3 py-1 text-[10px] font-medium rounded-full transition-all border ${
+                        className={`px-3 py-1 text-xs font-medium rounded-full transition-all border ${
                           chartRange === range 
                             ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400' 
                             : 'bg-white/5 border-slate-800/60 text-slate-500 hover:bg-white/10'
@@ -3745,19 +3745,19 @@ export default function App() {
 
                 <div className="mt-8 grid grid-cols-3 gap-3 sm:gap-4">
                   <div className="p-4 rounded-2xl bg-white/[0.02] border border-slate-800/60 flex flex-col items-center text-center">
-                    <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-2">أعلى قيمة</p>
+                    <p className="text-xs text-slate-400 uppercase tracking-wider mb-2">أعلى قيمة</p>
                     <p className="text-lg sm:text-xl font-mono font-bold text-white">
                       {chartStats.max.toFixed(2)}
                     </p>
                   </div>
                   <div className="p-4 rounded-2xl bg-white/[0.02] border border-slate-800/60 flex flex-col items-center text-center">
-                    <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-2">أدنى قيمة</p>
+                    <p className="text-xs text-slate-400 uppercase tracking-wider mb-2">أدنى قيمة</p>
                     <p className="text-lg sm:text-xl font-mono font-bold text-white">
                       {chartStats.min.toFixed(2)}
                     </p>
                   </div>
                   <div className="p-4 rounded-2xl bg-white/[0.02] border border-slate-800/60 flex flex-col items-center text-center">
-                    <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-2">المتوسط</p>
+                    <p className="text-xs text-slate-400 uppercase tracking-wider mb-2">المتوسط</p>
                     <p className="text-lg sm:text-xl font-mono font-bold text-white">
                       {chartStats.avg.toFixed(2)}
                     </p>
@@ -3767,19 +3767,19 @@ export default function App() {
                 {/* Advanced Tech Analysis (30 Days) */}
                 <div className="mt-4 grid grid-cols-3 gap-3 sm:gap-4">
                   <div className="p-4 rounded-2xl bg-emerald-500/5 border border-emerald-500/10 flex flex-col items-center text-center">
-                    <p className="text-[10px] text-emerald-500/70 font-medium mb-1 line-clamp-1">مقاومة (30 يوم)</p>
+                    <p className="text-[11px] text-emerald-500/70 font-medium mb-1 line-clamp-1">مقاومة (30 يوم)</p>
                     <p className="text-sm sm:text-base font-mono font-bold text-emerald-400">
                       {advancedStats.resistance > 0 ? advancedStats.resistance.toFixed(4) : '-'}
                     </p>
                   </div>
                   <div className="p-4 rounded-2xl bg-rose-500/5 border border-rose-500/10 flex flex-col items-center text-center">
-                    <p className="text-[10px] text-rose-500/70 font-medium mb-1 line-clamp-1">دعم (30 يوم)</p>
+                    <p className="text-[11px] text-rose-500/70 font-medium mb-1 line-clamp-1">دعم (30 يوم)</p>
                     <p className="text-sm sm:text-base font-mono font-bold text-rose-400">
                       {advancedStats.support > 0 ? advancedStats.support.toFixed(4) : '-'}
                     </p>
                   </div>
                   <div className="p-4 rounded-2xl bg-white/5 border border-slate-700/50 flex flex-col items-center text-center">
-                    <p className="text-[10px] text-slate-400 font-medium mb-1 line-clamp-1">متوسط (30 يوم)</p>
+                    <p className="text-[11px] text-slate-400 font-medium mb-1 line-clamp-1">متوسط (30 يوم)</p>
                     <p className="text-sm sm:text-base font-mono font-bold text-white">
                       {advancedStats.ma30 > 0 ? advancedStats.ma30.toFixed(4) : '-'}
                     </p>
@@ -3788,7 +3788,7 @@ export default function App() {
               </div>
 
               <div className="p-6 bg-white/[0.02] border-t border-slate-800/60 flex items-center justify-between shrink-0">
-                <div className="flex items-center gap-2 text-[10px] text-slate-500">
+                <div className="flex items-center gap-2 text-xs text-slate-500">
                   <Info className="w-3 h-3" />
                   <span>تحديثات السوق لآخر 24 ساعة</span>
                 </div>
