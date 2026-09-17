@@ -452,18 +452,42 @@ export function createAdminRouter(deps: AdminRouterDeps): express.Router {
   });
 
   // Analytics Dashboard Data
-  router.get('/analytics', (req: express.Request, res: express.Response) => {
+  router.get('/analytics', async (req: express.Request, res: express.Response) => {
     try {
       const days = parseInt(req.query.days as string) || 7;
       const cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - days);
       const cutoffIso = cutoff.toISOString();
 
-      const events = db.prepare(`
-        SELECT * FROM analytics_events 
-        WHERE created_at >= ?
-        ORDER BY created_at ASC
-      `).all(cutoffIso) as any[];
+      let events: any[] = [];
+      let loadedFromSupabase = false;
+
+      if (supabase && supabaseAnonKey && !supabaseAnonKey.includes('dummy')) {
+        try {
+          const { data, error } = await supabase
+            .from('analytics_events')
+            .select('*')
+            .gte('created_at', cutoffIso)
+            .order('created_at', { ascending: true });
+          
+          if (!error && data) {
+            events = data;
+            loadedFromSupabase = true;
+          } else if (error) {
+            console.error("[Analytics] Supabase query error, falling back to SQLite:", error.message);
+          }
+        } catch (err) {
+          console.error("[Analytics] Supabase query exception, falling back to SQLite:", err);
+        }
+      }
+
+      if (!loadedFromSupabase) {
+        events = db.prepare(`
+          SELECT * FROM analytics_events 
+          WHERE created_at >= ?
+          ORDER BY created_at ASC
+        `).all(cutoffIso) as any[];
+      }
 
       const dailyStatsMap: Record<string, { pageviews: number, uniqueVisitors: Set<string> }> = {};
       const deviceTypes: Record<string, number> = {};

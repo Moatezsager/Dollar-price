@@ -263,17 +263,19 @@ export async function saveToSupabase(type: 'parallel' | 'official' | 'both' = 'b
       }
     }
 
-    const legacyRecord = { 
-      usd_parallel: rates.parallel.USD, 
-      usd_official: rates.official.USD,
-      rates_parallel: rates.parallel,
-      rates_official: rates.official,
-      previous_parallel: rates.previousParallel,
-      previous_official: rates.previousOfficial,
-      last_changed: rates.lastChanged,
-      recorded_at: rates.lastUpdated || now
-    };
-    results.push(supabase.from('exchange_rates').insert([legacyRecord]));
+    if (rates.parallel.USD > 0 && rates.official.USD > 0) {
+      const legacyRecord = { 
+        usd_parallel: rates.parallel.USD, 
+        usd_official: rates.official.USD,
+        rates_parallel: rates.parallel,
+        rates_official: rates.official,
+        previous_parallel: rates.previousParallel,
+        previous_official: rates.previousOfficial,
+        last_changed: rates.lastChanged,
+        recorded_at: rates.lastUpdated || now
+      };
+      results.push(supabase.from('exchange_rates').insert([legacyRecord]));
+    }
 
     const settled = await Promise.allSettled(results);
     
