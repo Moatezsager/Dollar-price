@@ -69,15 +69,15 @@ export function applyLoadedConfig(loadedConfig: AppConfig, source: string) {
   const mergedTerms = loadedConfig.terms.map(dbTerm => {
     existingIds.add(dbTerm.id);
     const defaultTerm = appConfig.terms.find(t => t.id === dbTerm.id);
-    const isOutdatedOrNarrow = !dbTerm.regex ||
-      (defaultTerm && (defaultTerm.flag === "gold" || defaultTerm.flag === "silver")) ||
-      (dbTerm.id.startsWith("GOLD_") || dbTerm.id.startsWith("SILVER_")) ||
+    const isMetal = (defaultTerm && (defaultTerm.flag === "gold" || defaultTerm.flag === "silver")) ||
+      dbTerm.id.startsWith("GOLD_") || dbTerm.id.startsWith("SILVER_");
+    const isOutdatedOrNarrow = !dbTerm.regex || isMetal ||
       (dbTerm.id === "TND" && (dbTerm.max > 3.8 || dbTerm.min < 2.5)) ||
       (dbTerm.id === "EGP" && (dbTerm.max > 0.28 || dbTerm.min < 0.13));
 
     return {
       id: dbTerm.id,
-      name: dbTerm.name || defaultTerm?.name || dbTerm.id,
+      name: (isMetal && defaultTerm) ? defaultTerm.name : (dbTerm.name || defaultTerm?.name || dbTerm.id),
       regex: (isOutdatedOrNarrow && defaultTerm?.regex) ? defaultTerm.regex : (dbTerm.regex || defaultTerm?.regex || ""),
       min: (isOutdatedOrNarrow && defaultTerm) ? defaultTerm.min : ((typeof dbTerm.min === 'number' && !isNaN(dbTerm.min) && (!defaultTerm || dbTerm.min <= defaultTerm.min)) ? dbTerm.min : (defaultTerm?.min ?? 0)),
       max: (isOutdatedOrNarrow && defaultTerm) ? defaultTerm.max : ((typeof dbTerm.max === 'number' && !isNaN(dbTerm.max) && (!defaultTerm || dbTerm.max >= defaultTerm.max)) ? dbTerm.max : (defaultTerm?.max ?? 10000)),

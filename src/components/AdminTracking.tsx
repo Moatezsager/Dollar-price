@@ -71,14 +71,43 @@ export function AdminTracking({ token }: AdminTrackingProps) {
     }
   }, [analyticsDays, token]);
 
+  const normalizedLogs = useMemo(() => {
+    return userLogs.map(log => {
+      const isOnline = log.isOnline || log.status === 'online';
+      const lastSeenStr = log.lastSeen || log.last_active || log.timestamp || new Date().toISOString();
+      const lastSeenDate = new Date(lastSeenStr);
+      const safeLastSeen = isNaN(lastSeenDate.getTime()) ? new Date() : lastSeenDate;
+
+      let country = log.country || "";
+      let city = log.city || "";
+      if (!country && log.location && log.location !== "جاري التحديد..." && log.location !== "غير معروف" && log.location !== "تعذر التحديد" && log.location !== "شبكة محلية") {
+        const parts = log.location.split(',');
+        if (parts.length > 0) country = parts[0].trim();
+        if (parts.length > 1) city = parts[1].trim();
+      } else if (!country && log.location) {
+        country = log.location;
+      }
+
+      return {
+        ...log,
+        status: isOnline ? 'online' : 'offline',
+        lastSeen: safeLastSeen.toISOString(),
+        sessionCount: log.sessionCount || log.visits || 1,
+        pageviews: log.pageviews || log.visits || 1,
+        country,
+        city
+      };
+    });
+  }, [userLogs]);
+
   const filteredLogs = useMemo(() => {
-    return userLogs.filter(log => {
+    return normalizedLogs.filter(log => {
       const matchesSearch = log.ip.includes(deviceSearchTerm) || (log.userAgent && log.userAgent.toLowerCase().includes(deviceSearchTerm.toLowerCase()));
       const matchesDevice = deviceFilter === 'all' || log.deviceType === deviceFilter;
       const matchesStatus = deviceStatusFilter === 'all' || log.status === deviceStatusFilter;
       return matchesSearch && matchesDevice && matchesStatus;
     });
-  }, [userLogs, deviceSearchTerm, deviceFilter, deviceStatusFilter]);
+  }, [normalizedLogs, deviceSearchTerm, deviceFilter, deviceStatusFilter]);
 
   return (
     <motion.div 
@@ -102,7 +131,7 @@ export function AdminTracking({ token }: AdminTrackingProps) {
                 إحصائيات الزوار (Analytics)
                 <span className="flex items-center gap-2 text-xs font-bold px-3 py-1 bg-emerald-500/20 text-emerald-400 rounded-full border border-emerald-500/30">
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                  {userLogs.filter(l => l.status === 'online').length} مباشر
+                  {normalizedLogs.filter(l => l.status === 'online').length} مباشر
                 </span>
               </h2>
               <p className="text-sm text-slate-400 mt-1">
