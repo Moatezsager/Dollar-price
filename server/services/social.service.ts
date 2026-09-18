@@ -885,6 +885,18 @@ function getBroadcastDisplayRank(u: { id?: string; name?: string }): number {
     return 83;
   }
 
+  // 9. المعادن والذهب بالترتيب المطلوب بدقة:
+  if (id === 'GOLD_CAST_18') return 901; // ذهب مسبوك 18
+  if (id === 'GOLD_EXT_18') return 902;  // ذهب خارجي 18
+  if (id === 'GOLD_EXT_21') return 903;  // ذهب خارجي 21
+  if (id === 'GOLD_SCRAP_18') return 904; // ذهب كسر 18
+  if (id === 'GOLD_SCRAP_21') return 905; // ذهب كسر 21
+  if (id === 'GOLD_CAST_24') return 906;  // ذهب مسبوك 24
+  if (id === 'GOLD_LIRA_8G') return 907;  // ليرة ذهب 8 جرام
+  if (id === 'GOLD_LIRA_14G') return 908; // ليرة ذهب 14 جرام
+  if (id === 'GOLD_MUJARA_14G') return 909; // مجارة ذهب 14
+  if (id === 'SILVER_CAST_1000' || id.startsWith('SILVER')) return 910; // مسبوك فضة
+
   // أي عملة أخرى تأتي في النهاية
   return 9999;
 }
