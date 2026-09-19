@@ -236,9 +236,9 @@ export function createAdminRouter(deps: AdminRouterDeps): express.Router {
     for (const item of extracted) {
       const currentVal = rates.parallel[item.code];
       const term = appConfig.terms.find(t => t.id === item.code);
-      const hasChanged = isSignificantChange(currentVal, item.value);
+      const hasChanged = true; // يتم معاملة جميع المدخلات اليدوية كتغييرات حقيقية لحفظها ونشرها فوراً بدون شروط
       if (hasChanged) {
-        rates.previousParallel[item.code] = currentVal || item.value;
+        rates.previousParallel[item.code] = currentVal !== item.value ? (currentVal || item.value) : (rates.previousParallel[item.code] || currentVal || item.value);
         rates.parallel[item.code] = item.value;
         rates.lastChanged.parallel[item.code] = new Date().toISOString();
         anyChanged = true;
@@ -1059,10 +1059,10 @@ export function createAdminRouter(deps: AdminRouterDeps): express.Router {
 
         const term = appConfig.terms.find(t => t.id === code);
         const currentVal = rates.parallel[code];
-        const hasChanged = isSignificantChange(currentVal, numVal);
+        const hasChanged = true; // معاملة المدخلات اليدوية كتعديلات معتمدة ومطلوبة للنشر فوراً
         
         if (hasChanged) {
-          rates.previousParallel[code] = currentVal || numVal;
+          rates.previousParallel[code] = currentVal !== numVal ? (currentVal || numVal) : (rates.previousParallel[code] || currentVal || numVal);
           rates.parallel[code] = numVal;
           rates.lastChanged.parallel[code] = new Date().toISOString();
           anyChanged = true;

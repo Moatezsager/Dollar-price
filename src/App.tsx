@@ -504,6 +504,35 @@ export default function App() {
   });
   const [showPostInstall, setShowPostInstall] = useState(false);
   const [notificationThreshold, setNotificationThreshold] = useState(0.001);
+  
+  // New premium settings states to activate and enhance everything
+  const [majorChangesOnly, setMajorChangesOnly] = useState(() => {
+    const saved = localStorage.getItem('majorChangesOnly');
+    return saved !== null ? saved === 'true' : false;
+  });
+  const [dailySummaryEnabled, setDailySummaryEnabled] = useState(() => {
+    const saved = localStorage.getItem('dailySummaryEnabled');
+    return saved !== null ? saved === 'true' : true;
+  });
+  const [goldNotificationsEnabled, setGoldNotificationsEnabled] = useState(() => {
+    const saved = localStorage.getItem('goldNotificationsEnabled');
+    return saved !== null ? saved === 'true' : true;
+  });
+  const [fontSizePreference, setFontSizePreference] = useState<'small' | 'medium' | 'large'>(() => {
+    return (localStorage.getItem('fontSizePreference') as 'small' | 'medium' | 'large') || 'medium';
+  });
+  const [chartResolution, setChartResolution] = useState<'low' | 'medium' | 'high'>(() => {
+    return (localStorage.getItem('chartResolution') as 'low' | 'medium' | 'high') || 'medium';
+  });
+  const [spreadAlertEnabled, setSpreadAlertEnabled] = useState(() => {
+    const saved = localStorage.getItem('spreadAlertEnabled');
+    return saved !== null ? saved === 'true' : false;
+  });
+  const [spreadAlertValue, setSpreadAlertValue] = useState(() => {
+    const saved = localStorage.getItem('spreadAlertValue');
+    return saved !== null ? parseFloat(saved) : 1.5;
+  });
+
   const [toasts, setToasts] = useState<{ id: string, title: string, body: string, type: 'up' | 'down' | 'info' }[]>([]);
   const [onlineCount, setOnlineCount] = useState<number>(1);
   const [appStatus, setAppStatus] = useState<{ 
@@ -1698,7 +1727,9 @@ export default function App() {
 
   return (
     <MotionConfig transition={animationsEnabled ? undefined : { duration: 0 }}>
-      <div className="min-h-screen bg-transparent text-white font-sans selection:bg-emerald-500/20 relative overflow-hidden" dir="rtl">
+      <div className={`min-h-screen bg-transparent text-white font-sans selection:bg-emerald-500/20 relative overflow-hidden transition-all duration-300 ${
+        fontSizePreference === 'small' ? 'text-xs' : fontSizePreference === 'large' ? 'text-base' : 'text-sm'
+      }`} dir="rtl">
         {/* Ambient Background Glows */}
         <div className="absolute top-0 left-1/4 w-96 h-96 bg-emerald-500/10 rounded-full blur-[120px] pointer-events-none" />
         <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-[120px] pointer-events-none" />
@@ -3538,6 +3569,63 @@ export default function App() {
                         سيقوم التطبيق بإرسال تنبيه فقط إذا تغير السعر بمقدار أكبر من القيمة المحددة أعلاه. القيمة الحالية ({notificationThreshold.toFixed(3)}) تجعل التنبيهات حساسة جداً لأي تغيير.
                       </p>
                     </div>
+
+                    {/* Major Changes Only */}
+                    <div className="flex items-center justify-between pt-4 border-t border-slate-800/60">
+                      <div>
+                        <p className="text-sm font-medium text-slate-200">التغيرات الكبرى فقط</p>
+                        <p className="text-xs text-slate-500 mt-1">تلقي تنبيهات فقط عند حدوث قفزات تزيد عن 0.05 د.ل</p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          const newVal = !majorChangesOnly;
+                          setMajorChangesOnly(newVal);
+                          localStorage.setItem('majorChangesOnly', String(newVal));
+                          triggerHaptic(10);
+                        }}
+                        className={`w-11 h-6 rounded-full transition-colors flex items-center px-1 ${majorChangesOnly ? 'bg-indigo-500 justify-end' : 'bg-zinc-700 justify-start'}`}
+                      >
+                        <motion.div layout className="w-4 h-4 rounded-full bg-white shadow-sm" />
+                      </button>
+                    </div>
+
+                    {/* Daily Summary */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-slate-200">الملخص اليومي للأسعار</p>
+                        <p className="text-xs text-slate-500 mt-1">تلقي تقرير يومي شامل بحركة العملات والمعادن الساعة 8:00 مساءً</p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          const newVal = !dailySummaryEnabled;
+                          setDailySummaryEnabled(newVal);
+                          localStorage.setItem('dailySummaryEnabled', String(newVal));
+                          triggerHaptic(10);
+                        }}
+                        className={`w-11 h-6 rounded-full transition-colors flex items-center px-1 ${dailySummaryEnabled ? 'bg-indigo-500 justify-end' : 'bg-zinc-700 justify-start'}`}
+                      >
+                        <motion.div layout className="w-4 h-4 rounded-full bg-white shadow-sm" />
+                      </button>
+                    </div>
+
+                    {/* Gold and Metals Specific Alert */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-slate-200">تنبيهات أسعار الذهب والكسر</p>
+                        <p className="text-xs text-slate-500 mt-1">تفعيل أو تعطيل تنبيهات سوق الصاغة والمعادن الثمينة</p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          const newVal = !goldNotificationsEnabled;
+                          setGoldNotificationsEnabled(newVal);
+                          localStorage.setItem('goldNotificationsEnabled', String(newVal));
+                          triggerHaptic(10);
+                        }}
+                        className={`w-11 h-6 rounded-full transition-colors flex items-center px-1 ${goldNotificationsEnabled ? 'bg-indigo-500 justify-end' : 'bg-zinc-700 justify-start'}`}
+                      >
+                        <motion.div layout className="w-4 h-4 rounded-full bg-white shadow-sm" />
+                      </button>
+                    </div>
                   </>
                 )}
 
@@ -3579,6 +3667,28 @@ export default function App() {
                       >
                         <motion.div layout className="w-4 h-4 rounded-full bg-white shadow-sm" />
                       </button>
+                    </div>
+
+                    {/* Font Size Preference */}
+                    <div className="flex items-center justify-between pt-4 border-t border-slate-800/60">
+                      <div>
+                        <p className="text-sm font-medium text-slate-200">حجم خط العرض</p>
+                        <p className="text-xs text-slate-500 mt-1">تعديل حجم النصوص والأسعار المعروضة في الشاشة</p>
+                      </div>
+                      <select
+                        value={fontSizePreference}
+                        onChange={(e) => {
+                          const val = e.target.value as 'small' | 'medium' | 'large';
+                          setFontSizePreference(val);
+                          localStorage.setItem('fontSizePreference', val);
+                          triggerHaptic(10);
+                        }}
+                        className="bg-white/5 border border-slate-700/50 rounded-xl px-3 py-1.5 text-xs text-white outline-none focus:border-indigo-500/50"
+                      >
+                        <option value="small" className="bg-slate-900 text-white">صغير</option>
+                        <option value="medium" className="bg-slate-900 text-white">متوسط (افتراضي)</option>
+                        <option value="large" className="bg-slate-900 text-white">كبير</option>
+                      </select>
                     </div>
                   </div>
                 )}
@@ -3623,6 +3733,71 @@ export default function App() {
                         <option value="parallel">السوق الموازي</option>
                         <option value="official">السوق الرسمي</option>
                       </select>
+                    </div>
+
+                    {/* Chart Resolution */}
+                    <div className="flex items-center justify-between pt-4 border-t border-slate-800/60">
+                      <div>
+                        <p className="text-sm font-medium text-slate-200">دقة تفاصيل المخطط</p>
+                        <p className="text-xs text-slate-500 mt-1">تحديد مستوى دقة وتفاصيل المخططات البيانية</p>
+                      </div>
+                      <select
+                        value={chartResolution}
+                        onChange={(e) => {
+                          const val = e.target.value as 'low' | 'medium' | 'high';
+                          setChartResolution(val);
+                          localStorage.setItem('chartResolution', val);
+                          triggerHaptic(10);
+                        }}
+                        className="bg-white/5 border border-slate-700/50 rounded-xl px-3 py-1.5 text-xs text-white outline-none focus:border-indigo-500/50"
+                      >
+                        <option value="low" className="bg-slate-900 text-white">منخفض (يومي)</option>
+                        <option value="medium" className="bg-slate-900 text-white">متوسط (كل 6 ساعات)</option>
+                        <option value="high" className="bg-slate-900 text-white">مرتفع (لحظي)</option>
+                      </select>
+                    </div>
+
+                    {/* Spread Gap Alert */}
+                    <div className="pt-4 border-t border-slate-800/60 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-slate-200">تنبيه فجوة السعر الموازي/الرسمي</p>
+                          <p className="text-xs text-slate-500 mt-1">التنبيه عند تجاوز الفرق بين السعر الموازي والرسمي حداً معيناً</p>
+                        </div>
+                        <button
+                          onClick={() => {
+                            const newVal = !spreadAlertEnabled;
+                            setSpreadAlertEnabled(newVal);
+                            localStorage.setItem('spreadAlertEnabled', String(newVal));
+                            triggerHaptic(10);
+                          }}
+                          className={`w-11 h-6 rounded-full transition-colors flex items-center px-1 ${spreadAlertEnabled ? 'bg-indigo-500 justify-end' : 'bg-zinc-700 justify-start'}`}
+                        >
+                          <motion.div layout className="w-4 h-4 rounded-full bg-white shadow-sm" />
+                        </button>
+                      </div>
+
+                      {spreadAlertEnabled && (
+                        <div className="flex items-center gap-3 bg-white/5 p-3 rounded-xl border border-slate-800/60">
+                          <span className="text-xs text-slate-400">نبهني عندما تزيد الفجوة عن:</span>
+                          <div className="flex items-center gap-1.5 ml-auto">
+                            <input
+                              type="number"
+                              min="0.1"
+                              max="10.0"
+                              step="0.1"
+                              value={spreadAlertValue}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value) || 1.5;
+                                setSpreadAlertValue(val);
+                                localStorage.setItem('spreadAlertValue', String(val));
+                              }}
+                              className="w-16 bg-white/10 border border-slate-700/50 rounded-lg px-2 py-1 text-xs text-center text-white focus:outline-none focus:border-indigo-500"
+                            />
+                            <span className="text-xs font-mono text-indigo-400">د.ل</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -4202,58 +4377,58 @@ export default function App() {
           minHeight: '297mm',
           backgroundColor: '#ffffff',
           color: '#0f172a',
-          fontFamily: "'Cairo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-          lineHeight: '1.4',
+          fontFamily: "'Cairo', 'Arial', sans-serif",
+          lineHeight: '1.5',
           direction: 'rtl',
           margin: '0',
-          padding: '12mm 14mm',
+          padding: '15mm 15mm',
           boxSizing: 'border-box'
         }}
         dir="rtl"
       >
         {/* Institutional Masthead with Official Logo */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '14px', borderBottom: '2.5px solid #0f172a' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '16px', borderBottom: '3px solid #0f172a', marginBottom: '20px' }}>
           {/* Right: Official Logo & Network Title */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-            <div style={{ width: '56px', height: '56px', borderRadius: '12px', border: '1.5px solid #cbd5e1', padding: '3px', backgroundColor: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <div style={{ width: '64px', height: '64px', border: '2px solid #0f172a', padding: '2px', backgroundColor: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
               <img src="/logo.png" alt="شعار مؤشر الدينار" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
             </div>
             <div>
-              <h1 style={{ fontSize: '24px', fontWeight: '900', color: '#0f172a', margin: '0', letterSpacing: '-0.3px', lineHeight: '1.1' }}>
-                شبكة مؤشر الدينار
+              <h1 style={{ fontSize: '26px', fontWeight: '900', color: '#0f172a', margin: '0', letterSpacing: '-0.3px', lineHeight: '1.2' }}>
+                شبكة مؤشر الدينار الإحصائية
               </h1>
-              <p style={{ fontSize: '13px', fontWeight: '800', color: '#334155', margin: '3px 0 0' }}>
-                النشرة الإحصائية الدورية لأسعار الصرف والمعادن الثمينة
+              <p style={{ fontSize: '13px', fontWeight: 'bold', color: '#334155', margin: '4px 0 0' }}>
+                النشرة الإحصائية المعتمدة لأسعار الصرف والمعادن الثمينة في ليبيا
               </p>
-              <p style={{ fontSize: '10px', color: '#64748b', margin: '2px 0 0', fontWeight: '600' }}>
-                منظومة الرصد الميداني اللحظي للأسواق الليبية | dinar-index.ly
+              <p style={{ fontSize: '11px', color: '#475569', margin: '2px 0 0', fontWeight: '600' }}>
+                منصة الرصد والتحليل الاقتصادي اللحظي | dinar-index.ly
               </p>
             </div>
           </div>
 
           {/* Left: Document Verification & Publication Metadata */}
-          <div style={{ textAlign: 'left', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '8px 14px', backgroundColor: '#f8fafc', minWidth: '190px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', fontSize: '10px', color: '#64748b', marginBottom: '3px' }}>
+          <div style={{ textAlign: 'left', border: '1.5px solid #0f172a', padding: '10px 14px', backgroundColor: '#f8fafc', minWidth: '200px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', fontSize: '11px', color: '#475569', marginBottom: '4px' }}>
               <span>رقم النشرة:</span>
-              <span style={{ fontWeight: '800', color: '#0f172a', fontFamily: 'monospace' }}>
+              <span style={{ fontWeight: 'bold', color: '#0f172a', fontFamily: 'monospace' }}>
                 DI-LY-{format(new Date(), "yyyyMMdd")}
               </span>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', fontSize: '11px', color: '#334155', marginBottom: '2px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', fontSize: '11px', color: '#475569', marginBottom: '4px' }}>
               <span>تاريخ الإصدار:</span>
-              <span style={{ fontWeight: '800', color: '#0f172a' }}>
+              <span style={{ fontWeight: 'bold', color: '#0f172a' }}>
                 {format(new Date(), "dd MMMM yyyy", { locale: ar })}
               </span>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', fontSize: '11px', color: '#334155', marginBottom: '2px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', fontSize: '11px', color: '#475569', marginBottom: '4px' }}>
               <span>وقت الرصد:</span>
-              <span style={{ fontWeight: '800', color: '#059669' }}>
+              <span style={{ fontWeight: 'bold', color: '#059669' }}>
                 {format(new Date(), "HH:mm")} (توقيت طرابلس)
               </span>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', fontSize: '10px', color: '#059669', paddingTop: '2px', borderTop: '1px dashed #cbd5e1' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', fontSize: '10px', color: '#059669', paddingTop: '4px', borderTop: '1px dashed #cbd5e1' }}>
               <span>حالة الاعتماد:</span>
-              <span style={{ fontWeight: '800' }}>بيانات لحظية معتمدة</span>
+              <span style={{ fontWeight: 'bold' }}>بيانات معتمدة رسمياً</span>
             </div>
           </div>
         </div>
@@ -4279,7 +4454,7 @@ export default function App() {
           if (usdTerm && selectedCurrencies.includes(usdTerm.id)) {
             const r = rates?.parallel[usdTerm.id] || usdRate || 0;
             const p = rates?.previousParallel?.[usdTerm.id] || prevUsdRate || r;
-            highlights.push({ id: usdTerm.id, title: "الدولار الأمريكي (كاش)", market: "السوق الموازي", rate: r, prevRate: p, flagCode: "us", accentColor: "#059669" });
+            highlights.push({ id: usdTerm.id, title: "الدولار الموازي (كاش)", market: "السوق الموازي", rate: r, prevRate: p, flagCode: "us", accentColor: "#059669" });
           }
 
           // 2. USD Checks if selected
@@ -4287,7 +4462,7 @@ export default function App() {
           if (chkTerm && selectedCurrencies.includes(chkTerm.id)) {
             const r = rates?.parallel[chkTerm.id] || usdChecksRate || 0;
             const p = rates?.previousParallel?.[chkTerm.id] || prevUsdChecksRate || r;
-            highlights.push({ id: chkTerm.id, title: chkTerm.name || "الدولار (صكوك)", market: "المقاصة المصرفية", rate: r, prevRate: p, flagCode: "us", accentColor: "#2563eb" });
+            highlights.push({ id: chkTerm.id, title: "الدولار (صكوك)", market: "المقاصة المصرفية", rate: r, prevRate: p, flagCode: "us", accentColor: "#1d4ed8" });
           }
 
           // 3. Gold 18 if selected
@@ -4295,14 +4470,14 @@ export default function App() {
           if (goldTerm && selectedCurrencies.includes(goldTerm.id)) {
             const r = rates?.parallel[goldTerm.id] || 0;
             const p = rates?.previousParallel?.[goldTerm.id] || r;
-            highlights.push({ id: goldTerm.id, title: goldTerm.name || "ذهب كسر 18", market: "سوق الصاغة / جرام", rate: r, prevRate: p, flagCode: "gold", accentColor: "#d97706" });
+            highlights.push({ id: goldTerm.id, title: "ذهب كسر 18", market: "سوق الصاغة / جرام", rate: r, prevRate: p, flagCode: "gold", accentColor: "#b45309" });
           }
 
           // 4. Official USD if selected
           if (selectedOfficialCurrencies.includes('USD')) {
             const r = rates?.official['USD'] || 0;
             const p = rates?.previousOfficial?.['USD'] || r;
-            highlights.push({ id: 'OFF_USD', title: "الدولار الرسمي (المركزي)", market: "مصرف ليبيا المركزي", rate: r, prevRate: p, flagCode: "us", accentColor: "#475569" });
+            highlights.push({ id: 'OFF_USD', title: "الدولار الرسمي", market: "مصرف ليبيا المركزي", rate: r, prevRate: p, flagCode: "us", accentColor: "#475569" });
           }
 
           // Backfill up to 3 items if fewer than 3 were matched
@@ -4321,7 +4496,7 @@ export default function App() {
               if (highlights.some(h => h.id === m.id)) continue;
               const r = rates?.parallel[m.id] || 0;
               const prev = rates?.previousParallel?.[m.id] || r;
-              highlights.push({ id: m.id, title: m.name, market: "سوق المعادن", rate: r, prevRate: prev, flagCode: m.flag, accentColor: "#d97706" });
+              highlights.push({ id: m.id, title: m.name, market: "سوق المعادن", rate: r, prevRate: prev, flagCode: m.flag, accentColor: "#b45309" });
             }
           }
           if (highlights.length < 3) {
@@ -4330,15 +4505,15 @@ export default function App() {
               if (highlights.some(h => h.id === `OFF_${off.code}`)) continue;
               const r = rates?.official[off.code] || 0;
               const prev = rates?.previousOfficial?.[off.code] || r;
-              highlights.push({ id: `OFF_${off.code}`, title: `${off.name} (رسمي)`, market: "مصرف ليبيا المركزي", rate: r, prevRate: prev, flagCode: off.flag, accentColor: "#2563eb" });
+              highlights.push({ id: `OFF_${off.code}`, title: `${off.name} (رسمي)`, market: "مصرف المركزي", rate: r, prevRate: prev, flagCode: off.flag, accentColor: "#1d4ed8" });
             }
           }
 
-          if (highlights.length < 2) return null;
+          if (highlights.length === 0) return null;
 
           return (
-            <div className="pdf-avoid-break" style={{ marginTop: '16px', marginBottom: '20px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: `repeat(${highlights.length}, 1fr)`, gap: '12px' }}>
+            <div className="pdf-avoid-break" style={{ marginTop: '10px', marginBottom: '24px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: `repeat(${highlights.length}, 1fr)`, gap: '14px' }}>
                 {highlights.map(item => {
                   const diff = item.rate - item.prevRate;
                   const isUp = diff > 0.0001;
@@ -4350,29 +4525,28 @@ export default function App() {
                       key={`pdf-high-${item.id}`}
                       style={{ 
                         backgroundColor: '#f8fafc',
-                        border: '1px solid #cbd5e1',
-                        borderTop: `3px solid ${item.accentColor}`,
-                        borderRadius: '8px',
-                        padding: '10px 14px'
+                        border: '1.5px solid #0f172a',
+                        borderRight: `5px solid ${item.accentColor}`,
+                        padding: '12px 14px'
                       }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <PdfFlagIcon flagCode={item.flagCode} size={18} />
-                          <span style={{ fontSize: '11px', fontWeight: '800', color: '#1e293b' }}>{item.title}</span>
+                          <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#0f172a' }}>{item.title}</span>
                         </div>
-                        <span style={{ fontSize: '9px', color: '#64748b', fontWeight: '700' }}>{item.market}</span>
+                        <span style={{ fontSize: '10px', color: '#475569', fontWeight: 'bold' }}>{item.market}</span>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', marginBottom: '6px' }}>
-                        <span style={{ fontSize: '22px', fontWeight: '900', color: '#0f172a', fontFamily: 'monospace' }}>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', marginBottom: '4px' }}>
+                        <span style={{ fontSize: '24px', fontWeight: '900', color: '#0f172a', fontFamily: 'monospace' }}>
                           {item.rate.toFixed(item.id.startsWith('OFF_') ? 3 : 2)}
                         </span>
-                        <span style={{ fontSize: '11px', fontWeight: '800', color: '#475569' }}>د.ل</span>
+                        <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#334155' }}>د.ل</span>
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #e2e8f0', paddingTop: '4px', fontSize: '10px' }}>
-                        <span style={{ color: '#64748b' }}>السابق: {item.prevRate.toFixed(item.id.startsWith('OFF_') ? 3 : 2)}</span>
-                        <span style={{ fontWeight: '800', color: !isUp && !isDown ? '#64748b' : isUp ? '#dc2626' : '#16a34a', direction: 'ltr' }}>
-                          {!isUp && !isDown ? '▬ مستقر' : isUp ? `▲ +${Math.abs(diff).toFixed(2)} (+${pct}%)` : `▼ -${Math.abs(diff).toFixed(2)} (-${pct}%)`}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #cbd5e1', paddingTop: '6px', fontSize: '11px' }}>
+                        <span style={{ color: '#475569' }}>السابق: {item.prevRate.toFixed(item.id.startsWith('OFF_') ? 3 : 2)}</span>
+                        <span style={{ fontWeight: 'bold', color: !isUp && !isDown ? '#475569' : isUp ? '#dc2626' : '#15803d', direction: 'ltr' }}>
+                          {!isUp && !isDown ? '▬ مستقر' : isUp ? `▲ +${Math.abs(diff).toFixed(2)}` : `▼ -${Math.abs(diff).toFixed(2)}`}
                         </span>
                       </div>
                     </div>
@@ -4383,36 +4557,33 @@ export default function App() {
           );
         })()}
 
-        {/* Section 1: Parallel Market Currencies (ONLY shown if user selected any!) */}
+        {/* Section 1: Parallel Market Currencies */}
         {(() => {
           const selectedParallel = configTerms.filter(c => c.id !== 'OFFICIAL_USD' && !METAL_IDS.includes(c.id) && selectedCurrencies.includes(c.id) && !staleCurrencies.has(c.id));
           if (selectedParallel.length === 0) return null;
 
           return (
-            <div className="pdf-avoid-break" style={{ marginTop: '16px', marginBottom: '22px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <div style={{ width: '4px', height: '16px', backgroundColor: '#059669', borderRadius: '2px' }}></div>
-                  <h2 style={{ fontSize: '14px', fontWeight: '800', color: '#0f172a', margin: '0' }}>
-                    أسعار العملات في السوق الموازي (الكاش والصكوك)
-                  </h2>
-                </div>
-                <span style={{ fontSize: '10px', color: '#64748b', fontWeight: '700' }}>
-                  متوسط التداول الميداني | {selectedParallel.length} عملة مختارة
+            <div className="pdf-avoid-break" style={{ marginTop: '16px', marginBottom: '24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', borderBottom: '2px solid #0f172a', paddingBottom: '6px' }}>
+                <h2 style={{ fontSize: '16px', fontWeight: '900', color: '#0f172a', margin: '0' }}>
+                  أولاً: أسعار الصرف في السوق الموازي (الصحيفة الموازية)
+                </h2>
+                <span style={{ fontSize: '11px', color: '#475569', marginRight: 'auto', fontWeight: 'bold' }}>
+                  عدد العملات المدرجة: {selectedParallel.length} عملة
                 </span>
               </div>
 
-              <div style={{ border: '1px solid #cbd5e1', borderRadius: '8px', overflow: 'hidden' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
+              <div style={{ border: '1.5px solid #0f172a', overflow: 'hidden' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
                   <thead>
-                    <tr style={{ backgroundColor: '#f1f5f9', borderBottom: '1.5px solid #cbd5e1', color: '#334155' }}>
-                      <th style={{ textAlign: 'right', padding: '8px 12px', fontWeight: '800' }}>العملة / وسيلة التداول</th>
-                      <th style={{ textAlign: 'center', padding: '8px 8px', fontWeight: '800', width: '70px' }}>الرمز</th>
-                      <th style={{ textAlign: 'center', padding: '8px 10px', fontWeight: '800', width: '95px' }}>السعر الحالي</th>
-                      <th style={{ textAlign: 'center', padding: '8px 10px', fontWeight: '800', width: '85px' }}>السعر السابق</th>
-                      <th style={{ textAlign: 'center', padding: '8px 10px', fontWeight: '800', width: '90px' }}>التغير (د.ل)</th>
-                      <th style={{ textAlign: 'center', padding: '8px 8px', fontWeight: '800', width: '80px' }}>نسبة التغير</th>
-                      <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: '800', width: '75px' }}>حالة السعر</th>
+                    <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1.5px solid #0f172a', color: '#0f172a' }}>
+                      <th style={{ textAlign: 'right', padding: '10px 14px', fontWeight: 'bold', borderLeft: '1px solid #0f172a' }}>العملة / وسيلة الدفع</th>
+                      <th style={{ textAlign: 'center', padding: '10px 8px', fontWeight: 'bold', width: '80px', borderLeft: '1px solid #0f172a' }}>الرمز</th>
+                      <th style={{ textAlign: 'center', padding: '10px 12px', fontWeight: 'bold', width: '110px', borderLeft: '1px solid #0f172a' }}>السعر الحالي</th>
+                      <th style={{ textAlign: 'center', padding: '10px 12px', fontWeight: 'bold', width: '100px', borderLeft: '1px solid #0f172a' }}>السعر السابق</th>
+                      <th style={{ textAlign: 'center', padding: '10px 12px', fontWeight: 'bold', width: '100px', borderLeft: '1px solid #0f172a' }}>مقدار التغير</th>
+                      <th style={{ textAlign: 'center', padding: '10px 10px', fontWeight: 'bold', width: '90px', borderLeft: '1px solid #0f172a' }}>نسبة التغير</th>
+                      <th style={{ textAlign: 'left', padding: '10px 14px', fontWeight: 'bold', width: '90px' }}>الحالة</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -4426,29 +4597,29 @@ export default function App() {
                       const isEven = idx % 2 === 0;
 
                       return (
-                        <tr key={`pdf-par-row-${c.id}`} style={{ backgroundColor: isEven ? '#ffffff' : '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-                          <td style={{ padding: '7px 12px', fontWeight: '700', color: '#0f172a' }}>
+                        <tr key={`pdf-par-row-${c.id}`} style={{ backgroundColor: isEven ? '#ffffff' : '#f8fafc', borderBottom: '1px solid #cbd5e1' }}>
+                          <td style={{ padding: '9px 14px', fontWeight: 'bold', color: '#0f172a', borderLeft: '1px solid #cbd5e1' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                               <PdfFlagIcon flagCode={c.flag} size={18} />
                               <span>{c.name}</span>
                             </div>
                           </td>
-                          <td style={{ textAlign: 'center', padding: '7px 8px', color: '#64748b', fontFamily: 'monospace', fontWeight: '700' }}>
+                          <td style={{ textAlign: 'center', padding: '9px 8px', color: '#475569', fontFamily: 'monospace', fontWeight: 'bold', borderLeft: '1px solid #cbd5e1' }}>
                             {c.id}
                           </td>
-                          <td style={{ textAlign: 'center', padding: '7px 10px', fontSize: '13px', fontWeight: '900', color: '#0f172a', fontFamily: 'monospace' }}>
+                          <td style={{ textAlign: 'center', padding: '9px 12px', fontSize: '13px', fontWeight: 'bold', color: '#0f172a', fontFamily: 'monospace', borderLeft: '1px solid #cbd5e1' }}>
                             {rate > 0 ? `${rate.toFixed(2)} د.ل` : '-'}
                           </td>
-                          <td style={{ textAlign: 'center', padding: '7px 10px', color: '#64748b', fontWeight: '600', fontFamily: 'monospace' }}>
+                          <td style={{ textAlign: 'center', padding: '9px 10px', color: '#475569', fontWeight: '600', fontFamily: 'monospace', borderLeft: '1px solid #cbd5e1' }}>
                             {prev > 0 ? `${prev.toFixed(2)} د.ل` : '-'}
                           </td>
-                          <td style={{ textAlign: 'center', padding: '7px 10px', fontWeight: '800', color: !isUp && !isDown ? '#64748b' : isUp ? '#dc2626' : '#16a34a', direction: 'ltr', fontFamily: 'monospace' }}>
+                          <td style={{ textAlign: 'center', padding: '9px 12px', fontWeight: 'bold', color: !isUp && !isDown ? '#475569' : isUp ? '#dc2626' : '#15803d', direction: 'ltr', fontFamily: 'monospace', borderLeft: '1px solid #cbd5e1' }}>
                             {!isUp && !isDown ? '0.00' : isUp ? `+${diff.toFixed(2)}` : `${diff.toFixed(2)}`}
                           </td>
-                          <td style={{ textAlign: 'center', padding: '7px 8px', fontWeight: '800', color: !isUp && !isDown ? '#64748b' : isUp ? '#dc2626' : '#16a34a', direction: 'ltr' }}>
+                          <td style={{ textAlign: 'center', padding: '9px 10px', fontWeight: 'bold', color: !isUp && !isDown ? '#475569' : isUp ? '#dc2626' : '#15803d', direction: 'ltr', borderLeft: '1px solid #cbd5e1' }}>
                             {!isUp && !isDown ? '0.00%' : isUp ? `+${pct}%` : `-${pct}%`}
                           </td>
-                          <td style={{ textAlign: 'left', padding: '7px 12px', fontWeight: '700', fontSize: '10px', color: !isUp && !isDown ? '#64748b' : isUp ? '#dc2626' : '#16a34a' }}>
+                          <td style={{ textAlign: 'left', padding: '9px 14px', fontWeight: 'bold', color: !isUp && !isDown ? '#475569' : isUp ? '#dc2626' : '#15803d' }}>
                             {!isUp && !isDown ? 'مستقر' : isUp ? 'ارتفاع ▲' : 'انخفاض ▼'}
                           </td>
                         </tr>
@@ -4461,36 +4632,33 @@ export default function App() {
           );
         })()}
 
-        {/* Section 2: Gold & Precious Metals (ONLY shown if user selected any!) */}
+        {/* Section 2: Gold & Precious Metals */}
         {(() => {
           const selectedMetals = configTerms.filter(c => METAL_IDS.includes(c.id) && selectedCurrencies.includes(c.id) && !staleCurrencies.has(c.id));
           if (selectedMetals.length === 0) return null;
 
           return (
-            <div className="pdf-avoid-break" style={{ marginTop: '16px', marginBottom: '22px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyBetween: 'space-between', marginBottom: '8px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <div style={{ width: '4px', height: '16px', backgroundColor: '#d97706', borderRadius: '2px' }}></div>
-                  <h2 style={{ fontSize: '14px', fontWeight: '800', color: '#0f172a', margin: '0' }}>
-                    أسعار الذهب والمعادن الثمينة (سوق الصاغة الليبي)
-                  </h2>
-                </div>
-                <span style={{ fontSize: '10px', color: '#64748b', fontWeight: '700', marginRight: 'auto' }}>
-                  متوسط أسعار الصاغة | {selectedMetals.length} صنف مختار
+            <div className="pdf-avoid-break" style={{ marginTop: '16px', marginBottom: '24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', borderBottom: '2px solid #0f172a', paddingBottom: '6px' }}>
+                <h2 style={{ fontSize: '16px', fontWeight: '900', color: '#0f172a', margin: '0' }}>
+                  ثانياً: أسعار الذهب والمعادن الثمينة (سوق الصاغة)
+                </h2>
+                <span style={{ fontSize: '11px', color: '#475569', marginRight: 'auto', fontWeight: 'bold' }}>
+                  عدد الأصناف المدرجة: {selectedMetals.length} صنف
                 </span>
               </div>
 
-              <div style={{ border: '1px solid #cbd5e1', borderRadius: '8px', overflow: 'hidden' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
+              <div style={{ border: '1.5px solid #0f172a', overflow: 'hidden' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
                   <thead>
-                    <tr style={{ backgroundColor: '#f1f5f9', borderBottom: '1.5px solid #cbd5e1', color: '#334155' }}>
-                      <th style={{ textAlign: 'right', padding: '8px 12px', fontWeight: '800' }}>الصنف / العيار</th>
-                      <th style={{ textAlign: 'center', padding: '8px 8px', fontWeight: '800', width: '80px' }}>الوحدة</th>
-                      <th style={{ textAlign: 'center', padding: '8px 10px', fontWeight: '800', width: '95px' }}>السعر الحالي</th>
-                      <th style={{ textAlign: 'center', padding: '8px 10px', fontWeight: '800', width: '85px' }}>السعر السابق</th>
-                      <th style={{ textAlign: 'center', padding: '8px 10px', fontWeight: '800', width: '90px' }}>مقدار التغير</th>
-                      <th style={{ textAlign: 'center', padding: '8px 8px', fontWeight: '800', width: '80px' }}>نسبة التغير</th>
-                      <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: '800', width: '75px' }}>الاتجاه</th>
+                    <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1.5px solid #0f172a', color: '#0f172a' }}>
+                      <th style={{ textAlign: 'right', padding: '10px 14px', fontWeight: 'bold', borderLeft: '1px solid #0f172a' }}>الصنف / العيار</th>
+                      <th style={{ textAlign: 'center', padding: '10px 8px', fontWeight: 'bold', width: '80px', borderLeft: '1px solid #0f172a' }}>الوحدة</th>
+                      <th style={{ textAlign: 'center', padding: '10px 12px', fontWeight: 'bold', width: '110px', borderLeft: '1px solid #0f172a' }}>السعر الحالي</th>
+                      <th style={{ textAlign: 'center', padding: '10px 12px', fontWeight: 'bold', width: '100px', borderLeft: '1px solid #0f172a' }}>السعر السابق</th>
+                      <th style={{ textAlign: 'center', padding: '10px 12px', fontWeight: 'bold', width: '100px', borderLeft: '1px solid #0f172a' }}>مقدار التغير</th>
+                      <th style={{ textAlign: 'center', padding: '10px 10px', fontWeight: 'bold', width: '90px', borderLeft: '1px solid #0f172a' }}>نسبة التغير</th>
+                      <th style={{ textAlign: 'left', padding: '10px 14px', fontWeight: 'bold', width: '90px' }}>الحالة</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -4505,30 +4673,30 @@ export default function App() {
                       const unit = c.id.includes('LIRA') || c.id.includes('MUJARA') ? 'قطعة' : 'جرام';
 
                       return (
-                        <tr key={`pdf-metal-row-${c.id}`} style={{ backgroundColor: isEven ? '#ffffff' : '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-                          <td style={{ padding: '7px 12px', fontWeight: '700', color: '#0f172a' }}>
+                        <tr key={`pdf-metal-row-${c.id}`} style={{ backgroundColor: isEven ? '#ffffff' : '#f8fafc', borderBottom: '1px solid #cbd5e1' }}>
+                          <td style={{ padding: '9px 14px', fontWeight: 'bold', color: '#0f172a', borderLeft: '1px solid #cbd5e1' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                               <PdfFlagIcon flagCode={c.flag} size={18} />
                               <span>{c.name}</span>
                             </div>
                           </td>
-                          <td style={{ textAlign: 'center', padding: '7px 8px', color: '#64748b', fontWeight: '700' }}>
+                          <td style={{ textAlign: 'center', padding: '9px 8px', color: '#475569', fontWeight: 'bold', borderLeft: '1px solid #cbd5e1' }}>
                             {unit}
                           </td>
-                          <td style={{ textAlign: 'center', padding: '7px 10px', fontSize: '13px', fontWeight: '900', color: '#0f172a', fontFamily: 'monospace' }}>
+                          <td style={{ textAlign: 'center', padding: '9px 12px', fontSize: '13px', fontWeight: 'bold', color: '#0f172a', fontFamily: 'monospace', borderLeft: '1px solid #cbd5e1' }}>
                             {rate > 0 ? `${rate.toFixed(2)} د.ل` : '-'}
                           </td>
-                          <td style={{ textAlign: 'center', padding: '7px 10px', color: '#64748b', fontWeight: '600', fontFamily: 'monospace' }}>
+                          <td style={{ textAlign: 'center', padding: '9px 10px', color: '#475569', fontWeight: '600', fontFamily: 'monospace', borderLeft: '1px solid #cbd5e1' }}>
                             {prev > 0 ? `${prev.toFixed(2)} د.ل` : '-'}
                           </td>
-                          <td style={{ textAlign: 'center', padding: '7px 10px', fontWeight: '800', color: !isUp && !isDown ? '#64748b' : isUp ? '#dc2626' : '#16a34a', direction: 'ltr', fontFamily: 'monospace' }}>
+                          <td style={{ textAlign: 'center', padding: '9px 12px', fontWeight: 'bold', color: !isUp && !isDown ? '#475569' : isUp ? '#dc2626' : '#15803d', direction: 'ltr', fontFamily: 'monospace', borderLeft: '1px solid #cbd5e1' }}>
                             {!isUp && !isDown ? '0.00' : isUp ? `+${diff.toFixed(2)}` : `${diff.toFixed(2)}`}
                           </td>
-                          <td style={{ textAlign: 'center', padding: '7px 8px', fontWeight: '800', color: !isUp && !isDown ? '#64748b' : isUp ? '#dc2626' : '#16a34a', direction: 'ltr' }}>
+                          <td style={{ textAlign: 'center', padding: '9px 10px', fontWeight: 'bold', color: !isUp && !isDown ? '#475569' : isUp ? '#dc2626' : '#15803d', direction: 'ltr', borderLeft: '1px solid #cbd5e1' }}>
                             {!isUp && !isDown ? '0.00%' : isUp ? `+${pct}%` : `-${pct}%`}
                           </td>
-                          <td style={{ textAlign: 'left', padding: '7px 12px', fontWeight: '700', fontSize: '10px', color: !isUp && !isDown ? '#64748b' : isUp ? '#dc2626' : '#16a34a' }}>
-                            {!isUp && !isDown ? 'مستقر' : isUp ? 'صعود ▲' : 'هبوط ▼'}
+                          <td style={{ textAlign: 'left', padding: '9px 14px', fontWeight: 'bold', color: !isUp && !isDown ? '#475569' : isUp ? '#dc2626' : '#15803d' }}>
+                            {!isUp && !isDown ? 'مستقر' : isUp ? 'ارتفاع ▲' : 'انخفاض ▼'}
                           </td>
                         </tr>
                       );
@@ -4540,36 +4708,33 @@ export default function App() {
           );
         })()}
 
-        {/* Section 3: Official Central Bank Rates (ONLY shown if user selected any!) */}
+        {/* Section 3: Official Central Bank Rates */}
         {(() => {
           const selectedOfficial = officialCurrencyList.filter(c => selectedOfficialCurrencies.includes(c.code));
           if (selectedOfficial.length === 0) return null;
 
           return (
-            <div className="pdf-avoid-break" style={{ marginTop: '16px', marginBottom: '22px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <div style={{ width: '4px', height: '16px', backgroundColor: '#2563eb', borderRadius: '2px' }}></div>
-                  <h2 style={{ fontSize: '14px', fontWeight: '800', color: '#0f172a', margin: '0' }}>
-                    أسعار الصرف الرسمية - مصرف ليبيا المركزي
-                  </h2>
-                </div>
-                <span style={{ fontSize: '10px', color: '#64748b', fontWeight: '700' }}>
-                  النشرة الرسمية المعتمدة | {selectedOfficial.length} عملة مختارة
+            <div className="pdf-avoid-break" style={{ marginTop: '16px', marginBottom: '24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', borderBottom: '2px solid #0f172a', paddingBottom: '6px' }}>
+                <h2 style={{ fontSize: '16px', fontWeight: '900', color: '#0f172a', margin: '0' }}>
+                  ثالثاً: أسعار الصرف الرسمية الصادرة عن مصرف ليبيا المركزي
+                </h2>
+                <span style={{ fontSize: '11px', color: '#475569', marginRight: 'auto', fontWeight: 'bold' }}>
+                  عدد العملات المدرجة: {selectedOfficial.length} عملة
                 </span>
               </div>
 
-              <div style={{ border: '1px solid #cbd5e1', borderRadius: '8px', overflow: 'hidden' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
+              <div style={{ border: '1.5px solid #0f172a', overflow: 'hidden' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
                   <thead>
-                    <tr style={{ backgroundColor: '#f1f5f9', borderBottom: '1.5px solid #cbd5e1', color: '#334155' }}>
-                      <th style={{ textAlign: 'right', padding: '8px 12px', fontWeight: '800' }}>العملة الرسمية</th>
-                      <th style={{ textAlign: 'center', padding: '8px 8px', fontWeight: '800', width: '70px' }}>رمز ISO</th>
-                      <th style={{ textAlign: 'center', padding: '8px 10px', fontWeight: '800', width: '95px' }}>السعر الرسمي</th>
-                      <th style={{ textAlign: 'center', padding: '8px 10px', fontWeight: '800', width: '85px' }}>السعر السابق</th>
-                      <th style={{ textAlign: 'center', padding: '8px 10px', fontWeight: '800', width: '90px' }}>التغير الرسمي</th>
-                      <th style={{ textAlign: 'center', padding: '8px 8px', fontWeight: '800', width: '80px' }}>نسبة التغير</th>
-                      <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: '800', width: '85px' }}>الجهة المصدرة</th>
+                    <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1.5px solid #0f172a', color: '#0f172a' }}>
+                      <th style={{ textAlign: 'right', padding: '10px 14px', fontWeight: 'bold', borderLeft: '1px solid #0f172a' }}>العملة الرسمية</th>
+                      <th style={{ textAlign: 'center', padding: '10px 8px', fontWeight: 'bold', width: '80px', borderLeft: '1px solid #0f172a' }}>رمز ISO</th>
+                      <th style={{ textAlign: 'center', padding: '10px 12px', fontWeight: 'bold', width: '110px', borderLeft: '1px solid #0f172a' }}>السعر الرسمي</th>
+                      <th style={{ textAlign: 'center', padding: '10px 12px', fontWeight: 'bold', width: '100px', borderLeft: '1px solid #0f172a' }}>السعر السابق</th>
+                      <th style={{ textAlign: 'center', padding: '10px 12px', fontWeight: 'bold', width: '100px', borderLeft: '1px solid #0f172a' }}>مقدار التغير</th>
+                      <th style={{ textAlign: 'center', padding: '10px 10px', fontWeight: 'bold', width: '90px', borderLeft: '1px solid #0f172a' }}>نسبة التغير</th>
+                      <th style={{ textAlign: 'left', padding: '10px 14px', fontWeight: 'bold', width: '90px' }}>مصدر البيانات</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -4583,29 +4748,29 @@ export default function App() {
                       const isEven = idx % 2 === 0;
 
                       return (
-                        <tr key={`pdf-off-row-${c.code}`} style={{ backgroundColor: isEven ? '#ffffff' : '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-                          <td style={{ padding: '7px 12px', fontWeight: '700', color: '#0f172a' }}>
+                        <tr key={`pdf-off-row-${c.code}`} style={{ backgroundColor: isEven ? '#ffffff' : '#f8fafc', borderBottom: '1px solid #cbd5e1' }}>
+                          <td style={{ padding: '9px 14px', fontWeight: 'bold', color: '#0f172a', borderLeft: '1px solid #cbd5e1' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                               <PdfFlagIcon flagCode={c.flag} size={18} />
                               <span>{c.name}</span>
                             </div>
                           </td>
-                          <td style={{ textAlign: 'center', padding: '7px 8px', color: '#2563eb', fontFamily: 'monospace', fontWeight: '800' }}>
+                          <td style={{ textAlign: 'center', padding: '9px 8px', color: '#1d4ed8', fontFamily: 'monospace', fontWeight: 'bold', borderLeft: '1px solid #cbd5e1' }}>
                             {c.code}
                           </td>
-                          <td style={{ textAlign: 'center', padding: '7px 10px', fontSize: '13px', fontWeight: '900', color: '#0f172a', fontFamily: 'monospace' }}>
+                          <td style={{ textAlign: 'center', padding: '9px 12px', fontSize: '13px', fontWeight: 'bold', color: '#0f172a', fontFamily: 'monospace', borderLeft: '1px solid #cbd5e1' }}>
                             {rate > 0 ? `${rate.toFixed(3)} د.ل` : '-'}
                           </td>
-                          <td style={{ textAlign: 'center', padding: '7px 10px', color: '#64748b', fontWeight: '600', fontFamily: 'monospace' }}>
+                          <td style={{ textAlign: 'center', padding: '9px 10px', color: '#475569', fontWeight: '600', fontFamily: 'monospace', borderLeft: '1px solid #cbd5e1' }}>
                             {prev > 0 ? `${prev.toFixed(3)} د.ل` : '-'}
                           </td>
-                          <td style={{ textAlign: 'center', padding: '7px 10px', fontWeight: '800', color: !isUp && !isDown ? '#64748b' : isUp ? '#dc2626' : '#16a34a', direction: 'ltr', fontFamily: 'monospace' }}>
+                          <td style={{ textAlign: 'center', padding: '9px 12px', fontWeight: 'bold', color: !isUp && !isDown ? '#475569' : isUp ? '#dc2626' : '#15803d', direction: 'ltr', fontFamily: 'monospace', borderLeft: '1px solid #cbd5e1' }}>
                             {!isUp && !isDown ? '0.000' : isUp ? `+${diff.toFixed(3)}` : `${diff.toFixed(3)}`}
                           </td>
-                          <td style={{ textAlign: 'center', padding: '7px 8px', fontWeight: '800', color: !isUp && !isDown ? '#64748b' : isUp ? '#dc2626' : '#16a34a', direction: 'ltr' }}>
+                          <td style={{ textAlign: 'center', padding: '9px 10px', fontWeight: 'bold', color: !isUp && !isDown ? '#475569' : isUp ? '#dc2626' : '#15803d', direction: 'ltr', borderLeft: '1px solid #cbd5e1' }}>
                             {!isUp && !isDown ? '0.00%' : isUp ? `+${pct}%` : `-${pct}%`}
                           </td>
-                          <td style={{ textAlign: 'left', padding: '7px 12px', fontWeight: '700', fontSize: '9px', color: '#475569' }}>
+                          <td style={{ textAlign: 'left', padding: '9px 14px', fontWeight: 'bold', fontSize: '10px', color: '#334155' }}>
                             مصرف ليبيا المركزي
                           </td>
                         </tr>
@@ -4619,43 +4784,43 @@ export default function App() {
         })()}
 
         {/* Authentic Institutional Certification & Footer */}
-        <div className="pdf-avoid-break" style={{ marginTop: '28px', paddingTop: '16px', borderTop: '2px solid #e2e8f0' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '20px', marginBottom: '16px' }}>
+        <div className="pdf-avoid-break" style={{ marginTop: '30px', paddingTop: '16px', borderTop: '3px solid #0f172a' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '20px', marginBottom: '20px' }}>
             {/* Right: Methodology and Disclaimer */}
             <div style={{ flex: 1 }}>
-              <p style={{ fontSize: '10px', fontWeight: '800', color: '#0f172a', margin: '0 0 4px' }}>
+              <p style={{ fontSize: '11px', fontWeight: 'bold', color: '#0f172a', margin: '0 0 4px' }}>
                 منهجية الرصد الميداني ومصادر البيانات:
               </p>
-              <p style={{ fontSize: '9px', color: '#64748b', lineHeight: '1.6', margin: '0 0 6px' }}>
-                تم إعداد هذه النشرة وفق الرصد المباشر لتداولات أسواق الصرف والذهب في المدن الليبية (طرابلس، بنغازي، مصراتة)، إضافة إلى النشرات الصادرة عن مصرف ليبيا المركزي.
+              <p style={{ fontSize: '10px', color: '#475569', lineHeight: '1.6', margin: '0 0 6px' }}>
+                تم إعداد هذه النشرة الإحصائية وفق منهجية الرصد المباشر والتوثيق الميداني لتداولات أسواق الصرف الأجنبي والذهب والمعادن الثمينة في المدن الليبية الرئيسية (طرابلس، بنغازي، مصراتة)، بالتعاون مع كبار المتداولين المعتمدين والمؤسسات المصرفية الرسمية، إلى جانب النشرات الرسمية الدورية الصادرة عن مصرف ليبيا المركزي.
               </p>
-              <p style={{ fontSize: '9px', color: '#94a3b8', lineHeight: '1.5', margin: '0' }}>
-                تنويه: هذه النشرة وثيقة إحصائية واسترشادية لتوثيق حركة الأسعار اللحظية. تخضع أسعار التداول للتغير المستمر وفق آليات العرض والطلب.
+              <p style={{ fontSize: '9px', color: '#64748b', lineHeight: '1.5', margin: '0' }}>
+                تنويه قانوني: تعتبر هذه النشرة وثيقة إحصائية واسترشادية لتوثيق حركة الأسعار اللحظية لأغراض التوثيق الإحصائي والتحليل المالي والبحث الأكاديمي. تخضع جميع أسواق التداول للتأثر المستمر بآليات العرض والطلب المحلي والعوامل والظروف الاقتصادية والسياسية المؤثرة في حركة السوق.
               </p>
             </div>
 
             {/* Left: Official Digital Seal / Institutional Stamp */}
-            <div style={{ border: '2px solid #059669', borderRadius: '8px', padding: '8px 16px', backgroundColor: '#f0fdf4', textAlign: 'center', minWidth: '180px', flexShrink: 0 }}>
-              <p style={{ fontSize: '10px', fontWeight: '900', color: '#065f46', margin: '0 0 2px' }}>
-                ★ شبكة مؤشر الدينار ★
+            <div style={{ border: '2px solid #0f172a', padding: '10px 18px', backgroundColor: '#f8fafc', textAlign: 'center', minWidth: '200px', flexShrink: 0 }}>
+              <p style={{ fontSize: '12px', fontWeight: '900', color: '#0f172a', margin: '0 0 4px', letterSpacing: '0.5px' }}>
+                مؤشر الدينار الليبي
               </p>
-              <p style={{ fontSize: '9px', fontWeight: '800', color: '#047857', margin: '0 0 2px' }}>
-                إدارة الرصد والتوثيق المالي
+              <p style={{ fontSize: '10px', fontWeight: 'bold', color: '#334155', margin: '0 0 4px' }}>
+                إدارة الرصد والتحليل المالي
               </p>
-              <p style={{ fontSize: '8px', fontWeight: '700', color: '#059669', margin: '0 0 4px' }}>
-                معتمد للنشر والطباعة الرسمية
+              <p style={{ fontSize: '9px', fontWeight: 'bold', color: '#059669', margin: '0 0 6px' }}>
+                ✓ معتمد للتوثيق والطباعة
               </p>
-              <p style={{ fontSize: '8px', color: '#065f46', fontFamily: 'monospace', fontWeight: '800', margin: '0', borderTop: '1px dashed #6ee7b7', paddingTop: '2px' }}>
+              <p style={{ fontSize: '9px', color: '#475569', fontFamily: 'monospace', fontWeight: 'bold', margin: '0', borderTop: '1px solid #cbd5e1', paddingTop: '4px' }}>
                 REF: DI-AUT-{format(new Date(), "yyyyMMdd")}
               </p>
             </div>
           </div>
 
           {/* Legal / Copyright Bar */}
-          <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '9px', color: '#64748b' }}>
-            <span>الموقع الرسمي: dinar-index.ly</span>
-            <span style={{ fontWeight: '700' }}>جميع الحقوق محفوظة © شبكة مؤشر الدينار 2026</span>
-            <span>نظام النشر المالي اللحظي v2.4</span>
+          <div style={{ borderTop: '1px solid #cbd5e1', paddingTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '10px', color: '#475569' }}>
+            <span>الموقع الرسمي للشبكة: dinar-index.ly</span>
+            <span style={{ fontWeight: 'bold' }}>جميع الحقوق محفوظة © شبكة مؤشر الدينار 2026</span>
+            <span>نظام التقارير المالية اللحظي v2.5</span>
           </div>
         </div>
       </div>
