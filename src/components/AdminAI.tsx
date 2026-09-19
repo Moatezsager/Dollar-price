@@ -270,11 +270,11 @@ export function AdminAI({ token, config, setError, setSuccess, triggerRefresh, d
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ updates: updatesToSend })
+        body: JSON.stringify({ updates: updatesToSend, isManual: true })
       });
       const data = await res.json();
       if (data.success) {
-        setSuccess(`تم تحديث وحفظ ${Object.keys(updatesToSend).length} من الأسعار بنجاح في قاعدة البيانات`);
+        setSuccess(data.message || `تم تحديث وحفظ ${Object.keys(updatesToSend).length} من الأسعار ونشرها فوراً بدون شروط بنجاح`);
         setExtractedRates(null);
         setExtractedDates(null);
         setAiText("");
@@ -623,8 +623,14 @@ export function AdminAI({ token, config, setError, setSuccess, triggerRefresh, d
             </div>
 
             <div className="p-6 border-t border-slate-800/60 bg-black/30 flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="text-sm text-slate-300">
-                سيتم تحديث وحفظ <span className="text-emerald-400 font-black">{selectedCount}</span> أسعار محددة في قاعدة البيانات
+              <div className="flex flex-col gap-1 text-sm text-slate-300">
+                <div>
+                  سيتم تحديث وحفظ <span className="text-emerald-400 font-black">{selectedCount}</span> أسعار محددة في قاعدة البيانات
+                </div>
+                <div className="text-xs text-amber-400/90 flex items-center gap-1.5 font-medium">
+                  <span>⚡</span>
+                  <span>نشر تلقائي فوري ومباشر لجميع الأسعار المحددة بدون أي قيود أو فترات انتظار</span>
+                </div>
               </div>
               <div className="flex gap-3 w-full sm:w-auto">
                 <button

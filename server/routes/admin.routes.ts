@@ -232,20 +232,38 @@ export function createAdminRouter(deps: AdminRouterDeps): express.Router {
     }
     
     let anyChanged = false;
+    const manualUpdates: {id: string, name: string, oldVal: number, newVal: number, flag: string}[] = [];
     for (const item of extracted) {
       const currentVal = rates.parallel[item.code];
-      if (isSignificantChange(currentVal, item.value)) {
+      const term = appConfig.terms.find(t => t.id === item.code);
+      const hasChanged = isSignificantChange(currentVal, item.value);
+      if (hasChanged) {
         rates.previousParallel[item.code] = currentVal || item.value;
         rates.parallel[item.code] = item.value;
         rates.lastChanged.parallel[item.code] = new Date().toISOString();
         anyChanged = true;
       }
+      if (term) {
+        manualUpdates.push({
+          id: item.code,
+          name: term.name,
+          oldVal: rates.previousParallel[item.code] || currentVal || item.value,
+          newVal: item.value,
+          flag: term.flag
+        });
+      }
     }
     
-    if (anyChanged) {
+    if (anyChanged || manualUpdates.length > 0) {
       await syncCheckRates("استخراج المشرف");
       await saveToSupabase();
       deps.broadcastRatesUpdate(rates);
+
+      if (manualUpdates.length > 0) {
+        broadcastRateChanges(manualUpdates, false, 'all', true).catch(e => {
+          console.error("[Manual Extract Broadcast Error]:", e);
+        });
+      }
     }
     
     res.json({ 
@@ -1041,27 +1059,15 @@ export function createAdminRouter(deps: AdminRouterDeps): express.Router {
 
         const term = appConfig.terms.find(t => t.id === code);
         const currentVal = rates.parallel[code];
+        const hasChanged = isSignificantChange(currentVal, numVal);
         
-        if (isSignificantChange(currentVal, numVal)) {
+        if (hasChanged) {
           rates.previousParallel[code] = currentVal || numVal;
           rates.parallel[code] = numVal;
           rates.lastChanged.parallel[code] = new Date().toISOString();
           anyChanged = true;
           
           updateStats(code, numVal);
-
-          // استبعاد صكوك الجمهورية والتجاري من قائمة النشر، والاحتفاظ بـ USD_CHECKS فقط
-          if (code === 'USD_CHECKS' || code === 'USD_JBANK' || code === 'USD_NCB') {
-            if (checkOldPrice === null) checkOldPrice = currentVal || numVal;
-          } else if (term) {
-            changedCurrencies.push({
-              id: code,
-              name: term.name,
-              oldVal: currentVal || numVal,
-              newVal: numVal,
-              flag: term.flag
-            });
-          }
 
           const changeLog = {
             id: Math.random().toString(36).substring(2, 9),
@@ -1074,39 +1080,61 @@ export function createAdminRouter(deps: AdminRouterDeps): express.Router {
           };
           await logPriceChange(changeLog);
         }
+
+        // استبعاد صكوك الجمهورية والتجاري من قائمة النشر، والاحتفاظ بـ USD_CHECKS فقط
+        if (code === 'USD_CHECKS' || code === 'USD_JBANK' || code === 'USD_NCB') {
+          if (checkOldPrice === null) checkOldPrice = currentVal || numVal;
+        } else if (term) {
+          // في التحديث اليدوي / مستخرج النصوص: نضيف العملة أو المعدن لقائمة النشر
+          const oldVal = hasChanged 
+            ? (currentVal || numVal) 
+            : (rates.previousParallel[code] || currentVal || numVal);
+
+          changedCurrencies.push({
+            id: code,
+            name: term.name,
+            oldVal: oldVal,
+            newVal: numVal,
+            flag: term.flag
+          });
+        }
       }
 
       // المزامنة الفورية لثلاثي الصكوك (دولار صكوك، صكوك تجاري، صكوك جمهورية)
       if (checkPriceUpdate !== null) {
         const synced = await syncCheckRates("تعديل يدوي من المشرف", checkPriceUpdate);
         if (synced) anyChanged = true;
-      }
 
-      // إضافة دولار صكوك فقط للنشر في حال تغير السعر
-      if (checkPriceUpdate !== null && checkOldPrice !== null && isSignificantChange(checkOldPrice, checkPriceUpdate)) {
         changedCurrencies.push({
           id: 'USD_CHECKS',
           name: 'دولار أمريكي (صكوك)',
-          oldVal: checkOldPrice,
+          oldVal: checkOldPrice !== null ? checkOldPrice : checkPriceUpdate,
           newVal: checkPriceUpdate,
           flag: 'us'
         });
       }
 
-      if (anyChanged) {
+      if (anyChanged || changedCurrencies.length > 0) {
         rates.lastUpdated = new Date().toISOString();
         await saveToSupabase('parallel');
         deps.broadcastRatesUpdate(rates);
 
         if (changedCurrencies.length > 0) {
-          console.log(`[Admin Update] Broadcasting ${changedCurrencies.length} manual updates to social media...`);
-          broadcastRateChanges(changedCurrencies, false, 'all').catch(err => {
+          console.log(`[Admin Update] Broadcasting ${changedCurrencies.length} manual updates to social media (bypassing all conditions)...`);
+          try {
+            await broadcastRateChanges(changedCurrencies, false, 'all', true);
+          } catch (err) {
             console.error("[Admin Update] Social broadcast failed:", err);
-          });
+          }
         }
       }
 
-      res.json({ success: true, message: anyChanged ? "تم تحديث الأسعار وحفظها وإرسالها للمتابعين بنجاح" : "لم يتم تغيير أي أسعار (نفس القيم الحالية)" });
+      res.json({ 
+        success: true, 
+        message: anyChanged || changedCurrencies.length > 0
+          ? `تم تحديث الأسعار وحفظها ونشرها تلقائياً للمتابعين بنجاح (${changedCurrencies.length} صنف/عملة)` 
+          : "لم يتم تحديد أي أسعار صالحة للحفظ" 
+      });
     } catch (err: any) {
       console.error("Rates update failed:", err);
       if (!res.headersSent) {

@@ -414,7 +414,7 @@ function startPendingWatchdog(): void {
 }
 // ───────────────────────────────────────────────────────────────────────────
 
-export async function broadcastToSocialMedia(message: string, isTest: boolean = false, target: 'all' | 'telegram' | 'facebook' = 'all') {
+export async function broadcastToSocialMedia(message: string, isTest: boolean = false, target: 'all' | 'telegram' | 'facebook' = 'all', isManual: boolean = false) {
 
   const manager = getOrInitTelegramManager();
 
@@ -422,7 +422,7 @@ export async function broadcastToSocialMedia(message: string, isTest: boolean = 
   const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 
   // Telegram
-  const shouldPostTg = (target === 'telegram' || target === 'all') && ((!isTest && appConfig.telegramAutoPost) || isTest);
+  const shouldPostTg = (target === 'telegram' || target === 'all') && (isManual || (!isTest && appConfig.telegramAutoPost) || isTest);
   if (shouldPostTg) {
     let tgChannel = (appConfig.telegramPostChannel || "").trim();
     if (tgChannel.includes('t.me/')) {
@@ -502,7 +502,7 @@ export async function broadcastToSocialMedia(message: string, isTest: boolean = 
   }
 
   // Facebook
-  const shouldPostFb = (target === 'facebook' || target === 'all') && ((!isTest && appConfig.facebookAutoPost) || isTest);
+  const shouldPostFb = (target === 'facebook' || target === 'all') && (isManual || (!isTest && appConfig.facebookAutoPost) || isTest);
   if (shouldPostFb) {
     if (!appConfig.facebookPageId || !appConfig.facebookAccessToken) {
       console.warn("[Facebook Broadcast] Skipping Facebook post: Page ID or Access Token missing");
@@ -752,46 +752,52 @@ export function sanitizeBroadcastUpdates(
   return result;
 }
 
-export async function broadcastRateChanges(updates: {id?: string, name: string, oldVal: number, newVal: number, flag: string}[], isTest: boolean = false, target: 'all' | 'telegram' | 'facebook' = 'all') {
+export async function broadcastRateChanges(
+  updates: {id?: string, name: string, oldVal: number, newVal: number, flag: string}[], 
+  isTest: boolean = false, 
+  target: 'all' | 'telegram' | 'facebook' = 'all',
+  isManual: boolean = false
+) {
   updates = sanitizeBroadcastUpdates(updates);
-  if (!isTest && !appConfig.telegramAutoPost && !appConfig.facebookAutoPost) {
+  if (!isTest && !isManual && !appConfig.telegramAutoPost && !appConfig.facebookAutoPost) {
     return;
   }
   if (updates.length === 0) {
     return;
   }
 
-  // If live broadcast, use Smart Debounce Buffer (20s) to aggregate rapid updates and prevent spam/flooding
-  if (!isTest) {
-    for (const u of updates) {
-      const key = u.id || u.name;
-      const existing = broadcastQueue.get(key);
-      if (existing) {
-        // Keep initial oldVal to track cumulative shift
-        broadcastQueue.set(key, { ...u, oldVal: existing.oldVal });
-      } else {
-        broadcastQueue.set(key, { ...u });
-      }
-    }
-
-    if (broadcastQueueTimer) {
-      clearTimeout(broadcastQueueTimer);
-    }
-
-    broadcastQueueTimer = setTimeout(() => {
-      broadcastQueueTimer = null;
-      const batchedUpdates = Array.from(broadcastQueue.values());
-      broadcastQueue.clear();
-      if (batchedUpdates.length > 0) {
-        executeBroadcast(batchedUpdates, false, target).catch(e => console.error("[Smart Queue] Broadcast error:", e));
-      }
-    }, 60000); // 60-second aggregation buffer
-
+  // إذا كان التحديث يدوياً من المشرف (لوحة التحكم / مستخرج النصوص) أو وضع اختبار:
+  // يتم استثناء كل الشروط (بدون انتظار، بدون مؤقت تجميع 60 ثانية، وبدون فلاتر الفوارق أو حد الساعة)
+  if (isTest || isManual) {
+    console.log(`[SocialBroadcast] ⚡ Executing IMMEDIATE broadcast for ${updates.length} items (isManual=${isManual}, bypassing all restrictions)`);
+    await executeBroadcast(updates, isTest, target, true, isManual);
     return;
   }
 
-  // If manual test broadcast, execute immediately
-  await executeBroadcast(updates, isTest, target);
+  // If live broadcast from scraper, use Smart Debounce Buffer (60s) to aggregate rapid updates and prevent spam/flooding
+  for (const u of updates) {
+    const key = u.id || u.name;
+    const existing = broadcastQueue.get(key);
+    if (existing) {
+      // Keep initial oldVal to track cumulative shift
+      broadcastQueue.set(key, { ...u, oldVal: existing.oldVal });
+    } else {
+      broadcastQueue.set(key, { ...u });
+    }
+  }
+
+  if (broadcastQueueTimer) {
+    clearTimeout(broadcastQueueTimer);
+  }
+
+  broadcastQueueTimer = setTimeout(() => {
+    broadcastQueueTimer = null;
+    const batchedUpdates = Array.from(broadcastQueue.values());
+    broadcastQueue.clear();
+    if (batchedUpdates.length > 0) {
+      executeBroadcast(batchedUpdates, false, target).catch(e => console.error("[Smart Queue] Broadcast error:", e));
+    }
+  }, 60000); // 60-second aggregation buffer
 }
 
 // ─── ترتيب مخصص لعرض العملات في نص الرسالة المنشورة ───────────────────────
@@ -905,13 +911,14 @@ export async function executeBroadcast(
   updates: {id?: string, name: string, oldVal: number, newVal: number, flag: string}[], 
   isTest: boolean = false, 
   target: 'all' | 'telegram' | 'facebook' = 'all',
-  skipFilters: boolean = false
+  skipFilters: boolean = false,
+  isManual: boolean = false
 ) {
   updates = sanitizeBroadcastUpdates(updates);
   if (updates.length === 0) return;
 
-  // ─── Smart Broadcast Filters (للوضع الحي فقط، لا تؤثر على الاختبارات) ─────
-  if (!isTest && !skipFilters) {
+  // ─── Smart Broadcast Filters (للوضع الحي التلقائي فقط، يتم استثناؤها تماماً في التحديث اليدوي والاختبار) ─────
+  if (!isTest && !skipFilters && !isManual) {
     // الشرط 1 + 2: فلترة العملات غير المؤهلة (تغيير صغير أو وقت مبكر)
     const eligible = filterEligibleUpdates(updates);
     if (eligible.length === 0) {
@@ -984,9 +991,10 @@ export async function executeBroadcast(
   const platform = target === 'all' ? 'both' : target;
   const currencyIds = updates.map(u => u.id || u.name).filter(Boolean) as string[];
 
-  if (isTest) {
+  if (isTest || isManual) {
     try {
-      await broadcastToSocialMedia(message, isTest, target);
+      await broadcastToSocialMedia(message, isTest, target, isManual);
+      recordBroadcast(updates);
       try {
         addBroadcastLog({
           platform,
@@ -995,12 +1003,12 @@ export async function executeBroadcast(
           attempts: 1,
           duration_ms: Date.now() - startTime,
           error_message: null,
-          is_test: 1
+          is_test: isTest ? 1 : 2
         });
       } catch (logErr) {
-        console.error("[BroadcastLog] Failed to log test broadcast:", logErr);
+        console.error("[BroadcastLog] Failed to log broadcast:", logErr);
       }
-    } catch (testErr: any) {
+    } catch (err: any) {
       try {
         addBroadcastLog({
           platform,
@@ -1008,16 +1016,17 @@ export async function executeBroadcast(
           status: 'failed',
           attempts: 1,
           duration_ms: Date.now() - startTime,
-          error_message: testErr.message || String(testErr),
-          is_test: 1
+          error_message: err.message || String(err),
+          is_test: isTest ? 1 : 2
         });
       } catch (logErr) {
-        console.error("[BroadcastLog] Failed to log test broadcast failure:", logErr);
+        console.error("[BroadcastLog] Failed to log failure:", logErr);
       }
-      throw testErr;
+      if (isTest) throw err;
+      console.error("[Manual Broadcast Error]:", err);
     }
   } else {
-    broadcastToSocialMedia(message, isTest, target)
+    broadcastToSocialMedia(message, isTest, target, isManual)
       .then(() => {
         // تسجيل وقت النشر في متتبعات الحد الأقصى (بعد الإرسال الناجح)
         recordBroadcast(updates);
