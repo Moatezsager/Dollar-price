@@ -6,7 +6,7 @@ on:
   pull_request:
     branches: [ "main" ]
   schedule:
-    - cron: '0 0 * * 0'
+    - cron: '0 0 * * 0' # فحص أسبوعي
 
 jobs:
   analyze:
@@ -16,7 +16,7 @@ jobs:
       security-events: write
     strategy:
       matrix:
-        language: [ 'javascript', 'python' ] # غيّر حسب لغة مشروعك
+        language: [ 'javascript' ] # يدعم TypeScript ضمن JavaScript
     steps:
     - name: Checkout repository
       uses: actions/checkout@v3
