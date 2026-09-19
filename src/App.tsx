@@ -45,7 +45,8 @@ import {
   Minus,
   Facebook,
   ShieldAlert,
-  Lock
+  Lock,
+  Printer
 } from "lucide-react";
 import {
   AreaChart,
@@ -903,30 +904,61 @@ export default function App() {
   };
 
   const [selectedCurrencies, setSelectedCurrencies] = useState<string[]>([]);
+  const [selectedOfficialCurrencies, setSelectedOfficialCurrencies] = useState<string[]>([]);
   const [showCurrencyModal, setShowCurrencyModal] = useState(false);
+  const [pdfCategoryTab, setPdfCategoryTab] = useState<'all' | 'parallel' | 'metals' | 'official'>('all');
 
-  const generatePDF = async (currencies?: string[]) => {
+  // Comprehensive official currency list
+  const officialCurrencyList = useMemo(() => {
+    const list = [...CURRENCIES];
+    dynamicCurrencies.forEach(dc => {
+      if (!list.some(item => item.code === dc.code)) {
+        list.push({ code: dc.code, name: dc.name, flag: dc.flag });
+      }
+    });
+    return list;
+  }, [dynamicCurrencies]);
+
+  // Handle opening PDF customization modal with smart initial selection
+  const handleOpenPdfModal = () => {
+    triggerHaptic(15);
+    setShowMoreMenu(false);
+    
+    // If no prior selection exists, initialize with active parallel currencies and metals
+    // Official market is NOT added automatically per user request, but can be freely added!
+    if (selectedCurrencies.length === 0 && selectedOfficialCurrencies.length === 0) {
+      const activeParallelAndMetals = configTerms
+        .filter(c => c.id !== 'OFFICIAL_USD' && !staleCurrencies.has(c.id))
+        .map(c => c.id);
+      setSelectedCurrencies(activeParallelAndMetals);
+      setSelectedOfficialCurrencies([]);
+    }
+    setShowCurrencyModal(true);
+  };
+
+  const generatePDF = async (parallelList?: string[], officialList?: string[]) => {
+    const parallelToPrint = parallelList !== undefined ? parallelList : selectedCurrencies;
+    const officialToPrint = officialList !== undefined ? officialList : selectedOfficialCurrencies;
+
+    if (parallelToPrint.length === 0 && officialToPrint.length === 0) {
+      addToast("تنبيه", "يرجى اختيار عملة أو صنف واحد على الأقل لطباعة النشرة", "info");
+      return;
+    }
+
     setIsGeneratingPDF(true);
-    addToast("جاري التجهيز للطباعة...", "سيتم جلب أحدث الأسعار من قاعدة البيانات", "info");
+    addToast("جاري التجهيز للطباعة...", "سيتم جلب أحدث الأسعار وتنسيق النشرة الرسمية", "info");
     
     try {
-      // Force a fresh data fetch from server before printing to ensure database values are used
+      // Force a fresh data fetch from server before printing to ensure latest database values
       await fetchData(true);
       
-      // Update selected currencies for the PDF template
-      if (currencies) {
-        setSelectedCurrencies(currencies);
-      } else {
-        // Default to all if none specified
-        setSelectedCurrencies(configTerms.filter(c => c.id !== 'OFFICIAL_USD').map(c => c.id));
-      }
+      setSelectedCurrencies(parallelToPrint);
+      setSelectedOfficialCurrencies(officialToPrint);
       
-      // Use a longer delay and multiple frames to ensure React has finished rendering the updated data
-      // and the browser has layouted the hidden container
       setTimeout(() => {
         try {
           window.print();
-          addToast("تم الاستخراج", "تم عرض نافذة الطباعة/الحفظ بنجاح", "up");
+          addToast("تم التجهيز", "تم فتح نافذة الطباعة/الحفظ بنجاح", "up");
         } catch (err: any) {
           console.error('Error during native print:', err);
           logErrorToServer(err, "App.tsx: generatePDF");
@@ -935,7 +967,7 @@ export default function App() {
           setIsGeneratingPDF(false);
           setShowCurrencyModal(false);
         }
-      }, 1200);
+      }, 1000);
     } catch (err) {
       console.error('Error fetching data for PDF:', err);
       setIsGeneratingPDF(false);
@@ -2009,11 +2041,7 @@ export default function App() {
                     <div className="py-1 flex flex-col">
                       <button
                         id="export-pdf-btn"
-                        onClick={() => {
-                          triggerHaptic(15);
-                          setShowMoreMenu(false);
-                          setShowCurrencyModal(true);
-                        }}
+                        onClick={handleOpenPdfModal}
                         disabled={isGeneratingPDF}
                         className={`flex items-center gap-3 px-4 py-3 text-sm text-slate-300 hover:text-white hover:bg-white/5 transition-colors w-full text-right ${isGeneratingPDF ? 'opacity-50 cursor-not-allowed' : ''}`}
                       >
@@ -2961,7 +2989,7 @@ export default function App() {
                 </button>
 
                 <button
-                  onClick={() => { triggerHaptic(10); setShowCurrencyModal(true); }}
+                  onClick={handleOpenPdfModal}
                   className="flex flex-col items-center gap-3 p-5 rounded-3xl bg-[#111111] border border-slate-800/60 active:scale-95 transition-transform"
                 >
                   <div className="w-12 h-12 rounded-[1rem] bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
@@ -3828,255 +3856,806 @@ export default function App() {
       {/* Currency Selection Modal for PDF */}
       <AnimatePresence>
         {showCurrencyModal && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md">
             <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className="glass-panel border border-slate-700/50 rounded-3xl p-6 w-full max-w-md shadow-2xl"
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="glass-panel border border-slate-700/60 rounded-3xl p-5 sm:p-7 w-full max-w-3xl shadow-2xl max-h-[92vh] flex flex-col"
+              dir="rtl"
             >
-              <h2 className="text-xl font-bold text-white mb-6 text-right">تخصيص تقرير PDF</h2>
-              <p className="text-sm text-slate-400 mb-6 text-right">اختر العملات التي ترغب في تضمينها في التقرير:</p>
-              
-              <div className="grid grid-cols-2 gap-3 mb-8 max-h-[300px] overflow-y-auto pr-2">
-                {configTerms.filter(c => c.id !== 'OFFICIAL_USD' && !staleCurrencies.has(c.id)).map(c => (
-                  <button
-                    key={c.id}
-                    onClick={() => {
-                      if (selectedCurrencies.includes(c.id)) {
-                        setSelectedCurrencies(selectedCurrencies.filter(id => id !== c.id));
-                      } else {
-                        setSelectedCurrencies([...selectedCurrencies, c.id]);
-                      }
-                    }}
-                    className={`p-3 rounded-xl border text-right flex items-center justify-between transition-colors ${
-                      selectedCurrencies.includes(c.id)
-                        ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400'
-                        : 'bg-white/5 border-slate-800/60 text-slate-400 hover:bg-white/10'
-                    }`}
-                  >
-                    <span className="text-xs font-bold">{c.name}</span>
-                    {selectedCurrencies.includes(c.id) && <CheckCircle2 className="w-4 h-4" />}
-                  </button>
-                ))}
-              </div>
-
-              <div className="flex gap-3">
+              {/* Modal Header */}
+              <div className="flex items-center justify-between pb-4 border-b border-slate-800/80 shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                    <Printer className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg sm:text-xl font-extrabold text-white">تخصيص وطباعة نشرة الأسعار (PDF)</h2>
+                    <p className="text-xs text-slate-400 mt-0.5">اختر العملات والأصناف المطلوب تضمينها — يدعم الموازي والمعادن والسوق الرسمي</p>
+                  </div>
+                </div>
                 <button
                   onClick={() => setShowCurrencyModal(false)}
-                  className="flex-1 px-4 py-3 bg-white/5 text-white rounded-xl font-bold hover:bg-white/10 transition-colors"
+                  className="w-8 h-8 rounded-full bg-slate-800/50 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-colors"
                 >
-                  إلغاء
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Quick Preset Actions Bar */}
+              <div className="py-3 flex flex-wrap items-center gap-2 border-b border-slate-800/60 shrink-0">
+                <span className="text-xs text-slate-400 font-bold ml-1">تحديد سريع:</span>
+                <button
+                  onClick={() => {
+                    const allParallelAndMetals = configTerms.filter(c => c.id !== 'OFFICIAL_USD' && !staleCurrencies.has(c.id)).map(c => c.id);
+                    const allOfficial = officialCurrencyList.map(c => c.code);
+                    setSelectedCurrencies(allParallelAndMetals);
+                    setSelectedOfficialCurrencies(allOfficial);
+                  }}
+                  className="px-2.5 py-1 text-xs font-bold rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 transition-colors"
+                >
+                  تحديد الكل ({configTerms.filter(c => c.id !== 'OFFICIAL_USD' && !staleCurrencies.has(c.id)).length + officialCurrencyList.length})
                 </button>
                 <button
-                  onClick={() => generatePDF(selectedCurrencies)}
-                  className="flex-1 px-4 py-3 bg-emerald-500 text-black rounded-xl font-bold hover:bg-emerald-400 transition-colors"
+                  onClick={() => {
+                    const parallelOnly = configTerms.filter(c => c.id !== 'OFFICIAL_USD' && !METAL_IDS.includes(c.id) && !staleCurrencies.has(c.id)).map(c => c.id);
+                    setSelectedCurrencies(parallelOnly);
+                    setSelectedOfficialCurrencies([]);
+                  }}
+                  className="px-2.5 py-1 text-xs font-bold rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 transition-colors"
                 >
-                  طباعة التقرير
+                  السوق الموازي فقط
                 </button>
+                <button
+                  onClick={() => {
+                    const metalsOnly = configTerms.filter(c => METAL_IDS.includes(c.id) && !staleCurrencies.has(c.id)).map(c => c.id);
+                    setSelectedCurrencies(metalsOnly);
+                    setSelectedOfficialCurrencies([]);
+                  }}
+                  className="px-2.5 py-1 text-xs font-bold rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 transition-colors"
+                >
+                  الذهب والمعادن فقط
+                </button>
+                <button
+                  onClick={() => {
+                    setSelectedCurrencies([]);
+                    setSelectedOfficialCurrencies(officialCurrencyList.map(c => c.code));
+                  }}
+                  className="px-2.5 py-1 text-xs font-bold rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 transition-colors"
+                >
+                  السوق الرسمي (المركزي) فقط
+                </button>
+                <button
+                  onClick={() => {
+                    setSelectedCurrencies([]);
+                    setSelectedOfficialCurrencies([]);
+                  }}
+                  className="px-2.5 py-1 text-xs font-bold rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 transition-colors mr-auto"
+                >
+                  إلغاء التحديد
+                </button>
+              </div>
+
+              {/* Category Filter Tabs */}
+              <div className="flex gap-2 py-3 shrink-0 overflow-x-auto">
+                <button
+                  onClick={() => setPdfCategoryTab('all')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-colors flex items-center gap-1.5 ${
+                    pdfCategoryTab === 'all'
+                      ? 'bg-white text-black'
+                      : 'bg-slate-800/60 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <span>الكل</span>
+                  <span className="px-1.5 py-0.5 rounded-md text-[10px] bg-black/10 font-mono">
+                    {selectedCurrencies.length + selectedOfficialCurrencies.length}
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => setPdfCategoryTab('parallel')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-colors flex items-center gap-1.5 ${
+                    pdfCategoryTab === 'parallel'
+                      ? 'bg-emerald-500 text-black'
+                      : 'bg-slate-800/60 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <span>السوق الموازي</span>
+                  <span className="px-1.5 py-0.5 rounded-md text-[10px] bg-black/10 font-mono">
+                    {configTerms.filter(c => c.id !== 'OFFICIAL_USD' && !METAL_IDS.includes(c.id) && selectedCurrencies.includes(c.id)).length}
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => setPdfCategoryTab('metals')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-colors flex items-center gap-1.5 ${
+                    pdfCategoryTab === 'metals'
+                      ? 'bg-amber-500 text-black'
+                      : 'bg-slate-800/60 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <span>الذهب والمعادن</span>
+                  <span className="px-1.5 py-0.5 rounded-md text-[10px] bg-black/10 font-mono">
+                    {configTerms.filter(c => METAL_IDS.includes(c.id) && selectedCurrencies.includes(c.id)).length}
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => setPdfCategoryTab('official')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-colors flex items-center gap-1.5 ${
+                    pdfCategoryTab === 'official'
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-slate-800/60 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <span>السوق الرسمي (المركزي)</span>
+                  <span className="px-1.5 py-0.5 rounded-md text-[10px] bg-black/10 font-mono">
+                    {selectedOfficialCurrencies.length}
+                  </span>
+                </button>
+              </div>
+
+              {/* Currencies & Items Selection Grid */}
+              <div className="flex-1 overflow-y-auto pr-1 space-y-4 my-2 max-h-[360px] custom-scrollbar">
+                {/* 1. Parallel Market Currencies */}
+                {(pdfCategoryTab === 'all' || pdfCategoryTab === 'parallel') && (
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                        عملات السوق الموازي (الكاش والصكوك)
+                      </span>
+                      <span className="text-[11px] text-slate-500 font-mono">
+                        {configTerms.filter(c => c.id !== 'OFFICIAL_USD' && !METAL_IDS.includes(c.id) && selectedCurrencies.includes(c.id)).length} محدد
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {configTerms
+                        .filter(c => c.id !== 'OFFICIAL_USD' && !METAL_IDS.includes(c.id) && !staleCurrencies.has(c.id))
+                        .map(c => {
+                          const isSelected = selectedCurrencies.includes(c.id);
+                          const rate = rates?.parallel[c.id] || 0;
+                          return (
+                            <button
+                              key={`modal-par-${c.id}`}
+                              onClick={() => {
+                                triggerHaptic(8);
+                                setSelectedCurrencies(prev => 
+                                  isSelected ? prev.filter(id => id !== c.id) : [...prev, c.id]
+                                );
+                              }}
+                              className={`p-2.5 rounded-2xl border text-right flex items-center justify-between transition-all ${
+                                isSelected
+                                  ? 'bg-emerald-500/15 border-emerald-500/60 text-white shadow-[0_0_12px_rgba(16,185,129,0.15)]'
+                                  : 'bg-white/[0.03] border-slate-800/80 text-slate-400 hover:bg-white/[0.07] hover:border-slate-700'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 overflow-hidden">
+                                <PdfFlagIcon flagCode={c.flag} size={22} />
+                                <div className="text-right truncate">
+                                  <p className="text-xs font-bold text-slate-200 truncate">{c.name}</p>
+                                  <p className="text-[10px] text-slate-500 font-mono">{rate > 0 ? `${rate.toFixed(2)} د.ل` : '-'}</p>
+                                </div>
+                              </div>
+                              <div className={`w-4 h-4 rounded-md border flex items-center justify-center shrink-0 ${
+                                isSelected ? 'bg-emerald-500 border-emerald-500 text-black' : 'border-slate-700 bg-transparent'
+                              }`}>
+                                {isSelected && <CheckCircle2 className="w-3.5 h-3.5 stroke-[3]" />}
+                              </div>
+                            </button>
+                          );
+                        })}
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. Gold & Precious Metals */}
+                {(pdfCategoryTab === 'all' || pdfCategoryTab === 'metals') && (
+                  <div>
+                    <div className="flex items-center justify-between mb-2 mt-4">
+                      <span className="text-xs font-bold text-amber-400 flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+                        الذهب والمعادن الثمينة (سوق الصاغة)
+                      </span>
+                      <span className="text-[11px] text-slate-500 font-mono">
+                        {configTerms.filter(c => METAL_IDS.includes(c.id) && selectedCurrencies.includes(c.id)).length} محدد
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {configTerms
+                        .filter(c => METAL_IDS.includes(c.id) && !staleCurrencies.has(c.id))
+                        .map(c => {
+                          const isSelected = selectedCurrencies.includes(c.id);
+                          const rate = rates?.parallel[c.id] || 0;
+                          return (
+                            <button
+                              key={`modal-metal-${c.id}`}
+                              onClick={() => {
+                                triggerHaptic(8);
+                                setSelectedCurrencies(prev => 
+                                  isSelected ? prev.filter(id => id !== c.id) : [...prev, c.id]
+                                );
+                              }}
+                              className={`p-2.5 rounded-2xl border text-right flex items-center justify-between transition-all ${
+                                isSelected
+                                  ? 'bg-amber-500/15 border-amber-500/60 text-white shadow-[0_0_12px_rgba(245,158,11,0.15)]'
+                                  : 'bg-white/[0.03] border-slate-800/80 text-slate-400 hover:bg-white/[0.07] hover:border-slate-700'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 overflow-hidden">
+                                <PdfFlagIcon flagCode={c.flag} size={22} />
+                                <div className="text-right truncate">
+                                  <p className="text-xs font-bold text-slate-200 truncate">{c.name}</p>
+                                  <p className="text-[10px] text-amber-500/80 font-mono">{rate > 0 ? `${rate.toFixed(2)} د.ل` : '-'}</p>
+                                </div>
+                              </div>
+                              <div className={`w-4 h-4 rounded-md border flex items-center justify-center shrink-0 ${
+                                isSelected ? 'bg-amber-500 border-amber-500 text-black' : 'border-slate-700 bg-transparent'
+                              }`}>
+                                {isSelected && <CheckCircle2 className="w-3.5 h-3.5 stroke-[3]" />}
+                              </div>
+                            </button>
+                          );
+                        })}
+                    </div>
+                  </div>
+                )}
+
+                {/* 3. Official Central Bank Currencies */}
+                {(pdfCategoryTab === 'all' || pdfCategoryTab === 'official') && (
+                  <div>
+                    <div className="flex items-center justify-between mb-2 mt-4">
+                      <span className="text-xs font-bold text-blue-400 flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-blue-400"></span>
+                        أسعار الصرف الرسمية (مصرف ليبيا المركزي)
+                      </span>
+                      <span className="text-[11px] text-slate-500 font-mono">
+                        {selectedOfficialCurrencies.length} محدد
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {officialCurrencyList.map(c => {
+                        const isSelected = selectedOfficialCurrencies.includes(c.code);
+                        const rate = rates?.official[c.code] || 0;
+                        return (
+                          <button
+                            key={`modal-off-${c.code}`}
+                            onClick={() => {
+                              triggerHaptic(8);
+                              setSelectedOfficialCurrencies(prev => 
+                                isSelected ? prev.filter(code => code !== c.code) : [...prev, c.code]
+                              );
+                            }}
+                            className={`p-2.5 rounded-2xl border text-right flex items-center justify-between transition-all ${
+                              isSelected
+                                ? 'bg-blue-500/15 border-blue-500/60 text-white shadow-[0_0_12px_rgba(59,130,246,0.15)]'
+                                : 'bg-white/[0.03] border-slate-800/80 text-slate-400 hover:bg-white/[0.07] hover:border-slate-700'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 overflow-hidden">
+                              <PdfFlagIcon flagCode={c.flag} size={22} />
+                              <div className="text-right truncate">
+                                <p className="text-xs font-bold text-slate-200 truncate">{c.name}</p>
+                                <p className="text-[10px] text-blue-400/80 font-mono">{rate > 0 ? `${rate.toFixed(3)} د.ل` : c.code}</p>
+                              </div>
+                            </div>
+                            <div className={`w-4 h-4 rounded-md border flex items-center justify-center shrink-0 ${
+                              isSelected ? 'bg-blue-500 border-blue-500 text-white' : 'border-slate-700 bg-transparent'
+                            }`}>
+                              {isSelected && <CheckCircle2 className="w-3.5 h-3.5 stroke-[3]" />}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="pt-4 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
+                <div className="text-xs text-slate-400 text-right w-full sm:w-auto">
+                  <span>تم تحديد: </span>
+                  <span className="text-white font-bold font-mono">
+                    {selectedCurrencies.length + selectedOfficialCurrencies.length}
+                  </span>
+                  <span> صنف </span>
+                  <span className="text-slate-500 text-[11px]">
+                    ({configTerms.filter(c => c.id !== 'OFFICIAL_USD' && !METAL_IDS.includes(c.id) && selectedCurrencies.includes(c.id)).length} موازي، {configTerms.filter(c => METAL_IDS.includes(c.id) && selectedCurrencies.includes(c.id)).length} معادن، {selectedOfficialCurrencies.length} رسمي)
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2.5 w-full sm:w-auto">
+                  <button
+                    onClick={() => setShowCurrencyModal(false)}
+                    className="flex-1 sm:flex-initial px-5 py-2.5 bg-slate-800/70 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition-colors"
+                  >
+                    إلغاء
+                  </button>
+                  <button
+                    onClick={() => generatePDF(selectedCurrencies, selectedOfficialCurrencies)}
+                    disabled={selectedCurrencies.length === 0 && selectedOfficialCurrencies.length === 0}
+                    className={`flex-1 sm:flex-initial px-6 py-2.5 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 transition-all ${
+                      selectedCurrencies.length === 0 && selectedOfficialCurrencies.length === 0
+                        ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                        : 'bg-emerald-500 hover:bg-emerald-400 text-black shadow-[0_0_20px_rgba(16,185,129,0.25)]'
+                    }`}
+                  >
+                    <Printer className="w-4 h-4" />
+                    <span>طباعة النشرة الرسمية ({selectedCurrencies.length + selectedOfficialCurrencies.length})</span>
+                  </button>
+                </div>
               </div>
             </motion.div>
           </div>
         )}
       </AnimatePresence>
 
-      {/* Hidden PDF Template - Unlocked by @media print */}
+      {/* Hidden PDF Template - Professional Financial Bulletin Unlocked by @media print */}
       <div 
         id="pdf-report-container"
         ref={reportRef} 
         className="opacity-0 pointer-events-none absolute top-[-9999px] left-[-9999px] print:opacity-100 print:pointer-events-auto print:static print:block"
         style={{ 
-          width: '210mm', // A4 exact width
-          minHeight: '297mm', // A4 exact min-height
+          width: '210mm',
+          minHeight: '297mm',
           backgroundColor: '#ffffff',
           color: '#0f172a',
-          fontFamily: "'Cairo', sans-serif",
-          lineHeight: '1.5',
+          fontFamily: "'Cairo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+          lineHeight: '1.4',
           direction: 'rtl',
           margin: '0',
-          padding: '0'
+          padding: '12mm 14mm',
+          boxSizing: 'border-box'
         }}
         dir="rtl"
       >
-        {/* PDF Header - Modern Dark Theme */}
-        <div style={{ backgroundColor: '#0f172a', padding: '40px', borderBottom: '6px solid #10b981', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <div style={{ width: '56px', height: '56px', borderRadius: '16px', backgroundColor: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)' }}>
-              <img src="/logo.png" alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+        {/* Institutional Masthead with Official Logo */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '14px', borderBottom: '2.5px solid #0f172a' }}>
+          {/* Right: Official Logo & Network Title */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <div style={{ width: '56px', height: '56px', borderRadius: '12px', border: '1.5px solid #cbd5e1', padding: '3px', backgroundColor: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+              <img src="/logo.png" alt="شعار مؤشر الدينار" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
             </div>
             <div>
-              <h1 style={{ fontSize: '36px', fontWeight: '900', color: '#ffffff', margin: '0', letterSpacing: '-0.5px' }}>مؤشر الدينار</h1>
-              <p style={{ fontSize: '16px', color: '#94a3b8', margin: '4px 0 0', fontWeight: '600' }}>التقرير الشامل لأسعار الصرف في السوق الليبي</p>
+              <h1 style={{ fontSize: '24px', fontWeight: '900', color: '#0f172a', margin: '0', letterSpacing: '-0.3px', lineHeight: '1.1' }}>
+                شبكة مؤشر الدينار
+              </h1>
+              <p style={{ fontSize: '13px', fontWeight: '800', color: '#334155', margin: '3px 0 0' }}>
+                النشرة الإحصائية الدورية لأسعار الصرف والمعادن الثمينة
+              </p>
+              <p style={{ fontSize: '10px', color: '#64748b', margin: '2px 0 0', fontWeight: '600' }}>
+                منظومة الرصد الميداني اللحظي للأسواق الليبية | dinar-index.ly
+              </p>
             </div>
           </div>
-          <div style={{ textAlign: 'left', backgroundColor: 'rgba(255, 255, 255, 0.05)', padding: '16px 24px', borderRadius: '16px', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
-            <p style={{ fontSize: '12px', color: '#94a3b8', margin: '0 0 4px', textTransform: 'uppercase', fontWeight: '700' }}>تاريخ الإصدار</p>
-            <p style={{ fontSize: '18px', fontWeight: '800', color: '#ffffff', margin: '0' }}>{format(new Date(), "dd MMMM yyyy", { locale: ar })}</p>
-            <p style={{ fontSize: '14px', fontWeight: '600', color: '#10b981', margin: '2px 0 0' }}>{format(new Date(), "HH:mm")}</p>
+
+          {/* Left: Document Verification & Publication Metadata */}
+          <div style={{ textAlign: 'left', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '8px 14px', backgroundColor: '#f8fafc', minWidth: '190px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', fontSize: '10px', color: '#64748b', marginBottom: '3px' }}>
+              <span>رقم النشرة:</span>
+              <span style={{ fontWeight: '800', color: '#0f172a', fontFamily: 'monospace' }}>
+                DI-LY-{format(new Date(), "yyyyMMdd")}
+              </span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', fontSize: '11px', color: '#334155', marginBottom: '2px' }}>
+              <span>تاريخ الإصدار:</span>
+              <span style={{ fontWeight: '800', color: '#0f172a' }}>
+                {format(new Date(), "dd MMMM yyyy", { locale: ar })}
+              </span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', fontSize: '11px', color: '#334155', marginBottom: '2px' }}>
+              <span>وقت الرصد:</span>
+              <span style={{ fontWeight: '800', color: '#059669' }}>
+                {format(new Date(), "HH:mm")} (توقيت طرابلس)
+              </span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', fontSize: '10px', color: '#059669', paddingTop: '2px', borderTop: '1px dashed #cbd5e1' }}>
+              <span>حالة الاعتماد:</span>
+              <span style={{ fontWeight: '800' }}>بيانات لحظية معتمدة</span>
+            </div>
           </div>
         </div>
 
-        <div style={{ padding: '40px' }}>
-          {/* Market Overview - Highlight Cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginBottom: '40px' }}>
-            {/* Card 1: USD Cash */}
-            <div style={{ padding: '24px', borderRadius: '20px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', position: 'relative', overflow: 'hidden' }}>
-              <div style={{ position: 'absolute', top: 0, right: 0, width: '4px', height: '100%', backgroundColor: '#16a34a' }}></div>
-              <p style={{ fontSize: '14px', color: '#166534', fontWeight: '800', margin: '0 0 12px' }}>الدولار الأمريكي (نقدي)</p>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-                <span style={{ fontSize: '36px', fontWeight: '900', color: '#14532d' }}>{usdRate.toFixed(2)}</span>
-                <span style={{ fontSize: '16px', color: '#166534', fontWeight: '700' }}>د.ل</span>
-              </div>
-              <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #bbf7d0', paddingTop: '12px' }}>
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <span style={{ fontSize: '11px', color: '#166534', opacity: 0.7, fontWeight: '700' }}>السعر السابق</span>
-                  <span style={{ fontSize: '14px', fontWeight: '800', color: '#14532d' }}>{prevUsdRate.toFixed(2)}</span>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                  <span style={{ fontSize: '11px', color: '#166534', opacity: 0.7, fontWeight: '700' }}>التغير</span>
-                  <span style={{ fontSize: '14px', fontWeight: '800', color: usdIsUp ? '#dc2626' : '#16a34a', direction: 'ltr' }}>
-                    {usdIsUp ? '▲' : '▼'} {Math.abs(usdChange).toFixed(2)}
-                  </span>
-                </div>
-              </div>
-            </div>
+        {/* Dynamic Executive Highlights Strip (Only shown for items the user selected!) */}
+        {(() => {
+          const selectedParallel = configTerms.filter(c => c.id !== 'OFFICIAL_USD' && !METAL_IDS.includes(c.id) && selectedCurrencies.includes(c.id) && !staleCurrencies.has(c.id));
+          const selectedMetals = configTerms.filter(c => METAL_IDS.includes(c.id) && selectedCurrencies.includes(c.id) && !staleCurrencies.has(c.id));
+          const selectedOfficial = officialCurrencyList.filter(c => selectedOfficialCurrencies.includes(c.code));
 
-            {/* Card 2: USD Checks */}
-            <div style={{ padding: '24px', borderRadius: '20px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', position: 'relative', overflow: 'hidden' }}>
-              <div style={{ position: 'absolute', top: 0, right: 0, width: '4px', backgroundColor: '#3b82f6', height: '100%' }}></div>
-              <p style={{ fontSize: '14px', color: '#1e293b', fontWeight: '800', margin: '0 0 12px' }}>الدولار (صكوك الجمهورية)</p>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-                <span style={{ fontSize: '36px', fontWeight: '900', color: '#0f172a' }}>{usdChecksRate.toFixed(2)}</span>
-                <span style={{ fontSize: '16px', color: '#475569', fontWeight: '700' }}>د.ل</span>
-              </div>
-              <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #e2e8f0', paddingTop: '12px' }}>
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700' }}>السعر السابق</span>
-                  <span style={{ fontSize: '14px', fontWeight: '800', color: '#0f172a' }}>{prevUsdChecksRate.toFixed(2)}</span>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                  <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700' }}>التغير</span>
-                  <span style={{ fontSize: '14px', fontWeight: '800', color: (usdChecksRate > prevUsdChecksRate) ? '#dc2626' : '#16a34a', direction: 'ltr' }}>
-                    {(usdChecksRate > prevUsdChecksRate) ? '▲' : '▼'} {Math.abs(usdChecksRate - prevUsdChecksRate).toFixed(2)}
-                  </span>
-                </div>
-              </div>
-            </div>
+          const highlights: Array<{
+            id: string;
+            title: string;
+            market: string;
+            rate: number;
+            prevRate: number;
+            flagCode?: string;
+            accentColor: string;
+          }> = [];
 
-            {/* Card 3: EUR */}
-            <div style={{ padding: '24px', borderRadius: '20px', backgroundColor: '#fdf4ff', border: '1px solid #fbcfe8', position: 'relative', overflow: 'hidden' }}>
-              <div style={{ position: 'absolute', top: 0, right: 0, width: '4px', backgroundColor: '#d946ef', height: '100%' }}></div>
-              <p style={{ fontSize: '14px', color: '#86198f', fontWeight: '800', margin: '0 0 12px' }}>اليورو (نقدي)</p>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-                <span style={{ fontSize: '36px', fontWeight: '900', color: '#4a044e' }}>{(rates?.parallel['EUR'] || 0).toFixed(2)}</span>
-                <span style={{ fontSize: '16px', color: '#86198f', fontWeight: '700' }}>د.ل</span>
-              </div>
-              <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #fbcfe8', paddingTop: '12px' }}>
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <span style={{ fontSize: '11px', color: '#86198f', opacity: 0.7, fontWeight: '700' }}>السعر السابق</span>
-                  <span style={{ fontSize: '14px', fontWeight: '800', color: '#4a044e' }}>{(rates?.previousParallel?.['EUR'] || rates?.parallel['EUR'] || 0).toFixed(2)}</span>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                  <span style={{ fontSize: '11px', color: '#86198f', opacity: 0.7, fontWeight: '700' }}>التغير</span>
-                  <span style={{ fontSize: '14px', fontWeight: '800', color: ((rates?.parallel['EUR'] || 0) > (rates?.previousParallel?.['EUR'] || 0)) ? '#dc2626' : '#16a34a', direction: 'ltr' }}>
-                    {((rates?.parallel['EUR'] || 0) > (rates?.previousParallel?.['EUR'] || 0)) ? '▲' : '▼'} {Math.abs((rates?.parallel['EUR'] || 0) - (rates?.previousParallel?.['EUR'] || 0)).toFixed(2)}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
+          // 1. USD Cash if selected
+          const usdTerm = configTerms.find(c => c.id === 'USD_CASH' || c.id === 'USD');
+          if (usdTerm && selectedCurrencies.includes(usdTerm.id)) {
+            const r = rates?.parallel[usdTerm.id] || usdRate || 0;
+            const p = rates?.previousParallel?.[usdTerm.id] || prevUsdRate || r;
+            highlights.push({ id: usdTerm.id, title: "الدولار الأمريكي (كاش)", market: "السوق الموازي", rate: r, prevRate: p, flagCode: "us", accentColor: "#059669" });
+          }
 
-          {/* Comprehensive Parallel Rates Table */}
-          <div style={{ marginBottom: '40px' }}>
-            <h2 style={{ fontSize: '20px', fontWeight: '800', color: '#0f172a', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <div style={{ width: '6px', height: '20px', backgroundColor: '#10b981', borderRadius: '4px' }}></div>
-              أسعار السوق الموازي (شامل)
-            </h2>
-            <div style={{ borderRadius: '16px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead style={{ backgroundColor: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
-                  <tr>
-                    <th style={{ textAlign: 'right', padding: '16px 24px', fontSize: '13px', color: '#475569', fontWeight: '800' }}>العملة / الصنف</th>
-                    <th style={{ textAlign: 'center', padding: '16px 24px', fontSize: '13px', color: '#475569', fontWeight: '800' }}>السعر الحالي</th>
-                    <th style={{ textAlign: 'center', padding: '16px 24px', fontSize: '13px', color: '#475569', fontWeight: '800' }}>السعر السابق</th>
-                    <th style={{ textAlign: 'left', padding: '16px 24px', fontSize: '13px', color: '#475569', fontWeight: '800' }}>مؤشر التغير</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {configTerms.filter(c => c.id !== 'OFFICIAL_USD' && selectedCurrencies.includes(c.id) && !staleCurrencies.has(c.id)).map((c, idx) => {
-                    const rate = rates?.parallel[c.id] || 0;
-                    if (rate === 0) return null; // Skip empty rates
-                    const prev = rates?.previousParallel?.[c.id] || rate;
-                    const isUp = rate > prev;
-                    const isEven = idx % 2 === 0;
-                    return (
-                      <tr key={`pdf-row-${c.id}`} style={{ backgroundColor: isEven ? '#ffffff' : '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
-                        <td style={{ padding: '14px 24px', fontWeight: '700', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          <PdfFlagIcon flagCode={c.flag} size={24} />
-                          {c.name}
-                        </td>
-                        <td style={{ textAlign: 'center', padding: '14px 24px', fontSize: '16px', fontWeight: '800', color: '#0f172a' }}>
-                          {rate.toFixed(2)}
-                        </td>
-                        <td style={{ textAlign: 'center', padding: '14px 24px', fontSize: '14px', color: '#64748b', fontWeight: '600' }}>
-                          {prev.toFixed(2)}
-                        </td>
-                        <td style={{ textAlign: 'left', padding: '14px 24px', fontWeight: '800', color: rate === prev ? '#64748b' : isUp ? '#dc2626' : '#16a34a', direction: 'ltr' }}>
-                          {rate === prev ? '-' : isUp ? `▲ +${(rate - prev).toFixed(2)}` : `▼ ${(rate - prev).toFixed(2)}`}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          // 2. USD Checks if selected
+          const chkTerm = configTerms.find(c => c.id === 'USD_CHECKS' || c.id === 'USD_JBANK' || c.id === 'USD_NCB');
+          if (chkTerm && selectedCurrencies.includes(chkTerm.id)) {
+            const r = rates?.parallel[chkTerm.id] || usdChecksRate || 0;
+            const p = rates?.previousParallel?.[chkTerm.id] || prevUsdChecksRate || r;
+            highlights.push({ id: chkTerm.id, title: chkTerm.name || "الدولار (صكوك)", market: "المقاصة المصرفية", rate: r, prevRate: p, flagCode: "us", accentColor: "#2563eb" });
+          }
 
-          {/* Official Rates Grid */}
-          <div style={{ marginBottom: '40px' }}>
-            <h2 style={{ fontSize: '20px', fontWeight: '800', color: '#0f172a', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <div style={{ width: '6px', height: '20px', backgroundColor: '#3b82f6', borderRadius: '4px' }}></div>
-              نشرة أسعار الصرف الرسمية (مصرف ليبيا المركزي)
-            </h2>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
-              {dynamicCurrencies.filter(c => rates?.official[c.code]).map(c => (
-                <div key={`pdf-off-${c.code}`} style={{ padding: '16px', borderRadius: '16px', border: '1px solid #e2e8f0', backgroundColor: '#f8fafc', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                    <PdfFlagIcon flagCode={c.flag} size={20} />
-                    <span style={{ fontSize: '12px', fontWeight: '800', color: '#475569' }}>{c.code}</span>
-                  </div>
-                  <p style={{ fontSize: '20px', fontWeight: '900', color: '#0f172a', margin: '0' }}>{(rates?.official[c.code] || 0).toFixed(3)}</p>
+          // 3. Gold 18 if selected
+          const goldTerm = configTerms.find(c => c.id === 'GOLD_SCRAP_18' || c.id === 'GOLD_CAST_18');
+          if (goldTerm && selectedCurrencies.includes(goldTerm.id)) {
+            const r = rates?.parallel[goldTerm.id] || 0;
+            const p = rates?.previousParallel?.[goldTerm.id] || r;
+            highlights.push({ id: goldTerm.id, title: goldTerm.name || "ذهب كسر 18", market: "سوق الصاغة / جرام", rate: r, prevRate: p, flagCode: "gold", accentColor: "#d97706" });
+          }
+
+          // 4. Official USD if selected
+          if (selectedOfficialCurrencies.includes('USD')) {
+            const r = rates?.official['USD'] || 0;
+            const p = rates?.previousOfficial?.['USD'] || r;
+            highlights.push({ id: 'OFF_USD', title: "الدولار الرسمي (المركزي)", market: "مصرف ليبيا المركزي", rate: r, prevRate: p, flagCode: "us", accentColor: "#475569" });
+          }
+
+          // Backfill up to 3 items if fewer than 3 were matched
+          if (highlights.length < 3) {
+            for (const p of selectedParallel) {
+              if (highlights.length >= 3) break;
+              if (highlights.some(h => h.id === p.id)) continue;
+              const r = rates?.parallel[p.id] || 0;
+              const prev = rates?.previousParallel?.[p.id] || r;
+              highlights.push({ id: p.id, title: p.name, market: "السوق الموازي", rate: r, prevRate: prev, flagCode: p.flag, accentColor: "#059669" });
+            }
+          }
+          if (highlights.length < 3) {
+            for (const m of selectedMetals) {
+              if (highlights.length >= 3) break;
+              if (highlights.some(h => h.id === m.id)) continue;
+              const r = rates?.parallel[m.id] || 0;
+              const prev = rates?.previousParallel?.[m.id] || r;
+              highlights.push({ id: m.id, title: m.name, market: "سوق المعادن", rate: r, prevRate: prev, flagCode: m.flag, accentColor: "#d97706" });
+            }
+          }
+          if (highlights.length < 3) {
+            for (const off of selectedOfficial) {
+              if (highlights.length >= 3) break;
+              if (highlights.some(h => h.id === `OFF_${off.code}`)) continue;
+              const r = rates?.official[off.code] || 0;
+              const prev = rates?.previousOfficial?.[off.code] || r;
+              highlights.push({ id: `OFF_${off.code}`, title: `${off.name} (رسمي)`, market: "مصرف ليبيا المركزي", rate: r, prevRate: prev, flagCode: off.flag, accentColor: "#2563eb" });
+            }
+          }
+
+          if (highlights.length < 2) return null;
+
+          return (
+            <div className="pdf-avoid-break" style={{ marginTop: '16px', marginBottom: '20px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: `repeat(${highlights.length}, 1fr)`, gap: '12px' }}>
+                {highlights.map(item => {
+                  const diff = item.rate - item.prevRate;
+                  const isUp = diff > 0.0001;
+                  const isDown = diff < -0.0001;
+                  const pct = item.prevRate > 0 ? (Math.abs(diff) / item.prevRate * 100).toFixed(2) : '0.00';
+
+                  return (
+                    <div 
+                      key={`pdf-high-${item.id}`}
+                      style={{ 
+                        backgroundColor: '#f8fafc',
+                        border: '1px solid #cbd5e1',
+                        borderTop: `3px solid ${item.accentColor}`,
+                        borderRadius: '8px',
+                        padding: '10px 14px'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <PdfFlagIcon flagCode={item.flagCode} size={18} />
+                          <span style={{ fontSize: '11px', fontWeight: '800', color: '#1e293b' }}>{item.title}</span>
+                        </div>
+                        <span style={{ fontSize: '9px', color: '#64748b', fontWeight: '700' }}>{item.market}</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', marginBottom: '6px' }}>
+                        <span style={{ fontSize: '22px', fontWeight: '900', color: '#0f172a', fontFamily: 'monospace' }}>
+                          {item.rate.toFixed(item.id.startsWith('OFF_') ? 3 : 2)}
+                        </span>
+                        <span style={{ fontSize: '11px', fontWeight: '800', color: '#475569' }}>د.ل</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #e2e8f0', paddingTop: '4px', fontSize: '10px' }}>
+                        <span style={{ color: '#64748b' }}>السابق: {item.prevRate.toFixed(item.id.startsWith('OFF_') ? 3 : 2)}</span>
+                        <span style={{ fontWeight: '800', color: !isUp && !isDown ? '#64748b' : isUp ? '#dc2626' : '#16a34a', direction: 'ltr' }}>
+                          {!isUp && !isDown ? '▬ مستقر' : isUp ? `▲ +${Math.abs(diff).toFixed(2)} (+${pct}%)` : `▼ -${Math.abs(diff).toFixed(2)} (-${pct}%)`}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Section 1: Parallel Market Currencies (ONLY shown if user selected any!) */}
+        {(() => {
+          const selectedParallel = configTerms.filter(c => c.id !== 'OFFICIAL_USD' && !METAL_IDS.includes(c.id) && selectedCurrencies.includes(c.id) && !staleCurrencies.has(c.id));
+          if (selectedParallel.length === 0) return null;
+
+          return (
+            <div className="pdf-avoid-break" style={{ marginTop: '16px', marginBottom: '22px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ width: '4px', height: '16px', backgroundColor: '#059669', borderRadius: '2px' }}></div>
+                  <h2 style={{ fontSize: '14px', fontWeight: '800', color: '#0f172a', margin: '0' }}>
+                    أسعار العملات في السوق الموازي (الكاش والصكوك)
+                  </h2>
                 </div>
-              ))}
-            </div>
-          </div>
+                <span style={{ fontSize: '10px', color: '#64748b', fontWeight: '700' }}>
+                  متوسط التداول الميداني | {selectedParallel.length} عملة مختارة
+                </span>
+              </div>
 
-          {/* PDF Footer - Copyright & Disclaimer */}
-          <div style={{ marginTop: '60px', paddingTop: '30px', borderTop: '2px solid #e2e8f0', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', marginBottom: '24px' }}>
-              <div style={{ textAlign: 'right' }}>
-                <p style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '800', marginBottom: '4px', textTransform: 'uppercase' }}>المصدر</p>
-                <p style={{ fontSize: '14px', color: '#0f172a', fontWeight: '800', margin: '0' }}>شبكة مراسلي مؤشر الدينار</p>
-              </div>
-              <div style={{ textAlign: 'left' }}>
-                <p style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '800', marginBottom: '4px', textTransform: 'uppercase' }}>الموقع الإلكتروني</p>
-                <p style={{ fontSize: '14px', color: '#0f172a', fontWeight: '800', margin: '0' }}>dinar-index.ly</p>
+              <div style={{ border: '1px solid #cbd5e1', borderRadius: '8px', overflow: 'hidden' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
+                  <thead>
+                    <tr style={{ backgroundColor: '#f1f5f9', borderBottom: '1.5px solid #cbd5e1', color: '#334155' }}>
+                      <th style={{ textAlign: 'right', padding: '8px 12px', fontWeight: '800' }}>العملة / وسيلة التداول</th>
+                      <th style={{ textAlign: 'center', padding: '8px 8px', fontWeight: '800', width: '70px' }}>الرمز</th>
+                      <th style={{ textAlign: 'center', padding: '8px 10px', fontWeight: '800', width: '95px' }}>السعر الحالي</th>
+                      <th style={{ textAlign: 'center', padding: '8px 10px', fontWeight: '800', width: '85px' }}>السعر السابق</th>
+                      <th style={{ textAlign: 'center', padding: '8px 10px', fontWeight: '800', width: '90px' }}>التغير (د.ل)</th>
+                      <th style={{ textAlign: 'center', padding: '8px 8px', fontWeight: '800', width: '80px' }}>نسبة التغير</th>
+                      <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: '800', width: '75px' }}>حالة السعر</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedParallel.map((c, idx) => {
+                      const rate = rates?.parallel[c.id] || 0;
+                      const prev = rates?.previousParallel?.[c.id] || rate;
+                      const diff = rate - prev;
+                      const isUp = diff > 0.0001;
+                      const isDown = diff < -0.0001;
+                      const pct = prev > 0 ? (Math.abs(diff) / prev * 100).toFixed(2) : '0.00';
+                      const isEven = idx % 2 === 0;
+
+                      return (
+                        <tr key={`pdf-par-row-${c.id}`} style={{ backgroundColor: isEven ? '#ffffff' : '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                          <td style={{ padding: '7px 12px', fontWeight: '700', color: '#0f172a' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <PdfFlagIcon flagCode={c.flag} size={18} />
+                              <span>{c.name}</span>
+                            </div>
+                          </td>
+                          <td style={{ textAlign: 'center', padding: '7px 8px', color: '#64748b', fontFamily: 'monospace', fontWeight: '700' }}>
+                            {c.id}
+                          </td>
+                          <td style={{ textAlign: 'center', padding: '7px 10px', fontSize: '13px', fontWeight: '900', color: '#0f172a', fontFamily: 'monospace' }}>
+                            {rate > 0 ? `${rate.toFixed(2)} د.ل` : '-'}
+                          </td>
+                          <td style={{ textAlign: 'center', padding: '7px 10px', color: '#64748b', fontWeight: '600', fontFamily: 'monospace' }}>
+                            {prev > 0 ? `${prev.toFixed(2)} د.ل` : '-'}
+                          </td>
+                          <td style={{ textAlign: 'center', padding: '7px 10px', fontWeight: '800', color: !isUp && !isDown ? '#64748b' : isUp ? '#dc2626' : '#16a34a', direction: 'ltr', fontFamily: 'monospace' }}>
+                            {!isUp && !isDown ? '0.00' : isUp ? `+${diff.toFixed(2)}` : `${diff.toFixed(2)}`}
+                          </td>
+                          <td style={{ textAlign: 'center', padding: '7px 8px', fontWeight: '800', color: !isUp && !isDown ? '#64748b' : isUp ? '#dc2626' : '#16a34a', direction: 'ltr' }}>
+                            {!isUp && !isDown ? '0.00%' : isUp ? `+${pct}%` : `-${pct}%`}
+                          </td>
+                          <td style={{ textAlign: 'left', padding: '7px 12px', fontWeight: '700', fontSize: '10px', color: !isUp && !isDown ? '#64748b' : isUp ? '#dc2626' : '#16a34a' }}>
+                            {!isUp && !isDown ? 'مستقر' : isUp ? 'ارتفاع ▲' : 'انخفاض ▼'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             </div>
-            
-            <div style={{ backgroundColor: '#f1f5f9', padding: '16px 24px', borderRadius: '12px', width: '100%', textAlign: 'center', marginBottom: '24px' }}>
-              <p style={{ fontSize: '12px', color: '#64748b', lineHeight: '1.6', margin: '0', fontWeight: '600' }}>
-                هذا التقرير استرشادي فقط ويعبر عن متوسط أسعار السوق اللحظية وقت الإصدار. لا يتحمل التطبيق أي مسؤولية عن القرارات المالية المتخذة بناءً على هذه البيانات.
+          );
+        })()}
+
+        {/* Section 2: Gold & Precious Metals (ONLY shown if user selected any!) */}
+        {(() => {
+          const selectedMetals = configTerms.filter(c => METAL_IDS.includes(c.id) && selectedCurrencies.includes(c.id) && !staleCurrencies.has(c.id));
+          if (selectedMetals.length === 0) return null;
+
+          return (
+            <div className="pdf-avoid-break" style={{ marginTop: '16px', marginBottom: '22px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyBetween: 'space-between', marginBottom: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ width: '4px', height: '16px', backgroundColor: '#d97706', borderRadius: '2px' }}></div>
+                  <h2 style={{ fontSize: '14px', fontWeight: '800', color: '#0f172a', margin: '0' }}>
+                    أسعار الذهب والمعادن الثمينة (سوق الصاغة الليبي)
+                  </h2>
+                </div>
+                <span style={{ fontSize: '10px', color: '#64748b', fontWeight: '700', marginRight: 'auto' }}>
+                  متوسط أسعار الصاغة | {selectedMetals.length} صنف مختار
+                </span>
+              </div>
+
+              <div style={{ border: '1px solid #cbd5e1', borderRadius: '8px', overflow: 'hidden' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
+                  <thead>
+                    <tr style={{ backgroundColor: '#f1f5f9', borderBottom: '1.5px solid #cbd5e1', color: '#334155' }}>
+                      <th style={{ textAlign: 'right', padding: '8px 12px', fontWeight: '800' }}>الصنف / العيار</th>
+                      <th style={{ textAlign: 'center', padding: '8px 8px', fontWeight: '800', width: '80px' }}>الوحدة</th>
+                      <th style={{ textAlign: 'center', padding: '8px 10px', fontWeight: '800', width: '95px' }}>السعر الحالي</th>
+                      <th style={{ textAlign: 'center', padding: '8px 10px', fontWeight: '800', width: '85px' }}>السعر السابق</th>
+                      <th style={{ textAlign: 'center', padding: '8px 10px', fontWeight: '800', width: '90px' }}>مقدار التغير</th>
+                      <th style={{ textAlign: 'center', padding: '8px 8px', fontWeight: '800', width: '80px' }}>نسبة التغير</th>
+                      <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: '800', width: '75px' }}>الاتجاه</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedMetals.map((c, idx) => {
+                      const rate = rates?.parallel[c.id] || 0;
+                      const prev = rates?.previousParallel?.[c.id] || rate;
+                      const diff = rate - prev;
+                      const isUp = diff > 0.0001;
+                      const isDown = diff < -0.0001;
+                      const pct = prev > 0 ? (Math.abs(diff) / prev * 100).toFixed(2) : '0.00';
+                      const isEven = idx % 2 === 0;
+                      const unit = c.id.includes('LIRA') || c.id.includes('MUJARA') ? 'قطعة' : 'جرام';
+
+                      return (
+                        <tr key={`pdf-metal-row-${c.id}`} style={{ backgroundColor: isEven ? '#ffffff' : '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                          <td style={{ padding: '7px 12px', fontWeight: '700', color: '#0f172a' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <PdfFlagIcon flagCode={c.flag} size={18} />
+                              <span>{c.name}</span>
+                            </div>
+                          </td>
+                          <td style={{ textAlign: 'center', padding: '7px 8px', color: '#64748b', fontWeight: '700' }}>
+                            {unit}
+                          </td>
+                          <td style={{ textAlign: 'center', padding: '7px 10px', fontSize: '13px', fontWeight: '900', color: '#0f172a', fontFamily: 'monospace' }}>
+                            {rate > 0 ? `${rate.toFixed(2)} د.ل` : '-'}
+                          </td>
+                          <td style={{ textAlign: 'center', padding: '7px 10px', color: '#64748b', fontWeight: '600', fontFamily: 'monospace' }}>
+                            {prev > 0 ? `${prev.toFixed(2)} د.ل` : '-'}
+                          </td>
+                          <td style={{ textAlign: 'center', padding: '7px 10px', fontWeight: '800', color: !isUp && !isDown ? '#64748b' : isUp ? '#dc2626' : '#16a34a', direction: 'ltr', fontFamily: 'monospace' }}>
+                            {!isUp && !isDown ? '0.00' : isUp ? `+${diff.toFixed(2)}` : `${diff.toFixed(2)}`}
+                          </td>
+                          <td style={{ textAlign: 'center', padding: '7px 8px', fontWeight: '800', color: !isUp && !isDown ? '#64748b' : isUp ? '#dc2626' : '#16a34a', direction: 'ltr' }}>
+                            {!isUp && !isDown ? '0.00%' : isUp ? `+${pct}%` : `-${pct}%`}
+                          </td>
+                          <td style={{ textAlign: 'left', padding: '7px 12px', fontWeight: '700', fontSize: '10px', color: !isUp && !isDown ? '#64748b' : isUp ? '#dc2626' : '#16a34a' }}>
+                            {!isUp && !isDown ? 'مستقر' : isUp ? 'صعود ▲' : 'هبوط ▼'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Section 3: Official Central Bank Rates (ONLY shown if user selected any!) */}
+        {(() => {
+          const selectedOfficial = officialCurrencyList.filter(c => selectedOfficialCurrencies.includes(c.code));
+          if (selectedOfficial.length === 0) return null;
+
+          return (
+            <div className="pdf-avoid-break" style={{ marginTop: '16px', marginBottom: '22px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ width: '4px', height: '16px', backgroundColor: '#2563eb', borderRadius: '2px' }}></div>
+                  <h2 style={{ fontSize: '14px', fontWeight: '800', color: '#0f172a', margin: '0' }}>
+                    أسعار الصرف الرسمية - مصرف ليبيا المركزي
+                  </h2>
+                </div>
+                <span style={{ fontSize: '10px', color: '#64748b', fontWeight: '700' }}>
+                  النشرة الرسمية المعتمدة | {selectedOfficial.length} عملة مختارة
+                </span>
+              </div>
+
+              <div style={{ border: '1px solid #cbd5e1', borderRadius: '8px', overflow: 'hidden' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
+                  <thead>
+                    <tr style={{ backgroundColor: '#f1f5f9', borderBottom: '1.5px solid #cbd5e1', color: '#334155' }}>
+                      <th style={{ textAlign: 'right', padding: '8px 12px', fontWeight: '800' }}>العملة الرسمية</th>
+                      <th style={{ textAlign: 'center', padding: '8px 8px', fontWeight: '800', width: '70px' }}>رمز ISO</th>
+                      <th style={{ textAlign: 'center', padding: '8px 10px', fontWeight: '800', width: '95px' }}>السعر الرسمي</th>
+                      <th style={{ textAlign: 'center', padding: '8px 10px', fontWeight: '800', width: '85px' }}>السعر السابق</th>
+                      <th style={{ textAlign: 'center', padding: '8px 10px', fontWeight: '800', width: '90px' }}>التغير الرسمي</th>
+                      <th style={{ textAlign: 'center', padding: '8px 8px', fontWeight: '800', width: '80px' }}>نسبة التغير</th>
+                      <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: '800', width: '85px' }}>الجهة المصدرة</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedOfficial.map((c, idx) => {
+                      const rate = rates?.official[c.code] || 0;
+                      const prev = rates?.previousOfficial?.[c.code] || rate;
+                      const diff = rate - prev;
+                      const isUp = diff > 0.0001;
+                      const isDown = diff < -0.0001;
+                      const pct = prev > 0 ? (Math.abs(diff) / prev * 100).toFixed(2) : '0.00';
+                      const isEven = idx % 2 === 0;
+
+                      return (
+                        <tr key={`pdf-off-row-${c.code}`} style={{ backgroundColor: isEven ? '#ffffff' : '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                          <td style={{ padding: '7px 12px', fontWeight: '700', color: '#0f172a' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <PdfFlagIcon flagCode={c.flag} size={18} />
+                              <span>{c.name}</span>
+                            </div>
+                          </td>
+                          <td style={{ textAlign: 'center', padding: '7px 8px', color: '#2563eb', fontFamily: 'monospace', fontWeight: '800' }}>
+                            {c.code}
+                          </td>
+                          <td style={{ textAlign: 'center', padding: '7px 10px', fontSize: '13px', fontWeight: '900', color: '#0f172a', fontFamily: 'monospace' }}>
+                            {rate > 0 ? `${rate.toFixed(3)} د.ل` : '-'}
+                          </td>
+                          <td style={{ textAlign: 'center', padding: '7px 10px', color: '#64748b', fontWeight: '600', fontFamily: 'monospace' }}>
+                            {prev > 0 ? `${prev.toFixed(3)} د.ل` : '-'}
+                          </td>
+                          <td style={{ textAlign: 'center', padding: '7px 10px', fontWeight: '800', color: !isUp && !isDown ? '#64748b' : isUp ? '#dc2626' : '#16a34a', direction: 'ltr', fontFamily: 'monospace' }}>
+                            {!isUp && !isDown ? '0.000' : isUp ? `+${diff.toFixed(3)}` : `${diff.toFixed(3)}`}
+                          </td>
+                          <td style={{ textAlign: 'center', padding: '7px 8px', fontWeight: '800', color: !isUp && !isDown ? '#64748b' : isUp ? '#dc2626' : '#16a34a', direction: 'ltr' }}>
+                            {!isUp && !isDown ? '0.00%' : isUp ? `+${pct}%` : `-${pct}%`}
+                          </td>
+                          <td style={{ textAlign: 'left', padding: '7px 12px', fontWeight: '700', fontSize: '9px', color: '#475569' }}>
+                            مصرف ليبيا المركزي
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Authentic Institutional Certification & Footer */}
+        <div className="pdf-avoid-break" style={{ marginTop: '28px', paddingTop: '16px', borderTop: '2px solid #e2e8f0' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '20px', marginBottom: '16px' }}>
+            {/* Right: Methodology and Disclaimer */}
+            <div style={{ flex: 1 }}>
+              <p style={{ fontSize: '10px', fontWeight: '800', color: '#0f172a', margin: '0 0 4px' }}>
+                منهجية الرصد الميداني ومصادر البيانات:
+              </p>
+              <p style={{ fontSize: '9px', color: '#64748b', lineHeight: '1.6', margin: '0 0 6px' }}>
+                تم إعداد هذه النشرة وفق الرصد المباشر لتداولات أسواق الصرف والذهب في المدن الليبية (طرابلس، بنغازي، مصراتة)، إضافة إلى النشرات الصادرة عن مصرف ليبيا المركزي.
+              </p>
+              <p style={{ fontSize: '9px', color: '#94a3b8', lineHeight: '1.5', margin: '0' }}>
+                تنويه: هذه النشرة وثيقة إحصائية واسترشادية لتوثيق حركة الأسعار اللحظية. تخضع أسعار التداول للتغير المستمر وفق آليات العرض والطلب.
               </p>
             </div>
 
-            {/* GreenBox Copyright */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', opacity: 0.8 }}>
-              <div style={{ width: '24px', height: '24px', borderRadius: '6px', backgroundColor: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
-                <Building2 size={14} />
-              </div>
-              <span style={{ fontSize: '14px', fontWeight: '900', color: '#0f172a', letterSpacing: '0.5px' }}>GreenBox © 2026</span>
+            {/* Left: Official Digital Seal / Institutional Stamp */}
+            <div style={{ border: '2px solid #059669', borderRadius: '8px', padding: '8px 16px', backgroundColor: '#f0fdf4', textAlign: 'center', minWidth: '180px', flexShrink: 0 }}>
+              <p style={{ fontSize: '10px', fontWeight: '900', color: '#065f46', margin: '0 0 2px' }}>
+                ★ شبكة مؤشر الدينار ★
+              </p>
+              <p style={{ fontSize: '9px', fontWeight: '800', color: '#047857', margin: '0 0 2px' }}>
+                إدارة الرصد والتوثيق المالي
+              </p>
+              <p style={{ fontSize: '8px', fontWeight: '700', color: '#059669', margin: '0 0 4px' }}>
+                معتمد للنشر والطباعة الرسمية
+              </p>
+              <p style={{ fontSize: '8px', color: '#065f46', fontFamily: 'monospace', fontWeight: '800', margin: '0', borderTop: '1px dashed #6ee7b7', paddingTop: '2px' }}>
+                REF: DI-AUT-{format(new Date(), "yyyyMMdd")}
+              </p>
             </div>
+          </div>
+
+          {/* Legal / Copyright Bar */}
+          <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '9px', color: '#64748b' }}>
+            <span>الموقع الرسمي: dinar-index.ly</span>
+            <span style={{ fontWeight: '700' }}>جميع الحقوق محفوظة © شبكة مؤشر الدينار 2026</span>
+            <span>نظام النشر المالي اللحظي v2.4</span>
           </div>
         </div>
       </div>
